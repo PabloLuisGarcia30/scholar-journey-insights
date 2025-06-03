@@ -23,8 +23,8 @@ interface AddStudentsDialogProps {
   enrolledStudentIds: string[];
 }
 
-// Mock students data - in a real app this would come from a database
-const mockStudents = Array.from({ length: 20 }, (_, i) => ({
+// Use the same student database as StudentSearch
+const mockStudents = Array.from({ length: 50 }, (_, i) => ({
   id: String(i + 1),
   name: `Student ${i + 1}`,
   email: `student${i + 1}@university.edu`,
@@ -123,6 +123,7 @@ export function AddStudentsDialog({ classId, className, onAddStudents, enrolledS
                       <div>
                         <p className="font-medium text-gray-900">{student.name}</p>
                         <p className="text-sm text-gray-600">{student.email}</p>
+                        <p className="text-xs text-gray-500 mt-1">{student.major}</p>
                       </div>
                       <div className="flex items-center gap-2">
                         <Badge variant="outline">{student.year}</Badge>
