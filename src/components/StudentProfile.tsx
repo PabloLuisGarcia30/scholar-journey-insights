@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
-import { ArrowLeft, BookOpen, Calendar, ChartBar, TrendingUp, TrendingDown } from "lucide-react";
+import { ArrowLeft, BookOpen, Calendar, ChartBar, TrendingUp, TrendingDown, Target } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
 
 interface StudentProfileProps {
@@ -47,6 +47,32 @@ const mockClassData = {
       { topic: 'Fractions', strength: 78, trend: 'down' },
       { topic: 'Word Problems', strength: 88, trend: 'up' },
     ],
+    subjectSpecificStrengths: {
+      'Algebra': [
+        { skill: 'Linear Equations', mastery: 95, assessments: 8 },
+        { skill: 'Quadratic Functions', mastery: 88, assessments: 6 },
+        { skill: 'Graphing', mastery: 92, assessments: 7 },
+        { skill: 'Systems of Equations', mastery: 85, assessments: 5 },
+      ],
+      'Geometry': [
+        { skill: 'Area & Perimeter', mastery: 90, assessments: 6 },
+        { skill: 'Angles & Triangles', mastery: 82, assessments: 7 },
+        { skill: 'Volume & Surface Area', mastery: 78, assessments: 5 },
+        { skill: 'Coordinate Geometry', mastery: 88, assessments: 4 },
+      ],
+      'Fractions': [
+        { skill: 'Basic Operations', mastery: 85, assessments: 8 },
+        { skill: 'Mixed Numbers', mastery: 75, assessments: 6 },
+        { skill: 'Decimal Conversion', mastery: 70, assessments: 5 },
+        { skill: 'Comparing Fractions', mastery: 82, assessments: 7 },
+      ],
+      'Word Problems': [
+        { skill: 'Multi-step Problems', mastery: 90, assessments: 6 },
+        { skill: 'Real-world Applications', mastery: 88, assessments: 8 },
+        { skill: 'Pattern Recognition', mastery: 85, assessments: 5 },
+        { skill: 'Problem Strategy', mastery: 92, assessments: 7 },
+      ],
+    },
     attendanceRate: 95,
     participationScore: 8.5,
   }
@@ -80,6 +106,13 @@ export function StudentProfile({ studentId, classId, className, onBack }: Studen
     if (numGrade >= 90) return 'bg-green-100 text-green-700';
     if (numGrade >= 80) return 'bg-blue-100 text-blue-700';
     if (numGrade >= 70) return 'bg-yellow-100 text-yellow-700';
+    return 'bg-red-100 text-red-700';
+  };
+
+  const getMasteryColor = (mastery: number) => {
+    if (mastery >= 90) return 'bg-green-100 text-green-700';
+    if (mastery >= 80) return 'bg-blue-100 text-blue-700';
+    if (mastery >= 70) return 'bg-yellow-100 text-yellow-700';
     return 'bg-red-100 text-red-700';
   };
 
@@ -224,6 +257,7 @@ export function StudentProfile({ studentId, classId, className, onBack }: Studen
             <>
               <TabsTrigger value="assignments">Assignments</TabsTrigger>
               <TabsTrigger value="strengths">Subject Strengths</TabsTrigger>
+              <TabsTrigger value="specific-strengths">Subject Specific Strengths</TabsTrigger>
               <TabsTrigger value="progress">Progress Trend</TabsTrigger>
             </>
           ) : (
@@ -284,6 +318,43 @@ export function StudentProfile({ studentId, classId, className, onBack }: Studen
                         <div className="text-right">
                           <div className="text-2xl font-bold text-gray-900">{strength.strength}%</div>
                           <div className="text-sm text-gray-600 capitalize">{strength.trend}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="specific-strengths">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Subject Specific Skill Mastery</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-6">
+                    {Object.entries(classData.subjectSpecificStrengths).map(([subject, skills]) => (
+                      <div key={subject} className="border rounded-lg p-4">
+                        <div className="flex items-center gap-2 mb-4">
+                          <Target className="h-5 w-5 text-blue-600" />
+                          <h3 className="text-lg font-semibold text-gray-900">{subject}</h3>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          {skills.map((skill, index) => (
+                            <div key={index} className="bg-gray-50 rounded-lg p-3">
+                              <div className="flex items-center justify-between mb-2">
+                                <h4 className="font-medium text-gray-900">{skill.skill}</h4>
+                                <Badge className={getMasteryColor(skill.mastery)}>
+                                  {skill.mastery}%
+                                </Badge>
+                              </div>
+                              <div className="flex items-center justify-between text-sm text-gray-600 mb-2">
+                                <span>Mastery Level</span>
+                                <span>{skill.assessments} assessments</span>
+                              </div>
+                              <Progress value={skill.mastery} className="h-2" />
+                            </div>
+                          ))}
                         </div>
                       </div>
                     ))}
