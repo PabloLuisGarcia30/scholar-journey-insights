@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Users, BookOpen, TrendingUp } from "lucide-react";
 import { CreateClassDialog } from "@/components/CreateClassDialog";
+import { AddStudentsDialog } from "@/components/AddStudentsDialog";
 
 interface ClassViewProps {
   onSelectStudent: (studentId: string) => void;
@@ -83,6 +84,30 @@ export function ClassView({ onSelectStudent }: ClassViewProps) {
     setClasses([...classes, newClass]);
   };
 
+  const handleAddStudents = (classId: string, studentIds: string[]) => {
+    setClasses(prevClasses => 
+      prevClasses.map(cls => {
+        if (cls.id === classId) {
+          const updatedStudents = [...cls.students, ...studentIds];
+          const studentGpas = mockStudents
+            .filter(s => updatedStudents.includes(s.id))
+            .map(s => s.gpa);
+          const avgGpa = studentGpas.length > 0 
+            ? Number((studentGpas.reduce((sum, gpa) => sum + gpa, 0) / studentGpas.length).toFixed(1))
+            : 0;
+
+          return {
+            ...cls,
+            students: updatedStudents,
+            studentCount: updatedStudents.length,
+            avgGpa
+          };
+        }
+        return cls;
+      })
+    );
+  };
+
   const filteredClasses = classes.filter(cls => {
     const matchesSearch = cls.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          cls.teacher.toLowerCase().includes(searchTerm.toLowerCase());
@@ -96,6 +121,10 @@ export function ClassView({ onSelectStudent }: ClassViewProps) {
     const classData = classes.find(cls => cls.id === selectedClass);
     if (!classData) return null;
 
+    const enrolledStudents = mockStudents.filter(student => 
+      classData.students.includes(student.id)
+    );
+
     return (
       <div className="p-6">
         <div className="mb-6">
@@ -107,9 +136,17 @@ export function ClassView({ onSelectStudent }: ClassViewProps) {
               <h1 className="text-3xl font-bold text-gray-900">{classData.name}</h1>
               <p className="text-gray-600 mt-1">Teacher: {classData.teacher}</p>
             </div>
-            <div className="text-right">
-              <div className="text-2xl font-bold text-gray-900">{classData.avgGpa}</div>
-              <div className="text-sm text-gray-600">Class Average GPA</div>
+            <div className="flex items-center gap-4">
+              <AddStudentsDialog
+                classId={classData.id}
+                className={classData.name}
+                onAddStudents={(studentIds) => handleAddStudents(classData.id, studentIds)}
+                enrolledStudentIds={classData.students}
+              />
+              <div className="text-right">
+                <div className="text-2xl font-bold text-gray-900">{classData.avgGpa}</div>
+                <div className="text-sm text-gray-600">Class Average GPA</div>
+              </div>
             </div>
           </div>
         </div>
@@ -147,11 +184,17 @@ export function ClassView({ onSelectStudent }: ClassViewProps) {
               <div className="text-center py-8">
                 <Users className="h-12 w-12 text-gray-400 mx-auto mb-4" />
                 <h3 className="text-lg font-medium text-gray-900 mb-2">No students enrolled</h3>
-                <p className="text-gray-600">Students will appear here once they are added to this class.</p>
+                <p className="text-gray-600 mb-4">Students will appear here once they are added to this class.</p>
+                <AddStudentsDialog
+                  classId={classData.id}
+                  className={classData.name}
+                  onAddStudents={(studentIds) => handleAddStudents(classData.id, studentIds)}
+                  enrolledStudentIds={classData.students}
+                />
               </div>
             ) : (
               <div className="space-y-3">
-                {mockStudents.map((student) => (
+                {enrolledStudents.map((student) => (
                   <div 
                     key={student.id}
                     className="flex items-center justify-between p-3 rounded-lg border hover:bg-gray-50 cursor-pointer"
