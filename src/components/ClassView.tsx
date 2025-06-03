@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -11,7 +10,7 @@ import { CreateClassDialog } from "@/components/CreateClassDialog";
 import { AddStudentsDialog } from "@/components/AddStudentsDialog";
 
 interface ClassViewProps {
-  onSelectStudent: (studentId: string) => void;
+  onSelectStudent: (studentId: string, classId?: string, className?: string) => void;
 }
 
 // Mock class data - in a real app this would come from a database
@@ -198,7 +197,7 @@ export function ClassView({ onSelectStudent }: ClassViewProps) {
                   <div 
                     key={student.id}
                     className="flex items-center justify-between p-3 rounded-lg border hover:bg-gray-50 cursor-pointer"
-                    onClick={() => onSelectStudent(student.id)}
+                    onClick={() => onSelectStudent(student.id, classData.id, classData.name)}
                   >
                     <div className="flex items-center gap-3">
                       <Avatar className="h-8 w-8">

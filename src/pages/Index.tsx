@@ -9,22 +9,44 @@ import { SidebarProvider } from "@/components/ui/sidebar";
 
 const Index = () => {
   const [selectedStudent, setSelectedStudent] = useState<string | null>(null);
+  const [selectedClass, setSelectedClass] = useState<{ id: string; name: string } | null>(null);
   const [activeView, setActiveView] = useState<'dashboard' | 'search' | 'classes' | 'analytics'>('dashboard');
+
+  const handleSelectStudent = (studentId: string, classId?: string, className?: string) => {
+    setSelectedStudent(studentId);
+    if (classId && className) {
+      setSelectedClass({ id: classId, name: className });
+    } else {
+      setSelectedClass(null);
+    }
+  };
+
+  const handleBack = () => {
+    setSelectedStudent(null);
+    setSelectedClass(null);
+  };
 
   const renderContent = () => {
     if (selectedStudent) {
-      return <StudentProfile studentId={selectedStudent} onBack={() => setSelectedStudent(null)} />;
+      return (
+        <StudentProfile 
+          studentId={selectedStudent} 
+          classId={selectedClass?.id}
+          className={selectedClass?.name}
+          onBack={handleBack} 
+        />
+      );
     }
 
     switch (activeView) {
       case 'search':
-        return <StudentSearch onSelectStudent={setSelectedStudent} />;
+        return <StudentSearch onSelectStudent={handleSelectStudent} />;
       case 'classes':
-        return <ClassView onSelectStudent={setSelectedStudent} />;
+        return <ClassView onSelectStudent={handleSelectStudent} />;
       case 'analytics':
         return <div className="p-6"><h2 className="text-2xl font-bold">Analytics Dashboard</h2><p className="text-gray-600 mt-2">Coming soon...</p></div>;
       default:
-        return <StudentDashboard onSelectStudent={setSelectedStudent} />;
+        return <StudentDashboard onSelectStudent={handleSelectStudent} />;
     }
   };
 
