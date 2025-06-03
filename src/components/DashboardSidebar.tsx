@@ -1,5 +1,5 @@
 
-import { BookOpen, ChartBar, GraduationCap, Calendar } from "lucide-react";
+import { BookOpen, ChartBar, GraduationCap, Calendar, Users } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -14,13 +14,14 @@ import {
 } from "@/components/ui/sidebar";
 
 interface DashboardSidebarProps {
-  activeView: 'dashboard' | 'search' | 'analytics';
-  onViewChange: (view: 'dashboard' | 'search' | 'analytics') => void;
+  activeView: 'dashboard' | 'search' | 'classes' | 'analytics';
+  onViewChange: (view: 'dashboard' | 'search' | 'classes' | 'analytics') => void;
 }
 
 const navigationItems = [
   { id: 'dashboard', title: 'Dashboard', icon: ChartBar },
   { id: 'search', title: 'Students', icon: GraduationCap },
+  { id: 'classes', title: 'Classes', icon: Users },
   { id: 'analytics', title: 'Analytics', icon: BookOpen },
 ];
 

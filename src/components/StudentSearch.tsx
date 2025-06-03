@@ -4,13 +4,14 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { GraduationCap } from "lucide-react";
 
 interface StudentSearchProps {
   onSelectStudent: (studentId: string) => void;
 }
 
-// Mock data for demonstration
+// Mock data for demonstration with class assignments
 const mockStudents = Array.from({ length: 50 }, (_, i) => ({
   id: String(i + 1),
   name: `Student ${i + 1}`,
@@ -18,20 +19,38 @@ const mockStudents = Array.from({ length: 50 }, (_, i) => ({
   gpa: Number((Math.random() * 2 + 2).toFixed(2)),
   year: ['Freshman', 'Sophomore', 'Junior', 'Senior'][Math.floor(Math.random() * 4)],
   major: ['Computer Science', 'Mathematics', 'Physics', 'Biology', 'Chemistry'][Math.floor(Math.random() * 5)],
-  status: Math.random() > 0.8 ? 'At Risk' : Math.random() > 0.3 ? 'Good Standing' : 'Excellent'
+  status: Math.random() > 0.8 ? 'At Risk' : Math.random() > 0.3 ? 'Good Standing' : 'Excellent',
+  class: ['Math Grade 6', 'Science Grade 7', 'English Grade 8', 'History Grade 9'][Math.floor(Math.random() * 4)]
 }));
+
+const classes = [...new Set(mockStudents.map(student => student.class))];
 
 export function StudentSearch({ onSelectStudent }: StudentSearchProps) {
   const [searchTerm, setSearchTerm] = useState("");
+  const [filterClass, setFilterClass] = useState<string>('all');
   const [filteredStudents, setFilteredStudents] = useState(mockStudents);
 
   const handleSearch = (term: string) => {
     setSearchTerm(term);
-    const filtered = mockStudents.filter(student =>
+    applyFilters(term, filterClass);
+  };
+
+  const handleClassFilter = (classFilter: string) => {
+    setFilterClass(classFilter);
+    applyFilters(searchTerm, classFilter);
+  };
+
+  const applyFilters = (term: string, classFilter: string) => {
+    let filtered = mockStudents.filter(student =>
       student.name.toLowerCase().includes(term.toLowerCase()) ||
       student.email.toLowerCase().includes(term.toLowerCase()) ||
       student.major.toLowerCase().includes(term.toLowerCase())
     );
+
+    if (classFilter !== 'all') {
+      filtered = filtered.filter(student => student.class === classFilter);
+    }
+
     setFilteredStudents(filtered);
   };
 
@@ -52,13 +71,26 @@ export function StudentSearch({ onSelectStudent }: StudentSearchProps) {
       </div>
 
       <div className="mb-6">
-        <Input
-          type="text"
-          placeholder="Search by name, email, or major..."
-          value={searchTerm}
-          onChange={(e) => handleSearch(e.target.value)}
-          className="max-w-md"
-        />
+        <div className="flex gap-4 mb-4">
+          <Input
+            type="text"
+            placeholder="Search by name, email, or major..."
+            value={searchTerm}
+            onChange={(e) => handleSearch(e.target.value)}
+            className="max-w-md"
+          />
+          <Select value={filterClass} onValueChange={handleClassFilter}>
+            <SelectTrigger className="w-48">
+              <SelectValue placeholder="Filter by class" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Classes</SelectItem>
+              {classes.map((className) => (
+                <SelectItem key={className} value={className}>{className}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
         <p className="text-sm text-gray-500 mt-2">
           Showing {filteredStudents.length} of {mockStudents.length} students
         </p>
@@ -88,6 +120,7 @@ export function StudentSearch({ onSelectStudent }: StudentSearchProps) {
                     </Badge>
                   </div>
                   <div className="mt-2">
+                    <p className="text-xs text-blue-600 font-medium">{student.class}</p>
                     <p className="text-sm text-gray-600">{student.major}</p>
                     <p className="text-sm font-medium text-gray-900">GPA: {student.gpa}</p>
                   </div>

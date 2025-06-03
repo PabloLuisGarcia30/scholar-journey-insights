@@ -3,12 +3,13 @@ import { useState } from "react";
 import { StudentDashboard } from "@/components/StudentDashboard";
 import { StudentSearch } from "@/components/StudentSearch";
 import { StudentProfile } from "@/components/StudentProfile";
+import { ClassView } from "@/components/ClassView";
 import { DashboardSidebar } from "@/components/DashboardSidebar";
 import { SidebarProvider } from "@/components/ui/sidebar";
 
 const Index = () => {
   const [selectedStudent, setSelectedStudent] = useState<string | null>(null);
-  const [activeView, setActiveView] = useState<'dashboard' | 'search' | 'analytics'>('dashboard');
+  const [activeView, setActiveView] = useState<'dashboard' | 'search' | 'classes' | 'analytics'>('dashboard');
 
   const renderContent = () => {
     if (selectedStudent) {
@@ -18,6 +19,8 @@ const Index = () => {
     switch (activeView) {
       case 'search':
         return <StudentSearch onSelectStudent={setSelectedStudent} />;
+      case 'classes':
+        return <ClassView onSelectStudent={setSelectedStudent} />;
       case 'analytics':
         return <div className="p-6"><h2 className="text-2xl font-bold">Analytics Dashboard</h2><p className="text-gray-600 mt-2">Coming soon...</p></div>;
       default:
