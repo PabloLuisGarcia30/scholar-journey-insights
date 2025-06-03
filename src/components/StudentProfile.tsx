@@ -49,28 +49,28 @@ const mockClassData = {
     ],
     subjectSpecificStrengths: {
       'Algebra': [
-        { skill: 'Linear Equations', mastery: 95, assessments: 8 },
-        { skill: 'Quadratic Functions', mastery: 88, assessments: 6 },
-        { skill: 'Graphing', mastery: 92, assessments: 7 },
-        { skill: 'Systems of Equations', mastery: 85, assessments: 5 },
+        { skill: 'Formula Knowledge', mastery: 95, assessments: 8 },
+        { skill: 'Variable Manipulation', mastery: 88, assessments: 6 },
+        { skill: 'Equation Solving', mastery: 92, assessments: 7 },
+        { skill: 'Pattern Recognition', mastery: 85, assessments: 5 },
       ],
       'Geometry': [
-        { skill: 'Area & Perimeter', mastery: 90, assessments: 6 },
-        { skill: 'Angles & Triangles', mastery: 82, assessments: 7 },
-        { skill: 'Volume & Surface Area', mastery: 78, assessments: 5 },
-        { skill: 'Coordinate Geometry', mastery: 88, assessments: 4 },
+        { skill: 'Shape Recognition', mastery: 90, assessments: 6 },
+        { skill: 'Spatial Reasoning', mastery: 82, assessments: 7 },
+        { skill: 'Measurement Skills', mastery: 78, assessments: 5 },
+        { skill: 'Proof Writing', mastery: 88, assessments: 4 },
       ],
       'Fractions': [
-        { skill: 'Basic Operations', mastery: 85, assessments: 8 },
-        { skill: 'Mixed Numbers', mastery: 75, assessments: 6 },
-        { skill: 'Decimal Conversion', mastery: 70, assessments: 5 },
-        { skill: 'Comparing Fractions', mastery: 82, assessments: 7 },
+        { skill: 'Number Sense', mastery: 85, assessments: 8 },
+        { skill: 'Decimal Conversion', mastery: 75, assessments: 6 },
+        { skill: 'Fraction Operations', mastery: 70, assessments: 5 },
+        { skill: 'Equivalent Fractions', mastery: 82, assessments: 7 },
       ],
       'Word Problems': [
-        { skill: 'Multi-step Problems', mastery: 90, assessments: 6 },
-        { skill: 'Real-world Applications', mastery: 88, assessments: 8 },
-        { skill: 'Pattern Recognition', mastery: 85, assessments: 5 },
-        { skill: 'Problem Strategy', mastery: 92, assessments: 7 },
+        { skill: 'Reading Comprehension', mastery: 90, assessments: 6 },
+        { skill: 'Problem Strategy', mastery: 88, assessments: 8 },
+        { skill: 'Mathematical Reasoning', mastery: 85, assessments: 5 },
+        { skill: 'Solution Verification', mastery: 92, assessments: 7 },
       ],
     },
     attendanceRate: 95,
@@ -214,7 +214,6 @@ export function StudentProfile({ studentId, classId, className, onBack }: Studen
           </Card>
         </div>
       ) : (
-        // ... keep existing code (original quick stats for general profile)
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
           <Card>
             <CardContent className="p-4 text-center">
@@ -391,7 +390,6 @@ export function StudentProfile({ studentId, classId, className, onBack }: Studen
             </TabsContent>
           </>
         ) : (
-          // ... keep existing code (original tabs for general profile)
           <>
             <TabsContent value="grades">
               <Card>
