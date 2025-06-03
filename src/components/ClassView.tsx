@@ -6,14 +6,15 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Users, BookOpen, TrendingUp, Plus } from "lucide-react";
+import { Users, BookOpen, TrendingUp } from "lucide-react";
+import { CreateClassDialog } from "@/components/CreateClassDialog";
 
 interface ClassViewProps {
   onSelectStudent: (studentId: string) => void;
 }
 
-// Mock class data
-const mockClasses = [
+// Mock class data - in a real app this would come from a database
+const initialMockClasses = [
   {
     id: '1',
     name: 'Math Grade 6',
@@ -66,21 +67,33 @@ const mockStudents = [
 ];
 
 export function ClassView({ onSelectStudent }: ClassViewProps) {
+  const [classes, setClasses] = useState(initialMockClasses);
   const [selectedClass, setSelectedClass] = useState<string | null>(null);
   const [filterSubject, setFilterSubject] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
 
-  const filteredClasses = mockClasses.filter(cls => {
+  const handleCreateClass = (classData: { name: string; subject: string; grade: string; teacher: string }) => {
+    const newClass = {
+      id: (classes.length + 1).toString(),
+      ...classData,
+      studentCount: 0,
+      avgGpa: 0,
+      students: []
+    };
+    setClasses([...classes, newClass]);
+  };
+
+  const filteredClasses = classes.filter(cls => {
     const matchesSearch = cls.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          cls.teacher.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesSubject = filterSubject === 'all' || cls.subject === filterSubject;
     return matchesSearch && matchesSubject;
   });
 
-  const subjects = [...new Set(mockClasses.map(cls => cls.subject))];
+  const subjects = [...new Set(classes.map(cls => cls.subject))];
 
   if (selectedClass) {
-    const classData = mockClasses.find(cls => cls.id === selectedClass);
+    const classData = classes.find(cls => cls.id === selectedClass);
     if (!classData) return null;
 
     return (
@@ -130,25 +143,33 @@ export function ClassView({ onSelectStudent }: ClassViewProps) {
             <CardTitle>Class Roster</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-3">
-              {mockStudents.map((student) => (
-                <div 
-                  key={student.id}
-                  className="flex items-center justify-between p-3 rounded-lg border hover:bg-gray-50 cursor-pointer"
-                  onClick={() => onSelectStudent(student.id)}
-                >
-                  <div className="flex items-center gap-3">
-                    <Avatar className="h-8 w-8">
-                      <AvatarFallback className="text-xs">
-                        {student.name.split(' ').map(n => n[0]).join('')}
-                      </AvatarFallback>
-                    </Avatar>
-                    <span className="font-medium">{student.name}</span>
+            {classData.studentCount === 0 ? (
+              <div className="text-center py-8">
+                <Users className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-gray-900 mb-2">No students enrolled</h3>
+                <p className="text-gray-600">Students will appear here once they are added to this class.</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {mockStudents.map((student) => (
+                  <div 
+                    key={student.id}
+                    className="flex items-center justify-between p-3 rounded-lg border hover:bg-gray-50 cursor-pointer"
+                    onClick={() => onSelectStudent(student.id)}
+                  >
+                    <div className="flex items-center gap-3">
+                      <Avatar className="h-8 w-8">
+                        <AvatarFallback className="text-xs">
+                          {student.name.split(' ').map(n => n[0]).join('')}
+                        </AvatarFallback>
+                      </Avatar>
+                      <span className="font-medium">{student.name}</span>
+                    </div>
+                    <Badge variant="outline">GPA: {student.gpa}</Badge>
                   </div>
-                  <Badge variant="outline">GPA: {student.gpa}</Badge>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -163,10 +184,7 @@ export function ClassView({ onSelectStudent }: ClassViewProps) {
             <h1 className="text-3xl font-bold text-gray-900">Classes</h1>
             <p className="text-gray-600">Manage student classes and sections</p>
           </div>
-          <Button>
-            <Plus className="h-4 w-4 mr-2" />
-            New Class
-          </Button>
+          <CreateClassDialog onCreateClass={handleCreateClass} />
         </div>
 
         <div className="flex gap-4 mb-4">
@@ -191,7 +209,7 @@ export function ClassView({ onSelectStudent }: ClassViewProps) {
         </div>
 
         <p className="text-sm text-gray-500">
-          Showing {filteredClasses.length} of {mockClasses.length} classes
+          Showing {filteredClasses.length} of {classes.length} classes
         </p>
       </div>
 
@@ -218,7 +236,7 @@ export function ClassView({ onSelectStudent }: ClassViewProps) {
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-600">Avg GPA:</span>
-                  <span className="font-medium">{classItem.avgGpa}</span>
+                  <span className="font-medium">{classItem.avgGpa || 'N/A'}</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-600">Subject:</span>
@@ -234,7 +252,7 @@ export function ClassView({ onSelectStudent }: ClassViewProps) {
         <div className="text-center py-12">
           <BookOpen className="h-12 w-12 text-gray-400 mx-auto mb-4" />
           <h3 className="text-lg font-medium text-gray-900 mb-2">No classes found</h3>
-          <p className="text-gray-600">Try adjusting your search criteria</p>
+          <p className="text-gray-600">Try adjusting your search criteria or create a new class</p>
         </div>
       )}
     </div>

@@ -26,13 +26,14 @@ const navigationItems = [
 ];
 
 export function DashboardSidebar({ activeView, onViewChange }: DashboardSidebarProps) {
-  const { collapsed } = useSidebar();
+  const { state } = useSidebar();
+  const isCollapsed = state === "collapsed";
 
   return (
-    <Sidebar className={collapsed ? "w-14" : "w-60"} collapsible>
+    <Sidebar collapsible="icon">
       <div className="p-4 border-b">
         <SidebarTrigger className="mb-2" />
-        {!collapsed && (
+        {!isCollapsed && (
           <div className="flex items-center gap-2">
             <GraduationCap className="h-6 w-6 text-blue-600" />
             <h1 className="text-lg font-bold text-gray-900">EduTracker</h1>
@@ -52,7 +53,7 @@ export function DashboardSidebar({ activeView, onViewChange }: DashboardSidebarP
                     className={`w-full ${activeView === item.id ? 'bg-blue-100 text-blue-700 font-medium' : 'hover:bg-gray-100'}`}
                   >
                     <item.icon className="mr-2 h-4 w-4" />
-                    {!collapsed && <span>{item.title}</span>}
+                    {!isCollapsed && <span>{item.title}</span>}
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
