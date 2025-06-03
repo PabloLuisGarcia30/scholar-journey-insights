@@ -1,0 +1,86 @@
+
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Progress } from "@/components/ui/progress";
+import { GraduationCap, BookOpen, Calendar, ChartBar } from "lucide-react";
+import { GradeChart } from "@/components/GradeChart";
+import { RecentActivity } from "@/components/RecentActivity";
+import { TopPerformers } from "@/components/TopPerformers";
+
+interface StudentDashboardProps {
+  onSelectStudent: (studentId: string) => void;
+}
+
+export function StudentDashboard({ onSelectStudent }: StudentDashboardProps) {
+  const overviewStats = [
+    { title: "Total Students", value: "1,247", icon: GraduationCap, change: "+12%" },
+    { title: "Average GPA", value: "3.42", icon: BookOpen, change: "+0.15" },
+    { title: "Courses Active", value: "28", icon: Calendar, change: "+3" },
+    { title: "Completion Rate", value: "87%", icon: ChartBar, change: "+5%" },
+  ];
+
+  return (
+    <div className="p-6 space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">Student Dashboard</h1>
+          <p className="text-gray-600 mt-1">Overview of student performance and progress</p>
+        </div>
+        <Button onClick={() => onSelectStudent('1')} variant="outline">
+          View Sample Student
+        </Button>
+      </div>
+
+      {/* Overview Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        {overviewStats.map((stat) => (
+          <Card key={stat.title} className="hover:shadow-lg transition-shadow">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600">{stat.title}</p>
+                  <p className="text-2xl font-bold text-gray-900 mt-1">{stat.value}</p>
+                  <p className="text-sm text-green-600 mt-1">{stat.change} from last month</p>
+                </div>
+                <stat.icon className="h-8 w-8 text-blue-600" />
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      {/* Main Content Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Grade Trends Chart */}
+        <Card className="lg:col-span-2">
+          <CardHeader>
+            <CardTitle>Grade Trends Overview</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <GradeChart />
+          </CardContent>
+        </Card>
+
+        {/* Top Performers */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Top Performers</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <TopPerformers onSelectStudent={onSelectStudent} />
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Recent Activity */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Recent Activity</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <RecentActivity />
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
