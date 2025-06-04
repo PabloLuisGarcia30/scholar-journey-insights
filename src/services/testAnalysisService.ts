@@ -1,23 +1,5 @@
 
-import { createClient } from '@supabase/supabase-js'
-
-// Lazy initialization of Supabase client
-let supabase: ReturnType<typeof createClient> | null = null;
-
-const getSupabaseClient = () => {
-  if (!supabase) {
-    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
-    const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
-
-    if (!supabaseUrl || !supabaseAnonKey) {
-      throw new Error('Supabase configuration is missing. Please ensure your Supabase integration is properly set up.')
-    }
-
-    supabase = createClient(supabaseUrl, supabaseAnonKey)
-  }
-  
-  return supabase;
-}
+import { supabase } from "@/integrations/supabase/client";
 
 export interface ExtractTextRequest {
   fileContent: string;
@@ -46,15 +28,17 @@ export interface AnalyzeTestResponse {
 
 export const extractTextFromFile = async (request: ExtractTextRequest): Promise<ExtractTextResponse> => {
   try {
-    const client = getSupabaseClient();
-    const { data, error } = await client.functions.invoke('extract-text', {
+    console.log('Calling extract-text function with:', request.fileName);
+    const { data, error } = await supabase.functions.invoke('extract-text', {
       body: request
     })
 
     if (error) {
+      console.error('Supabase function error:', error);
       throw new Error(`Failed to extract text: ${error.message}`)
     }
 
+    console.log('Extract-text function response:', data);
     return data
   } catch (error) {
     console.error('Error calling extract-text function:', error)
@@ -64,15 +48,17 @@ export const extractTextFromFile = async (request: ExtractTextRequest): Promise<
 
 export const analyzeTest = async (request: AnalyzeTestRequest): Promise<AnalyzeTestResponse> => {
   try {
-    const client = getSupabaseClient();
-    const { data, error } = await client.functions.invoke('analyze-test', {
+    console.log('Calling analyze-test function with exam ID:', request.examId);
+    const { data, error } = await supabase.functions.invoke('analyze-test', {
       body: request
     })
 
     if (error) {
+      console.error('Supabase function error:', error);
       throw new Error(`Failed to analyze test: ${error.message}`)
     }
 
+    console.log('Analyze-test function response:', data);
     return data
   } catch (error) {
     console.error('Error calling analyze-test function:', error)

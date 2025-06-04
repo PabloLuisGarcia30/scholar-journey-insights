@@ -1,1 +1,8 @@
+
 project_id = "irnkilorodqvhizmujtq"
+
+[functions.extract-text]
+verify_jwt = false
+
+[functions.analyze-test] 
+verify_jwt = false

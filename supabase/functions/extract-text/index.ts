@@ -12,10 +12,13 @@ serve(async (req) => {
   }
 
   try {
+    console.log('Extract-text function called')
     const { fileContent, fileName } = await req.json()
+    console.log('Processing file:', fileName)
     
     const googleApiKey = Deno.env.get('GOOGLE_CLOUD_VISION_API_KEY')
     if (!googleApiKey) {
+      console.error('Google Cloud Vision API key not configured')
       throw new Error('Google Cloud Vision API key not configured')
     }
 
@@ -35,6 +38,7 @@ serve(async (req) => {
       ]
     }
 
+    console.log('Calling Google Cloud Vision API...')
     const ocrResponse = await fetch(`https://vision.googleapis.com/v1/images:annotate?key=${googleApiKey}`, {
       method: 'POST',
       headers: {
@@ -44,10 +48,12 @@ serve(async (req) => {
     })
 
     if (!ocrResponse.ok) {
+      console.error('Google OCR error:', ocrResponse.statusText)
       throw new Error(`Google OCR error: ${ocrResponse.statusText}`)
     }
 
     const ocrResult = await ocrResponse.json()
+    console.log('OCR result received')
     const extractedText = ocrResult.responses[0]?.textAnnotations?.[0]?.description || ""
     
     // Extract Exam ID from the text
@@ -66,6 +72,8 @@ serve(async (req) => {
         break
       }
     }
+
+    console.log('Extracted exam ID:', examId)
 
     return new Response(
       JSON.stringify({

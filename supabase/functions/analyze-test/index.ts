@@ -12,10 +12,13 @@ serve(async (req) => {
   }
 
   try {
+    console.log('Analyze-test function called')
     const { files, examId } = await req.json()
+    console.log('Processing exam ID:', examId, 'with', files.length, 'files')
     
     const openaiApiKey = Deno.env.get('OPENAI_API_KEY')
     if (!openaiApiKey) {
+      console.error('OpenAI API key not configured')
       throw new Error('OpenAI API key not configured')
     }
 
@@ -24,6 +27,7 @@ serve(async (req) => {
       `File: ${file.fileName}\nExtracted Text:\n${file.extractedText}`
     ).join('\n\n---\n\n')
 
+    console.log('Sending to OpenAI for analysis...')
     // Send to OpenAI for analysis
     const aiPayload = {
       model: "gpt-4o-mini",
@@ -57,10 +61,12 @@ serve(async (req) => {
 
     if (!aiResponse.ok) {
       const errorData = await aiResponse.json()
+      console.error('OpenAI API error:', errorData)
       throw new Error(`OpenAI API error: ${errorData.error?.message || aiResponse.statusText}`)
     }
 
     const result = await aiResponse.json()
+    console.log('OpenAI analysis completed')
     const analysisText = result.choices[0]?.message?.content || "No analysis received"
     
     // Try to parse as JSON, fallback to plain text
