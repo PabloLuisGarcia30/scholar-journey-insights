@@ -1,6 +1,5 @@
-
 import { useState } from "react";
-import { Upload, FileText, Image, Video, Brain } from "lucide-react";
+import { Upload, FileText, Image, Video, Brain, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
@@ -9,6 +8,8 @@ const UploadTest = () => {
   const [dragActive, setDragActive] = useState(false);
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [bubbleApiUrl, setBubbleApiUrl] = useState("");
+  const [showApiConfig, setShowApiConfig] = useState(false);
 
   const handleDrag = (e: React.DragEvent) => {
     e.preventDefault();
@@ -43,14 +44,69 @@ const UploadTest = () => {
     toast.success(`Uploaded ${files.length} file(s) successfully!`);
   };
 
+  const convertFileToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => {
+        const result = reader.result as string;
+        // Remove the data:image/jpeg;base64, prefix to get just the base64 string
+        const base64 = result.split(',')[1];
+        resolve(base64);
+      };
+      reader.onerror = error => reject(error);
+    });
+  };
+
   const handleAIAnalysis = async () => {
+    if (!bubbleApiUrl) {
+      toast.error("Please configure your Bubble.io API endpoint first.");
+      setShowApiConfig(true);
+      return;
+    }
+
     setIsAnalyzing(true);
     try {
-      // Simulate AI analysis
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      toast.success("AI analysis completed! Results will be available in the dashboard.");
+      // Convert files to base64 for sending to Bubble.io
+      const filesData = await Promise.all(
+        uploadedFiles.map(async (file) => {
+          const base64Content = await convertFileToBase64(file);
+          return {
+            name: file.name,
+            type: file.type,
+            size: file.size,
+            content: base64Content,
+            lastModified: file.lastModified
+          };
+        })
+      );
+
+      const payload = {
+        files: filesData,
+        timestamp: new Date().toISOString(),
+        action: "ai_grade_analyze"
+      };
+
+      console.log("Sending to Bubble.io:", payload);
+
+      const response = await fetch(bubbleApiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload)
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        console.log("Bubble.io response:", result);
+        toast.success("Document sent to Bubble.io for AI analysis!");
+      } else {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
     } catch (error) {
-      toast.error("Failed to analyze documents. Please try again.");
+      console.error("Error sending to Bubble.io:", error);
+      toast.error("Failed to send document to Bubble.io. Please check your API endpoint and try again.");
     } finally {
       setIsAnalyzing(false);
     }
@@ -77,6 +133,48 @@ const UploadTest = () => {
           <h1 className="text-3xl font-bold text-gray-900 mb-2">Upload Test</h1>
           <p className="text-gray-600">Test file upload functionality with drag and drop support</p>
         </div>
+
+        {/* Bubble.io API Configuration */}
+        <Card className="mb-6">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Settings className="h-5 w-5" />
+              Bubble.io Configuration
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <div>
+                <label htmlFor="bubble-api" className="block text-sm font-medium text-gray-700 mb-2">
+                  Bubble.io API Endpoint URL
+                </label>
+                <input
+                  id="bubble-api"
+                  type="url"
+                  value={bubbleApiUrl}
+                  onChange={(e) => setBubbleApiUrl(e.target.value)}
+                  placeholder="https://yourapp.bubbleapps.io/api/1.1/wf/analyze-document"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
+              <div className="text-sm text-gray-600">
+                <p className="mb-2"><strong>Setup Instructions:</strong></p>
+                <ol className="list-decimal list-inside space-y-1">
+                  <li>In Bubble.io, create a new API Workflow</li>
+                  <li>Set it to accept POST requests</li>
+                  <li>Configure it to receive: files (list), timestamp (text), action (text)</li>
+                  <li>Add your ChatGPT integration within the workflow</li>
+                  <li>Copy the workflow URL and paste it above</li>
+                </ol>
+              </div>
+              {bubbleApiUrl && (
+                <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
+                  <p className="text-sm text-green-700">✓ API endpoint configured</p>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Upload Area */}
@@ -128,25 +226,28 @@ const UploadTest = () => {
                     <h3 className="font-medium text-blue-900">AI Analysis Ready</h3>
                   </div>
                   <p className="text-sm text-blue-700 mb-4">
-                    Upload complete! Ready to analyze and grade your documents using AI.
+                    Upload complete! Ready to send to Bubble.io for AI analysis and grading.
                   </p>
                   <Button 
                     onClick={handleAIAnalysis}
-                    disabled={isAnalyzing}
+                    disabled={isAnalyzing || !bubbleApiUrl}
                     className="w-full bg-blue-600 hover:bg-blue-700"
                   >
                     {isAnalyzing ? (
                       <>
                         <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                        Analyzing...
+                        Sending to Bubble.io...
                       </>
                     ) : (
                       <>
                         <Brain className="h-4 w-4 mr-2" />
-                        AI Grade and Analyze Document
+                        Send to Bubble.io for AI Analysis
                       </>
                     )}
                   </Button>
+                  {!bubbleApiUrl && (
+                    <p className="text-xs text-red-600 mt-2">Please configure Bubble.io API endpoint first</p>
+                  )}
                 </div>
               )}
             </CardContent>
