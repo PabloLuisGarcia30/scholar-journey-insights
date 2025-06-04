@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -259,7 +258,7 @@ export function StudentProfile({ studentId, classId, className, onBack }: Studen
           {isClassView ? (
             <>
               <TabsTrigger value="assignments">Assignments</TabsTrigger>
-              <TabsTrigger value="strengths">Subject Strengths</TabsTrigger>
+              <TabsTrigger value="strengths">Content-Specific Skills</TabsTrigger>
               <TabsTrigger value="specific-strengths">Subject Specific Strengths</TabsTrigger>
               <TabsTrigger value="progress">Progress Trend</TabsTrigger>
             </>
@@ -305,7 +304,7 @@ export function StudentProfile({ studentId, classId, className, onBack }: Studen
             <TabsContent value="strengths">
               <Card>
                 <CardHeader>
-                  <CardTitle>Subject Matter Strengths</CardTitle>
+                  <CardTitle>Content-Specific Skills</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">
