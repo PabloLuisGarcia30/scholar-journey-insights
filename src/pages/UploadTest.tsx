@@ -1,8 +1,10 @@
+
 import { useState } from "react";
-import { Upload, FileText, Image, Video, Brain, Settings } from "lucide-react";
+import { Upload, FileText, Image, Video, Brain, Settings, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
+import { Link } from "react-router-dom";
 
 const UploadTest = () => {
   const [dragActive, setDragActive] = useState(false);
@@ -129,6 +131,16 @@ const UploadTest = () => {
   return (
     <div className="min-h-screen bg-gray-50 p-6">
       <div className="max-w-4xl mx-auto">
+        {/* Back to Homepage Button */}
+        <div className="mb-6">
+          <Button asChild variant="outline" className="mb-4">
+            <Link to="/" className="flex items-center gap-2">
+              <ArrowLeft className="h-4 w-4" />
+              Back to Homepage
+            </Link>
+          </Button>
+        </div>
+
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">Upload Test</h1>
           <p className="text-gray-600">Test file upload functionality with drag and drop support</p>
