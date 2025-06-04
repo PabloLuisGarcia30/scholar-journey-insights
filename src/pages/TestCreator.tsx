@@ -1,6 +1,5 @@
-
 import { useState } from "react";
-import { ArrowLeft, Plus, Trash2, FileText, Clock, CheckCircle, Edit } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, FileText, Clock, CheckCircle, Edit, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -10,6 +9,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { Link } from "react-router-dom";
+import jsPDF from 'jspdf';
 
 interface Question {
   id: string;
@@ -122,6 +122,92 @@ const TestCreator = () => {
     setQuestions(questions.filter(q => q.id !== questionId));
   };
 
+  const generatePDF = () => {
+    const pdf = new jsPDF();
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
+    const margin = 20;
+    let yPosition = margin;
+    
+    // Header
+    pdf.setFontSize(18);
+    pdf.setFont(undefined, 'bold');
+    pdf.text(testTitle, margin, yPosition);
+    yPosition += 15;
+    
+    // Test info
+    pdf.setFontSize(10);
+    pdf.setFont(undefined, 'normal');
+    if (testDescription) {
+      const descLines = pdf.splitTextToSize(testDescription, pageWidth - 2 * margin);
+      pdf.text(descLines, margin, yPosition);
+      yPosition += descLines.length * 5 + 5;
+    }
+    
+    pdf.text(`Time Limit: ${timeLimit} minutes`, margin, yPosition);
+    yPosition += 10;
+    pdf.text(`Total Points: ${questions.reduce((sum, q) => sum + q.points, 0)}`, margin, yPosition);
+    yPosition += 15;
+    
+    // Instructions
+    pdf.setFontSize(9);
+    pdf.text('Instructions: Please answer all questions. Mark your answers clearly.', margin, yPosition);
+    yPosition += 15;
+    
+    // Questions
+    questions.forEach((question, index) => {
+      // Check if we need a new page
+      if (yPosition > pageHeight - 60) {
+        pdf.addPage();
+        yPosition = margin;
+      }
+      
+      // Question number and text
+      pdf.setFontSize(10);
+      pdf.setFont(undefined, 'bold');
+      const questionHeader = `${index + 1}. (${question.points} pts)`;
+      pdf.text(questionHeader, margin, yPosition);
+      yPosition += 7;
+      
+      pdf.setFont(undefined, 'normal');
+      const questionLines = pdf.splitTextToSize(question.question, pageWidth - 2 * margin - 10);
+      pdf.text(questionLines, margin + 5, yPosition);
+      yPosition += questionLines.length * 5 + 5;
+      
+      // Answer options
+      if (question.type === 'multiple-choice' && question.options) {
+        question.options.forEach((option, optionIndex) => {
+          const optionLetter = String.fromCharCode(65 + optionIndex); // A, B, C, D
+          pdf.text(`${optionLetter}) ${option}`, margin + 10, yPosition);
+          yPosition += 6;
+        });
+        yPosition += 5;
+      } else if (question.type === 'true-false') {
+        pdf.text('A) True', margin + 10, yPosition);
+        yPosition += 6;
+        pdf.text('B) False', margin + 10, yPosition);
+        yPosition += 11;
+      } else if (question.type === 'short-answer') {
+        pdf.text('Answer: ________________________________', margin + 10, yPosition);
+        yPosition += 15;
+      } else if (question.type === 'essay') {
+        pdf.text('Answer:', margin + 10, yPosition);
+        yPosition += 10;
+        // Add lines for essay answer
+        for (let i = 0; i < 5; i++) {
+          pdf.line(margin + 10, yPosition, pageWidth - margin, yPosition);
+          yPosition += 8;
+        }
+        yPosition += 5;
+      }
+    });
+    
+    // Save the PDF
+    const fileName = `${testTitle.replace(/\s+/g, '_')}_Test.pdf`;
+    pdf.save(fileName);
+    toast.success('PDF generated successfully!');
+  };
+
   const generateTest = () => {
     if (!testTitle.trim()) {
       toast.error('Please enter a test title');
@@ -142,7 +228,8 @@ const TestCreator = () => {
     };
     
     console.log('Generated Test:', testData);
-    toast.success('Test created successfully!');
+    generatePDF();
+    toast.success('Test created and PDF generated successfully!');
     setCurrentStep('preview');
   };
 
@@ -424,6 +511,10 @@ const TestCreator = () => {
       <div className="flex gap-2">
         <Button onClick={() => setCurrentStep('template')} variant="outline">
           Create Another Test
+        </Button>
+        <Button onClick={generatePDF}>
+          <Download className="h-4 w-4 mr-2" />
+          Download PDF
         </Button>
         <Button onClick={() => toast.success('Test exported successfully!')}>
           Export Test
