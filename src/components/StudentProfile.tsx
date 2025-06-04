@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
-import { ArrowLeft, BookOpen, Calendar, ChartBar, TrendingUp, TrendingDown, Target, Minus } from "lucide-react";
+import { ArrowLeft, BookOpen, Calendar, ChartBar, TrendingUp, TrendingDown, Target, Minus, FileText } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
 
 interface StudentProfileProps {
@@ -123,6 +123,11 @@ export function StudentProfile({ studentId, classId, className, onBack }: Studen
     if (trend === 'up') return <TrendingUp className="h-4 w-4 text-green-600" />;
     if (trend === 'down') return <TrendingDown className="h-4 w-4 text-red-600" />;
     return <Minus className="h-4 w-4 text-blue-600" />; // Blue horizontal line for stable
+  };
+
+  const handleGeneratePracticeTest = () => {
+    console.log('Generating practice test for student:', studentId, 'in class:', className);
+    // TODO: Implement practice test generation logic
   };
 
   return (
@@ -304,7 +309,13 @@ export function StudentProfile({ studentId, classId, className, onBack }: Studen
             <TabsContent value="strengths">
               <Card>
                 <CardHeader>
-                  <CardTitle>Content-Specific Skills</CardTitle>
+                  <div className="flex items-center justify-between">
+                    <CardTitle>Content-Specific Skills</CardTitle>
+                    <Button onClick={handleGeneratePracticeTest} className="flex items-center gap-2">
+                      <FileText className="h-4 w-4" />
+                      Generate practice test
+                    </Button>
+                  </div>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">
