@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
-import { ArrowLeft, BookOpen, Calendar, ChartBar, TrendingUp, TrendingDown, Target } from "lucide-react";
+import { ArrowLeft, BookOpen, Calendar, ChartBar, TrendingUp, TrendingDown, Target, Minus } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
 
 interface StudentProfileProps {
@@ -122,7 +122,7 @@ export function StudentProfile({ studentId, classId, className, onBack }: Studen
   const getTrendIcon = (trend: string) => {
     if (trend === 'up') return <TrendingUp className="h-4 w-4 text-green-600" />;
     if (trend === 'down') return <TrendingDown className="h-4 w-4 text-red-600" />;
-    return <div className="h-4 w-4" />; // placeholder for stable
+    return <Minus className="h-4 w-4 text-blue-600" />; // Blue horizontal line for stable
   };
 
   return (
@@ -319,7 +319,6 @@ export function StudentProfile({ studentId, classId, className, onBack }: Studen
                         </div>
                         <div className="text-right">
                           <div className="text-2xl font-bold text-gray-900">{strength.strength}%</div>
-                          <div className="text-sm text-gray-600 capitalize">{strength.trend}</div>
                         </div>
                       </div>
                     ))}
