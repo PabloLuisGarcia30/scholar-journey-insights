@@ -68,6 +68,7 @@ const TestCreator = () => {
   const [selectedTemplate, setSelectedTemplate] = useState<string>('');
   const [testTitle, setTestTitle] = useState('');
   const [testDescription, setTestDescription] = useState('');
+  const [className, setClassName] = useState('');
   const [timeLimit, setTimeLimit] = useState(60);
   const [questions, setQuestions] = useState<Question[]>([]);
   const [currentStep, setCurrentStep] = useState<'template' | 'details' | 'questions' | 'preview'>('template');
@@ -147,6 +148,20 @@ const TestCreator = () => {
     
     // Reset text color for content
     pdf.setTextColor(0, 0, 0);
+    
+    // Class Information Section
+    if (className) {
+      pdf.setFillColor(59, 130, 246); // Blue background
+      pdf.rect(margin, yPosition, pageWidth - 2 * margin, 20, 'F');
+      
+      pdf.setTextColor(255, 255, 255); // White text
+      pdf.setFontSize(12);
+      pdf.setFont(undefined, 'bold');
+      pdf.text(`Class: ${className}`, margin + 5, yPosition + 12);
+      
+      yPosition += 30;
+      pdf.setTextColor(0, 0, 0); // Reset to black
+    }
     
     // Student Information Section with OCR-friendly boxes
     pdf.setFillColor(245, 245, 245); // Light gray background
@@ -369,6 +384,10 @@ const TestCreator = () => {
       toast.error('Please enter a test title');
       return;
     }
+    if (!className.trim()) {
+      toast.error('Please enter a class name');
+      return;
+    }
     if (questions.length === 0) {
       toast.error('Please add at least one question');
       return;
@@ -377,6 +396,7 @@ const TestCreator = () => {
     const testData = {
       title: testTitle,
       description: testDescription,
+      className,
       timeLimit,
       questions,
       totalPoints: questions.reduce((sum, q) => sum + q.points, 0),
@@ -438,6 +458,16 @@ const TestCreator = () => {
           <CardTitle>Basic Information</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
+          <div>
+            <Label htmlFor="class-name">Class Name</Label>
+            <Input
+              id="class-name"
+              value={className}
+              onChange={(e) => setClassName(e.target.value)}
+              placeholder="e.g., Math Class 6, English 101, Biology AP"
+            />
+          </div>
+          
           <div>
             <Label htmlFor="test-title">Test Title</Label>
             <Input
@@ -625,6 +655,9 @@ const TestCreator = () => {
             <CheckCircle className="h-5 w-5 text-green-600" />
             {testTitle}
           </CardTitle>
+          {className && (
+            <p className="text-sm text-blue-600 font-medium">Class: {className}</p>
+          )}
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
