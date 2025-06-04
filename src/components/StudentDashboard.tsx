@@ -20,7 +20,7 @@ export function StudentDashboard({ onSelectStudent }: StudentDashboardProps) {
       subject: 'Mathematics',
       grade: '6',
       teacher: 'Ms. Johnson',
-      studentCount: 28,
+      studentCount: 5, // Updated to match actual students array length
       avgGpa: 3.4,
       students: ['1', '2', '3', '4', '5']
     },
@@ -30,7 +30,7 @@ export function StudentDashboard({ onSelectStudent }: StudentDashboardProps) {
       subject: 'Science',
       grade: '7',
       teacher: 'Mr. Chen',
-      studentCount: 24,
+      studentCount: 5, // Updated to match actual students array length
       avgGpa: 3.6,
       students: ['6', '7', '8', '9', '10']
     },
@@ -40,7 +40,7 @@ export function StudentDashboard({ onSelectStudent }: StudentDashboardProps) {
       subject: 'English',
       grade: '8',
       teacher: 'Mrs. Williams',
-      studentCount: 26,
+      studentCount: 5, // Updated to match actual students array length
       avgGpa: 3.5,
       students: ['11', '12', '13', '14', '15']
     },
@@ -50,17 +50,17 @@ export function StudentDashboard({ onSelectStudent }: StudentDashboardProps) {
       subject: 'History',
       grade: '9',
       teacher: 'Dr. Brown',
-      studentCount: 22,
+      studentCount: 5, // Updated to match actual students array length
       avgGpa: 3.3,
       students: ['16', '17', '18', '19', '20']
     }
   ];
 
-  // Calculate total students from class data
-  const totalStudents = mockClasses.reduce((total, classItem) => total + classItem.studentCount, 0);
+  // Calculate total students from actual students arrays
+  const totalStudents = mockClasses.reduce((total, classItem) => total + classItem.students.length, 0);
   
-  // Calculate average GPA across all classes
-  const totalGpaSum = mockClasses.reduce((sum, classItem) => sum + (classItem.avgGpa * classItem.studentCount), 0);
+  // Calculate average GPA across all classes using actual student counts
+  const totalGpaSum = mockClasses.reduce((sum, classItem) => sum + (classItem.avgGpa * classItem.students.length), 0);
   const averageGpa = totalStudents > 0 ? (totalGpaSum / totalStudents).toFixed(2) : "0.00";
 
   const overviewStats = [
