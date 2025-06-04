@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { ArrowLeft, Plus, Trash2, FileText, Clock, CheckCircle, Edit, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -71,7 +70,7 @@ const TestCreator = () => {
   const [className, setClassName] = useState('');
   const [timeLimit, setTimeLimit] = useState(60);
   const [questions, setQuestions] = useState<Question[]>([]);
-  const [currentStep, setCurrentStep] = useState<'template' | 'details' | 'questions' | 'preview'>('template');
+  const [currentStep, setCurrentStep] = useState<'template' | 'details' | 'questions' | 'class-input' | 'preview'>('template');
 
   const handleTemplateSelect = (templateId: string) => {
     const template = testTemplates.find(t => t.id === templateId);
@@ -379,17 +378,22 @@ const TestCreator = () => {
     toast.success('Beautiful PDF generated successfully!');
   };
 
-  const generateTest = () => {
+  const handleGenerateTest = () => {
     if (!testTitle.trim()) {
       toast.error('Please enter a test title');
       return;
     }
-    if (!className.trim()) {
-      toast.error('Please enter a class name');
-      return;
-    }
     if (questions.length === 0) {
       toast.error('Please add at least one question');
+      return;
+    }
+    
+    setCurrentStep('class-input');
+  };
+
+  const finalizeTest = () => {
+    if (!className.trim()) {
+      toast.error('Please enter a class name');
       return;
     }
     
@@ -459,16 +463,6 @@ const TestCreator = () => {
         </CardHeader>
         <CardContent className="space-y-4">
           <div>
-            <Label htmlFor="class-name">Class Name</Label>
-            <Input
-              id="class-name"
-              value={className}
-              onChange={(e) => setClassName(e.target.value)}
-              placeholder="e.g., Math Class 6, English 101, Biology AP"
-            />
-          </div>
-          
-          <div>
             <Label htmlFor="test-title">Test Title</Label>
             <Input
               id="test-title"
@@ -517,7 +511,7 @@ const TestCreator = () => {
             <ArrowLeft className="h-4 w-4 mr-2" />
             Back to Details
           </Button>
-          <Button onClick={generateTest}>
+          <Button onClick={handleGenerateTest}>
             Generate Test
           </Button>
         </div>
@@ -639,6 +633,43 @@ const TestCreator = () => {
     </div>
   );
 
+  const renderClassInput = () => (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <h2 className="text-2xl font-bold text-gray-900">Class Information</h2>
+        <Button variant="outline" onClick={() => setCurrentStep('questions')}>
+          <ArrowLeft className="h-4 w-4 mr-2" />
+          Back to Questions
+        </Button>
+      </div>
+      
+      <Card>
+        <CardHeader>
+          <CardTitle>Enter Class Details</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div>
+            <Label htmlFor="class-name">Class Name</Label>
+            <Input
+              id="class-name"
+              value={className}
+              onChange={(e) => setClassName(e.target.value)}
+              placeholder="e.g., Math Class 6, English 101, Biology AP"
+              autoFocus
+            />
+            <p className="text-sm text-gray-500 mt-1">
+              This will be used for data classification and will appear on the test PDF.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+      
+      <Button onClick={finalizeTest} className="w-full">
+        Generate PDF
+      </Button>
+    </div>
+  );
+
   const renderPreview = () => (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -732,6 +763,7 @@ const TestCreator = () => {
         {currentStep === 'template' && renderTemplateSelection()}
         {currentStep === 'details' && renderTestDetails()}
         {currentStep === 'questions' && renderQuestionEditor()}
+        {currentStep === 'class-input' && renderClassInput()}
         {currentStep === 'preview' && renderPreview()}
       </div>
     </div>
