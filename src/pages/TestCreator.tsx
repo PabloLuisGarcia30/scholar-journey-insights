@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ArrowLeft, Plus, Trash2, FileText, Clock, CheckCircle, Edit, Download } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, FileText, Clock, CheckCircle, Edit, Download, Key } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -60,8 +60,8 @@ const testTemplates: TestTemplate[] = [
     name: 'Essay Exam',
     description: 'Long-form written responses',
     defaultQuestions: [
-      { type: 'essay', question: 'Describe the causes and effects of climate change.', points: 10 },
-      { type: 'short-answer', question: 'Define photosynthesis in your own words.', points: 5 },
+      { type: 'essay', question: 'Describe the causes and effects of climate change.', correctAnswer: 'Sample answer: Climate change is caused by greenhouse gas emissions, deforestation, and human activities. Effects include rising temperatures, sea level rise, and extreme weather patterns.', points: 10 },
+      { type: 'short-answer', question: 'Define photosynthesis in your own words.', correctAnswer: 'Photosynthesis is the process by which plants convert sunlight, carbon dioxide, and water into glucose and oxygen.', points: 5 },
     ]
   },
   {
@@ -79,7 +79,7 @@ const TestCreator = () => {
   const [className, setClassName] = useState('');
   const [timeLimit, setTimeLimit] = useState(60);
   const [questions, setQuestions] = useState<Question[]>([]);
-  const [currentStep, setCurrentStep] = useState<'template' | 'details' | 'questions' | 'class-input' | 'preview'>('template');
+  const [currentStep, setCurrentStep] = useState<'template' | 'details' | 'questions' | 'answer-key' | 'class-input' | 'preview'>('template');
 
   const handleTemplateSelect = (templateId: string) => {
     const template = testTemplates.find(t => t.id === templateId);
@@ -397,10 +397,33 @@ const TestCreator = () => {
       return;
     }
     
+    setCurrentStep('answer-key');
+  };
+
+  const handleAnswerKeyComplete = () => {
+    // Check if all questions have correct answers
+    const incompleteQuestions = questions.filter(q => !q.correctAnswer || q.correctAnswer === '');
+    if (incompleteQuestions.length > 0) {
+      toast.error(`Please provide correct answers for all questions. ${incompleteQuestions.length} question(s) missing answers.`);
+      return;
+    }
+    
     setCurrentStep('class-input');
   };
 
-  const finalizeTest = () => {
+  const saveTestToDatabase = async (testData: any) => {
+    // This would save to your database/OpenAI system
+    // For now, we'll just log and show success
+    console.log('Test data with answer key saved:', testData);
+    
+    // Here you would make an API call to save the test data
+    // The testData includes all questions with their correct answers
+    // This allows OpenAI to access the answers for grading later
+    
+    toast.success('Test and answer key saved successfully!');
+  };
+
+  const finalizeTest = async () => {
     if (!className.trim()) {
       toast.error('Please select a class');
       return;
@@ -416,7 +439,9 @@ const TestCreator = () => {
       createdAt: new Date().toISOString(),
     };
     
-    console.log('Generated Test:', testData);
+    // Save to database with answer key
+    await saveTestToDatabase(testData);
+    
     generatePDF();
     toast.success('Test created and PDF generated successfully!');
     setCurrentStep('preview');
@@ -521,7 +546,7 @@ const TestCreator = () => {
             Back to Details
           </Button>
           <Button onClick={handleGenerateTest}>
-            Generate Test
+            Continue to Answer Key
           </Button>
         </div>
       </div>
@@ -639,6 +664,129 @@ const TestCreator = () => {
           </CardContent>
         </Card>
       )}
+    </div>
+  );
+
+  const renderAnswerKey = () => (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+          <Key className="h-6 w-6" />
+          Answer Key
+        </h2>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setCurrentStep('questions')}>
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Back to Questions
+          </Button>
+          <Button onClick={handleAnswerKeyComplete}>
+            Continue to Class Selection
+          </Button>
+        </div>
+      </div>
+      
+      <div className="bg-blue-50 p-4 rounded-lg mb-6">
+        <h3 className="font-semibold text-blue-900 mb-2">Answer Key Instructions</h3>
+        <p className="text-sm text-blue-800">
+          Provide correct answers for all questions. This answer key will be saved securely and used by the AI grading system to automatically score student responses.
+        </p>
+      </div>
+      
+      <div className="space-y-4">
+        {questions.map((question, index) => (
+          <Card key={question.id}>
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-lg">Question {index + 1}</CardTitle>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-gray-500 capitalize">{question.type.replace('-', ' ')}</span>
+                  <span className="text-sm text-gray-600">({question.points} pts)</span>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="bg-gray-50 p-3 rounded">
+                <p className="font-medium text-gray-900">{question.question}</p>
+              </div>
+              
+              {question.type === 'multiple-choice' && question.options && (
+                <div>
+                  <Label>Correct Answer</Label>
+                  <div className="space-y-2 mt-2">
+                    {question.options.map((option, optionIndex) => (
+                      <div key={optionIndex} className="flex items-center gap-2">
+                        <Checkbox
+                          checked={question.correctAnswer === option}
+                          onCheckedChange={(checked) => {
+                            if (checked) {
+                              updateQuestion(question.id, 'correctAnswer', option);
+                            }
+                          }}
+                        />
+                        <span className="text-sm">{String.fromCharCode(65 + optionIndex)}) {option}</span>
+                      </div>
+                    ))}
+                  </div>
+                  {question.correctAnswer && (
+                    <div className="mt-2 p-2 bg-green-50 rounded text-sm text-green-700">
+                      <strong>Selected Answer:</strong> {question.correctAnswer}
+                    </div>
+                  )}
+                </div>
+              )}
+              
+              {question.type === 'true-false' && (
+                <div>
+                  <Label>Correct Answer</Label>
+                  <RadioGroup
+                    value={question.correctAnswer as string}
+                    onValueChange={(value) => updateQuestion(question.id, 'correctAnswer', value)}
+                  >
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="true" id={`ans-${question.id}-true`} />
+                      <Label htmlFor={`ans-${question.id}-true`}>True</Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="false" id={`ans-${question.id}-false`} />
+                      <Label htmlFor={`ans-${question.id}-false`}>False</Label>
+                    </div>
+                  </RadioGroup>
+                </div>
+              )}
+              
+              {(question.type === 'short-answer' || question.type === 'essay') && (
+                <div>
+                  <Label htmlFor={`answer-${question.id}`}>
+                    {question.type === 'essay' ? 'Sample/Expected Answer' : 'Correct Answer'}
+                  </Label>
+                  <Textarea
+                    id={`answer-${question.id}`}
+                    value={question.correctAnswer as string || ''}
+                    onChange={(e) => updateQuestion(question.id, 'correctAnswer', e.target.value)}
+                    placeholder={question.type === 'essay' 
+                      ? 'Provide a sample answer or key points that should be covered...'
+                      : 'Enter the correct answer...'
+                    }
+                    className="mt-2"
+                    rows={question.type === 'essay' ? 4 : 2}
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    {question.type === 'essay' 
+                      ? 'This will be used as a reference for AI grading. Include key points and concepts.'
+                      : 'This exact answer will be used for automatic grading.'}
+                  </p>
+                </div>
+              )}
+              
+              {!question.correctAnswer && (
+                <div className="p-2 bg-yellow-50 border border-yellow-200 rounded text-sm text-yellow-700">
+                  ⚠️ Please provide a correct answer for this question
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        ))}
+      </div>
     </div>
   );
 
@@ -780,6 +928,7 @@ const TestCreator = () => {
         {currentStep === 'template' && renderTemplateSelection()}
         {currentStep === 'details' && renderTestDetails()}
         {currentStep === 'questions' && renderQuestionEditor()}
+        {currentStep === 'answer-key' && renderAnswerKey()}
         {currentStep === 'class-input' && renderClassInput()}
         {currentStep === 'preview' && renderPreview()}
       </div>
