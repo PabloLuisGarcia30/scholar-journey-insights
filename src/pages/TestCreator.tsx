@@ -180,27 +180,28 @@ const TestCreator = () => {
         question.options.forEach((option, optionIndex) => {
           const optionLetter = String.fromCharCode(65 + optionIndex); // A, B, C, D
           
-          // Draw circle for bubble
-          const bubbleX = margin + 10;
+          // Add option text first
+          pdf.text(`${optionLetter}) ${option}`, margin + 10, yPosition);
+          
+          // Draw circle for bubble to the right of the text
+          const bubbleX = margin + 120;
           const bubbleY = yPosition - 2;
           const bubbleRadius = 3;
           
           pdf.circle(bubbleX, bubbleY, bubbleRadius);
           
-          // Add option text
-          pdf.text(`${optionLetter}) ${option}`, margin + 20, yPosition);
           yPosition += 8;
         });
         yPosition += 5;
       } else if (question.type === 'true-false') {
-        // True option with bubble
-        pdf.circle(margin + 10, yPosition - 2, 3);
-        pdf.text('A) True', margin + 20, yPosition);
+        // True option with bubble to the right
+        pdf.text('A) True', margin + 10, yPosition);
+        pdf.circle(margin + 120, yPosition - 2, 3);
         yPosition += 8;
         
-        // False option with bubble
-        pdf.circle(margin + 10, yPosition - 2, 3);
-        pdf.text('B) False', margin + 20, yPosition);
+        // False option with bubble to the right
+        pdf.text('B) False', margin + 10, yPosition);
+        pdf.circle(margin + 120, yPosition - 2, 3);
         yPosition += 11;
       } else if (question.type === 'short-answer') {
         pdf.text('Answer: ________________________________', margin + 10, yPosition);
