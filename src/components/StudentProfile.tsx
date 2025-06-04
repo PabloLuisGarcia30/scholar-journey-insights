@@ -5,7 +5,8 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
-import { ArrowLeft, BookOpen, Calendar, ChartBar, TrendingUp, TrendingDown, Target, Minus, FileText } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { ArrowLeft, BookOpen, Calendar, ChartBar, TrendingUp, TrendingDown, Target, Minus, FileText, ChevronDown } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
 
 interface StudentProfileProps {
@@ -125,8 +126,12 @@ export function StudentProfile({ studentId, classId, className, onBack }: Studen
     return <Minus className="h-4 w-4 text-blue-600" />; // Blue horizontal line for stable
   };
 
-  const handleGeneratePracticeTest = () => {
-    console.log('Generating practice test for student:', studentId, 'in class:', className);
+  const handleGeneratePracticeTest = (skillName?: string) => {
+    if (skillName) {
+      console.log('Generating practice test for student:', studentId, 'in class:', className, 'for skill:', skillName);
+    } else {
+      console.log('Generating practice test for student:', studentId, 'in class:', className);
+    }
     // TODO: Implement practice test generation logic
   };
 
@@ -311,10 +316,32 @@ export function StudentProfile({ studentId, classId, className, onBack }: Studen
                 <CardHeader>
                   <div className="flex items-center justify-between">
                     <CardTitle>Content-Specific Skills</CardTitle>
-                    <Button onClick={handleGeneratePracticeTest} className="flex items-center gap-2">
-                      <FileText className="h-4 w-4" />
-                      Generate practice test
-                    </Button>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button className="flex items-center gap-2">
+                          <FileText className="h-4 w-4" />
+                          Generate practice test
+                          <ChevronDown className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-64 bg-white">
+                        <DropdownMenuItem onClick={() => handleGeneratePracticeTest()}>
+                          All Skills Combined
+                        </DropdownMenuItem>
+                        {classData.subjectStrengths.map((strength, index) => (
+                          <DropdownMenuItem 
+                            key={index} 
+                            onClick={() => handleGeneratePracticeTest(strength.topic)}
+                            className="flex items-center justify-between"
+                          >
+                            <span>{strength.topic}</span>
+                            <Badge variant="outline" className="ml-2">
+                              {strength.strength}%
+                            </Badge>
+                          </DropdownMenuItem>
+                        ))}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
                 </CardHeader>
                 <CardContent>
