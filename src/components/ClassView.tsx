@@ -5,9 +5,21 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Users, BookOpen, TrendingUp } from "lucide-react";
+import { 
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { Users, BookOpen, TrendingUp, Trash2 } from "lucide-react";
 import { CreateClassDialog } from "@/components/CreateClassDialog";
 import { AddStudentsDialog } from "@/components/AddStudentsDialog";
+import { toast } from "sonner";
 
 interface ClassViewProps {
   onSelectStudent: (studentId: string, classId?: string, className?: string) => void;
@@ -81,6 +93,11 @@ export function ClassView({ onSelectStudent }: ClassViewProps) {
       students: []
     };
     setClasses([...classes, newClass]);
+  };
+
+  const handleDeleteClass = (classId: string, className: string) => {
+    setClasses(prevClasses => prevClasses.filter(cls => cls.id !== classId));
+    toast.success(`Class "${className}" has been deleted`);
   };
 
   const handleAddStudents = (classId: string, studentIds: string[]) => {
@@ -259,19 +276,50 @@ export function ClassView({ onSelectStudent }: ClassViewProps) {
         {filteredClasses.map((classItem) => (
           <Card 
             key={classItem.id}
-            className="hover:shadow-lg transition-shadow cursor-pointer"
-            onClick={() => setSelectedClass(classItem.id)}
+            className="hover:shadow-lg transition-shadow"
           >
             <CardContent className="p-6">
               <div className="flex items-start justify-between mb-4">
-                <div>
+                <div 
+                  className="cursor-pointer flex-1"
+                  onClick={() => setSelectedClass(classItem.id)}
+                >
                   <h3 className="font-semibold text-lg text-gray-900">{classItem.name}</h3>
                   <p className="text-gray-600 text-sm">{classItem.teacher}</p>
                 </div>
-                <Badge variant="outline">Grade {classItem.grade}</Badge>
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline">Grade {classItem.grade}</Badge>
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button variant="ghost" size="sm" className="text-red-600 hover:text-red-700 hover:bg-red-50">
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Delete Class</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          Are you sure you want to delete "{classItem.name}"? This action cannot be undone and will remove all class data.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction 
+                          onClick={() => handleDeleteClass(classItem.id, classItem.name)}
+                          className="bg-red-600 hover:bg-red-700"
+                        >
+                          Delete
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                </div>
               </div>
               
-              <div className="space-y-2">
+              <div 
+                className="space-y-2 cursor-pointer"
+                onClick={() => setSelectedClass(classItem.id)}
+              >
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-600">Students:</span>
                   <span className="font-medium">{classItem.studentCount}</span>
