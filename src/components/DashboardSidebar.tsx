@@ -1,5 +1,5 @@
 
-import { BookOpen, ChartBar, GraduationCap, Calendar, Users } from "lucide-react";
+import { BookOpen, ChartBar, GraduationCap, Calendar, Users, Upload } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -12,6 +12,7 @@ import {
   SidebarTrigger,
   useSidebar,
 } from "@/components/ui/sidebar";
+import { Link } from "react-router-dom";
 
 interface DashboardSidebarProps {
   activeView: 'dashboard' | 'search' | 'classes' | 'analytics';
@@ -23,6 +24,10 @@ const navigationItems = [
   { id: 'search', title: 'Students', icon: GraduationCap },
   { id: 'classes', title: 'Classes', icon: Users },
   { id: 'analytics', title: 'Analytics', icon: BookOpen },
+];
+
+const externalLinks = [
+  { title: 'Upload Test', href: '/upload-test', icon: Upload },
 ];
 
 export function DashboardSidebar({ activeView, onViewChange }: DashboardSidebarProps) {
@@ -54,6 +59,24 @@ export function DashboardSidebar({ activeView, onViewChange }: DashboardSidebarP
                   >
                     <item.icon className="mr-2 h-4 w-4" />
                     {!isCollapsed && <span>{item.title}</span>}
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        <SidebarGroup>
+          <SidebarGroupLabel>Tools</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {externalLinks.map((link) => (
+                <SidebarMenuItem key={link.title}>
+                  <SidebarMenuButton asChild className="w-full hover:bg-gray-100">
+                    <Link to={link.href}>
+                      <link.icon className="mr-2 h-4 w-4" />
+                      {!isCollapsed && <span>{link.title}</span>}
+                    </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
