@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { Link } from "react-router-dom";
 import jsPDF from 'jspdf';
@@ -26,6 +27,14 @@ interface TestTemplate {
   description: string;
   defaultQuestions: Partial<Question>[];
 }
+
+// Import the classes data structure from ClassView
+const availableClasses = [
+  { id: '1', name: 'Math Grade 6', subject: 'Mathematics', grade: '6', teacher: 'Ms. Johnson' },
+  { id: '2', name: 'Science Grade 7', subject: 'Science', grade: '7', teacher: 'Mr. Chen' },
+  { id: '3', name: 'English Grade 8', subject: 'English', grade: '8', teacher: 'Mrs. Williams' },
+  { id: '4', name: 'History Grade 9', subject: 'History', grade: '9', teacher: 'Dr. Brown' }
+];
 
 const testTemplates: TestTemplate[] = [
   {
@@ -393,7 +402,7 @@ const TestCreator = () => {
 
   const finalizeTest = () => {
     if (!className.trim()) {
-      toast.error('Please enter a class name');
+      toast.error('Please select a class');
       return;
     }
     
@@ -645,18 +654,26 @@ const TestCreator = () => {
       
       <Card>
         <CardHeader>
-          <CardTitle>Enter Class Details</CardTitle>
+          <CardTitle>Select Class</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div>
-            <Label htmlFor="class-name">Class Name</Label>
-            <Input
-              id="class-name"
-              value={className}
-              onChange={(e) => setClassName(e.target.value)}
-              placeholder="e.g., Math Class 6, English 101, Biology AP"
-              autoFocus
-            />
+            <Label htmlFor="class-select">Class Name</Label>
+            <Select value={className} onValueChange={setClassName}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select a class" />
+              </SelectTrigger>
+              <SelectContent>
+                {availableClasses.map((classItem) => (
+                  <SelectItem key={classItem.id} value={classItem.name}>
+                    <div className="flex flex-col">
+                      <span className="font-medium">{classItem.name}</span>
+                      <span className="text-sm text-gray-500">{classItem.teacher} • Grade {classItem.grade}</span>
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <p className="text-sm text-gray-500 mt-1">
               This will be used for data classification and will appear on the test PDF.
             </p>
