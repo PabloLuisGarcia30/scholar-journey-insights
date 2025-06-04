@@ -12,10 +12,61 @@ interface StudentDashboardProps {
 }
 
 export function StudentDashboard({ onSelectStudent }: StudentDashboardProps) {
+  // Mock class data - in a real app this would come from a database
+  const mockClasses = [
+    {
+      id: '1',
+      name: 'Math Grade 6',
+      subject: 'Mathematics',
+      grade: '6',
+      teacher: 'Ms. Johnson',
+      studentCount: 28,
+      avgGpa: 3.4,
+      students: ['1', '2', '3', '4', '5']
+    },
+    {
+      id: '2',
+      name: 'Science Grade 7',
+      subject: 'Science',
+      grade: '7',
+      teacher: 'Mr. Chen',
+      studentCount: 24,
+      avgGpa: 3.6,
+      students: ['6', '7', '8', '9', '10']
+    },
+    {
+      id: '3',
+      name: 'English Grade 8',
+      subject: 'English',
+      grade: '8',
+      teacher: 'Mrs. Williams',
+      studentCount: 26,
+      avgGpa: 3.5,
+      students: ['11', '12', '13', '14', '15']
+    },
+    {
+      id: '4',
+      name: 'History Grade 9',
+      subject: 'History',
+      grade: '9',
+      teacher: 'Dr. Brown',
+      studentCount: 22,
+      avgGpa: 3.3,
+      students: ['16', '17', '18', '19', '20']
+    }
+  ];
+
+  // Calculate total students from class data
+  const totalStudents = mockClasses.reduce((total, classItem) => total + classItem.studentCount, 0);
+  
+  // Calculate average GPA across all classes
+  const totalGpaSum = mockClasses.reduce((sum, classItem) => sum + (classItem.avgGpa * classItem.studentCount), 0);
+  const averageGpa = totalStudents > 0 ? (totalGpaSum / totalStudents).toFixed(2) : "0.00";
+
   const overviewStats = [
-    { title: "Total Students", value: "1,247", icon: GraduationCap, change: "+12%" },
-    { title: "Average GPA", value: "3.42", icon: BookOpen, change: "+0.15" },
-    { title: "Courses Active", value: "28", icon: Calendar, change: "+3" },
+    { title: "Total Students", value: totalStudents.toString(), icon: GraduationCap, change: "+12%" },
+    { title: "Average GPA", value: averageGpa, icon: BookOpen, change: "+0.15" },
+    { title: "Courses Active", value: mockClasses.length.toString(), icon: Calendar, change: "+3" },
     { title: "Completion Rate", value: "87%", icon: ChartBar, change: "+5%" },
   ];
 
