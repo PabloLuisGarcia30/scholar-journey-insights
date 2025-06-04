@@ -53,29 +53,29 @@ const mockClassData = {
       { topic: 'Accuracy of Computation', strength: 86, trend: 'stable' },
     ],
     subjectSpecificStrengths: {
-      'Algebraic Manipulation': [
-        { skill: 'Formula Knowledge', mastery: 95, assessments: 8 },
-        { skill: 'Variable Manipulation', mastery: 88, assessments: 6 },
-        { skill: 'Equation Solving', mastery: 92, assessments: 7 },
-        { skill: 'Pattern Recognition', mastery: 85, assessments: 5 },
+      'Clarity of Explanation': [
+        { skill: 'Step-by-step Process', mastery: 95, assessments: 8 },
+        { skill: 'Logical Flow', mastery: 88, assessments: 6 },
+        { skill: 'Conciseness', mastery: 92, assessments: 7 },
+        { skill: 'Completeness', mastery: 85, assessments: 5 },
       ],
-      'Quadratic Equations': [
-        { skill: 'Factoring', mastery: 90, assessments: 6 },
-        { skill: 'Completing the Square', mastery: 82, assessments: 7 },
-        { skill: 'Quadratic Formula', mastery: 78, assessments: 5 },
-        { skill: 'Graphing Parabolas', mastery: 88, assessments: 4 },
+      'Use of Mathematical Language': [
+        { skill: 'Correct Terminology', mastery: 90, assessments: 6 },
+        { skill: 'Symbol Usage', mastery: 82, assessments: 7 },
+        { skill: 'Formula Notation', mastery: 78, assessments: 5 },
+        { skill: 'Technical Vocabulary', mastery: 88, assessments: 4 },
       ],
-      'Functions and Graphs': [
-        { skill: 'Function Notation', mastery: 85, assessments: 8 },
-        { skill: 'Graph Interpretation', mastery: 75, assessments: 6 },
-        { skill: 'Domain and Range', mastery: 70, assessments: 5 },
-        { skill: 'Linear Functions', mastery: 82, assessments: 7 },
+      'Presentation': [
+        { skill: 'Organization', mastery: 85, assessments: 8 },
+        { skill: 'Neatness', mastery: 75, assessments: 6 },
+        { skill: 'Visual Elements', mastery: 70, assessments: 5 },
+        { skill: 'Layout Structure', mastery: 82, assessments: 7 },
       ],
-      'Real World Problem Solving': [
-        { skill: 'Reading Comprehension', mastery: 90, assessments: 6 },
-        { skill: 'Problem Strategy', mastery: 88, assessments: 8 },
-        { skill: 'Mathematical Reasoning', mastery: 85, assessments: 5 },
-        { skill: 'Solution Verification', mastery: 92, assessments: 7 },
+      'Logical Reasoning': [
+        { skill: 'Justification of Steps', mastery: 90, assessments: 6 },
+        { skill: 'Problem Analysis', mastery: 88, assessments: 8 },
+        { skill: 'Critical Thinking', mastery: 85, assessments: 5 },
+        { skill: 'Connecting Concepts', mastery: 92, assessments: 7 },
       ],
     },
     attendanceRate: 95,
