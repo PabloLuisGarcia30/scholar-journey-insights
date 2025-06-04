@@ -1,5 +1,5 @@
 
-import { BookOpen, ChartBar, GraduationCap, Calendar, Users, Upload } from "lucide-react";
+import { BookOpen, ChartBar, GraduationCap, Calendar, Users, Upload, TestTube } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -28,6 +28,7 @@ const navigationItems = [
 
 const externalLinks = [
   { title: 'Upload Test', href: '/upload-test', icon: Upload },
+  { title: 'Test Creator', href: '/test-creator', icon: TestTube },
 ];
 
 export function DashboardSidebar({ activeView, onViewChange }: DashboardSidebarProps) {
