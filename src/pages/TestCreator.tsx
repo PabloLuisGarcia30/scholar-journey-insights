@@ -72,6 +72,13 @@ const testTemplates: TestTemplate[] = [
   }
 ];
 
+// Generate unique exam ID
+const generateExamId = () => {
+  const timestamp = Date.now();
+  const random = Math.random().toString(36).substring(2, 8);
+  return `EXAM-${timestamp}-${random}`.toUpperCase();
+};
+
 const TestCreator = () => {
   const [selectedTemplate, setSelectedTemplate] = useState<string>('');
   const [testTitle, setTestTitle] = useState('');
@@ -80,6 +87,7 @@ const TestCreator = () => {
   const [timeLimit, setTimeLimit] = useState(60);
   const [questions, setQuestions] = useState<Question[]>([]);
   const [currentStep, setCurrentStep] = useState<'template' | 'details' | 'questions' | 'answer-key' | 'class-input' | 'preview'>('template');
+  const [examId, setExamId] = useState<string>('');
 
   const handleTemplateSelect = (templateId: string) => {
     const template = testTemplates.find(t => t.id === templateId);
@@ -87,6 +95,10 @@ const TestCreator = () => {
       setSelectedTemplate(templateId);
       setTestTitle(template.name);
       setTestDescription(template.description);
+      
+      // Generate unique exam ID when template is selected
+      const newExamId = generateExamId();
+      setExamId(newExamId);
       
       const defaultQuestions: Question[] = template.defaultQuestions.map((q, index) => ({
         id: `q-${index}`,
@@ -156,6 +168,18 @@ const TestCreator = () => {
     
     // Reset text color for content
     pdf.setTextColor(0, 0, 0);
+    
+    // Exam ID Section - PROMINENT DISPLAY
+    pdf.setFillColor(220, 38, 38); // Red background for visibility
+    pdf.rect(margin, yPosition, pageWidth - 2 * margin, 25, 'F');
+    
+    pdf.setTextColor(255, 255, 255); // White text
+    pdf.setFontSize(14);
+    pdf.setFont(undefined, 'bold');
+    pdf.text(`EXAM ID: ${examId}`, margin + 5, yPosition + 15);
+    
+    yPosition += 35;
+    pdf.setTextColor(0, 0, 0); // Reset to black
     
     // Class Information Section
     if (className) {
@@ -378,11 +402,11 @@ const TestCreator = () => {
       pdf.setFontSize(8);
       pdf.setTextColor(107, 114, 128);
       pdf.text(`Page ${i} of ${pageCount}`, pageWidth - margin - 20, pageHeight - 10);
-      pdf.text(testTitle, margin, pageHeight - 10);
+      pdf.text(`${testTitle} | ${examId}`, margin, pageHeight - 10);
     }
     
     // Save the PDF
-    const fileName = `${testTitle.replace(/\s+/g, '_')}_Test.pdf`;
+    const fileName = `${testTitle.replace(/\s+/g, '_')}_${examId}.pdf`;
     pdf.save(fileName);
     toast.success('Beautiful PDF generated successfully!');
   };
@@ -414,13 +438,16 @@ const TestCreator = () => {
   const saveTestToDatabase = async (testData: any) => {
     // This would save to your database/OpenAI system
     // For now, we'll just log and show success
-    console.log('Test data with answer key saved:', testData);
+    console.log('Test data with answer key and exam ID saved:', testData);
     
     // Here you would make an API call to save the test data
-    // The testData includes all questions with their correct answers
+    // The testData includes:
+    // - examId: unique identifier for OpenAI to match tests
+    // - all questions with their correct answers
+    // - test metadata (title, description, class, etc.)
     // This allows OpenAI to access the answers for grading later
     
-    toast.success('Test and answer key saved successfully!');
+    toast.success(`Test and answer key saved successfully! Exam ID: ${testData.examId}`);
   };
 
   const finalizeTest = async () => {
@@ -430,6 +457,7 @@ const TestCreator = () => {
     }
     
     const testData = {
+      examId, // Include the unique exam ID
       title: testTitle,
       description: testDescription,
       className,
@@ -439,11 +467,11 @@ const TestCreator = () => {
       createdAt: new Date().toISOString(),
     };
     
-    // Save to database with answer key
+    // Save to database with answer key and exam ID
     await saveTestToDatabase(testData);
     
     generatePDF();
-    toast.success('Test created and PDF generated successfully!');
+    toast.success(`Test created and PDF generated successfully! Exam ID: ${examId}`);
     setCurrentStep('preview');
   };
 
@@ -490,6 +518,22 @@ const TestCreator = () => {
           Back to Templates
         </Button>
       </div>
+      
+      {examId && (
+        <Card className="border-2 border-red-200 bg-red-50">
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-2">
+              <span className="font-bold text-red-800">Exam ID:</span>
+              <span className="font-mono text-lg text-red-900 bg-white px-3 py-1 rounded border">
+                {examId}
+              </span>
+            </div>
+            <p className="text-sm text-red-700 mt-2">
+              This unique ID will be used to identify this exam for grading purposes.
+            </p>
+          </CardContent>
+        </Card>
+      )}
       
       <Card>
         <CardHeader>
@@ -550,6 +594,13 @@ const TestCreator = () => {
           </Button>
         </div>
       </div>
+      
+      {examId && (
+        <div className="bg-blue-50 p-3 rounded-lg">
+          <span className="text-sm font-medium text-blue-800">Exam ID: </span>
+          <span className="text-sm font-mono text-blue-900">{examId}</span>
+        </div>
+      )}
       
       <div className="flex gap-2 mb-4">
         <Button onClick={() => addQuestion('multiple-choice')} variant="outline" size="sm">
@@ -685,6 +736,13 @@ const TestCreator = () => {
         </div>
       </div>
       
+      {examId && (
+        <div className="bg-blue-50 p-3 rounded-lg">
+          <span className="text-sm font-medium text-blue-800">Exam ID: </span>
+          <span className="text-sm font-mono text-blue-900">{examId}</span>
+        </div>
+      )}
+      
       <div className="bg-blue-50 p-4 rounded-lg mb-6">
         <h3 className="font-semibold text-blue-900 mb-2">Answer Key Instructions</h3>
         <p className="text-sm text-blue-800">
@@ -800,6 +858,13 @@ const TestCreator = () => {
         </Button>
       </div>
       
+      {examId && (
+        <div className="bg-blue-50 p-3 rounded-lg">
+          <span className="text-sm font-medium text-blue-800">Exam ID: </span>
+          <span className="text-sm font-mono text-blue-900">{examId}</span>
+        </div>
+      )}
+      
       <Card>
         <CardHeader>
           <CardTitle>Select Class</CardTitle>
@@ -851,6 +916,12 @@ const TestCreator = () => {
             <CheckCircle className="h-5 w-5 text-green-600" />
             {testTitle}
           </CardTitle>
+          {examId && (
+            <div className="bg-red-50 p-3 rounded-lg">
+              <span className="text-sm font-medium text-red-800">Exam ID: </span>
+              <span className="text-sm font-mono text-red-900">{examId}</span>
+            </div>
+          )}
           {className && (
             <p className="text-sm text-blue-600 font-medium">Class: {className}</p>
           )}
