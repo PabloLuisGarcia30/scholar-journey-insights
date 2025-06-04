@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -42,31 +43,34 @@ const mockClassData = {
       { name: 'Quiz 2: Fractions', grade: 82, maxGrade: 100, date: '2024-03-05' },
     ],
     subjectStrengths: [
-      { topic: 'Algebra', strength: 92, trend: 'up' },
-      { topic: 'Geometry', strength: 85, trend: 'stable' },
-      { topic: 'Fractions', strength: 78, trend: 'down' },
-      { topic: 'Word Problems', strength: 88, trend: 'up' },
+      { topic: 'Algebraic Manipulation', strength: 92, trend: 'up' },
+      { topic: 'Quadratic Equations', strength: 85, trend: 'stable' },
+      { topic: 'Functions and Graphs', strength: 78, trend: 'up' },
+      { topic: 'Trigonometry Basics', strength: 88, trend: 'up' },
+      { topic: 'Data Analysis & Statistics', strength: 84, trend: 'stable' },
+      { topic: 'Real World Problem Solving', strength: 90, trend: 'up' },
+      { topic: 'Accuracy of Computation', strength: 86, trend: 'stable' },
     ],
     subjectSpecificStrengths: {
-      'Algebra': [
+      'Algebraic Manipulation': [
         { skill: 'Formula Knowledge', mastery: 95, assessments: 8 },
         { skill: 'Variable Manipulation', mastery: 88, assessments: 6 },
         { skill: 'Equation Solving', mastery: 92, assessments: 7 },
         { skill: 'Pattern Recognition', mastery: 85, assessments: 5 },
       ],
-      'Geometry': [
-        { skill: 'Shape Recognition', mastery: 90, assessments: 6 },
-        { skill: 'Spatial Reasoning', mastery: 82, assessments: 7 },
-        { skill: 'Measurement Skills', mastery: 78, assessments: 5 },
-        { skill: 'Proof Writing', mastery: 88, assessments: 4 },
+      'Quadratic Equations': [
+        { skill: 'Factoring', mastery: 90, assessments: 6 },
+        { skill: 'Completing the Square', mastery: 82, assessments: 7 },
+        { skill: 'Quadratic Formula', mastery: 78, assessments: 5 },
+        { skill: 'Graphing Parabolas', mastery: 88, assessments: 4 },
       ],
-      'Fractions': [
-        { skill: 'Number Sense', mastery: 85, assessments: 8 },
-        { skill: 'Decimal Conversion', mastery: 75, assessments: 6 },
-        { skill: 'Fraction Operations', mastery: 70, assessments: 5 },
-        { skill: 'Equivalent Fractions', mastery: 82, assessments: 7 },
+      'Functions and Graphs': [
+        { skill: 'Function Notation', mastery: 85, assessments: 8 },
+        { skill: 'Graph Interpretation', mastery: 75, assessments: 6 },
+        { skill: 'Domain and Range', mastery: 70, assessments: 5 },
+        { skill: 'Linear Functions', mastery: 82, assessments: 7 },
       ],
-      'Word Problems': [
+      'Real World Problem Solving': [
         { skill: 'Reading Comprehension', mastery: 90, assessments: 6 },
         { skill: 'Problem Strategy', mastery: 88, assessments: 8 },
         { skill: 'Mathematical Reasoning', mastery: 85, assessments: 5 },
