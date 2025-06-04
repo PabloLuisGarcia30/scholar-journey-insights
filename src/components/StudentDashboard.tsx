@@ -1,4 +1,3 @@
-
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -23,36 +22,6 @@ export function StudentDashboard({ onSelectStudent }: StudentDashboardProps) {
       studentCount: 5, // Updated to match actual students array length
       avgGpa: 3.4,
       students: ['1', '2', '3', '4', '5']
-    },
-    {
-      id: '2',
-      name: 'Science Grade 7',
-      subject: 'Science',
-      grade: '7',
-      teacher: 'Mr. Chen',
-      studentCount: 5, // Updated to match actual students array length
-      avgGpa: 3.6,
-      students: ['6', '7', '8', '9', '10']
-    },
-    {
-      id: '3',
-      name: 'English Grade 8',
-      subject: 'English',
-      grade: '8',
-      teacher: 'Mrs. Williams',
-      studentCount: 5, // Updated to match actual students array length
-      avgGpa: 3.5,
-      students: ['11', '12', '13', '14', '15']
-    },
-    {
-      id: '4',
-      name: 'History Grade 9',
-      subject: 'History',
-      grade: '9',
-      teacher: 'Dr. Brown',
-      studentCount: 5, // Updated to match actual students array length
-      avgGpa: 3.3,
-      students: ['16', '17', '18', '19', '20']
     }
   ];
 
