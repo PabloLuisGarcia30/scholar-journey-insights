@@ -148,10 +148,10 @@ const TestCreator = () => {
     // Reset text color for content
     pdf.setTextColor(0, 0, 0);
     
-    // Student Information Section
+    // Student Information Section with OCR-friendly boxes
     pdf.setFillColor(245, 245, 245); // Light gray background
     pdf.setDrawColor(203, 213, 225); // Border color
-    pdf.rect(margin, yPosition, pageWidth - 2 * margin, 45, 'FD');
+    pdf.rect(margin, yPosition, pageWidth - 2 * margin, 55, 'FD');
     
     yPosition += 10;
     
@@ -159,24 +159,26 @@ const TestCreator = () => {
     pdf.setFont(undefined, 'bold');
     pdf.text('STUDENT INFORMATION', margin + 5, yPosition);
     
-    yPosition += 15;
+    yPosition += 20;
     
-    // Name field
+    // Name field with OCR-friendly box
     pdf.setFontSize(10);
     pdf.setFont(undefined, 'bold');
     pdf.text('Name:', margin + 5, yPosition);
-    pdf.setFont(undefined, 'normal');
-    pdf.setDrawColor(150, 150, 150);
-    pdf.setLineWidth(0.5);
-    pdf.line(margin + 25, yPosition, margin + 120, yPosition);
     
-    // ID Number field
+    // Draw a clear box for the name
+    pdf.setDrawColor(100, 100, 100);
+    pdf.setLineWidth(1);
+    pdf.rect(margin + 35, yPosition - 8, 100, 12);
+    
+    // ID Number field with OCR-friendly box
     pdf.setFont(undefined, 'bold');
-    pdf.text('ID Number:', margin + 130, yPosition);
-    pdf.setFont(undefined, 'normal');
-    pdf.line(margin + 165, yPosition, pageWidth - margin - 5, yPosition);
+    pdf.text('ID Number:', margin + 145, yPosition);
     
-    yPosition += 20;
+    // Draw a clear box for the ID number
+    pdf.rect(margin + 185, yPosition - 8, 60, 12);
+    
+    yPosition += 25;
     
     // Test information box
     pdf.setFillColor(248, 250, 252); // Light gray background
