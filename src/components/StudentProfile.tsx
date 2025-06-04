@@ -8,6 +8,7 @@ import { Progress } from "@/components/ui/progress";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { ArrowLeft, BookOpen, Calendar, ChartBar, TrendingUp, TrendingDown, Target, Minus, FileText, ChevronDown } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
+import { PracticeTestGenerator } from "./PracticeTestGenerator";
 
 interface StudentProfileProps {
   studentId: string;
@@ -98,6 +99,9 @@ const courseGrades = [
 ];
 
 export function StudentProfile({ studentId, classId, className, onBack }: StudentProfileProps) {
+  const [showPracticeTest, setShowPracticeTest] = useState(false);
+  const [selectedSkill, setSelectedSkill] = useState<string | null>(null);
+  
   const progressPercentage = (mockStudent.completedCredits / mockStudent.totalCredits) * 100;
   const isClassView = classId && className;
   const classData = isClassView ? mockClassData[className as keyof typeof mockClassData] : null;
@@ -127,13 +131,25 @@ export function StudentProfile({ studentId, classId, className, onBack }: Studen
   };
 
   const handleGeneratePracticeTest = (skillName?: string) => {
-    if (skillName) {
-      console.log('Generating practice test for student:', studentId, 'in class:', className, 'for skill:', skillName);
-    } else {
-      console.log('Generating practice test for student:', studentId, 'in class:', className);
-    }
-    // TODO: Implement practice test generation logic
+    setSelectedSkill(skillName || null);
+    setShowPracticeTest(true);
   };
+
+  const handleBackFromPracticeTest = () => {
+    setShowPracticeTest(false);
+    setSelectedSkill(null);
+  };
+
+  if (showPracticeTest && className) {
+    return (
+      <PracticeTestGenerator
+        studentName={mockStudent.name}
+        className={className}
+        skillName={selectedSkill}
+        onBack={handleBackFromPracticeTest}
+      />
+    );
+  }
 
   return (
     <div className="p-6">
