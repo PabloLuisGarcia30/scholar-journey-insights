@@ -265,7 +265,7 @@ export function StudentProfile({ studentId, classId, className, onBack }: Studen
             <>
               <TabsTrigger value="assignments">Assignments</TabsTrigger>
               <TabsTrigger value="strengths">Content-Specific Skills</TabsTrigger>
-              <TabsTrigger value="specific-strengths">Subject Specific Strengths</TabsTrigger>
+              <TabsTrigger value="specific-strengths">Subject Specific Skill Mastery</TabsTrigger>
               <TabsTrigger value="progress">Progress Trend</TabsTrigger>
             </>
           ) : (
@@ -364,7 +364,35 @@ export function StudentProfile({ studentId, classId, className, onBack }: Studen
             <TabsContent value="specific-strengths">
               <Card>
                 <CardHeader>
-                  <CardTitle>Subject Specific Skill Mastery</CardTitle>
+                  <div className="flex items-center justify-between">
+                    <CardTitle>Subject Specific Skill Mastery</CardTitle>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button className="flex items-center gap-2">
+                          <FileText className="h-4 w-4" />
+                          Generate practice test
+                          <ChevronDown className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-64 bg-white">
+                        <DropdownMenuItem onClick={() => handleGeneratePracticeTest()}>
+                          All Skills Combined
+                        </DropdownMenuItem>
+                        {classData.subjectSpecificStrengths.map((strength, index) => (
+                          <DropdownMenuItem 
+                            key={index} 
+                            onClick={() => handleGeneratePracticeTest(strength.skill)}
+                            className="flex items-center justify-between"
+                          >
+                            <span>{strength.skill}</span>
+                            <Badge variant="outline" className="ml-2">
+                              {strength.mastery}%
+                            </Badge>
+                          </DropdownMenuItem>
+                        ))}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">
