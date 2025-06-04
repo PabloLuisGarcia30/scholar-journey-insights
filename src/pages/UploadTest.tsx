@@ -1,18 +1,23 @@
+
 import { useState } from "react";
-import { Upload, FileText, Image, Video, Brain, Settings, ArrowLeft } from "lucide-react";
+import { Upload, FileText, Image, Video, Brain, ArrowLeft, CheckCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
 import { Link } from "react-router-dom";
+import { extractTextFromFile, analyzeTest } from "@/services/testAnalysisService";
 
 const UploadTest = () => {
   const [dragActive, setDragActive] = useState(false);
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [isExtractingExamId, setIsExtractingExamId] = useState(false);
-  const [openaiApiKey, setOpenaiApiKey] = useState("");
-  const [googleCloudApiKey, setGoogleCloudApiKey] = useState("");
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [currentStep, setCurrentStep] = useState<'upload' | 'extracting' | 'analyzing' | 'complete'>('upload');
   const [extractedExamId, setExtractedExamId] = useState("");
+  const [analysisResult, setAnalysisResult] = useState<{
+    grade: string;
+    feedback: string;
+    analysis: string;
+  } | null>(null);
 
   const handleDrag = (e: React.DragEvent) => {
     e.preventDefault();
@@ -44,7 +49,9 @@ const UploadTest = () => {
 
   const handleFiles = (files: File[]) => {
     setUploadedFiles(prev => [...prev, ...files]);
-    setExtractedExamId(""); // Reset extracted exam ID when new files are added
+    setExtractedExamId("");
+    setAnalysisResult(null);
+    setCurrentStep('upload');
     toast.success(`Uploaded ${files.length} file(s) successfully!`);
   };
 
@@ -54,7 +61,6 @@ const UploadTest = () => {
       reader.readAsDataURL(file);
       reader.onload = () => {
         const result = reader.result as string;
-        // Remove the data:image/jpeg;base64, prefix to get just the base64 string
         const base64 = result.split(',')[1];
         resolve(base64);
       };
@@ -62,192 +68,79 @@ const UploadTest = () => {
     });
   };
 
-  const extractExamIdFromFiles = async () => {
-    if (!googleCloudApiKey) {
-      toast.error("Please configure your Google Cloud API key first.");
+  const processDocument = async () => {
+    if (uploadedFiles.length === 0) {
+      toast.error("Please upload a file first.");
       return;
     }
 
-    setIsExtractingExamId(true);
+    setIsProcessing(true);
+    
     try {
-      // Use the first uploaded file to extract Exam ID
+      // Step 1: Extract text and exam ID
+      setCurrentStep('extracting');
+      toast.info("Extracting text from document...");
+      
       const firstFile = uploadedFiles[0];
       const base64Content = await convertFileToBase64(firstFile);
       
-      const ocrPayload = {
-        requests: [
-          {
-            image: {
-              content: base64Content
-            },
-            features: [
-              {
-                type: "TEXT_DETECTION"
-              }
-            ]
-          }
-        ]
-      };
-
-      const ocrResponse = await fetch(`https://vision.googleapis.com/v1/images:annotate?key=${googleCloudApiKey}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(ocrPayload)
+      const extractResult = await extractTextFromFile({
+        fileContent: base64Content,
+        fileName: firstFile.name
       });
 
-      if (!ocrResponse.ok) {
-        throw new Error(`Google OCR error: ${ocrResponse.statusText}`);
+      if (!extractResult.examId) {
+        toast.error("Could not find Exam ID in the document. Please ensure the document contains a clearly marked Exam ID.");
+        setCurrentStep('upload');
+        setIsProcessing(false);
+        return;
       }
 
-      const ocrResult = await ocrResponse.json();
-      const extractedText = ocrResult.responses[0]?.textAnnotations?.[0]?.description || "";
-      
-      // Look for Exam ID patterns in the extracted text
-      const examIdPatterns = [
-        /EXAM\s*ID[\s:]*([A-Z0-9\-_]+)/i,
-        /TEST\s*ID[\s:]*([A-Z0-9\-_]+)/i,
-        /ID[\s:]*([A-Z0-9\-_]{3,})/i,
-        /EXAM[\s:]*([A-Z0-9\-_]{3,})/i
-      ];
+      setExtractedExamId(extractResult.examId);
+      toast.success(`Exam ID extracted: ${extractResult.examId}`);
 
-      let foundExamId = "";
-      for (const pattern of examIdPatterns) {
-        const match = extractedText.match(pattern);
-        if (match && match[1]) {
-          foundExamId = match[1].trim();
-          break;
-        }
-      }
+      // Step 2: Analyze all files
+      setCurrentStep('analyzing');
+      toast.info("Analyzing test with AI...");
 
-      if (foundExamId) {
-        setExtractedExamId(foundExamId);
-        toast.success(`Exam ID extracted: ${foundExamId}`);
-      } else {
-        toast.error("Could not find Exam ID in the document. Please check the file contains a clearly marked Exam ID.");
-      }
-
-    } catch (error) {
-      console.error("Error extracting Exam ID:", error);
-      toast.error("Failed to extract Exam ID. Please check your Google Cloud API key.");
-    } finally {
-      setIsExtractingExamId(false);
-    }
-  };
-
-  const handleAIAnalysis = async () => {
-    if (!openaiApiKey) {
-      toast.error("Please configure your OpenAI API key first.");
-      return;
-    }
-
-    if (!googleCloudApiKey) {
-      toast.error("Please configure your Google Cloud API key first.");
-      return;
-    }
-
-    if (!extractedExamId) {
-      toast.error("Please extract the Exam ID from the file first.");
-      return;
-    }
-
-    setIsAnalyzing(true);
-    try {
-      // Step 1: Use Google Cloud Vision OCR to extract text from images
-      const ocrResults = await Promise.all(
+      const allFileResults = await Promise.all(
         uploadedFiles.map(async (file) => {
           const base64Content = await convertFileToBase64(file);
-          
-          const ocrPayload = {
-            requests: [
-              {
-                image: {
-                  content: base64Content
-                },
-                features: [
-                  {
-                    type: "TEXT_DETECTION"
-                  }
-                ]
-              }
-            ]
-          };
-
-          const ocrResponse = await fetch(`https://vision.googleapis.com/v1/images:annotate?key=${googleCloudApiKey}`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(ocrPayload)
+          const result = await extractTextFromFile({
+            fileContent: base64Content,
+            fileName: file.name
           });
-
-          if (!ocrResponse.ok) {
-            throw new Error(`Google OCR error: ${ocrResponse.statusText}`);
-          }
-
-          const ocrResult = await ocrResponse.json();
-          const extractedText = ocrResult.responses[0]?.textAnnotations?.[0]?.description || "";
-          
           return {
             fileName: file.name,
-            extractedText: extractedText
+            extractedText: result.extractedText
           };
         })
       );
 
-      console.log("OCR extracted text:", ocrResults);
-
-      // Step 2: Send extracted text to OpenAI for analysis and grading
-      const combinedText = ocrResults.map(result => 
-        `File: ${result.fileName}\nExtracted Text:\n${result.extractedText}`
-      ).join('\n\n---\n\n');
-
-      const aiPayload = {
-        model: "gpt-4o-mini",
-        messages: [
-          {
-            role: "system",
-            content: `You are an AI grading assistant. Analyze the OCR-extracted text from test documents. Match this with exam ID: ${extractedExamId} to find the corresponding answer key. Grade the test and provide detailed feedback.`
-          },
-          {
-            role: "user",
-            content: `Please analyze this OCR-extracted test content for Exam ID: ${extractedExamId}. Extract all student answers and grade them against the stored answer key. Provide a detailed grade report.\n\nOCR Content:\n${combinedText}`
-          }
-        ],
-        max_tokens: 2000,
-        temperature: 0.1
-      };
-
-      console.log("Sending to OpenAI for analysis:", aiPayload);
-
-      const aiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${openaiApiKey}`
-        },
-        body: JSON.stringify(aiPayload)
+      const analysisResult = await analyzeTest({
+        files: allFileResults,
+        examId: extractResult.examId
       });
 
-      if (aiResponse.ok) {
-        const result = await aiResponse.json();
-        console.log("OpenAI response:", result);
-        
-        const analysisText = result.choices[0]?.message?.content || "No analysis received";
-        alert(`AI Analysis Complete!\n\n${analysisText}`);
-        
-        toast.success("Document analyzed successfully with Google OCR + OpenAI!");
-      } else {
-        const errorData = await aiResponse.json();
-        throw new Error(`OpenAI API error: ${errorData.error?.message || aiResponse.statusText}`);
-      }
+      setAnalysisResult(analysisResult);
+      setCurrentStep('complete');
+      toast.success("Document analysis completed!");
+
     } catch (error) {
-      console.error("Error in OCR + AI analysis:", error);
-      toast.error("Failed to analyze document. Please check your API keys and try again.");
+      console.error("Error processing document:", error);
+      toast.error("Failed to process document. Please try again.");
+      setCurrentStep('upload');
     } finally {
-      setIsAnalyzing(false);
+      setIsProcessing(false);
     }
+  };
+
+  const resetProcess = () => {
+    setUploadedFiles([]);
+    setExtractedExamId("");
+    setAnalysisResult(null);
+    setCurrentStep('upload');
+    setIsProcessing(false);
   };
 
   const getFileIcon = (file: File) => {
@@ -262,6 +155,13 @@ const UploadTest = () => {
     const sizes = ['Bytes', 'KB', 'MB', 'GB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  };
+
+  const getStepColor = (step: string) => {
+    if (currentStep === step && isProcessing) return "text-blue-600";
+    if (currentStep === 'complete' || 
+        (currentStep === 'analyzing' && step === 'extracting')) return "text-green-600";
+    return "text-gray-400";
   };
 
   return (
@@ -279,73 +179,54 @@ const UploadTest = () => {
 
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">Upload Test</h1>
-          <p className="text-gray-600">Upload test documents for Google OCR extraction and OpenAI analysis</p>
+          <p className="text-gray-600">Upload test documents for automatic OCR extraction and AI analysis</p>
         </div>
 
-        {/* Google OCR + OpenAI Configuration */}
+        {/* Processing Steps */}
         <Card className="mb-6">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Settings className="h-5 w-5" />
-              Google OCR + OpenAI Configuration
-            </CardTitle>
+            <CardTitle>Processing Steps</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              <div>
-                <label htmlFor="google-api" className="block text-sm font-medium text-gray-700 mb-2">
-                  Google Cloud Vision API Key
-                </label>
-                <input
-                  id="google-api"
-                  type="password"
-                  value={googleCloudApiKey}
-                  onChange={(e) => setGoogleCloudApiKey(e.target.value)}
-                  placeholder="Enter your Google Cloud API key"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                />
-              </div>
-              <div>
-                <label htmlFor="openai-api" className="block text-sm font-medium text-gray-700 mb-2">
-                  OpenAI API Key
-                </label>
-                <input
-                  id="openai-api"
-                  type="password"
-                  value={openaiApiKey}
-                  onChange={(e) => setOpenaiApiKey(e.target.value)}
-                  placeholder="sk-..."
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                />
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className={`w-8 h-8 rounded-full border-2 flex items-center justify-center ${
+                  uploadedFiles.length > 0 ? 'bg-green-100 border-green-500' : 'border-gray-300'
+                }`}>
+                  {uploadedFiles.length > 0 ? <CheckCircle className="h-4 w-4 text-green-600" /> : '1'}
+                </div>
+                <span className={uploadedFiles.length > 0 ? 'text-green-600 font-medium' : 'text-gray-600'}>
+                  Upload Document
+                </span>
               </div>
               
-              {/* Extracted Exam ID Display */}
-              {extractedExamId && (
-                <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
-                  <div className="flex items-center gap-2">
-                    <Brain className="h-4 w-4 text-green-600" />
-                    <span className="text-sm font-medium text-green-700">Extracted Exam ID:</span>
-                    <span className="text-sm font-bold text-green-900">{extractedExamId}</span>
-                  </div>
+              <div className="flex items-center gap-2">
+                <div className={`w-8 h-8 rounded-full border-2 flex items-center justify-center ${
+                  extractedExamId ? 'bg-green-100 border-green-500' : 
+                  currentStep === 'extracting' ? 'bg-blue-100 border-blue-500' : 'border-gray-300'
+                }`}>
+                  {extractedExamId ? <CheckCircle className="h-4 w-4 text-green-600" /> : 
+                   currentStep === 'extracting' && isProcessing ? 
+                   <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div> : '2'}
                 </div>
-              )}
-              
-              <div className="text-sm text-gray-600">
-                <p className="mb-2"><strong>How it works:</strong></p>
-                <ol className="list-decimal list-inside space-y-1">
-                  <li>Enter your Google Cloud Vision API key for OCR text extraction</li>
-                  <li>Enter your OpenAI API key for intelligent analysis</li>
-                  <li>Upload the test document (image or PDF)</li>
-                  <li>Click "Extract Exam ID" to automatically find the exam ID from the document</li>
-                  <li>Google OCR will extract all text from the document</li>
-                  <li>OpenAI will analyze the extracted text, match answers with the stored answer key, and provide grades</li>
-                </ol>
+                <span className={getStepColor('extracting')}>
+                  Extract Exam ID
+                </span>
               </div>
-              {googleCloudApiKey && openaiApiKey && extractedExamId && (
-                <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
-                  <p className="text-sm text-green-700">✓ Google OCR + OpenAI configuration ready</p>
+              
+              <div className="flex items-center gap-2">
+                <div className={`w-8 h-8 rounded-full border-2 flex items-center justify-center ${
+                  analysisResult ? 'bg-green-100 border-green-500' : 
+                  currentStep === 'analyzing' ? 'bg-blue-100 border-blue-500' : 'border-gray-300'
+                }`}>
+                  {analysisResult ? <CheckCircle className="h-4 w-4 text-green-600" /> : 
+                   currentStep === 'analyzing' && isProcessing ? 
+                   <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div> : '3'}
                 </div>
-              )}
+                <span className={getStepColor('analyzing')}>
+                  AI Analysis
+                </span>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -393,73 +274,64 @@ const UploadTest = () => {
                 </Button>
               </div>
 
-              {/* Extract Exam ID Button */}
-              {uploadedFiles.length > 0 && !extractedExamId && (
-                <div className="mt-6 p-4 bg-yellow-50 rounded-lg border border-yellow-200">
-                  <div className="flex items-center gap-3 mb-3">
-                    <FileText className="h-5 w-5 text-yellow-600" />
-                    <h3 className="font-medium text-yellow-900">Extract Exam ID</h3>
-                  </div>
-                  <p className="text-sm text-yellow-700 mb-4">
-                    First, extract the Exam ID from your uploaded document using Google OCR.
-                  </p>
-                  <Button 
-                    onClick={extractExamIdFromFiles}
-                    disabled={isExtractingExamId || !googleCloudApiKey}
-                    className="w-full bg-yellow-600 hover:bg-yellow-700"
-                  >
-                    {isExtractingExamId ? (
-                      <>
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                        Extracting Exam ID...
-                      </>
-                    ) : (
-                      <>
-                        <FileText className="h-4 w-4 mr-2" />
-                        Extract Exam ID from Document
-                      </>
-                    )}
-                  </Button>
-                  {!googleCloudApiKey && (
-                    <p className="text-xs text-red-600 mt-2">
-                      Please configure Google Cloud API key first
-                    </p>
-                  )}
-                </div>
-              )}
-
-              {/* AI Analysis Button */}
-              {uploadedFiles.length > 0 && extractedExamId && (
+              {/* Process Document Button */}
+              {uploadedFiles.length > 0 && !analysisResult && (
                 <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
                   <div className="flex items-center gap-3 mb-3">
                     <Brain className="h-5 w-5 text-blue-600" />
-                    <h3 className="font-medium text-blue-900">OCR + AI Analysis Ready</h3>
+                    <h3 className="font-medium text-blue-900">Ready to Process</h3>
                   </div>
                   <p className="text-sm text-blue-700 mb-4">
-                    Exam ID extracted! Ready to process with Google OCR for text extraction, then OpenAI for automated grading.
+                    Your document is ready for OCR text extraction and AI analysis. This will automatically extract the Exam ID and grade the test.
                   </p>
                   <Button 
-                    onClick={handleAIAnalysis}
-                    disabled={isAnalyzing || !openaiApiKey || !googleCloudApiKey}
+                    onClick={processDocument}
+                    disabled={isProcessing}
                     className="w-full bg-blue-600 hover:bg-blue-700"
                   >
-                    {isAnalyzing ? (
+                    {isProcessing ? (
                       <>
                         <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                        Processing with Google OCR + OpenAI...
+                        {currentStep === 'extracting' ? 'Extracting text...' : 'Analyzing with AI...'}
                       </>
                     ) : (
                       <>
                         <Brain className="h-4 w-4 mr-2" />
-                        Analyze with Google OCR + OpenAI
+                        Process Document
                       </>
                     )}
                   </Button>
-                  {(!openaiApiKey || !googleCloudApiKey) && (
-                    <p className="text-xs text-red-600 mt-2">
-                      Please configure both API keys first
-                    </p>
-                  )}
+                </div>
+              )}
+
+              {/* Results Display */}
+              {analysisResult && (
+                <div className="mt-6 p-4 bg-green-50 rounded-lg border border-green-200">
+                  <div className="flex items-center gap-3 mb-3">
+                    <CheckCircle className="h-5 w-5 text-green-600" />
+                    <h3 className="font-medium text-green-900">Analysis Complete</h3>
+                  </div>
+                  <div className="space-y-3">
+                    <div>
+                      <span className="text-sm font-medium text-green-700">Grade: </span>
+                      <span className="text-lg font-bold text-green-900">{analysisResult.grade}</span>
+                    </div>
+                    <div>
+                      <span className="text-sm font-medium text-green-700">Feedback: </span>
+                      <p className="text-sm text-green-800">{analysisResult.feedback}</p>
+                    </div>
+                    <details className="text-sm">
+                      <summary className="font-medium text-green-700 cursor-pointer">View Detailed Analysis</summary>
+                      <pre className="mt-2 p-3 bg-white rounded border text-xs whitespace-pre-wrap">{analysisResult.analysis}</pre>
+                    </details>
+                  </div>
+                  <Button 
+                    onClick={resetProcess}
+                    variant="outline"
+                    className="w-full mt-4"
+                  >
+                    Process Another Document
+                  </Button>
                 </div>
               )}
             </CardContent>
@@ -485,7 +357,15 @@ const UploadTest = () => {
                 <div className="flex justify-between items-center p-3 bg-purple-50 rounded-lg">
                   <span className="text-sm font-medium text-purple-700">Exam ID Status</span>
                   <span className="text-lg font-bold text-purple-900">
-                    {extractedExamId ? "✓ Extracted" : "Pending"}
+                    {extractedExamId ? `✓ ${extractedExamId}` : "Pending"}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center p-3 bg-orange-50 rounded-lg">
+                  <span className="text-sm font-medium text-orange-700">Processing Status</span>
+                  <span className="text-lg font-bold text-orange-900">
+                    {analysisResult ? "✓ Complete" : 
+                     isProcessing ? "In Progress" : 
+                     uploadedFiles.length > 0 ? "Ready" : "Waiting"}
                   </span>
                 </div>
               </div>
@@ -521,10 +401,7 @@ const UploadTest = () => {
                 <Button 
                   variant="outline" 
                   className="w-full mt-4"
-                  onClick={() => {
-                    setUploadedFiles([]);
-                    setExtractedExamId("");
-                  }}
+                  onClick={resetProcess}
                 >
                   Clear All Files
                 </Button>
