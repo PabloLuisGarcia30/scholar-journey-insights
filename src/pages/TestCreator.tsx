@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { ArrowLeft, Plus, Trash2, FileText, Clock, CheckCircle, Edit, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -146,6 +147,36 @@ const TestCreator = () => {
     
     // Reset text color for content
     pdf.setTextColor(0, 0, 0);
+    
+    // Student Information Section
+    pdf.setFillColor(245, 245, 245); // Light gray background
+    pdf.setDrawColor(203, 213, 225); // Border color
+    pdf.rect(margin, yPosition, pageWidth - 2 * margin, 45, 'FD');
+    
+    yPosition += 10;
+    
+    pdf.setFontSize(12);
+    pdf.setFont(undefined, 'bold');
+    pdf.text('STUDENT INFORMATION', margin + 5, yPosition);
+    
+    yPosition += 15;
+    
+    // Name field
+    pdf.setFontSize(10);
+    pdf.setFont(undefined, 'bold');
+    pdf.text('Name:', margin + 5, yPosition);
+    pdf.setFont(undefined, 'normal');
+    pdf.setDrawColor(150, 150, 150);
+    pdf.setLineWidth(0.5);
+    pdf.line(margin + 25, yPosition, margin + 120, yPosition);
+    
+    // ID Number field
+    pdf.setFont(undefined, 'bold');
+    pdf.text('ID Number:', margin + 130, yPosition);
+    pdf.setFont(undefined, 'normal');
+    pdf.line(margin + 165, yPosition, pageWidth - margin - 5, yPosition);
+    
+    yPosition += 20;
     
     // Test information box
     pdf.setFillColor(248, 250, 252); // Light gray background
