@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { ArrowLeft, Plus, Trash2, FileText, Clock, CheckCircle, Edit, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -127,101 +126,209 @@ const TestCreator = () => {
     const pdf = new jsPDF();
     const pageWidth = pdf.internal.pageSize.getWidth();
     const pageHeight = pdf.internal.pageSize.getHeight();
-    const margin = 20;
+    const margin = 25;
     let yPosition = margin;
     
-    // Header
-    pdf.setFontSize(18);
-    pdf.setFont(undefined, 'bold');
-    pdf.text(testTitle, margin, yPosition);
-    yPosition += 15;
+    // Header section with styling
+    pdf.setFillColor(45, 55, 72); // Dark blue background
+    pdf.rect(0, 0, pageWidth, 35, 'F');
     
-    // Test info
+    pdf.setTextColor(255, 255, 255); // White text
+    pdf.setFontSize(20);
+    pdf.setFont(undefined, 'bold');
+    pdf.text(testTitle, margin, 20);
+    
     pdf.setFontSize(10);
     pdf.setFont(undefined, 'normal');
+    pdf.text(`Created: ${new Date().toLocaleDateString()}`, pageWidth - margin - 40, 20);
+    
+    yPosition = 50;
+    
+    // Reset text color for content
+    pdf.setTextColor(0, 0, 0);
+    
+    // Test information box
+    pdf.setFillColor(248, 250, 252); // Light gray background
+    pdf.setDrawColor(203, 213, 225); // Border color
+    pdf.rect(margin, yPosition, pageWidth - 2 * margin, 40, 'FD');
+    
+    yPosition += 10;
+    
+    // Test description
     if (testDescription) {
-      const descLines = pdf.splitTextToSize(testDescription, pageWidth - 2 * margin);
-      pdf.text(descLines, margin, yPosition);
-      yPosition += descLines.length * 5 + 5;
+      pdf.setFontSize(10);
+      pdf.setFont(undefined, 'normal');
+      const descLines = pdf.splitTextToSize(testDescription, pageWidth - 2 * margin - 10);
+      pdf.text(descLines, margin + 5, yPosition);
+      yPosition += Math.max(descLines.length * 4, 8);
     }
     
-    pdf.text(`Time Limit: ${timeLimit} minutes`, margin, yPosition);
-    yPosition += 10;
-    pdf.text(`Total Points: ${questions.reduce((sum, q) => sum + q.points, 0)}`, margin, yPosition);
-    yPosition += 15;
-    
-    // Instructions
+    // Test details in columns
     pdf.setFontSize(9);
-    pdf.text('Instructions: Please answer all questions. Fill in the bubbles completely for multiple choice.', margin, yPosition);
-    yPosition += 15;
+    pdf.setFont(undefined, 'bold');
+    pdf.text('Time Limit:', margin + 5, yPosition);
+    pdf.setFont(undefined, 'normal');
+    pdf.text(`${timeLimit} minutes`, margin + 30, yPosition);
     
-    // Questions
+    pdf.setFont(undefined, 'bold');
+    pdf.text('Total Points:', margin + 80, yPosition);
+    pdf.setFont(undefined, 'normal');
+    pdf.text(`${questions.reduce((sum, q) => sum + q.points, 0)}`, margin + 110, yPosition);
+    
+    pdf.setFont(undefined, 'bold');
+    pdf.text('Questions:', margin + 130, yPosition);
+    pdf.setFont(undefined, 'normal');
+    pdf.text(`${questions.length}`, margin + 155, yPosition);
+    
+    yPosition += 20;
+    
+    // Instructions section
+    pdf.setFillColor(239, 246, 255); // Light blue background
+    pdf.rect(margin, yPosition, pageWidth - 2 * margin, 20, 'F');
+    
+    yPosition += 6;
+    pdf.setFontSize(9);
+    pdf.setFont(undefined, 'bold');
+    pdf.text('INSTRUCTIONS:', margin + 5, yPosition);
+    pdf.setFont(undefined, 'normal');
+    pdf.text('Fill in the bubbles completely. Use a #2 pencil. Erase completely to change answers.', margin + 35, yPosition);
+    
+    yPosition += 8;
+    pdf.text('Choose the BEST answer for each question. Mark only ONE answer per question.', margin + 5, yPosition);
+    
+    yPosition += 25;
+    
+    // Questions section
     questions.forEach((question, index) => {
       // Check if we need a new page
-      if (yPosition > pageHeight - 60) {
+      const estimatedQuestionHeight = question.type === 'multiple-choice' ? 50 : 
+                                     question.type === 'true-false' ? 30 : 
+                                     question.type === 'essay' ? 60 : 25;
+      
+      if (yPosition + estimatedQuestionHeight > pageHeight - 30) {
         pdf.addPage();
-        yPosition = margin;
+        yPosition = margin + 10;
       }
       
-      // Question number and text
-      pdf.setFontSize(10);
-      pdf.setFont(undefined, 'bold');
-      const questionHeader = `${index + 1}. (${question.points} pts)`;
-      pdf.text(questionHeader, margin, yPosition);
-      yPosition += 7;
+      // Question header with background
+      pdf.setFillColor(250, 250, 250);
+      pdf.rect(margin, yPosition - 5, pageWidth - 2 * margin, 18, 'F');
       
+      // Question number and points
+      pdf.setFontSize(11);
+      pdf.setFont(undefined, 'bold');
+      pdf.setTextColor(37, 99, 235); // Blue color
+      const questionHeader = `Question ${index + 1}`;
+      pdf.text(questionHeader, margin + 5, yPosition + 5);
+      
+      pdf.setTextColor(107, 114, 128); // Gray color
+      pdf.setFontSize(9);
+      pdf.text(`(${question.points} point${question.points !== 1 ? 's' : ''})`, pageWidth - margin - 25, yPosition + 5);
+      
+      yPosition += 18;
+      
+      // Question text
+      pdf.setTextColor(0, 0, 0);
       pdf.setFont(undefined, 'normal');
+      pdf.setFontSize(10);
       const questionLines = pdf.splitTextToSize(question.question, pageWidth - 2 * margin - 10);
       pdf.text(questionLines, margin + 5, yPosition);
-      yPosition += questionLines.length * 5 + 5;
+      yPosition += questionLines.length * 5 + 8;
       
-      // Answer options
+      // Answer options with improved styling
       if (question.type === 'multiple-choice' && question.options) {
         question.options.forEach((option, optionIndex) => {
           const optionLetter = String.fromCharCode(65 + optionIndex); // A, B, C, D
           
-          // Add option text first
-          pdf.text(`${optionLetter}) ${option}`, margin + 10, yPosition);
+          // Option background for better readability
+          if (optionIndex % 2 === 1) {
+            pdf.setFillColor(253, 253, 253);
+            pdf.rect(margin + 10, yPosition - 3, pageWidth - 2 * margin - 20, 10, 'F');
+          }
           
-          // Draw circle for bubble to the right of the text
-          const bubbleX = margin + 120;
-          const bubbleY = yPosition - 2;
-          const bubbleRadius = 3;
+          // Option text
+          pdf.setTextColor(0, 0, 0);
+          pdf.setFontSize(9);
+          pdf.text(`${optionLetter})`, margin + 15, yPosition + 2);
           
+          const optionLines = pdf.splitTextToSize(option, pageWidth - margin - 140);
+          pdf.text(optionLines, margin + 25, yPosition + 2);
+          
+          // Answer bubble with better styling
+          const bubbleX = pageWidth - margin - 30;
+          const bubbleY = yPosition;
+          const bubbleRadius = 4;
+          
+          pdf.setDrawColor(100, 116, 139);
+          pdf.setLineWidth(0.5);
           pdf.circle(bubbleX, bubbleY, bubbleRadius);
           
-          yPosition += 8;
+          yPosition += Math.max(optionLines.length * 5, 10);
         });
-        yPosition += 5;
+        yPosition += 8;
       } else if (question.type === 'true-false') {
-        // True option with bubble to the right
-        pdf.text('A) True', margin + 10, yPosition);
-        pdf.circle(margin + 120, yPosition - 2, 3);
+        // True option
+        pdf.setFontSize(9);
+        pdf.text('A) True', margin + 15, yPosition + 2);
+        pdf.setDrawColor(100, 116, 139);
+        pdf.setLineWidth(0.5);
+        pdf.circle(pageWidth - margin - 30, yPosition, 4);
+        yPosition += 10;
+        
+        // False option
+        pdf.text('B) False', margin + 15, yPosition + 2);
+        pdf.circle(pageWidth - margin - 30, yPosition, 4);
+        yPosition += 15;
+      } else if (question.type === 'short-answer') {
+        pdf.setFontSize(9);
+        pdf.text('Answer:', margin + 15, yPosition);
+        
+        // Draw answer lines with better spacing
+        for (let i = 0; i < 2; i++) {
+          yPosition += 8;
+          pdf.setDrawColor(200, 200, 200);
+          pdf.setLineWidth(0.3);
+          pdf.line(margin + 15, yPosition, pageWidth - margin - 15, yPosition);
+        }
+        yPosition += 10;
+      } else if (question.type === 'essay') {
+        pdf.setFontSize(9);
+        pdf.text('Answer:', margin + 15, yPosition);
         yPosition += 8;
         
-        // False option with bubble to the right
-        pdf.text('B) False', margin + 10, yPosition);
-        pdf.circle(margin + 120, yPosition - 2, 3);
-        yPosition += 11;
-      } else if (question.type === 'short-answer') {
-        pdf.text('Answer: ________________________________', margin + 10, yPosition);
-        yPosition += 15;
-      } else if (question.type === 'essay') {
-        pdf.text('Answer:', margin + 10, yPosition);
-        yPosition += 10;
-        // Add lines for essay answer
-        for (let i = 0; i < 5; i++) {
-          pdf.line(margin + 10, yPosition, pageWidth - margin, yPosition);
+        // Add lined space for essay answer
+        for (let i = 0; i < 6; i++) {
+          pdf.setDrawColor(200, 200, 200);
+          pdf.setLineWidth(0.3);
+          pdf.line(margin + 15, yPosition, pageWidth - margin - 15, yPosition);
           yPosition += 8;
         }
-        yPosition += 5;
+        yPosition += 8;
+      }
+      
+      // Add subtle separator between questions
+      if (index < questions.length - 1) {
+        pdf.setDrawColor(229, 231, 235);
+        pdf.setLineWidth(0.5);
+        pdf.line(margin + 10, yPosition, pageWidth - margin - 10, yPosition);
+        yPosition += 10;
       }
     });
+    
+    // Footer on each page
+    const pageCount = pdf.getNumberOfPages();
+    for (let i = 1; i <= pageCount; i++) {
+      pdf.setPage(i);
+      pdf.setFontSize(8);
+      pdf.setTextColor(107, 114, 128);
+      pdf.text(`Page ${i} of ${pageCount}`, pageWidth - margin - 20, pageHeight - 10);
+      pdf.text(testTitle, margin, pageHeight - 10);
+    }
     
     // Save the PDF
     const fileName = `${testTitle.replace(/\s+/g, '_')}_Test.pdf`;
     pdf.save(fileName);
-    toast.success('PDF generated successfully!');
+    toast.success('Beautiful PDF generated successfully!');
   };
 
   const generateTest = () => {
