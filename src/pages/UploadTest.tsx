@@ -1,6 +1,6 @@
 
 import { useState } from "react";
-import { Upload, FileText, Image, Video } from "lucide-react";
+import { Upload, FileText, Image, Video, Brain } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
@@ -8,6 +8,7 @@ import { toast } from "sonner";
 const UploadTest = () => {
   const [dragActive, setDragActive] = useState(false);
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
 
   const handleDrag = (e: React.DragEvent) => {
     e.preventDefault();
@@ -40,6 +41,19 @@ const UploadTest = () => {
   const handleFiles = (files: File[]) => {
     setUploadedFiles(prev => [...prev, ...files]);
     toast.success(`Uploaded ${files.length} file(s) successfully!`);
+  };
+
+  const handleAIAnalysis = async () => {
+    setIsAnalyzing(true);
+    try {
+      // Simulate AI analysis
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      toast.success("AI analysis completed! Results will be available in the dashboard.");
+    } catch (error) {
+      toast.error("Failed to analyze documents. Please try again.");
+    } finally {
+      setIsAnalyzing(false);
+    }
   };
 
   const getFileIcon = (file: File) => {
@@ -105,6 +119,36 @@ const UploadTest = () => {
                   </label>
                 </Button>
               </div>
+
+              {/* AI Analysis Button */}
+              {uploadedFiles.length > 0 && (
+                <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                  <div className="flex items-center gap-3 mb-3">
+                    <Brain className="h-5 w-5 text-blue-600" />
+                    <h3 className="font-medium text-blue-900">AI Analysis Ready</h3>
+                  </div>
+                  <p className="text-sm text-blue-700 mb-4">
+                    Upload complete! Ready to analyze and grade your documents using AI.
+                  </p>
+                  <Button 
+                    onClick={handleAIAnalysis}
+                    disabled={isAnalyzing}
+                    className="w-full bg-blue-600 hover:bg-blue-700"
+                  >
+                    {isAnalyzing ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                        Analyzing...
+                      </>
+                    ) : (
+                      <>
+                        <Brain className="h-4 w-4 mr-2" />
+                        AI Grade and Analyze Document
+                      </>
+                    )}
+                  </Button>
+                </div>
+              )}
             </CardContent>
           </Card>
 
