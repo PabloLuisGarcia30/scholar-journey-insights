@@ -316,7 +316,7 @@ export function StudentProfile({ studentId, classId, className, onBack }: Studen
                       <DropdownMenuTrigger asChild>
                         <Button className="flex items-center gap-2">
                           <FileText className="h-4 w-4" />
-                          Generate practice test
+                          Generate practice exercises
                           <ChevronDown className="h-4 w-4" />
                         </Button>
                       </DropdownMenuTrigger>
@@ -370,7 +370,7 @@ export function StudentProfile({ studentId, classId, className, onBack }: Studen
                       <DropdownMenuTrigger asChild>
                         <Button className="flex items-center gap-2">
                           <FileText className="h-4 w-4" />
-                          Generate practice test
+                          Generate practice exercises
                           <ChevronDown className="h-4 w-4" />
                         </Button>
                       </DropdownMenuTrigger>

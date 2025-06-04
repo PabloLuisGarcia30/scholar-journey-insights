@@ -307,7 +307,7 @@ export function PracticeTestGenerator({ studentName, className, skillName, onBac
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <FileText className="h-5 w-5" />
-                Generate Practice Test
+                Generate Practice Exercises
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
@@ -350,12 +350,12 @@ export function PracticeTestGenerator({ studentName, className, skillName, onBac
                   {isGenerating ? (
                     <>
                       <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                      Generating Practice Test...
+                      Generating Practice Exercises...
                     </>
                   ) : (
                     <>
                       <FileText className="h-4 w-4 mr-2" />
-                      Generate Practice Test
+                      Generate Practice Exercises
                     </>
                   )}
                 </Button>
@@ -377,7 +377,7 @@ export function PracticeTestGenerator({ studentName, className, skillName, onBac
         <div className="flex gap-2">
           <Button variant="outline" onClick={() => setTestData(null)}>
             <RefreshCw className="h-4 w-4 mr-2" />
-            Generate New Test
+            Generate New Exercises
           </Button>
           <Button onClick={generatePDF}>
             <Download className="h-4 w-4 mr-2" />
