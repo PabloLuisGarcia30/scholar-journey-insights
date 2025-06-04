@@ -52,32 +52,12 @@ const mockClassData = {
       { topic: 'Real World Problem Solving', strength: 90, trend: 'up' },
       { topic: 'Accuracy of Computation', strength: 86, trend: 'stable' },
     ],
-    subjectSpecificStrengths: {
-      'Clarity of Explanation': [
-        { skill: 'Step-by-step Process', mastery: 95 },
-        { skill: 'Logical Flow', mastery: 88 },
-        { skill: 'Conciseness', mastery: 92 },
-        { skill: 'Completeness', mastery: 85 },
-      ],
-      'Use of Mathematical Language': [
-        { skill: 'Correct Terminology', mastery: 90 },
-        { skill: 'Symbol Usage', mastery: 82 },
-        { skill: 'Formula Notation', mastery: 78 },
-        { skill: 'Technical Vocabulary', mastery: 88 },
-      ],
-      'Presentation': [
-        { skill: 'Organization', mastery: 85 },
-        { skill: 'Neatness', mastery: 75 },
-        { skill: 'Visual Elements', mastery: 70 },
-        { skill: 'Layout Structure', mastery: 82 },
-      ],
-      'Logical Reasoning': [
-        { skill: 'Justification of Steps', mastery: 90 },
-        { skill: 'Problem Analysis', mastery: 88 },
-        { skill: 'Critical Thinking', mastery: 85 },
-        { skill: 'Connecting Concepts', mastery: 92 },
-      ],
-    },
+    subjectSpecificStrengths: [
+      { skill: 'Clarity of Explanation', mastery: 88 },
+      { skill: 'Use of Mathematical Language', mastery: 85 },
+      { skill: 'Presentation', mastery: 78 },
+      { skill: 'Logical Reasoning', mastery: 89 },
+    ],
     attendanceRate: 95,
     participationScore: 8.5,
   }
@@ -387,25 +367,20 @@ export function StudentProfile({ studentId, classId, className, onBack }: Studen
                   <CardTitle>Subject Specific Skill Mastery</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="space-y-6">
-                    {Object.entries(classData.subjectSpecificStrengths).map(([subject, skills]) => (
-                      <div key={subject} className="border rounded-lg p-4">
-                        <div className="flex items-center gap-2 mb-4">
-                          <Target className="h-5 w-5 text-blue-600" />
-                          <h3 className="text-lg font-semibold text-gray-900">{subject}</h3>
+                  <div className="space-y-4">
+                    {classData.subjectSpecificStrengths.map((strength, index) => (
+                      <div key={index} className="flex items-center justify-between p-4 rounded-lg border border-gray-100">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            <Target className="h-5 w-5 text-blue-600" />
+                            <h3 className="font-semibold text-gray-900">{strength.skill}</h3>
+                          </div>
+                          <Progress value={strength.mastery} className="mt-2 w-64" />
                         </div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          {skills.map((skill, index) => (
-                            <div key={index} className="bg-gray-50 rounded-lg p-3">
-                              <div className="flex items-center justify-between mb-2">
-                                <h4 className="font-medium text-gray-900">{skill.skill}</h4>
-                                <Badge className={getMasteryColor(skill.mastery)}>
-                                  {skill.mastery}%
-                                </Badge>
-                              </div>
-                              <Progress value={skill.mastery} className="h-2" />
-                            </div>
-                          ))}
+                        <div className="text-right">
+                          <Badge className={getMasteryColor(strength.mastery)}>
+                            {strength.mastery}%
+                          </Badge>
                         </div>
                       </div>
                     ))}
