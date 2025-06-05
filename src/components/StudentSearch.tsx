@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
@@ -6,6 +5,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { GraduationCap } from "lucide-react";
+import { AddStudentDialog } from "@/components/AddStudentDialog";
 
 interface StudentSearchProps {
   onSelectStudent: (studentId: string) => void;
@@ -54,6 +54,11 @@ export function StudentSearch({ onSelectStudent }: StudentSearchProps) {
     setFilteredStudents(filtered);
   };
 
+  const handleStudentAdded = () => {
+    // Refresh the student list or show a success message
+    console.log('Student added successfully');
+  };
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'Excellent': return 'bg-green-100 text-green-700';
@@ -66,8 +71,13 @@ export function StudentSearch({ onSelectStudent }: StudentSearchProps) {
   return (
     <div className="p-6">
       <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">Student Directory</h1>
-        <p className="text-gray-600">Search and manage student profiles</p>
+        <div className="flex items-center justify-between mb-2">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">Student Directory</h1>
+            <p className="text-gray-600">Search and manage student profiles</p>
+          </div>
+          <AddStudentDialog onStudentAdded={handleStudentAdded} />
+        </div>
       </div>
 
       <div className="mb-6">
