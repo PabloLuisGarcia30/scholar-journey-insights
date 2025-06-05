@@ -1,4 +1,3 @@
-
 import { useQuery } from "@tanstack/react-query";
 import { useEffect } from "react";
 import { 
@@ -74,6 +73,9 @@ export function useStudentProfileData({ studentId, classId, className }: UseStud
       return getStudentContentSkillScores(studentId);
     },
     enabled: !!student, // Wait for student data to load first
+    staleTime: isPabloLuisGarcia && classData && classData.subject === 'Math' && classData.grade === 'Grade 10' 
+      ? 5 * 60 * 1000 // 5 minutes cache for Pablo's mock data
+      : 0, // No cache for regular data
   });
 
   // Fetch subject skill scores
