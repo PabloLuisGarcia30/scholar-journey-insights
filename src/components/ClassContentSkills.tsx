@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -15,6 +14,7 @@ import {
   type ContentSkill,
   type ActiveClass
 } from "@/services/examService";
+import { AddContentSkillDialog } from "@/components/AddContentSkillDialog";
 
 interface ClassContentSkillsProps {
   activeClass: ActiveClass;
@@ -215,6 +215,10 @@ export function ClassContentSkills({ activeClass }: ClassContentSkillsProps) {
             )}
           </CardTitle>
           <div className="flex items-center gap-2">
+            <AddContentSkillDialog 
+              activeClass={activeClass} 
+              onSkillAdded={loadSkills}
+            />
             <Badge variant="outline">
               {selectedSkills.size} of {availableSkills.length} selected
             </Badge>

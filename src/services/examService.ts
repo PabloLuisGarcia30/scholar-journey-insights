@@ -898,3 +898,27 @@ export const autoLinkClassToSubjectSkills = async (classId: string, subject: str
     throw error;
   }
 };
+
+export const createContentSkill = async (skillData: {
+  skill_name: string;
+  skill_description: string;
+  topic: string;
+  subject: string;
+  grade: string;
+}): Promise<ContentSkill> => {
+  console.log('Creating content skill:', skillData);
+  
+  const { data, error } = await supabase
+    .from('content_skills')
+    .insert([skillData])
+    .select()
+    .single();
+  
+  if (error) {
+    console.error('Error creating content skill:', error);
+    throw error;
+  }
+  
+  console.log('Content skill created successfully:', data);
+  return data;
+};
