@@ -79,7 +79,7 @@ export function StudentContentSkills({
                                 onClick={() => onGeneratePracticeTest(skill.skill_name)}
                               >
                                 <BookOpen className="h-4 w-4 mr-1" />
-                                Practice
+                                Generate Practice Exercise
                               </Button>
                             )}
                           </div>
