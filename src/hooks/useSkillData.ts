@@ -31,8 +31,8 @@ export function useSkillData({
       'Content skill scores:': contentSkillScores.map(s => s.skill_name)
     });
 
-    // For Grade 10 Math class view, prioritize the content skill scores (which includes Pablo's mock data)
-    if (isClassView && isGrade10MathClass() && contentSkillScores.length > 0) {
+    // For any Grade 10 Math context, prioritize content skill scores (includes Pablo's mock data)
+    if (isGrade10MathClass() && contentSkillScores.length > 0) {
       console.log('Using content skill scores for Grade 10 Math (includes mock data if applicable)');
       return contentSkillScores;
     }
@@ -106,7 +106,7 @@ export function useSkillData({
     
     if (!isClassView) return { 'General Skills': skills };
 
-    // For Grade 10 Math with mock data, create topics based on skill names
+    // For Grade 10 Math with mock data or actual skills, create topics based on skill names
     if (isGrade10MathClass() && skills.length > 0) {
       const grouped: Record<string, typeof skills> = {};
       

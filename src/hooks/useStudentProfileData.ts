@@ -51,7 +51,7 @@ export function useStudentProfileData({ studentId, classId, className }: UseStud
     queryFn: () => getStudentTestResults(studentId),
   });
 
-  // Fetch content skill scores - use mock data for Pablo Luis Garcia in Grade 10 Math class
+  // Fetch content skill scores - use mock data for Pablo Luis Garcia in ANY Grade 10 Math context
   const { data: contentSkillScores = [], isLoading: contentSkillsLoading } = useQuery({
     queryKey: ['studentContentSkills', studentId, classId],
     queryFn: () => {
@@ -61,10 +61,13 @@ export function useStudentProfileData({ studentId, classId, className }: UseStud
         isClassView, 
         isGrade10Math: isGrade10MathClass(),
         classId,
-        className 
+        className,
+        classSubject: classData?.subject,
+        classGrade: classData?.grade
       });
       
-      if (isPabloLuisGarcia && isClassView && isGrade10MathClass()) {
+      // Use mock data for Pablo Luis Garcia in any Grade 10 Math class context
+      if (isPabloLuisGarcia && classData && classData.subject === 'Math' && classData.grade === 'Grade 10') {
         console.log('Using mock data for Pablo Luis Garcia in Grade 10 Math');
         return Promise.resolve(mockPabloContentSkillScores);
       }
