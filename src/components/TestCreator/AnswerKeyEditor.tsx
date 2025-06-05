@@ -110,7 +110,7 @@ export const AnswerKeyEditor = ({
                 <Textarea
                   id={`explanation-${question.id}`}
                   value={question.explanation || ''}
-                  onChange={(e) => onUpdateAnswer(question.id, question.correctAnswer as string, e.target.value)}
+                  onChange={(e) => onUpdateAnswer(question.id, question.correctAnswer as string || '', e.target.value)}
                   placeholder="Provide an explanation for the correct answer"
                   rows={2}
                 />
