@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -18,7 +17,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Users, BookOpen, TrendingUp, Trash2, ArrowLeft, Target } from "lucide-react";
+import { Users, BookOpen, TrendingUp, Trash2, ArrowLeft, Target, UserX } from "lucide-react";
 import { CreateClassDialog } from "@/components/CreateClassDialog";
 import { AddStudentsDialog } from "@/components/AddStudentsDialog";
 import { ClassContentSkills } from "@/components/ClassContentSkills";
@@ -113,6 +112,34 @@ export function ClassView({ onSelectStudent }: ClassViewProps) {
     } catch (error) {
       console.error('Error adding students:', error);
       toast.error('Failed to add students. Please try again.');
+    }
+  };
+
+  const handleRemoveStudent = async (classId: string, studentId: string, studentName: string) => {
+    try {
+      const classToUpdate = classes.find(cls => cls.id === classId);
+      if (!classToUpdate) return;
+
+      const updatedStudents = classToUpdate.students.filter(id => id !== studentId);
+      const enrolledStudents = allStudents.filter(s => updatedStudents.includes(s.id));
+      const avgGpa = enrolledStudents.length > 0 
+        ? Number((enrolledStudents.reduce((sum, s) => sum + (s.gpa || 0), 0) / enrolledStudents.length).toFixed(1))
+        : 0;
+
+      const updatedClass = await updateActiveClass(classId, {
+        students: updatedStudents,
+        student_count: updatedStudents.length,
+        avg_gpa: avgGpa
+      });
+
+      setClasses(prevClasses => 
+        prevClasses.map(cls => cls.id === classId ? updatedClass : cls)
+      );
+
+      toast.success(`${studentName} has been removed from the class`);
+    } catch (error) {
+      console.error('Error removing student:', error);
+      toast.error('Failed to remove student. Please try again.');
     }
   };
 
@@ -232,10 +259,12 @@ export function ClassView({ onSelectStudent }: ClassViewProps) {
                     {enrolledStudents.map((student) => (
                       <div 
                         key={student.id}
-                        className="flex items-center justify-between p-3 rounded-lg border hover:bg-gray-50 cursor-pointer"
-                        onClick={() => handleStudentClick(student.id, classData.id, classData.name)}
+                        className="flex items-center justify-between p-3 rounded-lg border hover:bg-gray-50"
                       >
-                        <div className="flex items-center gap-3">
+                        <div 
+                          className="flex items-center gap-3 cursor-pointer flex-1"
+                          onClick={() => handleStudentClick(student.id, classData.id, classData.name)}
+                        >
                           <Avatar className="h-8 w-8">
                             <AvatarFallback className="text-xs">
                               {student.name.split(' ').map(n => n[0]).join('')}
@@ -246,9 +275,35 @@ export function ClassView({ onSelectStudent }: ClassViewProps) {
                             <p className="text-sm text-gray-600">{student.email || 'No email'}</p>
                           </div>
                         </div>
-                        <Badge variant="outline">
-                          GPA: {student.gpa ? Number(student.gpa).toFixed(2) : 'N/A'}
-                        </Badge>
+                        <div className="flex items-center gap-2">
+                          <Badge variant="outline">
+                            GPA: {student.gpa ? Number(student.gpa).toFixed(2) : 'N/A'}
+                          </Badge>
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button variant="ghost" size="sm" className="text-red-600 hover:text-red-700 hover:bg-red-50">
+                                <UserX className="h-4 w-4" />
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Remove Student</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  Are you sure you want to remove "{student.name}" from "{classData.name}"? This action will remove them from the class roster but will not delete their test results or data.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction 
+                                  onClick={() => handleRemoveStudent(classData.id, student.id, student.name)}
+                                  className="bg-red-600 hover:bg-red-700"
+                                >
+                                  Remove Student
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        </div>
                       </div>
                     ))}
                   </div>
