@@ -17,6 +17,8 @@ import {
   getStudentSubjectSkillScores,
   getActiveClassById,
   getContentSkillsBySubjectAndGrade,
+  getLinkedContentSkillsForClass,
+  linkClassToContentSkills,
   type ActiveStudent,
   type TestResult,
   type SkillScore,
@@ -84,6 +86,35 @@ export function StudentProfile({ studentId, classId, className, onBack }: Studen
     return classData && classData.subject === 'Math' && classData.grade === 'Grade 10';
   };
 
+  // Auto-link Grade 10 Math classes to their skills when class data loads
+  useEffect(() => {
+    const autoLinkSkills = async () => {
+      if (isGrade10MathClass() && classId) {
+        try {
+          console.log('Auto-linking Grade 10 Math class to Grade 10 Math skills');
+          // Get all Grade 10 Math content skills
+          const allSkills = await getContentSkillsBySubjectAndGrade('Math', 'Grade 10');
+          const skillIds = allSkills.map(skill => skill.id);
+          
+          // Link the class to all Grade 10 Math skills
+          await linkClassToContentSkills(classId, skillIds);
+          console.log(`Successfully linked class to ${skillIds.length} Grade 10 Math skills`);
+          
+          // Trigger a refetch of the linked skills
+          if (classContentSkillsRefetch) {
+            classContentSkillsRefetch();
+          }
+        } catch (error) {
+          console.error('Failed to auto-link Grade 10 Math skills:', error);
+        }
+      }
+    };
+
+    if (classData) {
+      autoLinkSkills();
+    }
+  }, [classData, classId]);
+
   // Fetch test results
   const { data: testResults = [], isLoading: testResultsLoading } = useQuery({
     queryKey: ['studentTestResults', studentId],
@@ -103,10 +134,10 @@ export function StudentProfile({ studentId, classId, className, onBack }: Studen
   });
 
   // Fetch content skills for the class to show complete skill set
-  const { data: classContentSkills = [], isLoading: classContentSkillsLoading } = useQuery({
-    queryKey: ['classContentSkills', classData?.subject, classData?.grade],
-    queryFn: () => classData ? getContentSkillsBySubjectAndGrade(classData.subject, classData.grade) : Promise.resolve([]),
-    enabled: !!classData && !!isClassView,
+  const { data: classContentSkills = [], isLoading: classContentSkillsLoading, refetch: classContentSkillsRefetch } = useQuery({
+    queryKey: ['classLinkedContentSkills', classId],
+    queryFn: () => classId ? getLinkedContentSkillsForClass(classId) : Promise.resolve([]),
+    enabled: !!classId && !!isClassView,
   });
 
   const totalCredits = 120;
@@ -133,7 +164,7 @@ export function StudentProfile({ studentId, classId, className, onBack }: Studen
 
     // If we're in class view and have class content skills, show all skills for the class
     if (isClassView && classContentSkills.length > 0) {
-      console.log('Using class content skills from unified table');
+      console.log('Using linked class content skills');
       // Create a map of skill scores by skill name
       const scoreMap = new Map(contentSkillScores.map(score => [score.skill_name, score]));
 

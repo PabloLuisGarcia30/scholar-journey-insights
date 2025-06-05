@@ -708,6 +708,7 @@ export const getLinkedContentSkillsForClass = async (classId: string): Promise<C
 
     // Extract the content_skills from the nested structure
     const contentSkills = data?.map((item: any) => item.content_skills).filter(Boolean) || [];
+    console.log('Found linked content skills:', contentSkills.length);
     return contentSkills;
   } catch (error) {
     console.error('Error in getLinkedContentSkillsForClass:', error);
