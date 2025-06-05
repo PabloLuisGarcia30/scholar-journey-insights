@@ -92,6 +92,8 @@ const TestCreator = () => {
   const [isPrintDialogOpen, setIsPrintDialogOpen] = useState(false);
   const [selectedStudentsForPrint, setSelectedStudentsForPrint] = useState<string[]>([]);
   const [isPrinting, setIsPrinting] = useState(false);
+  const [showSuccessDialog, setShowSuccessDialog] = useState(false);
+  const [successMessage, setSuccessMessage] = useState('');
 
   useEffect(() => {
     const loadClasses = async () => {
@@ -288,7 +290,9 @@ const TestCreator = () => {
       // Generate individual tests for each student
       generateStudentTestPDFs(testData, studentNames);
       
-      toast.success(`Generated ${studentNames.length} individual test PDFs for each student in ${className}!`);
+      // Show centered success dialog instead of toast
+      setSuccessMessage(`Generated ${studentNames.length} individual test PDFs for each student in ${className}!`);
+      setShowSuccessDialog(true);
       setCurrentStep('preview');
     } catch (error) {
       console.error('Error generating student tests:', error);
@@ -322,7 +326,9 @@ const TestCreator = () => {
       // Generate PDFs for selected students
       generateStudentTestPDFs(testData, studentNames);
       
-      toast.success(`Generated ${studentNames.length} test PDF${studentNames.length > 1 ? 's' : ''} for printing!`);
+      // Show centered success dialog instead of toast
+      setSuccessMessage(`Generated ${studentNames.length} test PDF${studentNames.length > 1 ? 's' : ''} for printing!`);
+      setShowSuccessDialog(true);
       setIsPrintDialogOpen(false);
     } catch (error) {
       console.error('Error generating tests for printing:', error);
@@ -869,6 +875,26 @@ const TestCreator = () => {
         {currentStep === 'answer-key' && renderAnswerKey()}
         {currentStep === 'class-input' && renderClassInput()}
         {currentStep === 'preview' && renderPreview()}
+
+        {/* Success Dialog - Centered on screen */}
+        <Dialog open={showSuccessDialog} onOpenChange={setShowSuccessDialog}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-green-600">
+                <CheckCircle className="h-6 w-6" />
+                Tests Generated Successfully!
+              </DialogTitle>
+            </DialogHeader>
+            <div className="py-4">
+              <p className="text-gray-700">{successMessage}</p>
+            </div>
+            <div className="flex justify-end">
+              <Button onClick={() => setShowSuccessDialog(false)}>
+                Got it!
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );
