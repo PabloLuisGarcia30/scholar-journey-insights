@@ -187,10 +187,13 @@ export function DashboardAnalytics() {
                 <ChartTooltip 
                   content={
                     <ChartTooltipContent 
-                      formatter={(value, name, props) => [
-                        `${value}% - ${getMasteryLabel(value as number)} (${props.payload.skillCount} skills)`, 
-                        'Mastery Level'
-                      ]}
+                      formatter={(value, name, props) => {
+                        const skillCount = (props?.payload as any)?.skillCount || 0;
+                        return [
+                          `${value}% - ${getMasteryLabel(value as number)} (${skillCount} skills)`, 
+                          'Mastery Level'
+                        ];
+                      }}
                     />
                   }
                 />
