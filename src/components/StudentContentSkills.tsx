@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
 import { PracticeTestGenerator } from "@/components/PracticeTestGenerator";
-import { Zap } from "lucide-react";
+import { Zap, BookOpen } from "lucide-react";
 
 interface StudentContentSkillsProps {
   groupedSkills: Record<string, any[]>;
@@ -53,62 +53,90 @@ export function StudentContentSkills({
   const isLoading = contentSkillsLoading || classContentSkillsLoading;
 
   const getScoreColor = (score: number) => {
-    if (score >= 90) return "text-green-600";
+    if (score >= 90) return "text-emerald-600";
     if (score >= 80) return "text-blue-600";
-    if (score >= 70) return "text-yellow-600";
-    return "text-orange-600";
+    if (score >= 70) return "text-amber-600";
+    return "text-rose-600";
+  };
+
+  const getProgressColor = (score: number) => {
+    if (score >= 90) return "bg-emerald-500";
+    if (score >= 80) return "bg-blue-500";
+    if (score >= 70) return "bg-amber-500";
+    return "bg-rose-500";
   };
 
   return (
-    <Card className="w-full">
-      <CardHeader className="flex flex-row items-center justify-between">
-        <CardTitle>Content-Specific Skills</CardTitle>
+    <Card className="w-full border-slate-200 shadow-sm">
+      <CardHeader className="flex flex-row items-center justify-between border-b border-slate-100 bg-slate-50/50">
+        <CardTitle className="text-xl font-semibold text-slate-800">Content-Specific Skills</CardTitle>
         {isClassView && (
           <Button
             variant="destructive"
             onClick={() => onGeneratePracticeTest('super-exercise-content')}
             disabled={skillsForSuperExercise.length === 0}
-            className="bg-orange-500 hover:bg-orange-600"
+            className="bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 shadow-sm"
           >
             <Zap className="h-4 w-4 mr-2" />
             Create a Super Exercise
           </Button>
         )}
       </CardHeader>
-      <CardContent className="space-y-8">
+      <CardContent className="p-6">
         {isLoading ? (
-          <p>Loading content skills...</p>
+          <div className="flex items-center justify-center py-8">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-slate-600"></div>
+            <span className="ml-3 text-slate-600">Loading content skills...</span>
+          </div>
         ) : (
-          Object.entries(groupedSkills).map(([topic, skills]) => (
-            <div key={topic} className="space-y-4">
-              <h3 className="text-lg font-semibold text-center text-gray-700 uppercase tracking-wide">
-                {topic}
-              </h3>
-              <div className="space-y-6">
-                {skills.map((skill: any) => (
-                  <div key={skill.id || skill.skill_name} className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <h4 className="font-medium text-gray-900">{skill.skill_name}</h4>
-                      <div className="flex items-center gap-4">
-                        <span className={`font-semibold ${getScoreColor(skill.score)}`}>
-                          {skill.score}%
-                        </span>
-                        <Button 
-                          variant="outline" 
-                          size="sm"
-                          onClick={() => onGeneratePracticeTest(skill.skill_name)}
-                          className="text-sm"
-                        >
-                          📝 Generate Practice Exercise
-                        </Button>
+          <div className="space-y-8">
+            {Object.entries(groupedSkills).map(([topic, skills]) => (
+              <div key={topic} className="space-y-4">
+                <div className="flex items-center gap-3">
+                  <div className="h-px bg-gradient-to-r from-slate-300 to-transparent flex-1"></div>
+                  <h3 className="text-sm font-medium text-slate-500 uppercase tracking-wider px-3 py-1 bg-slate-100 rounded-full">
+                    {topic}
+                  </h3>
+                  <div className="h-px bg-gradient-to-l from-slate-300 to-transparent flex-1"></div>
+                </div>
+                <div className="space-y-4">
+                  {skills.map((skill: any) => (
+                    <div key={skill.id || skill.skill_name} className="group p-4 rounded-lg border border-slate-200 bg-white hover:shadow-md transition-all duration-200">
+                      <div className="flex items-center justify-between mb-3">
+                        <h4 className="font-medium text-slate-900 group-hover:text-slate-700 transition-colors">
+                          {skill.skill_name}
+                        </h4>
+                        <div className="flex items-center gap-4">
+                          <span className={`font-semibold text-sm ${getScoreColor(skill.score)}`}>
+                            {skill.score}%
+                          </span>
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => onGeneratePracticeTest(skill.skill_name)}
+                            className="text-xs font-medium border-slate-300 hover:bg-slate-50 hover:border-slate-400 transition-all duration-200"
+                          >
+                            <BookOpen className="h-3 w-3 mr-2" />
+                            Generate Practice Exercise
+                          </Button>
+                        </div>
+                      </div>
+                      <div className="relative">
+                        <Progress 
+                          value={skill.score} 
+                          className="h-2 bg-slate-100"
+                        />
+                        <div 
+                          className={`absolute top-0 left-0 h-2 rounded-full transition-all duration-300 ${getProgressColor(skill.score)}`}
+                          style={{ width: `${skill.score}%` }}
+                        />
                       </div>
                     </div>
-                    <Progress value={skill.score} className="h-6" />
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
-            </div>
-          ))
+            ))}
+          </div>
         )}
       </CardContent>
     </Card>
