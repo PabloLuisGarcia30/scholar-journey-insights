@@ -33,7 +33,7 @@ export const TemplateSelection = ({ templates, selectedTemplate, onTemplateSelec
             onClick={() => onTemplateSelect(template.id)}
           >
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
+              <CardTitle className="flex items-center gap-2 text-green-600">
                 <FileText className="h-5 w-5" />
                 {template.name}
               </CardTitle>
