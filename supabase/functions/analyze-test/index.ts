@@ -238,7 +238,7 @@ serve(async (req) => {
     console.log('Step 4: Sending ENHANCED analysis request to OpenAI...')
     
     const aiPayload = {
-      model: "gpt-4o-mini",
+      model: "gpt-3.5-turbo",
       messages: [
         {
           role: "system",
