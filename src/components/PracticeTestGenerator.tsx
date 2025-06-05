@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -254,7 +253,9 @@ export function PracticeTestGenerator({ studentName, className, skillName, grade
                       <FileText className="h-4 w-4 mr-2" />
                     )}
                     Generate {isSuperExercise ? 'Super Exercise' : 'Practice Exercises'}
-                  </Button>
+                  </>
+                )}
+              </Button>
             </CardContent>
           </Card>
         </div>
