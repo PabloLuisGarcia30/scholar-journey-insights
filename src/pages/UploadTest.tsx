@@ -243,9 +243,12 @@ const UploadTest = () => {
             description: `Optimized ${optimizedFiles.length} file(s) for processing`
           });
 
+          // Get the first optimized file for processing
+          const firstOptimizedFile = optimizedFiles[0].optimized;
+
           // Smart OCR optimization if enabled
           if (smartOcrEnabled) {
-            const smartOcr = await SmartOcrService.optimizeProcessingPipeline(optimizedFiles[0].optimized);
+            const smartOcr = await SmartOcrService.optimizeProcessingPipeline(firstOptimizedFile);
             console.log('Smart OCR optimization:', smartOcr);
             
             updateProcessingStep('extracting', {
@@ -260,7 +263,6 @@ const UploadTest = () => {
             description: 'Starting enhanced dual OCR extraction...'
           });
           
-          const firstOptimizedFile = optimizedFiles[0].optimized;
           const base64Content = await FileOptimizationService.convertFileToBase64Chunked(firstOptimizedFile);
           
           updateProcessingStep('extracting', { 
