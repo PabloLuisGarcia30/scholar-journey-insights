@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { ArrowLeft, Plus, Trash2, FileText, Clock, CheckCircle, Edit, Download, Key } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, FileText, Clock, CheckCircle, Edit, Download, Key, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -69,6 +69,7 @@ const TestCreator = () => {
   const [currentStep, setCurrentStep] = useState<'template' | 'details' | 'questions' | 'answer-key' | 'class-input' | 'preview'>('template');
   const [examId, setExamId] = useState<string>('');
   const [availableClasses, setAvailableClasses] = useState<ActiveClass[]>([]);
+  const [isGeneratingStudentTests, setIsGeneratingStudentTests] = useState(false);
 
   useEffect(() => {
     const loadClasses = async () => {
@@ -202,6 +203,71 @@ const TestCreator = () => {
     } catch (error) {
       // Error already handled in saveTestToDatabase
       return;
+    }
+  };
+
+  const generateStudentTests = async () => {
+    if (!selectedClassId.trim()) {
+      toast.error('Please select a class first');
+      return;
+    }
+
+    const selectedClass = availableClasses.find(c => c.id === selectedClassId);
+    if (!selectedClass || !selectedClass.students || selectedClass.students.length === 0) {
+      toast.error('No students found in the selected class');
+      return;
+    }
+
+    setIsGeneratingStudentTests(true);
+
+    try {
+      // Import the active students service to get student names
+      const { getAllActiveStudents } = await import('@/services/examService');
+      const allStudents = await getAllActiveStudents();
+      
+      // Filter students that are in this class
+      const classStudents = allStudents.filter(student => 
+        selectedClass.students.includes(student.id)
+      );
+
+      if (classStudents.length === 0) {
+        toast.error('No student details found for this class');
+        return;
+      }
+
+      const className = selectedClass.name;
+      const studentNames = classStudents.map(student => student.name);
+      
+      const testData: TestData = {
+        examId,
+        title: testTitle,
+        description: testDescription,
+        className,
+        timeLimit,
+        questions,
+      };
+
+      // Save to database first
+      const examData: ExamData = {
+        ...testData,
+        totalPoints: questions.reduce((sum, q) => sum + q.points, 0),
+      };
+      
+      await saveTestToDatabase(examData, selectedClassId);
+      
+      // Import the new function
+      const { generateStudentTestPDFs } = await import('@/utils/pdfGenerator');
+      
+      // Generate individual tests for each student
+      generateStudentTestPDFs(testData, studentNames);
+      
+      toast.success(`Generated ${studentNames.length} individual test PDFs for each student in ${className}!`);
+      setCurrentStep('preview');
+    } catch (error) {
+      console.error('Error generating student tests:', error);
+      toast.error('Failed to generate student tests. Please try again.');
+    } finally {
+      setIsGeneratingStudentTests(false);
     }
   };
 
@@ -403,7 +469,9 @@ const TestCreator = () => {
                   <SelectItem key={classItem.id} value={classItem.id}>
                     <div className="flex flex-col">
                       <span className="font-medium">{classItem.name}</span>
-                      <span className="text-sm text-gray-500">{classItem.subject} - Grade {classItem.grade}</span>
+                      <span className="text-sm text-gray-500">
+                        {classItem.subject} - Grade {classItem.grade} ({classItem.student_count} students)
+                      </span>
                     </div>
                   </SelectItem>
                 ))}
@@ -413,99 +481,162 @@ const TestCreator = () => {
               This will be used for skill-based grading and will appear on the test PDF.
             </p>
           </div>
-        </CardContent>
-      </Card>
-      
-      <Button onClick={finalizeTest} className="w-full">
-        Generate PDF
-      </Button>
-    </div>
-  );
 
-  const renderPreview = () => (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold text-gray-900">Test Preview</h2>
-        <Button variant="outline" onClick={() => setCurrentStep('questions')}>
-          <Edit className="h-4 w-4 mr-2" />
-          Edit Questions
-        </Button>
-      </div>
-      
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <CheckCircle className="h-5 w-5 text-green-600" />
-            {testTitle}
-          </CardTitle>
-          {examId && (
-            <div className="bg-red-50 p-3 rounded-lg">
-              <span className="text-sm font-medium text-red-800">Exam ID: </span>
-              <span className="text-sm font-mono text-red-900">{examId}</span>
-            </div>
-          )}
           {selectedClassId && (
-            <p className="text-sm text-blue-600 font-medium">
-              Class: {availableClasses.find(c => c.id === selectedClassId)?.name}
-            </p>
-          )}
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-            <div className="text-center p-4 bg-blue-50 rounded-lg">
-              <p className="text-2xl font-bold text-blue-600">{questions.length}</p>
-              <p className="text-sm text-blue-700">Questions</p>
-            </div>
-            <div className="text-center p-4 bg-green-50 rounded-lg">
-              <p className="text-2xl font-bold text-green-600">{questions.reduce((sum, q) => sum + q.points, 0)}</p>
-              <p className="text-sm text-green-700">Total Points</p>
-            </div>
-            <div className="text-center p-4 bg-purple-50 rounded-lg">
-              <p className="text-2xl font-bold text-purple-600">{timeLimit}</p>
-              <p className="text-sm text-purple-700">Minutes</p>
-            </div>
-          </div>
-          
-          <div className="mb-4">
-            <h3 className="font-semibold mb-2">Description:</h3>
-            <p className="text-gray-600">{testDescription}</p>
-          </div>
-          
-          <div>
-            <h3 className="font-semibold mb-2">Questions Preview:</h3>
-            <div className="space-y-2">
-              {questions.map((question, index) => (
-                <div key={question.id} className="p-3 bg-gray-50 rounded">
-                  <p className="font-medium">
-                    {index + 1}. {question.question} 
-                    <span className="text-sm text-gray-500 ml-2">({question.points} pts)</span>
-                  </p>
-                  <p className="text-xs text-gray-500 capitalize">{question.type.replace('-', ' ')}</p>
+            <div className="bg-green-50 p-4 rounded-lg">
+              <h3 className="font-semibold text-green-900 mb-2">Generate Options</h3>
+              <p className="text-sm text-green-800 mb-3">
+                Choose how you want to generate the test PDFs:
+              </p>
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-sm text-green-700">
+                  <span>•</span>
+                  <span><strong>Single Test:</strong> One blank test PDF for the class</span>
                 </div>
-              ))}
+                <div className="flex items-center gap-2 text-sm text-green-700">
+                  <span>•</span>
+                  <span><strong>Individual Tests:</strong> Separate PDFs with each student's name pre-filled</span>
+                </div>
+              </div>
             </div>
-          </div>
+          )}
         </CardContent>
       </Card>
       
       <div className="flex gap-2">
-        <Button onClick={() => setCurrentStep('template')} variant="outline">
-          Create Another Test
+        <Button onClick={finalizeTest} className="flex-1">
+          Generate Single Test PDF
         </Button>
-        <Button onClick={() => {
-          const selectedClass = availableClasses.find(c => c.id === selectedClassId);
-          const className = selectedClass?.name || 'Unknown Class';
-          generateTestPDF({ examId, title: testTitle, description: testDescription, className, timeLimit, questions });
-        }}>
-          <Download className="h-4 w-4 mr-2" />
-          Download PDF
-        </Button>
-        <Button onClick={() => toast.success('Test exported successfully!')}>
-          Export Test
+        <Button 
+          onClick={generateStudentTests} 
+          disabled={isGeneratingStudentTests || !selectedClassId}
+          variant="outline"
+          className="flex-1"
+        >
+          {isGeneratingStudentTests ? (
+            <>
+              <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+              Generating Individual Tests...
+            </>
+          ) : (
+            <>
+              <FileText className="h-4 w-4 mr-2" />
+              Generate Individual Student Tests
+            </>
+          )}
         </Button>
       </div>
     </div>
   );
+
+  const renderPreview = () => {
+    const selectedClass = availableClasses.find(c => c.id === selectedClassId);
+    
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <h2 className="text-2xl font-bold text-gray-900">Test Preview</h2>
+          <Button variant="outline" onClick={() => setCurrentStep('questions')}>
+            <Edit className="h-4 w-4 mr-2" />
+            Edit Questions
+          </Button>
+        </div>
+        
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <CheckCircle className="h-5 w-5 text-green-600" />
+              {testTitle}
+            </CardTitle>
+            {examId && (
+              <div className="bg-red-50 p-3 rounded-lg">
+                <span className="text-sm font-medium text-red-800">Exam ID: </span>
+                <span className="text-sm font-mono text-red-900">{examId}</span>
+              </div>
+            )}
+            {selectedClass && (
+              <div className="bg-blue-50 p-3 rounded-lg">
+                <p className="text-sm text-blue-600 font-medium">
+                  Class: {selectedClass.name} ({selectedClass.student_count} students)
+                </p>
+                <p className="text-xs text-blue-500">
+                  {selectedClass.subject} - Grade {selectedClass.grade}
+                </p>
+              </div>
+            )}
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+              <div className="text-center p-4 bg-blue-50 rounded-lg">
+                <p className="text-2xl font-bold text-blue-600">{questions.length}</p>
+                <p className="text-sm text-blue-700">Questions</p>
+              </div>
+              <div className="text-center p-4 bg-green-50 rounded-lg">
+                <p className="text-2xl font-bold text-green-600">{questions.reduce((sum, q) => sum + q.points, 0)}</p>
+                <p className="text-sm text-green-700">Total Points</p>
+              </div>
+              <div className="text-center p-4 bg-purple-50 rounded-lg">
+                <p className="text-2xl font-bold text-purple-600">{timeLimit}</p>
+                <p className="text-sm text-purple-700">Minutes</p>
+              </div>
+            </div>
+            
+            <div className="mb-4">
+              <h3 className="font-semibold mb-2">Description:</h3>
+              <p className="text-gray-600">{testDescription}</p>
+            </div>
+            
+            <div>
+              <h3 className="font-semibold mb-2">Questions Preview:</h3>
+              <div className="space-y-2">
+                {questions.map((question, index) => (
+                  <div key={question.id} className="p-3 bg-gray-50 rounded">
+                    <p className="font-medium">
+                      {index + 1}. {question.question} 
+                      <span className="text-sm text-gray-500 ml-2">({question.points} pts)</span>
+                    </p>
+                    <p className="text-xs text-gray-500 capitalize">{question.type.replace('-', ' ')}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        
+        <div className="flex gap-2">
+          <Button onClick={() => setCurrentStep('template')} variant="outline">
+            Create Another Test
+          </Button>
+          <Button onClick={() => {
+            const className = selectedClass?.name || 'Unknown Class';
+            generateTestPDF({ examId, title: testTitle, description: testDescription, className, timeLimit, questions });
+          }}>
+            <Download className="h-4 w-4 mr-2" />
+            Download Single PDF
+          </Button>
+          {selectedClass && selectedClass.student_count > 0 && (
+            <Button 
+              onClick={generateStudentTests} 
+              disabled={isGeneratingStudentTests}
+              variant="secondary"
+            >
+              {isGeneratingStudentTests ? (
+                <>
+                  <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                  Generating...
+                </>
+              ) : (
+                <>
+                  <FileText className="h-4 w-4 mr-2" />
+                  Generate Individual Tests
+                </>
+              )}
+            </Button>
+          )}
+        </div>
+      </div>
+    );
+  };
 
   return (
     <div className="min-h-screen bg-gray-50 p-6">

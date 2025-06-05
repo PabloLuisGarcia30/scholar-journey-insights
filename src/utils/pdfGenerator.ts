@@ -19,7 +19,31 @@ export interface TestData {
   questions: Question[];
 }
 
+export interface StudentTestData extends TestData {
+  studentName: string;
+}
+
+// Single test PDF generation (existing functionality)
 export const generateTestPDF = (testData: TestData) => {
+  generateSingleTestPDF(testData);
+};
+
+// New function to generate tests for all students in a class
+export const generateStudentTestPDFs = (testData: TestData, studentNames: string[]) => {
+  studentNames.forEach((studentName, index) => {
+    const studentTestData: StudentTestData = {
+      ...testData,
+      studentName
+    };
+    
+    // Add a small delay between generations to prevent browser freezing
+    setTimeout(() => {
+      generateSingleTestPDF(studentTestData, true);
+    }, index * 100);
+  });
+};
+
+const generateSingleTestPDF = (testData: TestData | StudentTestData, isStudentSpecific = false) => {
   const pdf = new jsPDF();
   const pageWidth = pdf.internal.pageSize.getWidth();
   const pageHeight = pdf.internal.pageSize.getHeight();
@@ -69,8 +93,17 @@ export const generateTestPDF = (testData: TestData) => {
       pdf.rect(margin, headerYPos, pageWidth - 2 * margin, 12, 'D');
       
       pdf.setFontSize(7);
-      pdf.text('Name:', margin + 3, headerYPos + 7);
-      pdf.line(margin + 20, headerYPos + 8, margin + 70, headerYPos + 8);
+      
+      // If this is a student-specific test, pre-fill the name
+      if (isStudentSpecific && 'studentName' in testData) {
+        pdf.setFont(undefined, 'bold');
+        pdf.text('Name:', margin + 3, headerYPos + 7);
+        pdf.setFont(undefined, 'normal');
+        pdf.text(testData.studentName, margin + 20, headerYPos + 7);
+      } else {
+        pdf.text('Name:', margin + 3, headerYPos + 7);
+        pdf.line(margin + 20, headerYPos + 8, margin + 70, headerYPos + 8);
+      }
       
       pdf.text('ID:', margin + 80, headerYPos + 7);
       pdf.line(margin + 92, headerYPos + 8, margin + 130, headerYPos + 8);
@@ -311,6 +344,14 @@ export const generateTestPDF = (testData: TestData) => {
   // Add footer to last page
   addFooter(currentPage, totalPages);
   
-  const fileName = `${testData.title.replace(/\s+/g, '_')}_${testData.examId}.pdf`;
+  // Generate filename based on whether it's student-specific
+  let fileName;
+  if (isStudentSpecific && 'studentName' in testData) {
+    const studentNameForFile = testData.studentName.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_]/g, '');
+    fileName = `${testData.title.replace(/\s+/g, '_')}_${testData.examId}_${studentNameForFile}.pdf`;
+  } else {
+    fileName = `${testData.title.replace(/\s+/g, '_')}_${testData.examId}.pdf`;
+  }
+  
   pdf.save(fileName);
 };
