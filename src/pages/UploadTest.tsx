@@ -376,20 +376,23 @@ const UploadTest = () => {
                 </div>
               )}
 
-              {/* Enhanced Process Document Button */}
-              {uploadedFiles.length > 0 && !analysisResult && (!needsManualName || manualStudentName.trim()) && (
+              {/* Enhanced Process Document Button - Always Visible */}
+              {!analysisResult && (
                 <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
                   <div className="flex items-center gap-3 mb-3">
                     <Brain className="h-5 w-5 text-blue-600" />
                     <h3 className="font-medium text-blue-900">Ready for Enhanced Dual OCR Processing</h3>
                   </div>
                   <p className="text-sm text-blue-700 mb-4">
-                    Your document is ready for Google OCR + Roboflow bubble detection and AI analysis. This will automatically extract information and grade the test with 99% accuracy.
+                    {uploadedFiles.length === 0 
+                      ? "Upload your document first to enable Google OCR + Roboflow bubble detection and AI analysis with 99% accuracy."
+                      : "Your document is ready for Google OCR + Roboflow bubble detection and AI analysis. This will automatically extract information and grade the test with 99% accuracy."
+                    }
                   </p>
                   <Button 
                     onClick={processDocument}
-                    disabled={isProcessing}
-                    className="w-full bg-blue-600 hover:bg-blue-700"
+                    disabled={isProcessing || uploadedFiles.length === 0 || (needsManualName && !manualStudentName.trim())}
+                    className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50"
                   >
                     {isProcessing ? (
                       <>
