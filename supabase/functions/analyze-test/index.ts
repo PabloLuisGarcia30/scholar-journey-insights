@@ -1,3 +1,4 @@
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
@@ -94,9 +95,26 @@ serve(async (req) => {
     const contentSkills = linkedSkills?.map((item: any) => item.content_skills).filter(Boolean) || []
     console.log('Found', contentSkills.length, 'linked Content-Specific skills')
 
-    // Get class information for subject-specific skills (keep existing logic)
+    // Get class information for subject-specific skills
     const classData = examData.classes
-    const subjectSkills = ['Problem Solving', 'Mathematical Reasoning', 'Communication', 'Critical Thinking']
+    const subjectSkills = [
+      {
+        name: 'Problem Solving',
+        description: 'Questions requiring multi-step solutions, real-world applications, strategy selection, and complex problem-solving approaches'
+      },
+      {
+        name: 'Mathematical Reasoning',
+        description: 'Questions requiring logical thinking, proof, pattern recognition, justification of solutions, and mathematical arguments'
+      },
+      {
+        name: 'Communication',
+        description: 'Questions requiring explanations, interpretations, clear presentation of solutions, or mathematical writing'
+      },
+      {
+        name: 'Critical Thinking',
+        description: 'Questions requiring analysis, evaluation, comparison, synthesis of concepts, or making mathematical connections'
+      }
+    ]
 
     // Format Content-Specific skills for AI analysis with proper ordering
     let contentSkillsText = '';
@@ -190,6 +208,11 @@ serve(async (req) => {
       }).join('\n\n');
     }
 
+    // Format Subject-Specific skills for AI analysis
+    const subjectSkillsText = subjectSkills.map(skill => 
+      `- ${skill.name}: ${skill.description}`
+    ).join('\n');
+
     // Combine all extracted text
     const combinedText = files.map((file: any) => 
       `File: ${file.fileName}\nExtracted Text:\n${file.extractedText}`
@@ -200,43 +223,51 @@ serve(async (req) => {
       `Question ${ak.question_number}: ${ak.question_text}\nType: ${ak.question_type}\nCorrect Answer: ${ak.correct_answer}\nPoints: ${ak.points}${ak.options ? `\nOptions: ${JSON.stringify(ak.options)}` : ''}`
     ).join('\n\n')
 
-    console.log('Step 3: Sending enhanced analysis request to OpenAI...')
-    // Enhanced AI payload with detailed skill matching instructions
+    console.log('Step 3: Sending enhanced dual-skill analysis request to OpenAI...')
+    
+    // Enhanced AI payload with detailed skill matching instructions for both skill types
     const aiPayload = {
       model: "gpt-4o-mini",
       messages: [
         {
           role: "system",
-          content: `You are an AI grading assistant with enhanced skill-based analysis capabilities. You have been provided with:
+          content: `You are an AI grading assistant with enhanced dual skill-based analysis capabilities. You have been provided with:
 
 1. The official answer key for exam "${examData.title}" (ID: ${examId})
 2. A comprehensive list of Content-Specific skills linked to this class
-3. Subject-Specific skills for general assessment
+3. Subject-Specific skills for general mathematical thinking assessment
 
-ENHANCED GRADING WORKFLOW:
+ENHANCED DUAL-SKILL GRADING WORKFLOW:
 
 STEP 1: Grade each question individually
 - For multiple choice and true/false: answers must match exactly
 - For short answer: look for key concepts, allow reasonable variations
 - For essay questions: evaluate based on key points and concepts
 
-STEP 2: For EACH QUESTION, identify which Content-Specific skills it tests
-- Match each question to the most relevant Content-Specific skills from the provided list
-- A single question can test multiple skills
-- Use the skill descriptions to determine relevance
+STEP 2: For EACH QUESTION, identify BOTH skill types it tests:
+
+A) Content-Specific Skills: Match each question to the most relevant Content-Specific skills from the provided list
+   - Use the skill descriptions to determine relevance
+   - A single question can test multiple Content-Specific skills
+
+B) Subject-Specific Skills: Identify which Subject-Specific skills each question requires:
+   ${subjectSkillsText}
 
 STEP 3: Calculate Content-Specific skill scores
 - For each Content-Specific skill, calculate the percentage based on:
   - Points earned from questions testing that skill / Total points possible for questions testing that skill
 - Only include skills that are actually tested in this exam
-- If a skill is not tested by any question, do not include it in the results
 
-STEP 4: Calculate Subject-Specific skill scores based on overall performance patterns
+STEP 4: Calculate Subject-Specific skill scores
+- For each Subject-Specific skill, calculate the percentage based on:
+  - Points earned from questions testing that skill / Total points possible for questions testing that skill
+- Only include skills that are actually tested in this exam
 
 Content-Specific Skills Available:
 ${contentSkillsText}
 
-Subject-Specific Skills: ${subjectSkills.join(', ')}
+Subject-Specific Skills Available:
+${subjectSkillsText}
 
 Return your response in this JSON format:
 {
@@ -245,7 +276,16 @@ Return your response in this JSON format:
   "total_points_possible": 20,
   "grade": "85.5% (B+)",
   "feedback": "brief summary feedback for the student",
-  "detailed_analysis": "detailed question-by-question breakdown with scores, explanations, and which Content-Specific skills each question tested",
+  "detailed_analysis": "detailed question-by-question breakdown with scores, explanations, and which BOTH Content-Specific AND Subject-Specific skills each question tested",
+  "question_skill_mapping": [
+    {
+      "question_number": 1,
+      "points_earned": 2,
+      "points_possible": 2,
+      "content_skills": ["Factoring Polynomials"],
+      "subject_skills": ["Problem Solving", "Mathematical Reasoning"]
+    }
+  ],
   "content_skill_scores": [
     {"skill_name": "Factoring Polynomials", "score": 90.0, "points_earned": 9, "points_possible": 10},
     {"skill_name": "Solving Systems of Equations", "score": 80.0, "points_earned": 8, "points_possible": 10}
@@ -256,14 +296,16 @@ Return your response in this JSON format:
   ]
 }
 
-IMPORTANT: 
-- Only include Content-Specific skills that are actually tested by questions in this exam
-- Be explicit in your detailed_analysis about which Content-Specific skills each question tests
-- Ensure the Content-Specific skill scores accurately reflect performance on questions testing those specific skills`
+CRITICAL REQUIREMENTS:
+- Every question MUST be mapped to at least one Content-Specific skill AND at least one Subject-Specific skill
+- Include the question_skill_mapping array showing exactly which skills each question tests
+- Calculate skill scores ONLY from questions that actually test those specific skills
+- Be explicit in your detailed_analysis about which skills (both types) each question tests
+- Ensure both Content-Specific and Subject-Specific skill scores accurately reflect performance on questions testing those specific skills`
         },
         {
           role: "user",
-          content: `Please analyze this student's test responses for "${examData.title}" (Exam ID: ${examId}) using the enhanced skill-based grading workflow.
+          content: `Please analyze this student's test responses for "${examData.title}" (Exam ID: ${examId}) using the enhanced dual skill-based grading workflow.
 
 OFFICIAL ANSWER KEY:
 ${answerKeyText}
@@ -274,12 +316,13 @@ ${combinedText}
 CONTENT-SPECIFIC SKILLS TO EVALUATE:
 ${contentSkillsText}
 
-SUBJECT-SPECIFIC SKILLS: ${subjectSkills.join(', ')}
+SUBJECT-SPECIFIC SKILLS TO EVALUATE:
+${subjectSkillsText}
 
-Please provide a detailed grade report with accurate skill-based scoring that matches each question to the appropriate Content-Specific skills.`
+Please provide a detailed grade report with accurate dual skill-based scoring that matches each question to the appropriate Content-Specific AND Subject-Specific skills. Include the question_skill_mapping array showing exactly which skills each question tests.`
         }
       ],
-      max_tokens: 4000,
+      max_tokens: 5000,
       temperature: 0.1
     }
 
@@ -299,14 +342,17 @@ Please provide a detailed grade report with accurate skill-based scoring that ma
     }
 
     const result = await aiResponse.json()
-    console.log('OpenAI enhanced analysis completed')
+    console.log('OpenAI enhanced dual-skill analysis completed')
     const analysisText = result.choices[0]?.message?.content || "No analysis received"
     
     // Try to parse as JSON, fallback to plain text
     let parsedAnalysis
     try {
       parsedAnalysis = JSON.parse(analysisText)
-      console.log('Successfully parsed AI analysis with', parsedAnalysis.content_skill_scores?.length || 0, 'Content-Specific skill scores')
+      console.log('Successfully parsed AI analysis with:')
+      console.log('- Content-Specific skill scores:', parsedAnalysis.content_skill_scores?.length || 0)
+      console.log('- Subject-Specific skill scores:', parsedAnalysis.subject_skill_scores?.length || 0)
+      console.log('- Question skill mappings:', parsedAnalysis.question_skill_mapping?.length || 0)
     } catch {
       parsedAnalysis = {
         overall_score: 0,
@@ -315,6 +361,7 @@ Please provide a detailed grade report with accurate skill-based scoring that ma
         grade: "Analysis failed",
         feedback: "Unable to parse analysis results",
         detailed_analysis: analysisText,
+        question_skill_mapping: [],
         content_skill_scores: [],
         subject_skill_scores: []
       }
@@ -377,7 +424,7 @@ Please provide a detailed grade report with accurate skill-based scoring that ma
       throw new Error(`Failed to save test result: ${resultError.message}`)
     }
 
-    // Save content skill scores (now based on actual question analysis)
+    // Save content skill scores (based on actual question analysis)
     if (parsedAnalysis.content_skill_scores && parsedAnalysis.content_skill_scores.length > 0) {
       console.log('Saving', parsedAnalysis.content_skill_scores.length, 'Content-Specific skill scores')
       const contentScores = parsedAnalysis.content_skill_scores.map((skill: any) => ({
@@ -397,8 +444,9 @@ Please provide a detailed grade report with accurate skill-based scoring that ma
       }
     }
 
-    // Save subject skill scores
+    // Save subject skill scores (now based on actual question analysis)
     if (parsedAnalysis.subject_skill_scores && parsedAnalysis.subject_skill_scores.length > 0) {
+      console.log('Saving', parsedAnalysis.subject_skill_scores.length, 'Subject-Specific skill scores')
       const subjectScores = parsedAnalysis.subject_skill_scores.map((skill: any) => ({
         test_result_id: testResult.id,
         skill_name: skill.skill_name,
@@ -416,7 +464,7 @@ Please provide a detailed grade report with accurate skill-based scoring that ma
       }
     }
 
-    console.log('Enhanced test result and skill scores saved successfully')
+    console.log('Enhanced dual-skill test result and skill scores saved successfully')
 
     return new Response(
       JSON.stringify({
