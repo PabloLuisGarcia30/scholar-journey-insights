@@ -14,7 +14,7 @@ import {
   linkClassToContentSkills,
   linkClassToSubjectSkills
 } from "@/services/examService";
-import { mockPabloContentSkillScores } from "@/data/mockStudentData";
+import { mockBettyContentSkillScores } from "@/data/mockStudentData";
 
 interface UseStudentProfileDataProps {
   studentId: string;
@@ -31,7 +31,7 @@ export function useStudentProfileData({ studentId, classId, className }: UseStud
     queryFn: () => getActiveStudentById(studentId),
   });
 
-  const isPabloLuisGarcia = student?.name === 'Pablo Luis Garcia';
+  const isBettyJohnson = student?.name === 'Betty Johnson';
 
   // Fetch class data if in class view
   const { data: classData, isLoading: classLoading } = useQuery({
@@ -51,13 +51,13 @@ export function useStudentProfileData({ studentId, classId, className }: UseStud
     queryFn: () => getStudentTestResults(studentId),
   });
 
-  // Fetch content skill scores - use mock data for Pablo Luis Garcia in ANY Grade 10 Math context
+  // Fetch content skill scores - use mock data for Betty Johnson in ANY Grade 10 Math context
   const { data: contentSkillScores = [], isLoading: contentSkillsLoading } = useQuery({
     queryKey: ['studentContentSkills', studentId, classId],
     queryFn: () => {
       console.log('Fetching content skills for:', { 
         studentName: student?.name, 
-        isPablo: isPabloLuisGarcia, 
+        isBetty: isBettyJohnson, 
         isClassView, 
         isGrade10Math: isGrade10MathClass(),
         classId,
@@ -66,10 +66,10 @@ export function useStudentProfileData({ studentId, classId, className }: UseStud
         classGrade: classData?.grade
       });
       
-      // Use mock data for Pablo Luis Garcia in any Grade 10 Math class context
-      if (isPabloLuisGarcia && classData && classData.subject === 'Math' && classData.grade === 'Grade 10') {
-        console.log('Using mock data for Pablo Luis Garcia in Grade 10 Math');
-        return Promise.resolve(mockPabloContentSkillScores);
+      // Use mock data for Betty Johnson in any Grade 10 Math class context
+      if (isBettyJohnson && classData && classData.subject === 'Math' && classData.grade === 'Grade 10') {
+        console.log('Using mock data for Betty Johnson in Grade 10 Math');
+        return Promise.resolve(mockBettyContentSkillScores);
       }
       return getStudentContentSkillScores(studentId);
     },
@@ -148,7 +148,7 @@ export function useStudentProfileData({ studentId, classId, className }: UseStud
     classContentSkillsLoading,
     classSubjectSkills,
     classSubjectSkillsLoading,
-    isPabloLuisGarcia,
+    isBettyJohnson,
     isClassView,
     isGrade10MathClass
   };
