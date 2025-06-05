@@ -180,6 +180,7 @@ export function StudentProfile({ studentId, classId, className, onBack }: Studen
                 classSubjectSkillsLoading={classSubjectSkillsLoading}
                 isClassView={isClassView}
                 classSubjectSkills={classSubjectSkills}
+                onGeneratePracticeTest={handleGeneratePracticeTest}
               />
             </TabsContent>
 

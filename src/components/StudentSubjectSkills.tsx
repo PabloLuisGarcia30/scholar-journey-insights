@@ -2,7 +2,8 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { Target } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Target, Zap } from "lucide-react";
 import { getMasteryColor } from "@/utils/studentProfileUtils";
 import { type SkillScore } from "@/services/examService";
 
@@ -12,6 +13,7 @@ interface StudentSubjectSkillsProps {
   classSubjectSkillsLoading: boolean;
   isClassView: boolean;
   classSubjectSkills: any[];
+  onGeneratePracticeTest?: (skillName?: string) => void;
 }
 
 export function StudentSubjectSkills({ 
@@ -19,12 +21,27 @@ export function StudentSubjectSkills({
   subjectSkillsLoading, 
   classSubjectSkillsLoading, 
   isClassView, 
-  classSubjectSkills 
+  classSubjectSkills,
+  onGeneratePracticeTest 
 }: StudentSubjectSkillsProps) {
+  // Find skills below 80%
+  const skillsBelow80 = comprehensiveSubjectSkillData.filter(skill => skill.score > 0 && skill.score < 80);
+
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Subject Specific Skill Mastery</CardTitle>
+        <div className="flex items-center justify-between">
+          <CardTitle>Subject Specific Skill Mastery</CardTitle>
+          {isClassView && onGeneratePracticeTest && skillsBelow80.length > 0 && (
+            <Button 
+              onClick={() => onGeneratePracticeTest('super-exercise-subject')}
+              className="bg-orange-600 hover:bg-orange-700"
+            >
+              <Zap className="h-4 w-4 mr-2" />
+              Create a Super Exercise
+            </Button>
+          )}
+        </div>
       </CardHeader>
       <CardContent>
         {(subjectSkillsLoading || classSubjectSkillsLoading) ? (

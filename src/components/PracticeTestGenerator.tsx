@@ -1,9 +1,8 @@
-
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, FileText, Download, RefreshCw } from "lucide-react";
+import { ArrowLeft, FileText, Download, RefreshCw, Zap } from "lucide-react";
 import { toast } from "sonner";
 import jsPDF from 'jspdf';
 import { generatePracticeTest, PracticeTestData, Question } from "@/services/practiceTestService";
@@ -149,6 +148,10 @@ export function PracticeTestGenerator({ studentName, className, skillName, grade
     toast.success('Practice exercises PDF generated successfully!');
   };
 
+  const isSuperExercise = skillName === 'super-exercise-content' || skillName === 'super-exercise-subject';
+  const exerciseType = skillName === 'super-exercise-content' ? 'Content-Specific Skills' : 
+                      skillName === 'super-exercise-subject' ? 'Subject-Specific Skills' : skillName;
+
   if (!testData) {
     return (
       <div className="p-6">
@@ -161,19 +164,32 @@ export function PracticeTestGenerator({ studentName, className, skillName, grade
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <FileText className="h-5 w-5" />
-                Generate Practice Exercises
+                {isSuperExercise ? (
+                  <>
+                    <Zap className="h-5 w-5 text-orange-600" />
+                    Generate Super Exercise
+                  </>
+                ) : (
+                  <>
+                    <FileText className="h-5 w-5" />
+                    Generate Practice Exercises
+                  </>
+                )}
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
-              <div className="bg-blue-50 p-4 rounded-lg">
-                <h3 className="font-semibold text-blue-900 mb-2">Test Details</h3>
-                <div className="space-y-1 text-sm text-blue-800">
+              <div className={isSuperExercise ? "bg-orange-50 p-4 rounded-lg" : "bg-blue-50 p-4 rounded-lg"}>
+                <h3 className={`font-semibold mb-2 ${isSuperExercise ? 'text-orange-900' : 'text-blue-900'}`}>
+                  {isSuperExercise ? 'Super Exercise Details' : 'Test Details'}
+                </h3>
+                <div className={`space-y-1 text-sm ${isSuperExercise ? 'text-orange-800' : 'text-blue-800'}`}>
                   <p><strong>Student:</strong> {studentName}</p>
                   <p><strong>Class:</strong> {className}</p>
                   {grade && <p><strong>Grade:</strong> {grade}</p>}
                   {subject && <p><strong>Subject:</strong> {subject}</p>}
-                  {skillName ? (
+                  {isSuperExercise ? (
+                    <p><strong>Focus:</strong> All {exerciseType} scoring below 80%</p>
+                  ) : skillName ? (
                     <p><strong>Focus Skill:</strong> {skillName}</p>
                   ) : (
                     <p><strong>Type:</strong> Comprehensive Skills Assessment</p>
@@ -181,20 +197,37 @@ export function PracticeTestGenerator({ studentName, className, skillName, grade
                 </div>
               </div>
 
+              {isSuperExercise && (
+                <div className="bg-yellow-50 border border-yellow-200 p-4 rounded-lg">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Zap className="h-4 w-4 text-yellow-600" />
+                    <span className="font-medium text-yellow-800">Super Exercise</span>
+                  </div>
+                  <p className="text-sm text-yellow-700">
+                    This will generate targeted practice exercises for all skills where the student scored below 80%, 
+                    helping them focus on areas that need the most improvement.
+                  </p>
+                </div>
+              )}
+
               <Button 
                 onClick={handleGenerateTest} 
                 disabled={isGenerating}
-                className="w-full"
+                className={`w-full ${isSuperExercise ? 'bg-orange-600 hover:bg-orange-700' : ''}`}
               >
                 {isGenerating ? (
                   <>
                     <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                    Generating Practice Exercises...
+                    Generating {isSuperExercise ? 'Super Exercise' : 'Practice Exercises'}...
                   </>
                 ) : (
                   <>
-                    <FileText className="h-4 w-4 mr-2" />
-                    Generate Practice Exercises
+                    {isSuperExercise ? (
+                      <Zap className="h-4 w-4 mr-2" />
+                    ) : (
+                      <FileText className="h-4 w-4 mr-2" />
+                    )}
+                    Generate {isSuperExercise ? 'Super Exercise' : 'Practice Exercises'}
                   </>
                 )}
               </Button>
