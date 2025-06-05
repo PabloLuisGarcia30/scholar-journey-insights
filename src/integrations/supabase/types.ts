@@ -161,6 +161,42 @@ export type Database = {
           },
         ]
       }
+      class_subject_skills: {
+        Row: {
+          class_id: string
+          created_at: string
+          id: string
+          subject_skill_id: string
+        }
+        Insert: {
+          class_id: string
+          created_at?: string
+          id?: string
+          subject_skill_id: string
+        }
+        Update: {
+          class_id?: string
+          created_at?: string
+          id?: string
+          subject_skill_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "class_subject_skills_class_id_fkey"
+            columns: ["class_id"]
+            isOneToOne: false
+            referencedRelation: "active_classes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "class_subject_skills_subject_skill_id_fkey"
+            columns: ["subject_skill_id"]
+            isOneToOne: false
+            referencedRelation: "subject_skills"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       content_skill_scores: {
         Row: {
           created_at: string
@@ -343,6 +379,36 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      subject_skills: {
+        Row: {
+          created_at: string
+          grade: string
+          id: string
+          skill_description: string
+          skill_name: string
+          subject: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          grade?: string
+          id?: string
+          skill_description: string
+          skill_name: string
+          subject?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          grade?: string
+          id?: string
+          skill_description?: string
+          skill_name?: string
+          subject?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       test_results: {
         Row: {

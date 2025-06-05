@@ -73,7 +73,7 @@ serve(async (req) => {
 
     // Step 2: Get Content-Specific skills linked to this class
     console.log('Step 2: Fetching Content-Specific skills for class:', examData.class_id)
-    const { data: linkedSkills, error: skillsError } = await supabase
+    const { data: linkedContentSkills, error: contentSkillsError } = await supabase
       .from('class_content_skills')
       .select(`
         content_skills (
@@ -87,34 +87,39 @@ serve(async (req) => {
       `)
       .eq('class_id', examData.class_id)
 
-    if (skillsError) {
-      console.error('Error fetching linked skills:', skillsError)
-      throw new Error(`Failed to fetch linked skills: ${skillsError.message}`)
+    if (contentSkillsError) {
+      console.error('Error fetching linked content skills:', contentSkillsError)
+      throw new Error(`Failed to fetch linked content skills: ${contentSkillsError.message}`)
     }
 
-    const contentSkills = linkedSkills?.map((item: any) => item.content_skills).filter(Boolean) || []
+    const contentSkills = linkedContentSkills?.map((item: any) => item.content_skills).filter(Boolean) || []
     console.log('Found', contentSkills.length, 'linked Content-Specific skills')
 
-    // Get class information for subject-specific skills
+    // Step 3: Get Subject-Specific skills linked to this class
+    console.log('Step 3: Fetching Subject-Specific skills for class:', examData.class_id)
+    const { data: linkedSubjectSkills, error: subjectSkillsError } = await supabase
+      .from('class_subject_skills')
+      .select(`
+        subject_skills (
+          id,
+          skill_name,
+          skill_description,
+          subject,
+          grade
+        )
+      `)
+      .eq('class_id', examData.class_id)
+
+    if (subjectSkillsError) {
+      console.error('Error fetching linked subject skills:', subjectSkillsError)
+      throw new Error(`Failed to fetch linked subject skills: ${subjectSkillsError.message}`)
+    }
+
+    const subjectSkills = linkedSubjectSkills?.map((item: any) => item.subject_skills).filter(Boolean) || []
+    console.log('Found', subjectSkills.length, 'linked Subject-Specific skills')
+
+    // Get class information for context
     const classData = examData.classes
-    const subjectSkills = [
-      {
-        name: 'Problem Solving',
-        description: 'Questions requiring multi-step solutions, real-world applications, strategy selection, and complex problem-solving approaches'
-      },
-      {
-        name: 'Mathematical Reasoning',
-        description: 'Questions requiring logical thinking, proof, pattern recognition, justification of solutions, and mathematical arguments'
-      },
-      {
-        name: 'Communication',
-        description: 'Questions requiring explanations, interpretations, clear presentation of solutions, or mathematical writing'
-      },
-      {
-        name: 'Critical Thinking',
-        description: 'Questions requiring analysis, evaluation, comparison, synthesis of concepts, or making mathematical connections'
-      }
-    ]
 
     // Format Content-Specific skills for AI analysis with proper ordering
     let contentSkillsText = '';
@@ -210,7 +215,7 @@ serve(async (req) => {
 
     // Format Subject-Specific skills for AI analysis
     const subjectSkillsText = subjectSkills.map(skill => 
-      `- ${skill.name}: ${skill.description}`
+      `- ${skill.skill_name}: ${skill.skill_description}`
     ).join('\n');
 
     // Combine all extracted text
@@ -223,7 +228,7 @@ serve(async (req) => {
       `Question ${ak.question_number}: ${ak.question_text}\nType: ${ak.question_type}\nCorrect Answer: ${ak.correct_answer}\nPoints: ${ak.points}${ak.options ? `\nOptions: ${JSON.stringify(ak.options)}` : ''}`
     ).join('\n\n')
 
-    console.log('Step 3: Sending enhanced dual-skill analysis request to OpenAI...')
+    console.log('Step 4: Sending enhanced dual-skill analysis request to OpenAI...')
     
     // Enhanced AI payload with detailed skill matching instructions for both skill types
     const aiPayload = {
@@ -235,7 +240,7 @@ serve(async (req) => {
 
 1. The official answer key for exam "${examData.title}" (ID: ${examId})
 2. A comprehensive list of Content-Specific skills linked to this class
-3. Subject-Specific skills for general mathematical thinking assessment
+3. Subject-Specific skills linked to this class for general mathematical thinking assessment
 
 ENHANCED DUAL-SKILL GRADING WORKFLOW:
 
@@ -444,7 +449,7 @@ Please provide a detailed grade report with accurate dual skill-based scoring th
       }
     }
 
-    // Save subject skill scores (now based on actual question analysis)
+    // Save subject skill scores (now based on actual question analysis from database)
     if (parsedAnalysis.subject_skill_scores && parsedAnalysis.subject_skill_scores.length > 0) {
       console.log('Saving', parsedAnalysis.subject_skill_scores.length, 'Subject-Specific skill scores')
       const subjectScores = parsedAnalysis.subject_skill_scores.map((skill: any) => ({

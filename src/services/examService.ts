@@ -103,10 +103,27 @@ export interface ContentSkill {
   updated_at: string;
 }
 
+export interface SubjectSkill {
+  id: string;
+  subject: string;
+  grade: string;
+  skill_name: string;
+  skill_description: string;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface ClassContentSkill {
   id: string;
   class_id: string;
   content_skill_id: string;
+  created_at: string;
+}
+
+export interface ClassSubjectSkill {
+  id: string;
+  class_id: string;
+  subject_skill_id: string;
   created_at: string;
 }
 
@@ -164,6 +181,14 @@ export const createActiveClass = async (classData: {
       await autoLinkClassToContentSkills(data.id, classData.subject, classData.grade);
     } catch (skillError) {
       console.warn('Failed to auto-link content skills:', skillError);
+      // Don't fail the class creation if skill linking fails
+    }
+
+    // Auto-link subject skills based on subject and grade
+    try {
+      await autoLinkClassToSubjectSkills(data.id, classData.subject, classData.grade);
+    } catch (skillError) {
+      console.warn('Failed to auto-link subject skills:', skillError);
       // Don't fail the class creation if skill linking fails
     }
 
@@ -770,6 +795,123 @@ export const autoLinkMathClassToGrade10Skills = async (): Promise<void> => {
     console.log(`Successfully auto-linked Math Studies 10 class to ${skillIds.length} Grade 10 Math skills`);
   } catch (error) {
     console.error('Error in autoLinkMathClassToGrade10Skills:', error);
+    throw error;
+  }
+};
+
+export const getSubjectSkillsBySubjectAndGrade = async (subject: string, grade: string): Promise<SubjectSkill[]> => {
+  try {
+    console.log('Fetching subject skills for:', subject, grade);
+    
+    const { data, error } = await supabase
+      .from('subject_skills')
+      .select('*')
+      .eq('subject', subject)
+      .eq('grade', grade)
+      .order('skill_name');
+
+    if (error) {
+      console.error('Error fetching subject skills:', error);
+      throw new Error(`Failed to fetch subject skills: ${error.message}`);
+    }
+
+    return data || [];
+  } catch (error) {
+    console.error('Error in getSubjectSkillsBySubjectAndGrade:', error);
+    throw error;
+  }
+};
+
+export const linkClassToSubjectSkills = async (classId: string, subjectSkillIds: string[]): Promise<void> => {
+  try {
+    console.log('Linking class to subject skills:', classId, subjectSkillIds);
+    
+    // Remove existing links for this class
+    const { error: deleteError } = await supabase
+      .from('class_subject_skills')
+      .delete()
+      .eq('class_id', classId);
+
+    if (deleteError) {
+      console.error('Error removing existing class subject skills:', deleteError);
+      throw new Error(`Failed to remove existing links: ${deleteError.message}`);
+    }
+
+    // Add new links if there are skills to link
+    if (subjectSkillIds.length > 0) {
+      const newLinks = subjectSkillIds.map(skillId => ({
+        class_id: classId,
+        subject_skill_id: skillId
+      }));
+
+      const { error: insertError } = await supabase
+        .from('class_subject_skills')
+        .insert(newLinks);
+
+      if (insertError) {
+        console.error('Error linking class to subject skills:', insertError);
+        throw new Error(`Failed to link class to subject skills: ${insertError.message}`);
+      }
+    }
+
+    console.log('Successfully linked class to subject skills');
+  } catch (error) {
+    console.error('Error in linkClassToSubjectSkills:', error);
+    throw error;
+  }
+};
+
+export const getLinkedSubjectSkillsForClass = async (classId: string): Promise<SubjectSkill[]> => {
+  try {
+    console.log('Fetching linked subject skills for class:', classId);
+    
+    const { data, error } = await supabase
+      .from('class_subject_skills')
+      .select(`
+        subject_skills (
+          id,
+          subject,
+          grade,
+          skill_name,
+          skill_description,
+          created_at,
+          updated_at
+        )
+      `)
+      .eq('class_id', classId);
+
+    if (error) {
+      console.error('Error fetching linked subject skills:', error);
+      throw new Error(`Failed to fetch linked subject skills: ${error.message}`);
+    }
+
+    // Extract the subject_skills from the nested structure
+    const subjectSkills = data?.map((item: any) => item.subject_skills).filter(Boolean) || [];
+    console.log('Found linked subject skills:', subjectSkills.length);
+    return subjectSkills;
+  } catch (error) {
+    console.error('Error in getLinkedSubjectSkillsForClass:', error);
+    throw error;
+  }
+};
+
+export const autoLinkClassToSubjectSkills = async (classId: string, subject: string, grade: string): Promise<void> => {
+  try {
+    console.log(`Auto-linking class ${classId} to ${subject} ${grade} subject skills`);
+    
+    // Get all subject skills for the subject and grade
+    const subjectSkills = await getSubjectSkillsBySubjectAndGrade(subject, grade);
+    const skillIds = subjectSkills.map(skill => skill.id);
+
+    if (skillIds.length > 0) {
+      // Link the class to all matching subject skills
+      await linkClassToSubjectSkills(classId, skillIds);
+      console.log(`Successfully auto-linked class to ${skillIds.length} ${subject} ${grade} subject skills`);
+    } else {
+      console.log(`No subject skills found for ${subject} ${grade}`);
+    }
+  } catch (error) {
+    console.error('Error in autoLinkClassToSubjectSkills:', error);
     throw error;
   }
 };
