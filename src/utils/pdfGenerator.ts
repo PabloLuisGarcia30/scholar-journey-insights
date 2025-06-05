@@ -1,3 +1,4 @@
+
 import jsPDF from 'jspdf';
 
 export interface Question {
@@ -150,7 +151,7 @@ export const generateConsolidatedTestPDF = (testData: TestData, studentNames: st
     
     // Add questions for this student
     testData.questions.forEach((question, questionIndex) => {
-      const questionHeight = calculateQuestionHeight(question);
+      const questionHeight = calculateQuestionHeight(question, pdf, pageWidth, margin);
       const maxContentHeight = pageHeight - 50; // Account for header/footer
       
       // Page break if needed
@@ -307,7 +308,7 @@ export const generateConsolidatedTestPDF = (testData: TestData, studentNames: st
   pdf.save(fileName);
 };
 
-const calculateQuestionHeight = (question: Question) => {
+const calculateQuestionHeight = (question: Question, pdf: jsPDF, pageWidth: number, margin: number) => {
   let height = 8; // Question header height
     
   // Question text calculation - very compact
@@ -436,7 +437,7 @@ const generateSingleTestPDF = (testData: TestData | StudentTestData, isStudentSp
   let maxContentHeight = getMaxContentHeight(tempPageCount);
   
   testData.questions.forEach((question) => {
-    const questionHeight = calculateQuestionHeight(question);
+    const questionHeight = calculateQuestionHeight(question, pdf, pageWidth, margin);
     
     if (tempYPosition + questionHeight > maxContentHeight) {
       tempPageCount++;
@@ -454,7 +455,7 @@ const generateSingleTestPDF = (testData: TestData | StudentTestData, isStudentSp
   let maxContentHeightForCurrentPage = getMaxContentHeight(currentPage);
 
   testData.questions.forEach((question, questionIndex) => {
-    const questionHeight = calculateQuestionHeight(question);
+    const questionHeight = calculateQuestionHeight(question, pdf, pageWidth, margin);
     
     // Page break if needed
     if (yPosition + questionHeight > maxContentHeightForCurrentPage) {
