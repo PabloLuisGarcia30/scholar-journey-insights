@@ -6,3 +6,6 @@ verify_jwt = false
 
 [functions.analyze-test] 
 verify_jwt = false
+
+[functions.generate-practice-test]
+verify_jwt = false

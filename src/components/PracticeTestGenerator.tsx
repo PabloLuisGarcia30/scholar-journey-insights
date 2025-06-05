@@ -1,29 +1,11 @@
-
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
-import { ArrowLeft, FileText, Clock, Download, RefreshCw } from "lucide-react";
+import { ArrowLeft, FileText, Download, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import jsPDF from 'jspdf';
-
-interface Question {
-  id: string;
-  type: 'multiple-choice' | 'true-false' | 'short-answer';
-  question: string;
-  options?: string[];
-  correctAnswer?: string;
-  points: number;
-}
-
-interface PracticeTestData {
-  title: string;
-  description: string;
-  questions: Question[];
-  totalPoints: number;
-  estimatedTime: number;
-}
+import { generatePracticeTest, PracticeTestData, Question } from "@/services/practiceTestService";
 
 interface PracticeTestGeneratorProps {
   studentName: string;
@@ -35,74 +17,22 @@ interface PracticeTestGeneratorProps {
 export function PracticeTestGenerator({ studentName, className, skillName, onBack }: PracticeTestGeneratorProps) {
   const [isGenerating, setIsGenerating] = useState(false);
   const [testData, setTestData] = useState<PracticeTestData | null>(null);
-  const [apiKey, setApiKey] = useState("");
 
-  const generateTestWithOpenAI = async () => {
-    if (!apiKey.trim()) {
-      toast.error("Please enter your OpenAI API key");
-      return;
-    }
-
+  const handleGenerateTest = async () => {
     setIsGenerating(true);
     
     try {
-      const prompt = skillName 
-        ? `Generate a practice test for a student in ${className} focusing specifically on ${skillName}. Create 8-10 questions that test understanding of this skill at an appropriate difficulty level.`
-        : `Generate a comprehensive practice test for a student in ${className} covering all major content areas. Create 10-12 questions that assess various skills and concepts.`;
-
-      const response = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: 'gpt-3.5-turbo',
-          messages: [
-            {
-              role: 'system',
-              content: `You are an expert educator creating practice tests. Generate a JSON response with the following structure:
-              {
-                "title": "string",
-                "description": "string", 
-                "questions": [
-                  {
-                    "id": "string",
-                    "type": "multiple-choice|true-false|short-answer",
-                    "question": "string",
-                    "options": ["string"] (only for multiple-choice),
-                    "correctAnswer": "string",
-                    "points": number
-                  }
-                ],
-                "totalPoints": number,
-                "estimatedTime": number (in minutes)
-              }
-              
-              Make questions challenging but appropriate for the grade level. Use a mix of question types. For multiple choice, provide 4 options with only one correct answer.`
-            },
-            {
-              role: 'user',
-              content: prompt
-            }
-          ],
-          temperature: 0.7,
-          max_tokens: 2000,
-        }),
+      const result = await generatePracticeTest({
+        studentName,
+        className,
+        skillName: skillName || undefined
       });
-
-      if (!response.ok) {
-        throw new Error(`OpenAI API error: ${response.status}`);
-      }
-
-      const data = await response.json();
-      const generatedTest = JSON.parse(data.choices[0].message.content);
       
-      setTestData(generatedTest);
+      setTestData(result);
       toast.success("Practice test generated successfully!");
     } catch (error) {
       console.error('Error generating test:', error);
-      toast.error("Failed to generate practice test. Please check your API key and try again.");
+      toast.error("Failed to generate practice test. Please try again.");
     } finally {
       setIsGenerating(false);
     }
@@ -324,42 +254,23 @@ export function PracticeTestGenerator({ studentName, className, skillName, onBac
                 </div>
               </div>
 
-              <div className="space-y-4">
-                <div>
-                  <label htmlFor="api-key" className="block text-sm font-medium text-gray-700 mb-2">
-                    OpenAI API Key
-                  </label>
-                  <input
-                    id="api-key"
-                    type="password"
-                    value={apiKey}
-                    onChange={(e) => setApiKey(e.target.value)}
-                    placeholder="Enter your OpenAI API key"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                  <p className="text-xs text-gray-500 mt-1">
-                    Your API key is used only for this request and is not stored.
-                  </p>
-                </div>
-
-                <Button 
-                  onClick={generateTestWithOpenAI} 
-                  disabled={isGenerating || !apiKey.trim()}
-                  className="w-full"
-                >
-                  {isGenerating ? (
-                    <>
-                      <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                      Generating Practice Exercises...
-                    </>
-                  ) : (
-                    <>
-                      <FileText className="h-4 w-4 mr-2" />
-                      Generate Practice Exercises
-                    </>
-                  )}
-                </Button>
-              </div>
+              <Button 
+                onClick={handleGenerateTest} 
+                disabled={isGenerating}
+                className="w-full"
+              >
+                {isGenerating ? (
+                  <>
+                    <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                    Generating Practice Exercises...
+                  </>
+                ) : (
+                  <>
+                    <FileText className="h-4 w-4 mr-2" />
+                    Generate Practice Exercises
+                  </>
+                )}
+              </Button>
             </CardContent>
           </Card>
         </div>
