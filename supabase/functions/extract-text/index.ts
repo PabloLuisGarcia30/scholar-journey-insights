@@ -1,9 +1,84 @@
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+}
+
+// Simple circuit breaker implementation for edge function
+class EdgeCircuitBreaker {
+  private failures = 0;
+  private lastFailureTime = 0;
+  private state: 'CLOSED' | 'OPEN' | 'HALF_OPEN' = 'CLOSED';
+
+  constructor(private failureThreshold = 3, private recoveryTimeoutMs = 30000) {}
+
+  async execute<T>(operation: () => Promise<T>, serviceName: string): Promise<T> {
+    if (this.state === 'OPEN') {
+      if (Date.now() - this.lastFailureTime > this.recoveryTimeoutMs) {
+        this.state = 'HALF_OPEN';
+        console.log(`${serviceName} circuit breaker moving to HALF_OPEN state`);
+      } else {
+        throw new Error(`${serviceName} circuit breaker is OPEN - service temporarily unavailable`);
+      }
+    }
+
+    try {
+      const result = await operation();
+      this.onSuccess(serviceName);
+      return result;
+    } catch (error) {
+      this.onFailure(serviceName);
+      throw error;
+    }
+  }
+
+  private onSuccess(serviceName: string) {
+    this.failures = 0;
+    this.state = 'CLOSED';
+    console.log(`${serviceName} circuit breaker reset to CLOSED state`);
+  }
+
+  private onFailure(serviceName: string) {
+    this.failures++;
+    this.lastFailureTime = Date.now();
+
+    if (this.failures >= this.failureThreshold) {
+      this.state = 'OPEN';
+      console.log(`${serviceName} circuit breaker opened due to failures`);
+    }
+  }
+}
+
+// Create circuit breakers for each service
+const googleVisionBreaker = new EdgeCircuitBreaker(3, 30000);
+const roboflowBreaker = new EdgeCircuitBreaker(3, 30000);
+const openaiBreaker = new EdgeCircuitBreaker(3, 30000);
+
+// Retry function with exponential backoff
+async function retryWithBackoff<T>(
+  operation: () => Promise<T>,
+  maxAttempts = 3,
+  baseDelay = 1000
+): Promise<T> {
+  let lastError: Error;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      return await operation();
+    } catch (error) {
+      lastError = error as Error;
+      console.warn(`Attempt ${attempt} failed:`, lastError.message);
+
+      if (attempt === maxAttempts) break;
+
+      const delay = baseDelay * Math.pow(2, attempt - 1);
+      console.log(`Retrying in ${delay}ms...`);
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
+  }
+
+  throw lastError!;
 }
 
 serve(async (req) => {
@@ -12,7 +87,7 @@ serve(async (req) => {
   }
 
   try {
-    console.log('Enhanced dual OCR extract-text function called')
+    console.log('Enhanced dual OCR extract-text function called with improved reliability')
     const { fileContent, fileName } = await req.json()
     console.log('Processing file:', fileName)
     
@@ -35,53 +110,68 @@ serve(async (req) => {
       throw new Error('OpenAI API key not configured')
     }
 
-    // Step 1: Google Cloud Vision OCR
-    console.log('Step 1: Processing with Google Cloud Vision OCR...')
-    const visionResponse = await fetch(
-      `https://vision.googleapis.com/v1/images:annotate?key=${googleApiKey}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          requests: [{
-            image: { content: fileContent },
-            features: [
-              { type: 'TEXT_DETECTION', maxResults: 50 },
-              { type: 'DOCUMENT_TEXT_DETECTION', maxResults: 1 }
-            ]
-          }]
-        })
-      }
-    )
+    // Step 1: Google Cloud Vision OCR with circuit breaker and retry
+    console.log('Step 1: Processing with Google Cloud Vision OCR (with retry logic)...')
+    const visionData = await googleVisionBreaker.execute(async () => {
+      return await retryWithBackoff(async () => {
+        const visionResponse = await fetch(
+          `https://vision.googleapis.com/v1/images:annotate?key=${googleApiKey}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              requests: [{
+                image: { content: fileContent },
+                features: [
+                  { type: 'TEXT_DETECTION', maxResults: 50 },
+                  { type: 'DOCUMENT_TEXT_DETECTION', maxResults: 1 }
+                ]
+              }]
+            })
+          }
+        )
 
-    if (!visionResponse.ok) {
-      const errorText = await visionResponse.text()
-      console.error('Google Vision API error:', errorText)
-      throw new Error(`Google Vision API error: ${errorText}`)
-    }
+        if (!visionResponse.ok) {
+          const errorText = await visionResponse.text()
+          console.error('Google Vision API error:', errorText)
+          throw new Error(`Google Vision API error: ${errorText}`)
+        }
 
-    const visionData = await visionResponse.json()
+        return await visionResponse.json()
+      }, 2, 2000)
+    }, 'Google Vision');
+
     console.log('Google Vision API response received')
 
-    // Step 2: Roboflow bubble detection
-    console.log('Step 2: Processing with Roboflow bubble detection...')
-    const roboflowResponse = await fetch(
-      'https://detect.roboflow.com/bubble-sheet-detector/1',
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded'
-        },
-        body: `api_key=${roboflowApiKey}&image=${encodeURIComponent(fileContent)}`
-      }
-    )
-
+    // Step 2: Roboflow bubble detection with circuit breaker and retry
+    console.log('Step 2: Processing with Roboflow bubble detection (with retry logic)...')
     let roboflowData = null
-    if (roboflowResponse.ok) {
-      roboflowData = await roboflowResponse.json()
+    try {
+      roboflowData = await roboflowBreaker.execute(async () => {
+        return await retryWithBackoff(async () => {
+          const roboflowResponse = await fetch(
+            'https://detect.roboflow.com/bubble-sheet-detector/1',
+            {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/x-www-form-urlencoded'
+              },
+              body: `api_key=${roboflowApiKey}&image=${encodeURIComponent(fileContent)}`
+            }
+          )
+
+          if (!roboflowResponse.ok) {
+            throw new Error(`Roboflow API error: ${roboflowResponse.status}`)
+          }
+
+          return await roboflowResponse.json()
+        }, 2, 1500)
+      }, 'Roboflow');
+
       console.log('Roboflow bubble detection completed with', roboflowData?.predictions?.length || 0, 'detections')
-    } else {
-      console.warn('Roboflow detection failed, proceeding with Google OCR only')
+    } catch (error) {
+      console.warn('Roboflow detection failed (using fallback):', error)
+      roboflowData = null
     }
 
     // Step 3: Enhanced text extraction and processing
@@ -145,8 +235,8 @@ serve(async (req) => {
 
     const finalConfidence = blockCount > 0 ? overallConfidence / blockCount : 0
 
-    // Step 4: OpenAI-powered intelligent parsing
-    console.log('Step 4: OpenAI intelligent parsing and question extraction...')
+    // Step 4: OpenAI-powered intelligent parsing with circuit breaker and retry
+    console.log('Step 4: OpenAI intelligent parsing and question extraction (with retry logic)...')
     
     const structuredParsingPrompt = `Analyze this test document OCR text and extract structured information. Look for:
 
@@ -176,29 +266,6 @@ Return a JSON response with this structure:
   "processingNotes": ["any notable observations"]
 }`
 
-    const parseResponse = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${openaiApiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'gpt-3.5-turbo',
-        messages: [
-          {
-            role: 'system',
-            content: 'You are an expert at parsing educational documents from OCR text. Extract structured information accurately and return only valid JSON.'
-          },
-          {
-            role: 'user', 
-            content: structuredParsingPrompt
-          }
-        ],
-        temperature: 0.1,
-        max_tokens: 2000
-      }),
-    })
-
     let parsedData = {
       examId: null,
       studentName: null,
@@ -207,9 +274,41 @@ Return a JSON response with this structure:
       processingNotes: []
     }
 
-    if (parseResponse.ok) {
-      const parseResult = await parseResponse.json()
-      const aiContent = parseResult.choices?.[0]?.message?.content || '{}'
+    try {
+      const aiResult = await openaiBreaker.execute(async () => {
+        return await retryWithBackoff(async () => {
+          const parseResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${openaiApiKey}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              model: 'gpt-3.5-turbo',
+              messages: [
+                {
+                  role: 'system',
+                  content: 'You are an expert at parsing educational documents from OCR text. Extract structured information accurately and return only valid JSON.'
+                },
+                {
+                  role: 'user', 
+                  content: structuredParsingPrompt
+                }
+              ],
+              temperature: 0.1,
+              max_tokens: 2000
+            }),
+          })
+
+          if (!parseResponse.ok) {
+            throw new Error(`OpenAI API error: ${parseResponse.status}`)
+          }
+
+          return await parseResponse.json()
+        }, 2, 3000)
+      }, 'OpenAI');
+
+      const aiContent = aiResult.choices?.[0]?.message?.content || '{}'
       
       try {
         parsedData = JSON.parse(aiContent)
@@ -218,9 +317,9 @@ Return a JSON response with this structure:
         console.warn('Failed to parse OpenAI response as JSON:', e)
         parsedData.processingNotes.push('AI parsing failed, using basic extraction')
       }
-    } else {
-      console.warn('OpenAI parsing request failed')
-      parsedData.processingNotes.push('AI parsing unavailable')
+    } catch (error) {
+      console.warn('OpenAI parsing request failed (using fallback):', error)
+      parsedData.processingNotes.push('AI parsing unavailable - using fallback')
     }
 
     // Step 5: Enhanced cross-validation with spatial bubble matching
@@ -326,7 +425,7 @@ Return a JSON response with this structure:
       }
     }
 
-    console.log('Enhanced dual OCR processing completed successfully')
+    console.log('Enhanced dual OCR processing completed successfully with improved reliability')
     console.log('Overall reliability:', (overallReliability * 100).toFixed(1) + '%')
     console.log('Cross-validated answers:', crossValidatedCount)
     console.log('Processing methods used:', processingMethods.join(' + '))
@@ -348,7 +447,16 @@ Return a JSON response with this structure:
   } catch (error) {
     console.error('Error in enhanced extract-text function:', error)
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ 
+        error: error.message,
+        timestamp: new Date().toISOString(),
+        suggestions: [
+          'Check your internet connection',
+          'Verify the document is clear and readable',
+          'Try uploading a smaller file size',
+          'Wait a moment and try again'
+        ]
+      }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 500,

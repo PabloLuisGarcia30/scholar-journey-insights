@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { withRetry, CircuitBreaker, RetryableError } from "./retryService";
 
 export interface ExtractTextRequest {
   fileContent: string;
@@ -142,42 +143,90 @@ export interface AnalyzeTestResponse {
   };
 }
 
+// Create circuit breakers for external services
+const googleVisionCircuitBreaker = new CircuitBreaker(3, 30000);
+const roboflowCircuitBreaker = new CircuitBreaker(3, 30000);
+const openaiCircuitBreaker = new CircuitBreaker(3, 30000);
+
 export const extractTextFromFile = async (request: ExtractTextRequest): Promise<ExtractTextResponse> => {
   try {
-    console.log('Calling enhanced dual OCR extract-text function for:', request.fileName);
-    const { data, error } = await supabase.functions.invoke('extract-text', {
-      body: request
-    })
+    console.log('Calling enhanced dual OCR extract-text function with retry logic for:', request.fileName);
+    
+    const result = await withRetry(
+      async () => {
+        const { data, error } = await supabase.functions.invoke('extract-text', {
+          body: request
+        });
 
-    if (error) {
-      console.error('Supabase function error:', error);
-      throw new Error(`Failed to extract text: ${error.message}`)
-    }
+        if (error) {
+          console.error('Supabase function error:', error);
+          throw new RetryableError(`Failed to extract text: ${error.message}`);
+        }
 
-    console.log('Enhanced dual OCR extract-text function response:', data);
-    return data
+        return data;
+      },
+      {
+        maxAttempts: 3,
+        baseDelay: 2000,
+        timeoutMs: 120000, // 2 minutes for OCR processing
+      }
+    );
+
+    console.log('Enhanced dual OCR extract-text function response:', result);
+    return result;
   } catch (error) {
-    console.error('Error calling enhanced extract-text function:', error)
-    throw new Error('Failed to extract text from file. Please try again.')
+    console.error('Error calling enhanced extract-text function:', error);
+    
+    if (error instanceof RetryableError) {
+      throw new Error(`Failed to extract text after multiple attempts: ${error.message}`);
+    }
+    
+    throw new Error('Failed to extract text from file. Please try again.');
   }
-}
+};
 
 export const analyzeTest = async (request: AnalyzeTestRequest): Promise<AnalyzeTestResponse> => {
   try {
-    console.log('Calling analyze-test function with enhanced structured data for exam ID:', request.examId);
-    const { data, error } = await supabase.functions.invoke('analyze-test', {
-      body: request
-    })
+    console.log('Calling analyze-test function with enhanced structured data and retry logic for exam ID:', request.examId);
+    
+    const result = await withRetry(
+      async () => {
+        const { data, error } = await supabase.functions.invoke('analyze-test', {
+          body: request
+        });
 
-    if (error) {
-      console.error('Supabase function error:', error);
-      throw new Error(`Failed to analyze test: ${error.message}`)
-    }
+        if (error) {
+          console.error('Supabase function error:', error);
+          throw new RetryableError(`Failed to analyze test: ${error.message}`);
+        }
 
-    console.log('Enhanced analyze-test function response:', data);
-    return data
+        return data;
+      },
+      {
+        maxAttempts: 2,
+        baseDelay: 3000,
+        timeoutMs: 90000, // 1.5 minutes for analysis
+      }
+    );
+
+    console.log('Enhanced analyze-test function response:', result);
+    return result;
   } catch (error) {
-    console.error('Error calling enhanced analyze-test function:', error)
-    throw new Error('Failed to analyze test. Please try again.')
+    console.error('Error calling enhanced analyze-test function:', error);
+    
+    if (error instanceof RetryableError) {
+      throw new Error(`Failed to analyze test after multiple attempts: ${error.message}`);
+    }
+    
+    throw new Error('Failed to analyze test. Please try again.');
   }
-}
+};
+
+// Export circuit breakers for monitoring
+export const getServiceHealthStatus = () => {
+  return {
+    googleVision: googleVisionCircuitBreaker.getState(),
+    roboflow: roboflowCircuitBreaker.getState(),
+    openai: openaiCircuitBreaker.getState(),
+  };
+};
