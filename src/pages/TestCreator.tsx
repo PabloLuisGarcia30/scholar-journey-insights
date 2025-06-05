@@ -947,6 +947,9 @@ const TestCreator = () => {
       <Card>
         <CardHeader>
           <CardTitle>Select Class</CardTitle>
+          <p className="text-sm text-blue-600 font-medium mt-2">
+            Please select the corresponding class properly. It helps us create better students together!
+          </p>
         </CardHeader>
         <CardContent className="space-y-4">
           <div>
