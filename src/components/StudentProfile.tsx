@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -205,8 +204,8 @@ export function StudentProfile({ studentId, classId, className, onBack }: Studen
   const groupSkillsByTopic = (skills: typeof comprehensiveSkillData) => {
     if (!isClassView) return { 'General Skills': skills };
 
-    // Use Grade 10 Math Content Skills for grouping if available
-    const skillsForGrouping = isGrade10MathClass() ? grade10MathSkills : classContentSkills;
+    // Use Grade 10 Math Content Skills for grouping if available and this is a Grade 10 Math class
+    const skillsForGrouping = (isGrade10MathClass() && grade10MathSkills.length > 0) ? grade10MathSkills : classContentSkills;
 
     if (!skillsForGrouping.length) return { 'General Skills': skills };
 
