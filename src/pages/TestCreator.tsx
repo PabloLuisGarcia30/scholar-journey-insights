@@ -17,6 +17,24 @@ import { TestDetails } from "@/components/TestCreator/TestDetails";
 import { QuestionEditor } from "@/components/TestCreator/QuestionEditor";
 import { saveExamToDatabase, getAllActiveClasses, type ExamData, type ActiveClass } from "@/services/examService";
 
+// Add the missing interface
+interface PrintTestsDialogProps {
+  selectedClass: ActiveClass;
+  examId: string;
+  testTitle: string;
+  testDescription: string;
+  timeLimit: number;
+  questions: Question[];
+  isPrintDialogOpen: boolean;
+  setIsPrintDialogOpen: (open: boolean) => void;
+  selectedStudentsForPrint: string[];
+  isPrinting: boolean;
+  onToggleStudent: (studentName: string) => void;
+  onSelectAll: (studentNames: string[]) => void;
+  onDeselectAll: () => void;
+  onPrintTests: (studentNames: string[]) => void;
+}
+
 const testTemplates: TestTemplate[] = [
   {
     id: 'math-quiz',
