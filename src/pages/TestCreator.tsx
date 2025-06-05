@@ -524,6 +524,7 @@ const TestCreator = () => {
     const [studentNames, setStudentNames] = useState<string[]>([]);
     const [isLoadingStudents, setIsLoadingStudents] = useState(false);
     const [selectedFormat, setSelectedFormat] = useState<'individual' | 'consolidated'>('individual');
+    const [printMethod, setPrintMethod] = useState<'pdf' | 'direct'>('direct');
 
     useEffect(() => {
       const loadStudentNames = async () => {
@@ -555,6 +556,56 @@ const TestCreator = () => {
       loadStudentNames();
     }, [isPrintDialogOpen, selectedClass.students]);
 
+    const handlePrintClick = () => {
+      if (printMethod === 'direct') {
+        handleDirectPrint();
+      } else {
+        onPrintTests(selectedStudentsForPrint, selectedFormat);
+      }
+    };
+
+    const handleDirectPrint = async () => {
+      if (selectedStudentsForPrint.length === 0) {
+        toast.error('Please select at least one student test to print');
+        return;
+      }
+
+      try {
+        const { printTest, printConsolidatedTests } = await import('@/services/printService');
+        
+        const testData = {
+          examId,
+          title: testTitle,
+          description: testDescription,
+          className: selectedClass.name,
+          timeLimit,
+          questions,
+        };
+
+        if (selectedFormat === 'consolidated') {
+          printConsolidatedTests(testData, selectedStudentsForPrint);
+          toast.success('Opening print dialog for consolidated test...');
+        } else {
+          // For individual tests, print them one by one
+          for (const studentName of selectedStudentsForPrint) {
+            const studentTestData = {
+              ...testData,
+              studentName,
+            };
+            printTest(studentTestData);
+            // Small delay between prints to prevent browser issues
+            await new Promise(resolve => setTimeout(resolve, 500));
+          }
+          toast.success(`Opening print dialogs for ${selectedStudentsForPrint.length} individual tests...`);
+        }
+        
+        setIsPrintDialogOpen(false);
+      } catch (error) {
+        console.error('Error printing tests:', error);
+        toast.error('Failed to print tests. Please try again.');
+      }
+    };
+
     return (
       <Dialog open={isPrintDialogOpen} onOpenChange={setIsPrintDialogOpen}>
         <DialogTrigger asChild>
@@ -581,14 +632,43 @@ const TestCreator = () => {
             </div>
 
             <div className="space-y-3">
-              <Label className="text-base font-semibold">PDF Format</Label>
+              <Label className="text-base font-semibold">Print Method</Label>
+              <RadioGroup value={printMethod} onValueChange={(value: 'pdf' | 'direct') => setPrintMethod(value)}>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="direct" id="direct-print" />
+                  <Label htmlFor="direct-print" className="cursor-pointer">
+                    <div>
+                      <span className="font-medium">Direct Print (Recommended)</span>
+                      <p className="text-sm text-gray-500">Opens your system print dialog immediately - faster and more convenient</p>
+                    </div>
+                  </Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="pdf" id="pdf-print" />
+                  <Label htmlFor="pdf-print" className="cursor-pointer">
+                    <div>
+                      <span className="font-medium">Download PDF</span>
+                      <p className="text-sm text-gray-500">Downloads PDF files that you can save or print later</p>
+                    </div>
+                  </Label>
+                </div>
+              </RadioGroup>
+            </div>
+
+            <div className="space-y-3">
+              <Label className="text-base font-semibold">Format</Label>
               <RadioGroup value={selectedFormat} onValueChange={(value: 'individual' | 'consolidated') => setSelectedFormat(value)}>
                 <div className="flex items-center space-x-2">
                   <RadioGroupItem value="individual" id="individual" />
                   <Label htmlFor="individual" className="cursor-pointer">
                     <div>
-                      <span className="font-medium">Individual PDFs</span>
-                      <p className="text-sm text-gray-500">Separate PDF file for each student (current behavior)</p>
+                      <span className="font-medium">Individual Tests</span>
+                      <p className="text-sm text-gray-500">
+                        {printMethod === 'direct' 
+                          ? 'Separate print dialog for each student' 
+                          : 'Separate PDF file for each student'
+                        }
+                      </p>
                     </div>
                   </Label>
                 </div>
@@ -596,8 +676,13 @@ const TestCreator = () => {
                   <RadioGroupItem value="consolidated" id="consolidated" />
                   <Label htmlFor="consolidated" className="cursor-pointer">
                     <div>
-                      <span className="font-medium">Consolidated PDF</span>
-                      <p className="text-sm text-gray-500">All student tests in one PDF document (easier to print)</p>
+                      <span className="font-medium">Consolidated</span>
+                      <p className="text-sm text-gray-500">
+                        {printMethod === 'direct' 
+                          ? 'All student tests in one print job (easier to print)' 
+                          : 'All student tests in one PDF document'
+                        }
+                      </p>
                     </div>
                   </Label>
                 </div>
@@ -660,19 +745,21 @@ const TestCreator = () => {
                     Cancel
                   </Button>
                   <Button 
-                    onClick={() => onPrintTests(selectedStudentsForPrint, selectedFormat)}
+                    onClick={handlePrintClick}
                     disabled={isPrinting || selectedStudentsForPrint.length === 0}
                   >
                     {isPrinting ? (
                       <>
                         <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                        Generating PDFs...
+                        Generating...
                       </>
                     ) : (
                       <>
                         <Printer className="h-4 w-4 mr-2" />
-                        Generate {selectedFormat === 'consolidated' ? 'Consolidated' : selectedStudentsForPrint.length} 
-                        {selectedFormat === 'individual' && selectedStudentsForPrint.length !== 1 ? ' PDFs' : ' PDF'}
+                        {printMethod === 'direct' ? 'Print Now' : 'Generate'} 
+                        {selectedFormat === 'consolidated' ? ' Consolidated' : ` ${selectedStudentsForPrint.length}`} 
+                        {printMethod === 'pdf' && selectedFormat === 'individual' && selectedStudentsForPrint.length !== 1 ? ' PDFs' : ''}
+                        {printMethod === 'pdf' && selectedFormat === 'consolidated' ? ' PDF' : ''}
                       </>
                     )}
                   </Button>
