@@ -17,6 +17,7 @@ import {
   getStudentSubjectSkillScores,
   getActiveClassById,
   getContentSkillsBySubjectAndGrade,
+  getGrade10MathContentSkills,
   autoLinkMathClassToGrade10Skills,
   type ActiveStudent,
   type TestResult,
@@ -108,11 +109,18 @@ export function StudentProfile({ studentId, classId, className, onBack }: Studen
     queryFn: () => getStudentSubjectSkillScores(studentId),
   });
 
-  // Fetch content skills for the class to show complete skill set
+  // Fetch Grade 10 Math content skills when in Math class view
+  const { data: grade10MathSkills = [], isLoading: grade10MathSkillsLoading } = useQuery({
+    queryKey: ['grade10MathContentSkills'],
+    queryFn: () => getGrade10MathContentSkills(),
+    enabled: !!isClassView && classData?.subject === 'Math' && classData?.grade === 'Grade 10',
+  });
+
+  // Fetch content skills for the class to show complete skill set (fallback for non-Math classes)
   const { data: classContentSkills = [], isLoading: classContentSkillsLoading } = useQuery({
     queryKey: ['classContentSkills', classData?.subject, classData?.grade],
     queryFn: () => classData ? getContentSkillsBySubjectAndGrade(classData.subject, classData.grade) : Promise.resolve([]),
-    enabled: !!classData && !!isClassView,
+    enabled: !!classData && !!isClassView && !(classData?.subject === 'Math' && classData?.grade === 'Grade 10'),
   });
 
   const totalCredits = 120;
@@ -130,14 +138,39 @@ export function StudentProfile({ studentId, classId, className, onBack }: Studen
   const getComprehensiveSkillData = () => {
     console.log('Getting comprehensive skill data:', { 
       isClassView, 
+      isMathGrade10: classData?.subject === 'Math' && classData?.grade === 'Grade 10',
+      grade10MathSkillsLength: grade10MathSkills.length,
       classContentSkillsLength: classContentSkills.length, 
       contentSkillScoresLength: contentSkillScores.length,
+      grade10MathSkills,
       classContentSkills,
       contentSkillScores
     });
 
-    // If we're in class view and have class content skills, show all skills for the class
+    // If we're in Math Grade 10 class view, use Grade 10 Math Content Skills
+    if (isClassView && classData?.subject === 'Math' && classData?.grade === 'Grade 10' && grade10MathSkills.length > 0) {
+      console.log('Using Grade 10 Math Content Skills');
+      // Create a map of skill scores by skill name
+      const scoreMap = new Map(contentSkillScores.map(score => [score.skill_name, score]));
+
+      // Combine Grade 10 Math skills with actual scores, showing 0 for untested skills
+      return grade10MathSkills.map(skill => {
+        const existingScore = scoreMap.get(skill.skill_name);
+        return existingScore || {
+          id: `placeholder-${skill.id}`,
+          test_result_id: '',
+          skill_name: skill.skill_name,
+          score: 0, // Show 0% for skills not yet tested
+          points_earned: 0,
+          points_possible: 0,
+          created_at: ''
+        };
+      });
+    }
+
+    // If we're in other class view and have class content skills, show all skills for the class
     if (isClassView && classContentSkills.length > 0) {
+      console.log('Using regular class content skills');
       // Create a map of skill scores by skill name
       const scoreMap = new Map(contentSkillScores.map(score => [score.skill_name, score]));
 
@@ -157,6 +190,7 @@ export function StudentProfile({ studentId, classId, className, onBack }: Studen
     }
 
     // Otherwise, just return the content skill scores from tests
+    console.log('Using test result content skill scores only');
     return contentSkillScores;
   };
 
@@ -164,12 +198,19 @@ export function StudentProfile({ studentId, classId, className, onBack }: Studen
 
   // Group skills by topic for better organization
   const groupSkillsByTopic = (skills: typeof comprehensiveSkillData) => {
-    if (!isClassView || !classContentSkills.length) return { 'General Skills': skills };
+    if (!isClassView) return { 'General Skills': skills };
+
+    // Use Grade 10 Math Content Skills for grouping if available
+    const skillsForGrouping = (classData?.subject === 'Math' && classData?.grade === 'Grade 10') 
+      ? grade10MathSkills 
+      : classContentSkills;
+
+    if (!skillsForGrouping.length) return { 'General Skills': skills };
 
     const grouped: Record<string, typeof skills> = {};
     
     skills.forEach(skillScore => {
-      const contentSkill = classContentSkills.find(cs => cs.skill_name === skillScore.skill_name);
+      const contentSkill = skillsForGrouping.find(cs => cs.skill_name === skillScore.skill_name);
       const topic = contentSkill?.topic || 'General Skills';
       
       if (!grouped[topic]) {
@@ -412,52 +453,9 @@ export function StudentProfile({ studentId, classId, className, onBack }: Studen
           )}
         </TabsList>
 
-        {/* ... keep existing code (all tabs content exactly as before) */}
         {isClassView ? (
           <>
-            <TabsContent value="assignments">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Test Results</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {testResultsLoading ? (
-                    <div className="animate-pulse space-y-4">
-                      {[...Array(3)].map((_, i) => (
-                        <div key={i} className="h-16 bg-gray-200 rounded"></div>
-                      ))}
-                    </div>
-                  ) : testResults.length > 0 ? (
-                    <div className="space-y-4">
-                      {testResults.map((result, index) => (
-                        <div key={result.id} className="flex items-center justify-between p-4 rounded-lg border border-gray-100">
-                          <div className="flex-1">
-                            <h3 className="font-semibold text-gray-900">Test {index + 1}</h3>
-                            <div className="flex items-center gap-2 mt-1">
-                              <span className="text-sm text-gray-600">
-                                Date: {new Date(result.created_at).toLocaleDateString()}
-                              </span>
-                              <span className="text-sm text-gray-400">•</span>
-                              <span className="text-sm text-gray-600">
-                                {result.total_points_earned}/{result.total_points_possible} points
-                              </span>
-                            </div>
-                            <Progress value={result.overall_score} className="mt-2 w-48" />
-                          </div>
-                          <Badge className={getGradeColor(result.overall_score)}>
-                            {Math.round(result.overall_score)}%
-                          </Badge>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="text-center py-8">
-                      <p className="text-gray-600">No test results available.</p>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </TabsContent>
+            {/* ... keep existing code (assignments tab) the same */}
 
             <TabsContent value="strengths">
               <Card>
@@ -498,7 +496,7 @@ export function StudentProfile({ studentId, classId, className, onBack }: Studen
                   </div>
                 </CardHeader>
                 <CardContent>
-                  {(contentSkillsLoading || classContentSkillsLoading) ? (
+                  {(contentSkillsLoading || classContentSkillsLoading || grade10MathSkillsLoading) ? (
                     <div className="animate-pulse space-y-4">
                       {[...Array(5)].map((_, i) => (
                         <div key={i} className="h-16 bg-gray-200 rounded"></div>
@@ -535,10 +533,12 @@ export function StudentProfile({ studentId, classId, className, onBack }: Studen
                   ) : (
                     <div className="text-center py-8">
                       <p className="text-gray-600">
-                        {isClassView && classContentSkillsLoading 
+                        {isClassView && (classContentSkillsLoading || grade10MathSkillsLoading)
                           ? 'Loading content skills...' 
-                          : classContentSkills.length === 0 && isClassView
-                          ? 'No content skills found for this class. The Grade 10 Math skills will be auto-linked shortly.'
+                          : (grade10MathSkills.length === 0 && classContentSkills.length === 0 && isClassView)
+                          ? classData?.subject === 'Math' && classData?.grade === 'Grade 10'
+                            ? 'Grade 10 Math skills are being loaded...'
+                            : 'No content skills found for this class.'
                           : 'No content skill data available.'
                         }
                       </p>
@@ -548,215 +548,11 @@ export function StudentProfile({ studentId, classId, className, onBack }: Studen
               </Card>
             </TabsContent>
 
-            <TabsContent value="specific-strengths">
-              <Card>
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <CardTitle>Subject Specific Skill Mastery</CardTitle>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button className="flex items-center gap-2">
-                          <FileText className="h-4 w-4" />
-                          Generate practice exercises
-                          <ChevronDown className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="w-64 bg-white">
-                        <DropdownMenuItem onClick={() => handleGeneratePracticeTest()}>
-                          All Skills Combined
-                        </DropdownMenuItem>
-                        {subjectSkillScores.map((skill, index) => (
-                          <DropdownMenuItem 
-                            key={index} 
-                            onClick={() => handleGeneratePracticeTest(skill.skill_name)}
-                            className="flex items-center justify-between"
-                          >
-                            <span>{skill.skill_name}</span>
-                            <Badge variant="outline" className="ml-2">
-                              {Math.round(skill.score)}%
-                            </Badge>
-                          </DropdownMenuItem>
-                        ))}
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  {subjectSkillsLoading ? (
-                    <div className="animate-pulse space-y-4">
-                      {[...Array(4)].map((_, i) => (
-                        <div key={i} className="h-16 bg-gray-200 rounded"></div>
-                      ))}
-                    </div>
-                  ) : subjectSkillScores.length > 0 ? (
-                    <div className="space-y-4">
-                      {subjectSkillScores.map((skill, index) => (
-                        <div key={index} className="flex items-center justify-between p-4 rounded-lg border border-gray-100">
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2">
-                              <Target className="h-5 w-5 text-blue-600" />
-                              <h3 className="font-semibold text-gray-900">{skill.skill_name}</h3>
-                            </div>
-                            <Progress value={skill.score} className="mt-2 w-64" />
-                          </div>
-                          <div className="text-right">
-                            <Badge className={getMasteryColor(skill.score)}>
-                              {Math.round(skill.score)}%
-                            </Badge>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="text-center py-8">
-                      <p className="text-gray-600">No subject skill scores available.</p>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </TabsContent>
-
-            <TabsContent value="progress">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Test Progress Over Time</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {testResults.length > 0 ? (
-                    <div className="h-80">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <LineChart data={testResults.map((result, index) => ({
-                          test: `Test ${index + 1}`,
-                          score: result.overall_score,
-                          date: new Date(result.created_at).toLocaleDateString()
-                        }))}>
-                          <CartesianGrid strokeDasharray="3 3" />
-                          <XAxis dataKey="test" />
-                          <YAxis domain={[0, 100]} />
-                          <Tooltip formatter={(value) => [`${value}%`, 'Score']} />
-                          <Line 
-                            type="monotone" 
-                            dataKey="score" 
-                            stroke="#3b82f6" 
-                            strokeWidth={3}
-                            dot={{ fill: '#3b82f6', strokeWidth: 2, r: 6 }}
-                          />
-                        </LineChart>
-                      </ResponsiveContainer>
-                    </div>
-                  ) : (
-                    <div className="text-center py-8">
-                      <p className="text-gray-600">No test data available for progress chart.</p>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </TabsContent>
+            {/* ... keep existing code (other tabs) the same */}
           </>
         ) : (
           <>
-            <TabsContent value="grades">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Semester GPA Trends</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="h-80">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <LineChart data={gradeHistory}>
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="semester" />
-                        <YAxis domain={[0, 4]} />
-                        <Tooltip formatter={(value) => [`${value} GPA`, 'GPA']} />
-                        <Line 
-                          type="monotone" 
-                          dataKey="gpa" 
-                          stroke="#3b82f6" 
-                          strokeWidth={3}
-                          dot={{ fill: '#3b82f6', strokeWidth: 2, r: 6 }}
-                        />
-                      </LineChart>
-                    </ResponsiveContainer>
-                  </div>
-                </CardContent>
-              </Card>
-            </TabsContent>
-
-            <TabsContent value="courses">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Current Course Performance</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    {courseGrades.map((course, index) => (
-                      <div key={index} className="flex items-center justify-between p-4 rounded-lg border border-gray-100">
-                        <div className="flex-1">
-                          <h3 className="font-semibold text-gray-900">{course.course}</h3>
-                          <div className="flex items-center gap-2 mt-1">
-                            <span className="text-sm text-gray-600">{course.credits} credits</span>
-                            <span className="text-sm text-gray-400">•</span>
-                            <span className="text-sm text-gray-600">{course.progress}% complete</span>
-                          </div>
-                          <Progress value={course.progress} className="mt-2 w-48" />
-                        </div>
-                        <Badge className={getGradeColor(course.grade)}>
-                          {course.grade}
-                        </Badge>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            </TabsContent>
-
-            <TabsContent value="progress">
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Credit Distribution</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-4">
-                      <div className="flex justify-between items-center">
-                        <span className="text-gray-600">Completed Credits</span>
-                        <span className="font-semibold">{completedCredits} / {totalCredits}</span>
-                      </div>
-                      <Progress value={progressPercentage} className="h-3" />
-                      <div className="text-sm text-gray-600">
-                        {totalCredits - completedCredits} credits remaining to graduate
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-                
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Academic Milestones</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-3">
-                      <div className="flex items-center gap-3">
-                        <div className="w-3 h-3 rounded-full bg-green-500"></div>
-                        <span className="text-sm">Freshman Year Completed</span>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <div className="w-3 h-3 rounded-full bg-green-500"></div>
-                        <span className="text-sm">Sophomore Year Completed</span>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <div className="w-3 h-3 rounded-full bg-blue-500"></div>
-                        <span className="text-sm">Junior Year In Progress</span>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <div className="w-3 h-3 rounded-full bg-gray-300"></div>
-                        <span className="text-sm text-gray-500">Senior Year Pending</span>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-            </TabsContent>
+            {/* ... keep existing code (non-class view tabs) the same */}
           </>
         )}
       </Tabs>

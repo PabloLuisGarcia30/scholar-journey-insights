@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import type { Question } from "@/utils/pdfGenerator";
 
@@ -773,3 +772,32 @@ export const autoLinkMathClassToGrade10Skills = async (): Promise<void> => {
     throw error;
   }
 };
+
+export async function getGrade10MathContentSkills(): Promise<ContentSkill[]> {
+  console.log('Fetching Grade 10 Math content skills...');
+  
+  const { data, error } = await supabase
+    .from('Grade 10 Math Content Skills')
+    .select('*')
+    .order('topic', { ascending: true })
+    .order('skill_name', { ascending: true });
+
+  if (error) {
+    console.error('Error fetching Grade 10 Math content skills:', error);
+    throw error;
+  }
+
+  console.log('Grade 10 Math content skills fetched:', data?.length || 0);
+  
+  // Map the data to match the ContentSkill interface
+  return (data || []).map(skill => ({
+    id: skill.id,
+    skill_name: skill.skill_name,
+    skill_description: skill.skill_description,
+    topic: skill.topic,
+    subject: skill.Subject, // Note: column name is "Subject" with capital S
+    grade: skill.grade,
+    created_at: skill.created_at,
+    updated_at: skill.updated_at
+  }));
+}
