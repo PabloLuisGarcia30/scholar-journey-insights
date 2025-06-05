@@ -12,7 +12,6 @@ import {
   getLinkedContentSkillsForClass,
   linkClassToContentSkills,
   autoLinkMathClassToGrade10Skills,
-  getGrade10MathContentSkills,
   type ContentSkill,
   type ActiveClass
 } from "@/services/examService";
@@ -45,15 +44,8 @@ export function ClassContentSkills({ activeClass }: ClassContentSkillsProps) {
     try {
       setLoading(true);
       
-      let available: ContentSkill[] = [];
-      
-      // Use Grade 10 Math skills for any Grade 10 Math class
-      if (isGrade10MathClass()) {
-        available = await getGrade10MathContentSkills();
-      } else {
-        available = await getContentSkillsBySubjectAndGrade(activeClass.subject, activeClass.grade);
-      }
-      
+      // Now all skills come from the unified content_skills table
+      const available = await getContentSkillsBySubjectAndGrade(activeClass.subject, activeClass.grade);
       const linked = await getLinkedContentSkillsForClass(activeClass.id);
       
       setAvailableSkills(available);

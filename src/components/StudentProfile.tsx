@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -18,7 +17,6 @@ import {
   getStudentSubjectSkillScores,
   getActiveClassById,
   getContentSkillsBySubjectAndGrade,
-  getMathStudies10Skills,
   autoLinkMathClassToGrade10Skills,
   type ActiveStudent,
   type TestResult,
@@ -115,18 +113,11 @@ export function StudentProfile({ studentId, classId, className, onBack }: Studen
     queryFn: () => getStudentSubjectSkillScores(studentId),
   });
 
-  // Fetch Math Studies 10 skills when in any Grade 10 Math class view
-  const { data: mathStudies10Skills = [], isLoading: mathStudies10SkillsLoading } = useQuery({
-    queryKey: ['mathStudies10Skills'],
-    queryFn: () => getMathStudies10Skills(),
-    enabled: !!isClassView && isGrade10MathClass(),
-  });
-
-  // Fetch content skills for the class to show complete skill set (fallback for non-Grade 10 Math classes)
+  // Fetch content skills for the class to show complete skill set
   const { data: classContentSkills = [], isLoading: classContentSkillsLoading } = useQuery({
     queryKey: ['classContentSkills', classData?.subject, classData?.grade],
     queryFn: () => classData ? getContentSkillsBySubjectAndGrade(classData.subject, classData.grade) : Promise.resolve([]),
-    enabled: !!classData && !!isClassView && !isGrade10MathClass(),
+    enabled: !!classData && !!isClassView,
   });
 
   const totalCredits = 120;
@@ -145,37 +136,15 @@ export function StudentProfile({ studentId, classId, className, onBack }: Studen
     console.log('Getting comprehensive skill data:', { 
       isClassView, 
       isGrade10Math: isGrade10MathClass(),
-      mathStudies10SkillsLength: mathStudies10Skills.length,
       classContentSkillsLength: classContentSkills.length, 
       contentSkillScoresLength: contentSkillScores.length,
-      'Math Studies 10 Skills loaded:': mathStudies10Skills.map(s => ({ topic: s.topic, skill: s.skill_name })),
+      'Class Content Skills:': classContentSkills.map(s => ({ topic: s.topic, skill: s.skill_name })),
       'Content skill scores:': contentSkillScores.map(s => s.skill_name)
     });
 
-    // If we're in any Grade 10 Math class view, use Math Studies 10 skills
-    if (isClassView && isGrade10MathClass() && mathStudies10Skills.length > 0) {
-      console.log('Using Math Studies 10 Skills - showing all', mathStudies10Skills.length, 'skills');
-      // Create a map of skill scores by skill name
-      const scoreMap = new Map(contentSkillScores.map(score => [score.skill_name, score]));
-
-      // Combine Math Studies 10 skills with actual scores, showing 0 for untested skills
-      return mathStudies10Skills.map(skill => {
-        const existingScore = scoreMap.get(skill.skill_name);
-        return existingScore || {
-          id: `placeholder-${skill.id}`,
-          test_result_id: '',
-          skill_name: skill.skill_name,
-          score: 0, // Show 0% for skills not yet tested
-          points_earned: 0,
-          points_possible: 0,
-          created_at: ''
-        };
-      });
-    }
-
-    // If we're in other class view and have class content skills, show all skills for the class
+    // If we're in class view and have class content skills, show all skills for the class
     if (isClassView && classContentSkills.length > 0) {
-      console.log('Using regular class content skills');
+      console.log('Using class content skills from unified table');
       // Create a map of skill scores by skill name
       const scoreMap = new Map(contentSkillScores.map(score => [score.skill_name, score]));
 
@@ -205,8 +174,7 @@ export function StudentProfile({ studentId, classId, className, onBack }: Studen
   const groupSkillsByTopic = (skills: typeof comprehensiveSkillData) => {
     if (!isClassView) return { 'General Skills': skills };
 
-    // Use Math Studies 10 skills for grouping if available and this is a Grade 10 Math class
-    const skillsForGrouping = (isGrade10MathClass() && mathStudies10Skills.length > 0) ? mathStudies10Skills : classContentSkills;
+    const skillsForGrouping = classContentSkills;
 
     if (!skillsForGrouping.length) return { 'General Skills': skills };
 
@@ -566,7 +534,7 @@ export function StudentProfile({ studentId, classId, className, onBack }: Studen
                   </div>
                 </CardHeader>
                 <CardContent>
-                  {(contentSkillsLoading || classContentSkillsLoading || mathStudies10SkillsLoading) ? (
+                  {(contentSkillsLoading || classContentSkillsLoading) ? (
                     <div className="animate-pulse space-y-4">
                       {[...Array(5)].map((_, i) => (
                         <div key={i} className="h-16 bg-gray-200 rounded"></div>
@@ -603,12 +571,10 @@ export function StudentProfile({ studentId, classId, className, onBack }: Studen
                   ) : (
                     <div className="text-center py-8">
                       <p className="text-gray-600">
-                        {isClassView && (classContentSkillsLoading || mathStudies10SkillsLoading)
+                        {isClassView && classContentSkillsLoading
                           ? 'Loading content skills...' 
-                          : (mathStudies10Skills.length === 0 && classContentSkills.length === 0 && isClassView)
-                          ? isGrade10MathClass()
-                            ? 'Math Studies 10 skills are being loaded...'
-                            : 'No content skills found for this class.'
+                          : (classContentSkills.length === 0 && isClassView)
+                          ? 'No content skills found for this class.'
                           : 'No content skill data available.'
                         }
                       </p>

@@ -212,11 +212,11 @@ export type Database = {
         }
         Insert: {
           created_at?: string
-          grade: string
+          grade?: string
           id?: string
           skill_description: string
           skill_name: string
-          subject: string
+          subject?: string
           topic: string
           updated_at?: string
         }
@@ -278,33 +278,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
-      }
-      math_studies_10_skills: {
-        Row: {
-          created_at: string
-          id: string
-          skill_description: string
-          skill_name: string
-          topic: string
-          updated_at: string
-        }
-        Insert: {
-          created_at?: string
-          id?: string
-          skill_description: string
-          skill_name: string
-          topic: string
-          updated_at?: string
-        }
-        Update: {
-          created_at?: string
-          id?: string
-          skill_description?: string
-          skill_name?: string
-          topic?: string
-          updated_at?: string
-        }
-        Relationships: []
       }
       student_profiles: {
         Row: {
