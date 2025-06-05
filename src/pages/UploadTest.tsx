@@ -13,6 +13,8 @@ import { ProgressService, ProcessingProgress } from "@/services/progressService"
 import { FilePreviewCard } from "@/components/FilePreviewCard";
 import { EnhancedProgressIndicator, ProcessingStep } from "@/components/EnhancedProgressIndicator";
 import { ResultsManager } from "@/components/ResultsManager";
+import { PerformanceMonitoringService, SmartOcrService } from "@/services/advancedServices";
+import { BatchProcessingManager, PerformanceDashboard } from "@/components/AdvancedFeatures";
 
 const UploadTest = () => {
   const [dragActive, setDragActive] = useState(false);
@@ -29,6 +31,9 @@ const UploadTest = () => {
   const [needsManualName, setNeedsManualName] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<any>(null);
   const [processingStartTime, setProcessingStartTime] = useState<number>(0);
+  const [showBatchProcessing, setShowBatchProcessing] = useState(false);
+  const [showPerformanceDashboard, setShowPerformanceDashboard] = useState(false);
+  const [smartOcrEnabled, setSmartOcrEnabled] = useState(true);
 
   // Initialize processing steps
   useEffect(() => {
@@ -205,179 +210,215 @@ const UploadTest = () => {
     setSessionId(newSessionId);
     
     try {
-      // Step 1: File Optimization
-      updateProcessingStep('optimization', { 
-        status: 'active', 
-        progress: 0,
-        description: 'Optimizing files for enhanced processing...'
-      });
-
-      const optimizedFiles = await Promise.all(
-        uploadedFiles.map(async (file, index) => {
+      // Track performance metrics
+      await PerformanceMonitoringService.measureOperation(
+        'full_pipeline',
+        async () => {
+          // Step 1: File Optimization
           updateProcessingStep('optimization', { 
-            progress: ((index + 1) / uploadedFiles.length) * 100,
-            description: `Optimizing ${file.name}...`
+            status: 'active', 
+            progress: 0,
+            description: 'Optimizing files for enhanced processing...'
+          });
+
+          const optimizedFiles = await Promise.all(
+            uploadedFiles.map(async (file, index) => {
+              updateProcessingStep('optimization', { 
+                progress: ((index + 1) / uploadedFiles.length) * 100,
+                description: `Optimizing ${file.name}...`
+              });
+              
+              const optimization = await FileOptimizationService.processFileForUpload(file);
+              return {
+                original: file,
+                optimized: optimization.optimizedFile,
+                compressionRatio: optimization.compressionRatio,
+                processingTime: optimization.processingTime
+              };
+            })
+          );
+
+          updateProcessingStep('optimization', { 
+            status: 'completed',
+            description: `Optimized ${optimizedFiles.length} file(s) for processing`
+          });
+
+          // Smart OCR optimization if enabled
+          if (smartOcrEnabled) {
+            const smartOcr = await SmartOcrService.optimizeProcessingPipeline(optimizedFiles[0].optimized);
+            console.log('Smart OCR optimization:', smartOcr);
+            
+            updateProcessingStep('extracting', {
+              description: `Smart OCR: ${smartOcr.estimatedAccuracy.toFixed(1)}% accuracy expected`
+            });
+          }
+
+          // Step 2: Extract text with enhanced dual OCR
+          updateProcessingStep('extracting', { 
+            status: 'active', 
+            progress: 0,
+            description: 'Starting enhanced dual OCR extraction...'
           });
           
-          const optimization = await FileOptimizationService.processFileForUpload(file);
-          return {
-            original: file,
-            optimized: optimization.optimizedFile,
-            compressionRatio: optimization.compressionRatio,
-            processingTime: optimization.processingTime
-          };
-        })
-      );
-
-      updateProcessingStep('optimization', { 
-        status: 'completed',
-        description: `Optimized ${optimizedFiles.length} file(s) for processing`
-      });
-
-      // Step 2: Extract text with enhanced dual OCR
-      updateProcessingStep('extracting', { 
-        status: 'active', 
-        progress: 0,
-        description: 'Starting enhanced dual OCR extraction...'
-      });
-      
-      const firstOptimizedFile = optimizedFiles[0].optimized;
-      const base64Content = await FileOptimizationService.convertFileToBase64Chunked(firstOptimizedFile);
-      
-      updateProcessingStep('extracting', { 
-        progress: 30,
-        description: 'Running Google OCR + Roboflow bubble detection...'
-      });
-
-      const extractResult = await extractTextFromFile({
-        fileContent: base64Content,
-        fileName: firstOptimizedFile.name
-      });
-
-      if (!extractResult.examId) {
-        updateProcessingStep('extracting', { 
-          status: 'error',
-          error: 'Could not find Exam ID in the document'
-        });
-        toast.error("Could not find Exam ID in the document. Please ensure the document contains a clearly marked Exam ID.");
-        setCurrentStep('upload');
-        setIsProcessing(false);
-        return;
-      }
-
-      setExtractedExamId(extractResult.examId);
-      
-      // Update step with OCR metadata
-      const ocrMetadata = {
-        confidence: extractResult.structuredData?.validationResults?.overallReliability || 0,
-        detections: extractResult.structuredData?.documentMetadata?.roboflowDetections || 0,
-        reliability: extractResult.structuredData?.validationResults?.overallReliability || 0,
-        method: extractResult.structuredData?.documentMetadata?.processingMethods?.join(' + ') || 'Standard OCR'
-      };
-
-      updateProcessingStep('extracting', { 
-        progress: 70,
-        metadata: ocrMetadata,
-        description: `OCR extraction completed with ${(ocrMetadata.reliability * 100).toFixed(1)}% reliability`
-      });
-      
-      if (extractResult.studentName) {
-        setDetectedStudentName(extractResult.studentName);
-        toast.success(`Automatically detected student: ${extractResult.studentName}`);
-        setNeedsManualName(false);
-      } else {
-        toast.warning("Could not automatically detect student name. Please enter it manually.");
-        setNeedsManualName(true);
-        setIsProcessing(false);
-        setCurrentStep('upload');
-        return;
-      }
-
-      updateProcessingStep('extracting', { 
-        status: 'completed',
-        progress: 100,
-        description: 'Enhanced dual OCR extraction completed successfully'
-      });
-
-      // Step 3: Analyze all files with enhanced data
-      updateProcessingStep('analyzing', { 
-        status: 'active', 
-        progress: 0,
-        description: 'Starting AI analysis with enhanced OCR data...'
-      });
-
-      const allFileResults = await Promise.all(
-        optimizedFiles.map(async (fileData, index) => {
-          updateProcessingStep('analyzing', { 
-            progress: ((index + 1) / optimizedFiles.length) * 50,
-            description: `Analyzing file ${index + 1} of ${optimizedFiles.length}...`
-          });
+          const firstOptimizedFile = optimizedFiles[0].optimized;
+          const base64Content = await FileOptimizationService.convertFileToBase64Chunked(firstOptimizedFile);
           
-          const base64Content = await FileOptimizationService.convertFileToBase64Chunked(fileData.optimized);
-          const result = await extractTextFromFile({
+          updateProcessingStep('extracting', { 
+            progress: 30,
+            description: 'Running Google OCR + Roboflow bubble detection...'
+          });
+
+          const extractResult = await extractTextFromFile({
             fileContent: base64Content,
-            fileName: fileData.optimized.name
+            fileName: firstOptimizedFile.name
           });
-          return {
-            fileName: fileData.optimized.name,
-            extractedText: result.extractedText,
-            structuredData: result.structuredData
+
+          if (!extractResult.examId) {
+            updateProcessingStep('extracting', { 
+              status: 'error',
+              error: 'Could not find Exam ID in the document'
+            });
+            toast.error("Could not find Exam ID in the document. Please ensure the document contains a clearly marked Exam ID.");
+            setCurrentStep('upload');
+            setIsProcessing(false);
+            return;
+          }
+
+          setExtractedExamId(extractResult.examId);
+          
+          // Update step with OCR metadata
+          const ocrMetadata = {
+            confidence: extractResult.structuredData?.validationResults?.overallReliability || 0,
+            detections: extractResult.structuredData?.documentMetadata?.roboflowDetections || 0,
+            reliability: extractResult.structuredData?.validationResults?.overallReliability || 0,
+            method: extractResult.structuredData?.documentMetadata?.processingMethods?.join(' + ') || 'Standard OCR'
           };
-        })
+
+          updateProcessingStep('extracting', { 
+            progress: 70,
+            metadata: ocrMetadata,
+            description: `OCR extraction completed with ${(ocrMetadata.reliability * 100).toFixed(1)}% reliability`
+          });
+          
+          if (extractResult.studentName) {
+            setDetectedStudentName(extractResult.studentName);
+            toast.success(`Automatically detected student: ${extractResult.studentName}`);
+            setNeedsManualName(false);
+          } else {
+            toast.warning("Could not automatically detect student name. Please enter it manually.");
+            setNeedsManualName(true);
+            setIsProcessing(false);
+            setCurrentStep('upload');
+            return;
+          }
+
+          updateProcessingStep('extracting', { 
+            status: 'completed',
+            progress: 100,
+            description: 'Enhanced dual OCR extraction completed successfully'
+          });
+
+          // Step 3: Analyze all files with enhanced data
+          updateProcessingStep('analyzing', { 
+            status: 'active', 
+            progress: 0,
+            description: 'Starting AI analysis with enhanced OCR data...'
+          });
+
+          const allFileResults = await Promise.all(
+            optimizedFiles.map(async (fileData, index) => {
+              updateProcessingStep('analyzing', { 
+                progress: ((index + 1) / optimizedFiles.length) * 50,
+                description: `Analyzing file ${index + 1} of ${optimizedFiles.length}...`
+              });
+              
+              const base64Content = await FileOptimizationService.convertFileToBase64Chunked(fileData.optimized);
+              const result = await extractTextFromFile({
+                fileContent: base64Content,
+                fileName: fileData.optimized.name
+              });
+              return {
+                fileName: fileData.optimized.name,
+                extractedText: result.extractedText,
+                structuredData: result.structuredData
+              };
+            })
+          );
+
+          updateProcessingStep('analyzing', { 
+            progress: 75,
+            description: 'Running final AI analysis...'
+          });
+
+          const finalStudentName = detectedStudentName || manualStudentName.trim();
+
+          const analysisResult = await analyzeTest({
+            files: allFileResults,
+            examId: extractResult.examId,
+            studentName: finalStudentName
+          });
+
+          setAnalysisResult(analysisResult);
+          setCurrentStep('complete');
+          
+          // Update final step
+          const analysisMetadata = {
+            confidence: analysisResult.dual_ocr_summary?.overall_reliability || 0,
+            detections: analysisResult.dual_ocr_summary?.high_confidence_detections || 0,
+            reliability: analysisResult.dual_ocr_summary?.overall_reliability || 0
+          };
+
+          updateProcessingStep('analyzing', { 
+            status: 'completed',
+            progress: 100,
+            metadata: analysisMetadata,
+            description: 'Enhanced AI analysis completed successfully'
+          });
+
+          // Record smart OCR performance metrics
+          if (smartOcrEnabled && analysisResult.dual_ocr_summary) {
+            SmartOcrService.recordPerformanceMetrics(
+              `${firstOptimizedFile.name}_${Date.now()}`,
+              {
+                accuracy: analysisResult.dual_ocr_summary.overall_reliability,
+                confidence: analysisResult.dual_ocr_summary.overall_reliability,
+                processingTime: Date.now() - processingStartTime,
+                methodsUsed: analysisResult.dual_ocr_summary.processing_methods_used || ['google_ocr'],
+                fallbacksTriggered: analysisResult.dual_ocr_summary.fallback_detections || 0,
+                crossValidationScore: analysisResult.dual_ocr_summary.cross_validated_answers || 0
+              }
+            );
+          }
+
+          // Save progress
+          const progress: ProcessingProgress = {
+            sessionId: newSessionId,
+            fileName: firstOptimizedFile.name,
+            currentStep: 'complete',
+            extractedText: extractResult.extractedText,
+            examId: extractResult.examId,
+            studentName: finalStudentName,
+            structuredData: extractResult.structuredData,
+            analysisResult,
+            timestamp: Date.now(),
+            processingStartTime
+          };
+          ProgressService.saveProgress(progress);
+
+          if (analysisResult.dual_ocr_summary?.overall_reliability) {
+            const reliability = analysisResult.dual_ocr_summary.overall_reliability;
+            toast.success(`Enhanced analysis completed! OCR Reliability: ${(reliability * 100).toFixed(1)}%`);
+          } else {
+            toast.success("Document analysis completed!");
+          }
+
+        },
+        {
+          fileName: firstOptimizedFile.name,
+          fileSize: firstOptimizedFile.size,
+          smartOcrEnabled
+        }
       );
-
-      updateProcessingStep('analyzing', { 
-        progress: 75,
-        description: 'Running final AI analysis...'
-      });
-
-      const finalStudentName = detectedStudentName || manualStudentName.trim();
-
-      const analysisResult = await analyzeTest({
-        files: allFileResults,
-        examId: extractResult.examId,
-        studentName: finalStudentName
-      });
-
-      setAnalysisResult(analysisResult);
-      setCurrentStep('complete');
-      
-      // Update final step
-      const analysisMetadata = {
-        confidence: analysisResult.dual_ocr_summary?.overall_reliability || 0,
-        detections: analysisResult.dual_ocr_summary?.high_confidence_detections || 0,
-        reliability: analysisResult.dual_ocr_summary?.overall_reliability || 0
-      };
-
-      updateProcessingStep('analyzing', { 
-        status: 'completed',
-        progress: 100,
-        metadata: analysisMetadata,
-        description: 'Enhanced AI analysis completed successfully'
-      });
-
-      // Save progress
-      const progress: ProcessingProgress = {
-        sessionId: newSessionId,
-        fileName: firstOptimizedFile.name,
-        currentStep: 'complete',
-        extractedText: extractResult.extractedText,
-        examId: extractResult.examId,
-        studentName: finalStudentName,
-        structuredData: extractResult.structuredData,
-        analysisResult,
-        timestamp: Date.now(),
-        processingStartTime
-      };
-      ProgressService.saveProgress(progress);
-
-      if (analysisResult.dual_ocr_summary?.overall_reliability) {
-        const reliability = analysisResult.dual_ocr_summary.overall_reliability;
-        toast.success(`Enhanced analysis completed! OCR Reliability: ${(reliability * 100).toFixed(1)}%`);
-      } else {
-        toast.success("Document analysis completed!");
-      }
-
     } catch (error) {
       console.error("Error processing document:", error);
       
@@ -476,6 +517,46 @@ const UploadTest = () => {
           <h1 className="text-3xl font-bold text-gray-900 mb-2">Upload Test - Enhanced Dual OCR</h1>
           <p className="text-gray-600">Upload test documents for automatic Google OCR + Roboflow bubble detection and AI analysis with 99% accuracy</p>
         </div>
+
+        {/* Advanced Features Toggle */}
+        <div className="mb-6 flex flex-wrap gap-2">
+          <Button
+            variant={showBatchProcessing ? "default" : "outline"}
+            size="sm"
+            onClick={() => setShowBatchProcessing(!showBatchProcessing)}
+          >
+            Batch Processing
+          </Button>
+          <Button
+            variant={showPerformanceDashboard ? "default" : "outline"}
+            size="sm"
+            onClick={() => setShowPerformanceDashboard(!showPerformanceDashboard)}
+          >
+            Performance Dashboard
+          </Button>
+          <Button
+            variant={smartOcrEnabled ? "default" : "outline"}
+            size="sm"
+            onClick={() => setSmartOcrEnabled(!smartOcrEnabled)}
+          >
+            Smart OCR {smartOcrEnabled ? '✓' : ''}
+          </Button>
+        </div>
+
+        {/* Conditional Advanced Features */}
+        {showBatchProcessing && (
+          <div className="mb-6">
+            <BatchProcessingManager onJobComplete={(job) => {
+              console.log('Batch job completed:', job);
+            }} />
+          </div>
+        )}
+
+        {showPerformanceDashboard && (
+          <div className="mb-6">
+            <PerformanceDashboard />
+          </div>
+        )}
 
         {/* Enhanced Processing Progress */}
         {(isProcessing || analysisResult) && (
