@@ -1,3 +1,4 @@
+
 import { useMemo } from "react";
 import { type SkillScore, type ContentSkill, type SubjectSkill } from "@/services/examService";
 
@@ -29,6 +30,12 @@ export function useSkillData({
       'Class Content Skills:': classContentSkills.map(s => ({ topic: s.topic, skill: s.skill_name })),
       'Content skill scores:': contentSkillScores.map(s => s.skill_name)
     });
+
+    // For Grade 10 Math class view, prioritize the content skill scores (which includes Pablo's mock data)
+    if (isClassView && isGrade10MathClass() && contentSkillScores.length > 0) {
+      console.log('Using content skill scores for Grade 10 Math (includes mock data if applicable)');
+      return contentSkillScores;
+    }
 
     // If we're in class view and have class content skills, show all skills for the class
     if (isClassView && classContentSkills.length > 0) {
@@ -99,24 +106,44 @@ export function useSkillData({
     
     if (!isClassView) return { 'General Skills': skills };
 
-    const skillsForGrouping = classContentSkills;
-
-    if (!skillsForGrouping.length) return { 'General Skills': skills };
-
-    const grouped: Record<string, typeof skills> = {};
-    
-    skills.forEach(skillScore => {
-      const contentSkill = skillsForGrouping.find(cs => cs.skill_name === skillScore.skill_name);
-      const topic = contentSkill?.topic || 'General Skills';
+    // For Grade 10 Math with mock data, create topics based on skill names
+    if (isGrade10MathClass() && skills.length > 0) {
+      const grouped: Record<string, typeof skills> = {};
       
-      if (!grouped[topic]) {
-        grouped[topic] = [];
-      }
-      grouped[topic].push(skillScore);
-    });
+      skills.forEach(skillScore => {
+        // Determine topic based on skill name for Pablo's mock data
+        let topic = 'General Skills';
+        
+        const skillName = skillScore.skill_name;
+        if (skillName.includes('Factoring') || skillName.includes('Systems of Equations') || 
+            skillName.includes('Function') || skillName.includes('Linear') || 
+            skillName.includes('Quadratic') || skillName.includes('Exponential')) {
+          topic = 'ALGEBRA AND FUNCTIONS';
+        } else if (skillName.includes('Triangle') || skillName.includes('Area') || 
+                   skillName.includes('Perimeter') || skillName.includes('Volume') || 
+                   skillName.includes('Surface Area') || skillName.includes('Coordinate') || 
+                   skillName.includes('Geometric')) {
+          topic = 'GEOMETRY';
+        } else if (skillName.includes('Trigonometric') || skillName.includes('Triangle') || 
+                   skillName.includes('Unit Circle') || skillName.includes('Angle')) {
+          topic = 'TRIGONOMETRY';
+        } else if (skillName.includes('Statistical') || skillName.includes('Probability') || 
+                   skillName.includes('Data') || skillName.includes('Graph') || 
+                   skillName.includes('Predictions')) {
+          topic = 'DATA ANALYSIS AND PROBABILITY';
+        } else if (skillName.includes('Modeling') || skillName.includes('Critical Thinking') || 
+                   skillName.includes('Pattern') || skillName.includes('Logical') || 
+                   skillName.includes('Problem-Solving')) {
+          topic = 'PROBLEM SOLVING AND REASONING';
+        }
+        
+        if (!grouped[topic]) {
+          grouped[topic] = [];
+        }
+        grouped[topic].push(skillScore);
+      });
 
-    // Sort topics in the exact order specified for Grade 10 Math
-    if (isGrade10MathClass()) {
+      // Sort topics in the exact order specified for Grade 10 Math
       const orderedTopics = [
         'ALGEBRA AND FUNCTIONS',
         'GEOMETRY', 
@@ -192,6 +219,22 @@ export function useSkillData({
 
       return orderedGrouped;
     }
+
+    // For other classes, use the class content skills for grouping
+    const skillsForGrouping = classContentSkills;
+    if (!skillsForGrouping.length) return { 'General Skills': skills };
+
+    const grouped: Record<string, typeof skills> = {};
+    
+    skills.forEach(skillScore => {
+      const contentSkill = skillsForGrouping.find(cs => cs.skill_name === skillScore.skill_name);
+      const topic = contentSkill?.topic || 'General Skills';
+      
+      if (!grouped[topic]) {
+        grouped[topic] = [];
+      }
+      grouped[topic].push(skillScore);
+    });
 
     return grouped;
   }, [comprehensiveSkillData, classContentSkills, isClassView, isGrade10MathClass]);

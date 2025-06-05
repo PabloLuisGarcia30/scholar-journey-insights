@@ -1,3 +1,4 @@
+
 import { useQuery } from "@tanstack/react-query";
 import { useEffect } from "react";
 import { 
@@ -50,15 +51,26 @@ export function useStudentProfileData({ studentId, classId, className }: UseStud
     queryFn: () => getStudentTestResults(studentId),
   });
 
-  // Fetch content skill scores - use mock data for Pablo Luis Garcia
+  // Fetch content skill scores - use mock data for Pablo Luis Garcia in Grade 10 Math class
   const { data: contentSkillScores = [], isLoading: contentSkillsLoading } = useQuery({
-    queryKey: ['studentContentSkills', studentId],
+    queryKey: ['studentContentSkills', studentId, classId],
     queryFn: () => {
+      console.log('Fetching content skills for:', { 
+        studentName: student?.name, 
+        isPablo: isPabloLuisGarcia, 
+        isClassView, 
+        isGrade10Math: isGrade10MathClass(),
+        classId,
+        className 
+      });
+      
       if (isPabloLuisGarcia && isClassView && isGrade10MathClass()) {
+        console.log('Using mock data for Pablo Luis Garcia in Grade 10 Math');
         return Promise.resolve(mockPabloContentSkillScores);
       }
       return getStudentContentSkillScores(studentId);
     },
+    enabled: !!student, // Wait for student data to load first
   });
 
   // Fetch subject skill scores
@@ -71,14 +83,14 @@ export function useStudentProfileData({ studentId, classId, className }: UseStud
   const { data: classContentSkills = [], isLoading: classContentSkillsLoading, refetch: classContentSkillsRefetch } = useQuery({
     queryKey: ['classLinkedContentSkills', classId],
     queryFn: () => classId ? getLinkedContentSkillsForClass(classId) : Promise.resolve([]),
-    enabled: !!classId && !!isClassView,
+    enabled: !!classId && isClassView,
   });
 
   // Fetch subject skills for the class to show complete skill set
   const { data: classSubjectSkills = [], isLoading: classSubjectSkillsLoading, refetch: classSubjectSkillsRefetch } = useQuery({
     queryKey: ['classLinkedSubjectSkills', classId],
     queryFn: () => classId ? getLinkedSubjectSkillsForClass(classId) : Promise.resolve([]),
-    enabled: !!classId && !!isClassView,
+    enabled: !!classId && isClassView,
   });
 
   // Auto-link Grade 10 Math classes to their skills when class data loads
