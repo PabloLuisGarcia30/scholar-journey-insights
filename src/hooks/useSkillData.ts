@@ -1,3 +1,4 @@
+
 import { useMemo } from "react";
 import { type SkillScore, type ContentSkill, type SubjectSkill } from "@/services/examService";
 
@@ -30,7 +31,7 @@ export function useSkillData({
       'Content skill scores:': contentSkillScores.map(s => s.skill_name)
     });
 
-    // For any Grade 10 Math context, prioritize content skill scores (includes Betty's mock data)
+    // For any Grade 10 Math context, prioritize content skill scores (includes Pablo's mock data)
     if (isGrade10MathClass() && contentSkillScores.length > 0) {
       console.log('Using content skill scores for Grade 10 Math (includes mock data if applicable)');
       return contentSkillScores;
@@ -110,7 +111,7 @@ export function useSkillData({
       const grouped: Record<string, typeof skills> = {};
       
       skills.forEach(skillScore => {
-        // Determine topic based on skill name for Betty's mock data
+        // Determine topic based on skill name for Pablo's mock data
         let topic = 'General Skills';
         
         const skillName = skillScore.skill_name;
