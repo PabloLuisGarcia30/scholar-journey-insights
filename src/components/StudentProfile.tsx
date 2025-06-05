@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -9,6 +10,17 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { ArrowLeft, BookOpen, Calendar, ChartBar, TrendingUp, TrendingDown, Target, Minus, FileText, ChevronDown } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
 import { PracticeTestGenerator } from "./PracticeTestGenerator";
+import { 
+  getActiveStudentById, 
+  getStudentTestResults, 
+  getStudentContentSkillScores, 
+  getStudentSubjectSkillScores,
+  getActiveClassById,
+  type ActiveStudent,
+  type TestResult,
+  type SkillScore,
+  type ActiveClass
+} from "@/services/examService";
 
 interface StudentProfileProps {
   studentId: string;
@@ -17,50 +29,17 @@ interface StudentProfileProps {
   onBack: () => void;
 }
 
-// Mock student data
-const mockStudent = {
-  id: '1',
-  name: 'Sarah Johnson',
-  email: 'sarah.johnson@university.edu',
-  major: 'Computer Science',
-  year: 'Junior',
-  gpa: 3.85,
-  status: 'Excellent',
-  enrolledCourses: 5,
-  completedCredits: 84,
-  totalCredits: 120,
-};
-
-// Mock class-specific data
+// Mock data for non-database fields (assignments, grade history, etc.)
 const mockClassData = {
-  'Math Grade 6': {
-    subject: 'Mathematics',
-    totalGrade: 88,
-    assignments: [
-      { name: 'Quiz 1: Basic Operations', grade: 92, maxGrade: 100, date: '2024-01-15' },
-      { name: 'Homework Set 1', grade: 85, maxGrade: 100, date: '2024-01-20' },
-      { name: 'Midterm Exam', grade: 88, maxGrade: 100, date: '2024-02-15' },
-      { name: 'Project: Real World Math', grade: 90, maxGrade: 100, date: '2024-02-28' },
-      { name: 'Quiz 2: Fractions', grade: 82, maxGrade: 100, date: '2024-03-05' },
-    ],
-    subjectStrengths: [
-      { topic: 'Algebraic Manipulation', strength: 92, trend: 'up' },
-      { topic: 'Quadratic Equations', strength: 85, trend: 'stable' },
-      { topic: 'Functions and Graphs', strength: 78, trend: 'up' },
-      { topic: 'Trigonometry Basics', strength: 88, trend: 'up' },
-      { topic: 'Data Analysis & Statistics', strength: 84, trend: 'stable' },
-      { topic: 'Real World Problem Solving', strength: 90, trend: 'up' },
-      { topic: 'Accuracy of Computation', strength: 86, trend: 'stable' },
-    ],
-    subjectSpecificStrengths: [
-      { skill: 'Clarity of Explanation', mastery: 88 },
-      { skill: 'Use of Mathematical Language', mastery: 85 },
-      { skill: 'Presentation', mastery: 78 },
-      { skill: 'Logical Reasoning', mastery: 89 },
-    ],
-    attendanceRate: 95,
-    participationScore: 8.5,
-  }
+  assignments: [
+    { name: 'Quiz 1: Basic Operations', grade: 92, maxGrade: 100, date: '2024-01-15' },
+    { name: 'Homework Set 1', grade: 85, maxGrade: 100, date: '2024-01-20' },
+    { name: 'Midterm Exam', grade: 88, maxGrade: 100, date: '2024-02-15' },
+    { name: 'Project: Real World Math', grade: 90, maxGrade: 100, date: '2024-02-28' },
+    { name: 'Quiz 2: Fractions', grade: 82, maxGrade: 100, date: '2024-03-05' },
+  ],
+  attendanceRate: 95,
+  participationScore: 8.5,
 };
 
 const gradeHistory = [
@@ -82,9 +61,48 @@ export function StudentProfile({ studentId, classId, className, onBack }: Studen
   const [showPracticeTest, setShowPracticeTest] = useState(false);
   const [selectedSkill, setSelectedSkill] = useState<string | null>(null);
   
-  const progressPercentage = (mockStudent.completedCredits / mockStudent.totalCredits) * 100;
+  // Fetch student data
+  const { data: student, isLoading: studentLoading } = useQuery({
+    queryKey: ['activeStudent', studentId],
+    queryFn: () => getActiveStudentById(studentId),
+  });
+
+  // Fetch class data if in class view
+  const { data: classData, isLoading: classLoading } = useQuery({
+    queryKey: ['activeClass', classId],
+    queryFn: () => classId ? getActiveClassById(classId) : Promise.resolve(null),
+    enabled: !!classId,
+  });
+
+  // Fetch test results
+  const { data: testResults = [], isLoading: testResultsLoading } = useQuery({
+    queryKey: ['studentTestResults', studentId],
+    queryFn: () => getStudentTestResults(studentId),
+  });
+
+  // Fetch content skill scores
+  const { data: contentSkillScores = [], isLoading: contentSkillsLoading } = useQuery({
+    queryKey: ['studentContentSkills', studentId],
+    queryFn: () => getStudentContentSkillScores(studentId),
+  });
+
+  // Fetch subject skill scores
+  const { data: subjectSkillScores = [], isLoading: subjectSkillsLoading } = useQuery({
+    queryKey: ['studentSubjectSkills', studentId],
+    queryFn: () => getStudentSubjectSkillScores(studentId),
+  });
+
   const isClassView = classId && className;
-  const classData = isClassView ? mockClassData[className as keyof typeof mockClassData] : null;
+  const totalCredits = 120;
+  const completedCredits = student?.gpa ? Math.floor(student.gpa * 20) : 84; // Mock calculation
+  const progressPercentage = (completedCredits / totalCredits) * 100;
+
+  // Calculate overall grade from test results
+  const calculateOverallGrade = () => {
+    if (testResults.length === 0) return 0;
+    const average = testResults.reduce((sum, result) => sum + result.overall_score, 0) / testResults.length;
+    return Math.round(average);
+  };
 
   const getGradeColor = (grade: string | number) => {
     const numGrade = typeof grade === 'string' ? 
@@ -107,7 +125,7 @@ export function StudentProfile({ studentId, classId, className, onBack }: Studen
   const getTrendIcon = (trend: string) => {
     if (trend === 'up') return <TrendingUp className="h-4 w-4 text-green-600" />;
     if (trend === 'down') return <TrendingDown className="h-4 w-4 text-red-600" />;
-    return <Minus className="h-4 w-4 text-blue-600" />; // Blue horizontal line for stable
+    return <Minus className="h-4 w-4 text-blue-600" />;
   };
 
   const handleGeneratePracticeTest = (skillName?: string) => {
@@ -123,13 +141,45 @@ export function StudentProfile({ studentId, classId, className, onBack }: Studen
   if (showPracticeTest && className) {
     return (
       <PracticeTestGenerator
-        studentName={mockStudent.name}
+        studentName={student?.name || ''}
         className={className}
         skillName={selectedSkill}
         onBack={handleBackFromPracticeTest}
       />
     );
   }
+
+  if (studentLoading || (isClassView && classLoading)) {
+    return (
+      <div className="p-6">
+        <div className="animate-pulse space-y-6">
+          <div className="h-8 bg-gray-200 rounded w-1/4"></div>
+          <div className="h-20 bg-gray-200 rounded"></div>
+          <div className="grid grid-cols-4 gap-4">
+            {[...Array(4)].map((_, i) => (
+              <div key={i} className="h-24 bg-gray-200 rounded"></div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!student) {
+    return (
+      <div className="p-6">
+        <Button variant="ghost" onClick={onBack} className="mb-4">
+          <ArrowLeft className="h-4 w-4 mr-2" />
+          Back to {isClassView ? 'Class' : 'Dashboard'}
+        </Button>
+        <div className="text-center py-8">
+          <p className="text-gray-600">Student not found.</p>
+        </div>
+      </div>
+    );
+  }
+
+  const overallGrade = calculateOverallGrade();
 
   return (
     <div className="p-6">
@@ -142,45 +192,47 @@ export function StudentProfile({ studentId, classId, className, onBack }: Studen
         <div className="flex items-start gap-6">
           <Avatar className="h-20 w-20">
             <AvatarFallback className="text-2xl">
-              {mockStudent.name.split(' ').map(n => n[0]).join('')}
+              {student.name.split(' ').map(n => n[0]).join('')}
             </AvatarFallback>
           </Avatar>
           
           <div className="flex-1">
-            <h1 className="text-3xl font-bold text-gray-900">{mockStudent.name}</h1>
+            <h1 className="text-3xl font-bold text-gray-900">{student.name}</h1>
             {isClassView ? (
               <p className="text-gray-600 mt-1">Performance in {className}</p>
             ) : (
-              <p className="text-gray-600 mt-1">{mockStudent.email}</p>
+              <p className="text-gray-600 mt-1">{student.email}</p>
             )}
             <div className="flex items-center gap-4 mt-3">
               {!isClassView && (
                 <>
-                  <Badge variant="outline">{mockStudent.year}</Badge>
-                  <Badge variant="outline">{mockStudent.major}</Badge>
-                  <Badge className="bg-green-100 text-green-700">{mockStudent.status}</Badge>
+                  {student.year && <Badge variant="outline">{student.year}</Badge>}
+                  {student.major && <Badge variant="outline">{student.major}</Badge>}
+                  <Badge className="bg-green-100 text-green-700">Active</Badge>
                 </>
               )}
               {isClassView && classData && (
                 <>
                   <Badge variant="outline">{classData.subject}</Badge>
-                  <Badge className={getGradeColor(classData.totalGrade)}>
-                    {classData.totalGrade}%
-                  </Badge>
+                  {overallGrade > 0 && (
+                    <Badge className={getGradeColor(overallGrade)}>
+                      {overallGrade}%
+                    </Badge>
+                  )}
                 </>
               )}
             </div>
           </div>
           
           <div className="text-right">
-            {isClassView && classData ? (
+            {isClassView ? (
               <>
-                <div className="text-2xl font-bold text-gray-900">{classData.totalGrade}%</div>
+                <div className="text-2xl font-bold text-gray-900">{overallGrade}%</div>
                 <div className="text-sm text-gray-600">Class Grade</div>
               </>
             ) : (
               <>
-                <div className="text-2xl font-bold text-gray-900">{mockStudent.gpa}</div>
+                <div className="text-2xl font-bold text-gray-900">{student.gpa || 'N/A'}</div>
                 <div className="text-sm text-gray-600">Current GPA</div>
               </>
             )}
@@ -189,20 +241,20 @@ export function StudentProfile({ studentId, classId, className, onBack }: Studen
       </div>
 
       {/* Quick Stats */}
-      {isClassView && classData ? (
+      {isClassView ? (
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
           <Card>
             <CardContent className="p-4 text-center">
               <BookOpen className="h-8 w-8 text-blue-600 mx-auto mb-2" />
-              <div className="text-2xl font-bold">{classData.assignments.length}</div>
-              <div className="text-sm text-gray-600">Assignments</div>
+              <div className="text-2xl font-bold">{testResults.length}</div>
+              <div className="text-sm text-gray-600">Tests Taken</div>
             </CardContent>
           </Card>
           
           <Card>
             <CardContent className="p-4 text-center">
               <ChartBar className="h-8 w-8 text-green-600 mx-auto mb-2" />
-              <div className="text-2xl font-bold">{classData.totalGrade}%</div>
+              <div className="text-2xl font-bold">{overallGrade}%</div>
               <div className="text-sm text-gray-600">Overall Grade</div>
             </CardContent>
           </Card>
@@ -210,14 +262,14 @@ export function StudentProfile({ studentId, classId, className, onBack }: Studen
           <Card>
             <CardContent className="p-4 text-center">
               <Calendar className="h-8 w-8 text-purple-600 mx-auto mb-2" />
-              <div className="text-2xl font-bold">{classData.attendanceRate}%</div>
+              <div className="text-2xl font-bold">{mockClassData.attendanceRate}%</div>
               <div className="text-sm text-gray-600">Attendance</div>
             </CardContent>
           </Card>
           
           <Card>
             <CardContent className="p-4 text-center">
-              <div className="text-2xl font-bold">{classData.participationScore}/10</div>
+              <div className="text-2xl font-bold">{mockClassData.participationScore}/10</div>
               <div className="text-sm text-gray-600">Participation</div>
             </CardContent>
           </Card>
@@ -227,7 +279,7 @@ export function StudentProfile({ studentId, classId, className, onBack }: Studen
           <Card>
             <CardContent className="p-4 text-center">
               <BookOpen className="h-8 w-8 text-blue-600 mx-auto mb-2" />
-              <div className="text-2xl font-bold">{mockStudent.enrolledCourses}</div>
+              <div className="text-2xl font-bold">5</div>
               <div className="text-sm text-gray-600">Active Courses</div>
             </CardContent>
           </Card>
@@ -235,7 +287,7 @@ export function StudentProfile({ studentId, classId, className, onBack }: Studen
           <Card>
             <CardContent className="p-4 text-center">
               <ChartBar className="h-8 w-8 text-green-600 mx-auto mb-2" />
-              <div className="text-2xl font-bold">{mockStudent.completedCredits}</div>
+              <div className="text-2xl font-bold">{completedCredits}</div>
               <div className="text-sm text-gray-600">Credits Completed</div>
             </CardContent>
           </Card>
@@ -250,7 +302,7 @@ export function StudentProfile({ studentId, classId, className, onBack }: Studen
           
           <Card>
             <CardContent className="p-4 text-center">
-              <div className="text-2xl font-bold">{mockStudent.totalCredits - mockStudent.completedCredits}</div>
+              <div className="text-2xl font-bold">{totalCredits - completedCredits}</div>
               <div className="text-sm text-gray-600">Credits Remaining</div>
               <Progress value={progressPercentage} className="mt-2" />
             </CardContent>
@@ -263,7 +315,7 @@ export function StudentProfile({ studentId, classId, className, onBack }: Studen
         <TabsList>
           {isClassView ? (
             <>
-              <TabsTrigger value="assignments">Assignments</TabsTrigger>
+              <TabsTrigger value="assignments">Test Results</TabsTrigger>
               <TabsTrigger value="strengths">Content-Specific Skills</TabsTrigger>
               <TabsTrigger value="specific-strengths">Subject Specific Skill Mastery</TabsTrigger>
               <TabsTrigger value="progress">Progress Trend</TabsTrigger>
@@ -277,32 +329,48 @@ export function StudentProfile({ studentId, classId, className, onBack }: Studen
           )}
         </TabsList>
 
-        {isClassView && classData ? (
+        {isClassView ? (
           <>
             <TabsContent value="assignments">
               <Card>
                 <CardHeader>
-                  <CardTitle>Assignment Grades</CardTitle>
+                  <CardTitle>Test Results</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="space-y-4">
-                    {classData.assignments.map((assignment, index) => (
-                      <div key={index} className="flex items-center justify-between p-4 rounded-lg border border-gray-100">
-                        <div className="flex-1">
-                          <h3 className="font-semibold text-gray-900">{assignment.name}</h3>
-                          <div className="flex items-center gap-2 mt-1">
-                            <span className="text-sm text-gray-600">Due: {assignment.date}</span>
-                            <span className="text-sm text-gray-400">•</span>
-                            <span className="text-sm text-gray-600">{assignment.grade}/{assignment.maxGrade} points</span>
+                  {testResultsLoading ? (
+                    <div className="animate-pulse space-y-4">
+                      {[...Array(3)].map((_, i) => (
+                        <div key={i} className="h-16 bg-gray-200 rounded"></div>
+                      ))}
+                    </div>
+                  ) : testResults.length > 0 ? (
+                    <div className="space-y-4">
+                      {testResults.map((result, index) => (
+                        <div key={result.id} className="flex items-center justify-between p-4 rounded-lg border border-gray-100">
+                          <div className="flex-1">
+                            <h3 className="font-semibold text-gray-900">Test {index + 1}</h3>
+                            <div className="flex items-center gap-2 mt-1">
+                              <span className="text-sm text-gray-600">
+                                Date: {new Date(result.created_at).toLocaleDateString()}
+                              </span>
+                              <span className="text-sm text-gray-400">•</span>
+                              <span className="text-sm text-gray-600">
+                                {result.total_points_earned}/{result.total_points_possible} points
+                              </span>
+                            </div>
+                            <Progress value={result.overall_score} className="mt-2 w-48" />
                           </div>
-                          <Progress value={(assignment.grade / assignment.maxGrade) * 100} className="mt-2 w-48" />
+                          <Badge className={getGradeColor(result.overall_score)}>
+                            {Math.round(result.overall_score)}%
+                          </Badge>
                         </div>
-                        <Badge className={getGradeColor(assignment.grade)}>
-                          {assignment.grade}%
-                        </Badge>
-                      </div>
-                    ))}
-                  </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-8">
+                      <p className="text-gray-600">No test results available.</p>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </TabsContent>
@@ -324,15 +392,15 @@ export function StudentProfile({ studentId, classId, className, onBack }: Studen
                         <DropdownMenuItem onClick={() => handleGeneratePracticeTest()}>
                           All Skills Combined
                         </DropdownMenuItem>
-                        {classData.subjectStrengths.map((strength, index) => (
+                        {contentSkillScores.map((skill, index) => (
                           <DropdownMenuItem 
                             key={index} 
-                            onClick={() => handleGeneratePracticeTest(strength.topic)}
+                            onClick={() => handleGeneratePracticeTest(skill.skill_name)}
                             className="flex items-center justify-between"
                           >
-                            <span>{strength.topic}</span>
+                            <span>{skill.skill_name}</span>
                             <Badge variant="outline" className="ml-2">
-                              {strength.strength}%
+                              {Math.round(skill.score)}%
                             </Badge>
                           </DropdownMenuItem>
                         ))}
@@ -341,22 +409,34 @@ export function StudentProfile({ studentId, classId, className, onBack }: Studen
                   </div>
                 </CardHeader>
                 <CardContent>
-                  <div className="space-y-4">
-                    {classData.subjectStrengths.map((strength, index) => (
-                      <div key={index} className="flex items-center justify-between p-4 rounded-lg border border-gray-100">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2">
-                            <h3 className="font-semibold text-gray-900">{strength.topic}</h3>
-                            {getTrendIcon(strength.trend)}
+                  {contentSkillsLoading ? (
+                    <div className="animate-pulse space-y-4">
+                      {[...Array(5)].map((_, i) => (
+                        <div key={i} className="h-16 bg-gray-200 rounded"></div>
+                      ))}
+                    </div>
+                  ) : contentSkillScores.length > 0 ? (
+                    <div className="space-y-4">
+                      {contentSkillScores.map((skill, index) => (
+                        <div key={index} className="flex items-center justify-between p-4 rounded-lg border border-gray-100">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2">
+                              <h3 className="font-semibold text-gray-900">{skill.skill_name}</h3>
+                              {getTrendIcon('stable')}
+                            </div>
+                            <Progress value={skill.score} className="mt-2 w-64" />
                           </div>
-                          <Progress value={strength.strength} className="mt-2 w-64" />
+                          <div className="text-right">
+                            <div className="text-2xl font-bold text-gray-900">{Math.round(skill.score)}%</div>
+                          </div>
                         </div>
-                        <div className="text-right">
-                          <div className="text-2xl font-bold text-gray-900">{strength.strength}%</div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-8">
+                      <p className="text-gray-600">No content skill scores available.</p>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </TabsContent>
@@ -378,15 +458,15 @@ export function StudentProfile({ studentId, classId, className, onBack }: Studen
                         <DropdownMenuItem onClick={() => handleGeneratePracticeTest()}>
                           All Skills Combined
                         </DropdownMenuItem>
-                        {classData.subjectSpecificStrengths.map((strength, index) => (
+                        {subjectSkillScores.map((skill, index) => (
                           <DropdownMenuItem 
                             key={index} 
-                            onClick={() => handleGeneratePracticeTest(strength.skill)}
+                            onClick={() => handleGeneratePracticeTest(skill.skill_name)}
                             className="flex items-center justify-between"
                           >
-                            <span>{strength.skill}</span>
+                            <span>{skill.skill_name}</span>
                             <Badge variant="outline" className="ml-2">
-                              {strength.mastery}%
+                              {Math.round(skill.score)}%
                             </Badge>
                           </DropdownMenuItem>
                         ))}
@@ -395,24 +475,36 @@ export function StudentProfile({ studentId, classId, className, onBack }: Studen
                   </div>
                 </CardHeader>
                 <CardContent>
-                  <div className="space-y-4">
-                    {classData.subjectSpecificStrengths.map((strength, index) => (
-                      <div key={index} className="flex items-center justify-between p-4 rounded-lg border border-gray-100">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2">
-                            <Target className="h-5 w-5 text-blue-600" />
-                            <h3 className="font-semibold text-gray-900">{strength.skill}</h3>
+                  {subjectSkillsLoading ? (
+                    <div className="animate-pulse space-y-4">
+                      {[...Array(4)].map((_, i) => (
+                        <div key={i} className="h-16 bg-gray-200 rounded"></div>
+                      ))}
+                    </div>
+                  ) : subjectSkillScores.length > 0 ? (
+                    <div className="space-y-4">
+                      {subjectSkillScores.map((skill, index) => (
+                        <div key={index} className="flex items-center justify-between p-4 rounded-lg border border-gray-100">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2">
+                              <Target className="h-5 w-5 text-blue-600" />
+                              <h3 className="font-semibold text-gray-900">{skill.skill_name}</h3>
+                            </div>
+                            <Progress value={skill.score} className="mt-2 w-64" />
                           </div>
-                          <Progress value={strength.mastery} className="mt-2 w-64" />
+                          <div className="text-right">
+                            <Badge className={getMasteryColor(skill.score)}>
+                              {Math.round(skill.score)}%
+                            </Badge>
+                          </div>
                         </div>
-                        <div className="text-right">
-                          <Badge className={getMasteryColor(strength.mastery)}>
-                            {strength.mastery}%
-                          </Badge>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-8">
+                      <p className="text-gray-600">No subject skill scores available.</p>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </TabsContent>
@@ -420,26 +512,36 @@ export function StudentProfile({ studentId, classId, className, onBack }: Studen
             <TabsContent value="progress">
               <Card>
                 <CardHeader>
-                  <CardTitle>Assignment Progress Over Time</CardTitle>
+                  <CardTitle>Test Progress Over Time</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="h-80">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <LineChart data={classData.assignments}>
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="name" angle={-45} textAnchor="end" height={100} />
-                        <YAxis domain={[0, 100]} />
-                        <Tooltip formatter={(value) => [`${value}%`, 'Grade']} />
-                        <Line 
-                          type="monotone" 
-                          dataKey="grade" 
-                          stroke="#3b82f6" 
-                          strokeWidth={3}
-                          dot={{ fill: '#3b82f6', strokeWidth: 2, r: 6 }}
-                        />
-                      </LineChart>
-                    </ResponsiveContainer>
-                  </div>
+                  {testResults.length > 0 ? (
+                    <div className="h-80">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <LineChart data={testResults.map((result, index) => ({
+                          test: `Test ${index + 1}`,
+                          score: result.overall_score,
+                          date: new Date(result.created_at).toLocaleDateString()
+                        }))}>
+                          <CartesianGrid strokeDasharray="3 3" />
+                          <XAxis dataKey="test" />
+                          <YAxis domain={[0, 100]} />
+                          <Tooltip formatter={(value) => [`${value}%`, 'Score']} />
+                          <Line 
+                            type="monotone" 
+                            dataKey="score" 
+                            stroke="#3b82f6" 
+                            strokeWidth={3}
+                            dot={{ fill: '#3b82f6', strokeWidth: 2, r: 6 }}
+                          />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    </div>
+                  ) : (
+                    <div className="text-center py-8">
+                      <p className="text-gray-600">No test data available for progress chart.</p>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </TabsContent>
@@ -511,11 +613,11 @@ export function StudentProfile({ studentId, classId, className, onBack }: Studen
                     <div className="space-y-4">
                       <div className="flex justify-between items-center">
                         <span className="text-gray-600">Completed Credits</span>
-                        <span className="font-semibold">{mockStudent.completedCredits} / {mockStudent.totalCredits}</span>
+                        <span className="font-semibold">{completedCredits} / {totalCredits}</span>
                       </div>
                       <Progress value={progressPercentage} className="h-3" />
                       <div className="text-sm text-gray-600">
-                        {mockStudent.totalCredits - mockStudent.completedCredits} credits remaining to graduate
+                        {totalCredits - completedCredits} credits remaining to graduate
                       </div>
                     </div>
                   </CardContent>
