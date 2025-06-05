@@ -63,6 +63,9 @@ export function StudentProfile({ studentId, classId, className, onBack }: Studen
   const [showPracticeTest, setShowPracticeTest] = useState(false);
   const [selectedSkill, setSelectedSkill] = useState<string | null>(null);
   
+  // Define isClassView early so it can be used in queries
+  const isClassView = classId && className;
+  
   // Fetch student data
   const { data: student, isLoading: studentLoading } = useQuery({
     queryKey: ['activeStudent', studentId],
@@ -98,10 +101,9 @@ export function StudentProfile({ studentId, classId, className, onBack }: Studen
   const { data: classContentSkills = [], isLoading: classContentSkillsLoading } = useQuery({
     queryKey: ['classContentSkills', classData?.subject, classData?.grade],
     queryFn: () => classData ? getContentSkillsBySubjectAndGrade(classData.subject, classData.grade) : Promise.resolve([]),
-    enabled: !!classData && isClassView,
+    enabled: !!classData && !!isClassView,
   });
 
-  const isClassView = classId && className;
   const totalCredits = 120;
   const completedCredits = student?.gpa ? Math.floor(student.gpa * 20) : 84; // Mock calculation
   const progressPercentage = (completedCredits / totalCredits) * 100;
@@ -158,6 +160,7 @@ export function StudentProfile({ studentId, classId, className, onBack }: Studen
 
   const groupedSkills = groupSkillsByTopic(comprehensiveSkillData);
 
+  // ... keep existing code (helper functions for colors, trends, handlers)
   const getGradeColor = (grade: string | number) => {
     const numGrade = typeof grade === 'string' ? 
       (grade.startsWith('A') ? 90 : grade.startsWith('B') ? 80 : grade.startsWith('C') ? 70 : 60) : 
@@ -193,6 +196,7 @@ export function StudentProfile({ studentId, classId, className, onBack }: Studen
     setSelectedSkill(null);
   };
 
+  // ... keep existing code (loading states, practice test view, error states)
   if (showPracticeTest && className) {
     return (
       <PracticeTestGenerator
@@ -238,6 +242,7 @@ export function StudentProfile({ studentId, classId, className, onBack }: Studen
 
   return (
     <div className="p-6">
+      {/* ... keep existing code (header section, quick stats) */}
       <div className="mb-6">
         <Button variant="ghost" onClick={onBack} className="mb-4">
           <ArrowLeft className="h-4 w-4 mr-2" />
@@ -384,6 +389,7 @@ export function StudentProfile({ studentId, classId, className, onBack }: Studen
           )}
         </TabsList>
 
+        {/* ... keep existing code (all tabs content exactly as before) */}
         {isClassView ? (
           <>
             <TabsContent value="assignments">
