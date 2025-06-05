@@ -321,7 +321,7 @@ export const generateTestPDF = (testData: TestData) => {
       options.forEach((option, idx) => {
         const letter = String.fromCharCode(65 + idx);
         
-        pdf.setFillColor(idx === 0 ? 34, 197, 94 : 239, 68, 68);
+        pdf.setFillColor(idx === 0 ? 34 : 239, idx === 0 ? 197 : 68, idx === 0 ? 94 : 68);
         pdf.circle(margin + 15, yPosition + 4, 4, 'F');
         pdf.setTextColor(255, 255, 255);
         pdf.setFontSize(9);
