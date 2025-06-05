@@ -117,9 +117,10 @@ serve(async (req) => {
 
     const classData = examData.classes
 
-    // Format skills for AI analysis
+    // Format skills for AI analysis - simplified and generic
     let contentSkillsText = '';
     if (contentSkills.length > 0) {
+      // Group skills by topic
       const groupedSkills = contentSkills.reduce((acc: any, skill: any) => {
         if (!acc[skill.topic]) {
           acc[skill.topic] = [];
@@ -128,86 +129,23 @@ serve(async (req) => {
         return acc;
       }, {});
 
-      const isGrade10Math = classData?.subject === 'Math' && classData?.grade === 'Grade 10';
-      
-      let topics = Object.keys(groupedSkills);
-      if (isGrade10Math) {
-        const orderedTopics = [
-          'ALGEBRA AND FUNCTIONS',
-          'GEOMETRY', 
-          'TRIGONOMETRY',
-          'DATA ANALYSIS AND PROBABILITY',
-          'PROBLEM SOLVING AND REASONING'
-        ];
-        
-        topics = orderedTopics.filter(topic => groupedSkills[topic]);
-        const remainingTopics = Object.keys(groupedSkills).filter(topic => !orderedTopics.includes(topic));
-        topics = [...topics, ...remainingTopics];
-
-        const skillOrders: Record<string, string[]> = {
-          'ALGEBRA AND FUNCTIONS': [
-            'Factoring Polynomials',
-            'Solving Systems of Equations',
-            'Understanding Function Notation',
-            'Graphing Linear and Quadratic Functions',
-            'Working with Exponential Functions'
-          ],
-          'GEOMETRY': [
-            'Properties of Similar Triangles',
-            'Area and Perimeter Calculations',
-            'Volume and Surface Area of 3D Objects',
-            'Coordinate Geometry',
-            'Geometric Transformations'
-          ],
-          'TRIGONOMETRY': [
-            'Basic Trigonometric Ratios',
-            'Solving Right Triangle Problems',
-            'Unit Circle and Angle Measures',
-            'Trigonometric Identities',
-            'Applications of Trigonometry'
-          ],
-          'DATA ANALYSIS AND PROBABILITY': [
-            'Statistical Measures and Interpretation',
-            'Probability Calculations',
-            'Data Collection and Sampling',
-            'Creating and Interpreting Graphs',
-            'Making Predictions from Data'
-          ],
-          'PROBLEM SOLVING AND REASONING': [
-            'Mathematical Modeling',
-            'Critical Thinking in Mathematics',
-            'Pattern Recognition',
-            'Logical Reasoning',
-            'Problem-Solving Strategies'
-          ]
-        };
-
-        topics.forEach(topic => {
-          if (skillOrders[topic]) {
-            const order = skillOrders[topic];
-            groupedSkills[topic].sort((a: any, b: any) => {
-              const aIndex = order.indexOf(a.skill_name);
-              const bIndex = order.indexOf(b.skill_name);
-              if (aIndex === -1 && bIndex === -1) return 0;
-              if (aIndex === -1) return 1;
-              if (bIndex === -1) return -1;
-              return aIndex - bIndex;
-            });
-          }
-        });
-      }
+      // Sort topics alphabetically for consistent ordering
+      const topics = Object.keys(groupedSkills).sort();
 
       contentSkillsText = topics.map(topic => {
-        const topicSkills = groupedSkills[topic].map((skill: any) => 
-          `  - ${skill.skill_name}: ${skill.skill_description}`
-        ).join('\n');
+        // Sort skills within each topic alphabetically
+        const topicSkills = groupedSkills[topic]
+          .sort((a: any, b: any) => a.skill_name.localeCompare(b.skill_name))
+          .map((skill: any) => `  - ${skill.skill_name}: ${skill.skill_description}`)
+          .join('\n');
         return `${topic}:\n${topicSkills}`;
       }).join('\n\n');
     }
 
-    const subjectSkillsText = subjectSkills.map(skill => 
-      `- ${skill.skill_name}: ${skill.skill_description}`
-    ).join('\n');
+    const subjectSkillsText = subjectSkills
+      .sort((a: any, b: any) => a.skill_name.localeCompare(b.skill_name))
+      .map(skill => `- ${skill.skill_name}: ${skill.skill_description}`)
+      .join('\n');
 
     // Process enhanced structured OCR data
     let structuredDataText = ''
@@ -307,8 +245,8 @@ serve(async (req) => {
           content: `You are an AI grading assistant with ENHANCED DUAL OCR capabilities and 99% accuracy optimization. You have been provided with:
 
 1. The official answer key for exam "${examData.title}" (ID: ${examId})
-2. A comprehensive list of Content-Specific skills linked to this class
-3. Subject-Specific skills linked to this class for general mathematical thinking assessment
+2. A comprehensive list of Content-Specific skills linked to this ${classData?.subject} ${classData?.grade} class
+3. Subject-Specific skills linked to this class for general academic thinking assessment
 4. ${hasEnhancedData ? 'ENHANCED DUAL OCR DATA with Google OCR + Roboflow bubble detection and cross-validation' : 'Standard OCR extracted text'}
 
 ENHANCED DUAL OCR PROCESSING INSTRUCTIONS:
@@ -372,10 +310,10 @@ STEP 4: Calculate Subject-Specific skill scores with confidence weighting
 - Apply confidence multipliers to earned points based on detection method
 - Only include skills that are actually tested in this exam
 
-Content-Specific Skills Available:
+Content-Specific Skills Available for ${classData?.subject} ${classData?.grade}:
 ${contentSkillsText}
 
-Subject-Specific Skills Available:
+Subject-Specific Skills Available for ${classData?.subject} ${classData?.grade}:
 ${subjectSkillsText}
 
 Return your response in this JSON format:
@@ -427,6 +365,8 @@ CRITICAL REQUIREMENTS FOR 99% ACCURACY:
         {
           role: "user",
           content: `Please analyze this student's test responses for "${examData.title}" (Exam ID: ${examId}) using the ENHANCED DUAL OCR grading workflow with 99% accuracy optimization.
+
+Class: ${classData?.subject} ${classData?.grade}
 
 OFFICIAL ANSWER KEY:
 ${answerKeyText}
