@@ -1,3 +1,4 @@
+
 import { supabase } from "@/integrations/supabase/client";
 
 export interface ExtractTextRequest {
@@ -8,6 +9,7 @@ export interface ExtractTextRequest {
 export interface ExtractTextResponse {
   extractedText: string;
   examId: string | null;
+  studentName: string | null;
   fileName: string;
 }
 
@@ -17,7 +19,7 @@ export interface AnalyzeTestRequest {
     extractedText: string;
   }>;
   examId: string;
-  studentName?: string;
+  studentName: string;
   studentEmail?: string;
 }
 

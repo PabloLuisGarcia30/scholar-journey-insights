@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { Upload, FileText, Image, Video, Brain, ArrowLeft, CheckCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -14,8 +15,9 @@ const UploadTest = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [currentStep, setCurrentStep] = useState<'upload' | 'extracting' | 'analyzing' | 'complete'>('upload');
   const [extractedExamId, setExtractedExamId] = useState("");
-  const [studentName, setStudentName] = useState("");
-  const [studentEmail, setStudentEmail] = useState("");
+  const [detectedStudentName, setDetectedStudentName] = useState("");
+  const [manualStudentName, setManualStudentName] = useState("");
+  const [needsManualName, setNeedsManualName] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<{
     overall_score: number;
     total_points_earned: number;
@@ -58,6 +60,9 @@ const UploadTest = () => {
   const handleFiles = (files: File[]) => {
     setUploadedFiles(prev => [...prev, ...files]);
     setExtractedExamId("");
+    setDetectedStudentName("");
+    setManualStudentName("");
+    setNeedsManualName(false);
     setAnalysisResult(null);
     setCurrentStep('upload');
     toast.success(`Uploaded ${files.length} file(s) successfully!`);
@@ -82,7 +87,8 @@ const UploadTest = () => {
       return;
     }
 
-    if (!studentName.trim()) {
+    // Check if we need manual name and it's not provided
+    if (needsManualName && !manualStudentName.trim()) {
       toast.error("Please enter the student's name.");
       return;
     }
@@ -90,9 +96,9 @@ const UploadTest = () => {
     setIsProcessing(true);
     
     try {
-      // Step 1: Extract text and exam ID
+      // Step 1: Extract text, exam ID, and student name
       setCurrentStep('extracting');
-      toast.info("Extracting text from document...");
+      toast.info("Extracting text and student information from document...");
       
       const firstFile = uploadedFiles[0];
       const base64Content = await convertFileToBase64(firstFile);
@@ -110,7 +116,19 @@ const UploadTest = () => {
       }
 
       setExtractedExamId(extractResult.examId);
-      toast.success(`Exam ID extracted: ${extractResult.examId}`);
+      
+      // Handle student name detection
+      if (extractResult.studentName) {
+        setDetectedStudentName(extractResult.studentName);
+        toast.success(`Automatically detected student: ${extractResult.studentName}`);
+        setNeedsManualName(false);
+      } else {
+        toast.warning("Could not automatically detect student name. Please enter it manually.");
+        setNeedsManualName(true);
+        setIsProcessing(false);
+        setCurrentStep('upload');
+        return;
+      }
 
       // Step 2: Analyze all files
       setCurrentStep('analyzing');
@@ -130,11 +148,12 @@ const UploadTest = () => {
         })
       );
 
+      const finalStudentName = detectedStudentName || manualStudentName.trim();
+
       const analysisResult = await analyzeTest({
         files: allFileResults,
         examId: extractResult.examId,
-        studentName: studentName.trim(),
-        studentEmail: studentEmail.trim() || undefined
+        studentName: finalStudentName
       });
 
       setAnalysisResult(analysisResult);
@@ -153,8 +172,9 @@ const UploadTest = () => {
   const resetProcess = () => {
     setUploadedFiles([]);
     setExtractedExamId("");
-    setStudentName("");
-    setStudentEmail("");
+    setDetectedStudentName("");
+    setManualStudentName("");
+    setNeedsManualName(false);
     setAnalysisResult(null);
     setCurrentStep('upload');
     setIsProcessing(false);
@@ -180,6 +200,8 @@ const UploadTest = () => {
         (currentStep === 'analyzing' && step === 'extracting')) return "text-green-600";
     return "text-gray-400";
   };
+
+  const finalStudentName = detectedStudentName || manualStudentName;
 
   return (
     <div className="min-h-screen bg-gray-50 p-6">
@@ -227,7 +249,7 @@ const UploadTest = () => {
                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div> : '2'}
                 </div>
                 <span className={getStepColor('extracting')}>
-                  Extract Exam ID
+                  Extract Info
                 </span>
               </div>
               
@@ -291,57 +313,68 @@ const UploadTest = () => {
                 </Button>
               </div>
 
-              {/* Student Information */}
-              {uploadedFiles.length > 0 && !analysisResult && (
+              {/* Detected Information Display */}
+              {uploadedFiles.length > 0 && (detectedStudentName || extractedExamId) && (
+                <div className="mt-6 p-4 bg-green-50 rounded-lg border border-green-200">
+                  <h3 className="font-medium text-green-900 mb-3">✅ Automatically Detected</h3>
+                  <div className="space-y-2">
+                    {detectedStudentName && (
+                      <div>
+                        <span className="text-sm font-medium text-green-700">Student Name: </span>
+                        <span className="text-sm text-green-800">{detectedStudentName}</span>
+                      </div>
+                    )}
+                    {extractedExamId && (
+                      <div>
+                        <span className="text-sm font-medium text-green-700">Exam ID: </span>
+                        <span className="text-sm text-green-800">{extractedExamId}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Manual Name Input (fallback) */}
+              {uploadedFiles.length > 0 && needsManualName && !analysisResult && (
                 <div className="mt-6 space-y-4">
-                  <div className="p-4 bg-gray-50 rounded-lg border">
-                    <h3 className="font-medium text-gray-900 mb-3">Student Information</h3>
-                    <div className="space-y-3">
-                      <div>
-                        <Label htmlFor="student-name">Student Name *</Label>
-                        <Input
-                          id="student-name"
-                          value={studentName}
-                          onChange={(e) => setStudentName(e.target.value)}
-                          placeholder="Enter student's full name"
-                          className="mt-1"
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="student-email">Student Email (Optional)</Label>
-                        <Input
-                          id="student-email"
-                          type="email"
-                          value={studentEmail}
-                          onChange={(e) => setStudentEmail(e.target.value)}
-                          placeholder="student@example.com"
-                          className="mt-1"
-                        />
-                      </div>
+                  <div className="p-4 bg-yellow-50 rounded-lg border border-yellow-200">
+                    <h3 className="font-medium text-yellow-900 mb-3">⚠️ Manual Input Required</h3>
+                    <p className="text-sm text-yellow-700 mb-3">
+                      Could not automatically detect the student name. Please enter it manually:
+                    </p>
+                    <div>
+                      <Label htmlFor="manual-student-name">Student Name *</Label>
+                      <Input
+                        id="manual-student-name"
+                        value={manualStudentName}
+                        onChange={(e) => setManualStudentName(e.target.value)}
+                        placeholder="Enter student's full name"
+                        className="mt-1"
+                      />
                     </div>
                   </div>
                 </div>
               )}
 
               {/* Process Document Button */}
-              {uploadedFiles.length > 0 && !analysisResult && (
+              {uploadedFiles.length > 0 && !analysisResult && (!needsManualName || manualStudentName.trim()) && (
                 <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
                   <div className="flex items-center gap-3 mb-3">
                     <Brain className="h-5 w-5 text-blue-600" />
                     <h3 className="font-medium text-blue-900">Ready to Process</h3>
                   </div>
                   <p className="text-sm text-blue-700 mb-4">
-                    Your document is ready for OCR text extraction and AI analysis. This will automatically extract the Exam ID and grade the test.
+                    Your document is ready for OCR text extraction and AI analysis. This will automatically extract information and grade the test.
                   </p>
                   <Button 
                     onClick={processDocument}
-                    disabled={isProcessing || !studentName.trim()}
+                    disabled={isProcessing}
                     className="w-full bg-blue-600 hover:bg-blue-700"
                   >
                     {isProcessing ? (
                       <>
                         <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                        {currentStep === 'extracting' ? 'Extracting text...' : 'Analyzing with AI...'}
+                        {currentStep === 'extracting' ? 'Extracting information...' : 'Analyzing with AI...'}
                       </>
                     ) : (
                       <>
@@ -350,9 +383,6 @@ const UploadTest = () => {
                       </>
                     )}
                   </Button>
-                  {!studentName.trim() && (
-                    <p className="text-xs text-red-600 mt-2">Please enter the student's name to continue</p>
-                  )}
                 </div>
               )}
 
@@ -361,7 +391,7 @@ const UploadTest = () => {
                 <div className="mt-6 p-4 bg-green-50 rounded-lg border border-green-200">
                   <div className="flex items-center gap-3 mb-3">
                     <CheckCircle className="h-5 w-5 text-green-600" />
-                    <h3 className="font-medium text-green-900">Analysis Complete - {studentName}</h3>
+                    <h3 className="font-medium text-green-900">Analysis Complete - {finalStudentName}</h3>
                   </div>
                   <div className="space-y-3">
                     <div>
@@ -444,7 +474,7 @@ const UploadTest = () => {
                 <div className="flex justify-between items-center p-3 bg-purple-50 rounded-lg">
                   <span className="text-sm font-medium text-purple-700">Student</span>
                   <span className="text-lg font-bold text-purple-900">
-                    {studentName || "Not entered"}
+                    {finalStudentName || (needsManualName ? "Manual input needed" : "Auto-detecting...")}
                   </span>
                 </div>
                 <div className="flex justify-between items-center p-3 bg-orange-50 rounded-lg">

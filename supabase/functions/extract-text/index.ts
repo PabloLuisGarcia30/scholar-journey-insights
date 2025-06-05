@@ -75,10 +75,39 @@ serve(async (req) => {
 
     console.log('Extracted exam ID:', examId)
 
+    // Extract Student Name from the text
+    const studentNamePatterns = [
+      /(?:STUDENT\s*NAME|NAME|STUDENT)[\s:]*([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)/i,
+      /^([A-Z][a-z]+\s+[A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\s*$/m,
+      /(?:^|\n)([A-Z][a-z]+\s+[A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\s*(?:\n|$)/,
+      /(?:BY|SUBMITTED BY|FOR)[\s:]*([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)/i
+    ]
+
+    let studentName = null
+    for (const pattern of studentNamePatterns) {
+      const match = extractedText.match(pattern)
+      if (match && match[1]) {
+        const candidate = match[1].trim()
+        // Validate the candidate name (2-4 words, reasonable length)
+        const words = candidate.split(/\s+/)
+        if (words.length >= 2 && words.length <= 4 && candidate.length >= 5 && candidate.length <= 50) {
+          // Check if it's not just random OCR noise
+          const validNamePattern = /^[A-Za-z\s\-'\.]+$/
+          if (validNamePattern.test(candidate)) {
+            studentName = candidate
+            break
+          }
+        }
+      }
+    }
+
+    console.log('Extracted student name:', studentName)
+
     return new Response(
       JSON.stringify({
         extractedText,
         examId,
+        studentName,
         fileName
       }),
       {
