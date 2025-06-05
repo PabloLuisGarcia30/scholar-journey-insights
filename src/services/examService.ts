@@ -276,6 +276,10 @@ export const createActiveStudent = async (studentData: {
   try {
     console.log('Creating active student:', studentData);
     
+    // First create or find the student in student_profiles
+    const studentProfile = await createOrFindStudent(studentData.name, studentData.email);
+    
+    // Then create the active student record
     const { data, error } = await supabase
       .from('active_students')
       .insert({
@@ -292,6 +296,11 @@ export const createActiveStudent = async (studentData: {
       console.error('Error creating active student:', error);
       throw new Error(`Failed to create active student: ${error.message}`);
     }
+
+    console.log('Successfully created student in both tables:', {
+      activeStudentId: data.id,
+      studentProfileId: studentProfile.id
+    });
 
     return data;
   } catch (error) {
