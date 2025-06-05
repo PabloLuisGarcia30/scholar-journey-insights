@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -34,7 +33,7 @@ export function CreateClassDialog({ onCreateClass }: CreateClassDialogProps) {
   });
 
   const subjects = ['Mathematics', 'Science', 'English', 'History', 'Geography', 'Art', 'Music', 'Physical Education'];
-  const grades = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12'];
+  const grades = ['Kindergarten', 'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6', 'Grade 7', 'Grade 8', 'Grade 9', 'Grade 10', 'Grade 11', 'Grade 12'];
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -100,7 +99,7 @@ export function CreateClassDialog({ onCreateClass }: CreateClassDialogProps) {
                 </SelectTrigger>
                 <SelectContent>
                   {grades.map((grade) => (
-                    <SelectItem key={grade} value={grade}>Grade {grade}</SelectItem>
+                    <SelectItem key={grade} value={grade}>{grade}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
