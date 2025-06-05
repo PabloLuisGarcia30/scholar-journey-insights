@@ -5,6 +5,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
   AlertDialog,
   AlertDialogAction,
@@ -16,9 +17,10 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Users, BookOpen, TrendingUp, Trash2, ArrowLeft } from "lucide-react";
+import { Users, BookOpen, TrendingUp, Trash2, ArrowLeft, Target } from "lucide-react";
 import { CreateClassDialog } from "@/components/CreateClassDialog";
 import { AddStudentsDialog } from "@/components/AddStudentsDialog";
+import { ClassContentSkills } from "@/components/ClassContentSkills";
 import { toast } from "sonner";
 import { 
   getAllActiveClasses, 
@@ -407,51 +409,67 @@ export function ClassView({ onSelectStudent }: ClassViewProps) {
           </Card>
         </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Class Roster</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {classData.student_count === 0 ? (
-              <div className="text-center py-8">
-                <Users className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                <h3 className="text-lg font-medium text-gray-900 mb-2">No students enrolled</h3>
-                <p className="text-gray-600 mb-4">Students will appear here once they are added to this class.</p>
-                <AddStudentsDialog
-                  classId={classData.id}
-                  className={classData.name}
-                  onAddStudents={(studentIds) => handleAddStudents(classData.id, studentIds)}
-                  enrolledStudentIds={classData.students}
-                />
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {enrolledStudents.map((student) => (
-                  <div 
-                    key={student.id}
-                    className="flex items-center justify-between p-3 rounded-lg border hover:bg-gray-50 cursor-pointer"
-                    onClick={() => handleStudentClick(student.id, classData.id, classData.name)}
-                  >
-                    <div className="flex items-center gap-3">
-                      <Avatar className="h-8 w-8">
-                        <AvatarFallback className="text-xs">
-                          {student.name.split(' ').map(n => n[0]).join('')}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div>
-                        <span className="font-medium">{student.name}</span>
-                        <p className="text-sm text-gray-600">{student.email || 'No email'}</p>
-                      </div>
-                    </div>
-                    <Badge variant="outline">
-                      GPA: {student.gpa ? Number(student.gpa).toFixed(2) : 'N/A'}
-                    </Badge>
+        <Tabs defaultValue="students" className="space-y-6">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="students">Students</TabsTrigger>
+            <TabsTrigger value="skills" className="flex items-center gap-2">
+              <Target className="h-4 w-4" />
+              Content Skills
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="students">
+            <Card>
+              <CardHeader>
+                <CardTitle>Class Roster</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {classData.student_count === 0 ? (
+                  <div className="text-center py-8">
+                    <Users className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">No students enrolled</h3>
+                    <p className="text-gray-600 mb-4">Students will appear here once they are added to this class.</p>
+                    <AddStudentsDialog
+                      classId={classData.id}
+                      className={classData.name}
+                      onAddStudents={(studentIds) => handleAddStudents(classData.id, studentIds)}
+                      enrolledStudentIds={classData.students}
+                    />
                   </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+                ) : (
+                  <div className="space-y-3">
+                    {enrolledStudents.map((student) => (
+                      <div 
+                        key={student.id}
+                        className="flex items-center justify-between p-3 rounded-lg border hover:bg-gray-50 cursor-pointer"
+                        onClick={() => handleStudentClick(student.id, classData.id, classData.name)}
+                      >
+                        <div className="flex items-center gap-3">
+                          <Avatar className="h-8 w-8">
+                            <AvatarFallback className="text-xs">
+                              {student.name.split(' ').map(n => n[0]).join('')}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div>
+                            <span className="font-medium">{student.name}</span>
+                            <p className="text-sm text-gray-600">{student.email || 'No email'}</p>
+                          </div>
+                        </div>
+                        <Badge variant="outline">
+                          GPA: {student.gpa ? Number(student.gpa).toFixed(2) : 'N/A'}
+                        </Badge>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="skills">
+            <ClassContentSkills activeClass={classData} />
+          </TabsContent>
+        </Tabs>
       </div>
     );
   }

@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import type { Question } from "@/utils/pdfGenerator";
 
@@ -90,6 +89,24 @@ export interface SkillScore {
   score: number;
   points_earned: number;
   points_possible: number;
+  created_at: string;
+}
+
+export interface ContentSkill {
+  id: string;
+  subject: string;
+  grade: string;
+  topic: string;
+  skill_name: string;
+  skill_description: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ClassContentSkill {
+  id: string;
+  class_id: string;
+  content_skill_id: string;
   created_at: string;
 }
 
@@ -589,6 +606,138 @@ export const getAnswerKeysByExamId = async (examId: string): Promise<AnswerKey[]
     return data || [];
   } catch (error) {
     console.error('Error in getAnswerKeysByExamId:', error);
+    throw error;
+  }
+};
+
+export const getContentSkillsBySubjectAndGrade = async (subject: string, grade: string): Promise<ContentSkill[]> => {
+  try {
+    console.log('Fetching content skills for:', subject, grade);
+    
+    const { data, error } = await supabase
+      .from('content_skills')
+      .select('*')
+      .eq('subject', subject)
+      .eq('grade', grade)
+      .order('topic')
+      .order('skill_name');
+
+    if (error) {
+      console.error('Error fetching content skills:', error);
+      throw new Error(`Failed to fetch content skills: ${error.message}`);
+    }
+
+    return data || [];
+  } catch (error) {
+    console.error('Error in getContentSkillsBySubjectAndGrade:', error);
+    throw error;
+  }
+};
+
+export const linkClassToContentSkills = async (classId: string, contentSkillIds: string[]): Promise<void> => {
+  try {
+    console.log('Linking class to content skills:', classId, contentSkillIds);
+    
+    // Remove existing links for this class
+    const { error: deleteError } = await supabase
+      .from('class_content_skills')
+      .delete()
+      .eq('class_id', classId);
+
+    if (deleteError) {
+      console.error('Error removing existing class content skills:', deleteError);
+      throw new Error(`Failed to remove existing links: ${deleteError.message}`);
+    }
+
+    // Add new links
+    const newLinks = contentSkillIds.map(skillId => ({
+      class_id: classId,
+      content_skill_id: skillId
+    }));
+
+    const { error: insertError } = await supabase
+      .from('class_content_skills')
+      .insert(newLinks);
+
+    if (insertError) {
+      console.error('Error linking class to content skills:', insertError);
+      throw new Error(`Failed to link class to content skills: ${insertError.message}`);
+    }
+
+    console.log('Successfully linked class to content skills');
+  } catch (error) {
+    console.error('Error in linkClassToContentSkills:', error);
+    throw error;
+  }
+};
+
+export const getLinkedContentSkillsForClass = async (classId: string): Promise<ContentSkill[]> => {
+  try {
+    console.log('Fetching linked content skills for class:', classId);
+    
+    const { data, error } = await supabase
+      .from('class_content_skills')
+      .select(`
+        content_skills (
+          id,
+          subject,
+          grade,
+          topic,
+          skill_name,
+          skill_description,
+          created_at,
+          updated_at
+        )
+      `)
+      .eq('class_id', classId);
+
+    if (error) {
+      console.error('Error fetching linked content skills:', error);
+      throw new Error(`Failed to fetch linked content skills: ${error.message}`);
+    }
+
+    // Extract the content_skills from the nested structure
+    const contentSkills = data?.map((item: any) => item.content_skills).filter(Boolean) || [];
+    return contentSkills;
+  } catch (error) {
+    console.error('Error in getLinkedContentSkillsForClass:', error);
+    throw error;
+  }
+};
+
+export const autoLinkMathClassToGrade10Skills = async (): Promise<void> => {
+  try {
+    console.log('Auto-linking Math Studies 10 class to Grade 10 Math skills');
+    
+    // Find the Math Studies 10 class
+    const { data: mathClass, error: classError } = await supabase
+      .from('active_classes')
+      .select('*')
+      .eq('name', 'Math Studies 10')
+      .eq('subject', 'Mathematics')
+      .eq('grade', 'Grade 10')
+      .maybeSingle();
+
+    if (classError) {
+      console.error('Error finding Math Studies 10 class:', classError);
+      throw new Error(`Failed to find Math Studies 10 class: ${classError.message}`);
+    }
+
+    if (!mathClass) {
+      console.log('Math Studies 10 class not found, skipping auto-link');
+      return;
+    }
+
+    // Get all Grade 10 Math content skills
+    const contentSkills = await getContentSkillsBySubjectAndGrade('Mathematics', 'Grade 10');
+    const skillIds = contentSkills.map(skill => skill.id);
+
+    // Link the class to all Grade 10 Math skills
+    await linkClassToContentSkills(mathClass.id, skillIds);
+    
+    console.log(`Successfully auto-linked Math Studies 10 class to ${skillIds.length} Grade 10 Math skills`);
+  } catch (error) {
+    console.error('Error in autoLinkMathClassToGrade10Skills:', error);
     throw error;
   }
 };
