@@ -1,4 +1,3 @@
-
 import { useQuery } from "@tanstack/react-query";
 import { useEffect } from "react";
 import { 
@@ -23,7 +22,7 @@ interface UseStudentProfileDataProps {
 }
 
 export function useStudentProfileData({ studentId, classId, className }: UseStudentProfileDataProps) {
-  const isClassView = classId && className;
+  const isClassView = Boolean(classId && className);
 
   // Fetch student data
   const { data: student, isLoading: studentLoading } = useQuery({
