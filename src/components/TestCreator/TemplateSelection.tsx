@@ -37,6 +37,8 @@ export const TemplateSelection = ({ templates, selectedTemplate, onTemplateSelec
                 <FileText className="h-5 w-5" />
                 {template.id === 'custom' 
                   ? "Build Custom Test" 
+                  : template.id === 'history'
+                  ? "History Test"
                   : template.name}
               </CardTitle>
             </CardHeader>
@@ -44,6 +46,8 @@ export const TemplateSelection = ({ templates, selectedTemplate, onTemplateSelec
               <p className="text-gray-600">
                 {template.id === 'custom' 
                   ? "You know your Students best. Build a Test for them!" 
+                  : template.id === 'history'
+                  ? "Pre-built history questions covering major events, dates, and concepts"
                   : template.description}
               </p>
               <p className="text-sm text-blue-600 mt-2">
