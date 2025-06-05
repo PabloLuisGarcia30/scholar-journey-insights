@@ -444,14 +444,18 @@ export const saveExamToDatabase = async (examData: ExamData, classId: string): P
       throw new Error(`Failed to save exam: ${examError.message}`);
     }
 
-    // Insert answer keys - convert correctAnswer to string if it's an array
+    // Insert answer keys - convert correctAnswer to string properly handling all types
     const answerKeys = examData.questions.map((question, index) => {
-      // Convert correctAnswer to string format
+      // Convert correctAnswer to string format, handling boolean values
       let correctAnswerString = '';
       if (Array.isArray(question.correctAnswer)) {
         correctAnswerString = question.correctAnswer.join(', ');
+      } else if (typeof question.correctAnswer === 'boolean') {
+        correctAnswerString = question.correctAnswer.toString();
+      } else if (question.correctAnswer !== undefined && question.correctAnswer !== null) {
+        correctAnswerString = String(question.correctAnswer);
       } else {
-        correctAnswerString = question.correctAnswer || '';
+        correctAnswerString = '';
       }
 
       return {
