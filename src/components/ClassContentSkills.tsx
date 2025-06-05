@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -30,7 +29,7 @@ export function ClassContentSkills({ activeClass }: ClassContentSkillsProps) {
   useEffect(() => {
     loadSkills();
     // Auto-link Math Studies 10 class on first load
-    if (activeClass.name === 'Math Studies 10' && activeClass.subject === 'Mathematics' && activeClass.grade === 'Grade 10') {
+    if (activeClass.name === 'Math Studies 10' && activeClass.subject === 'Math' && activeClass.grade === 'Grade 10') {
       autoLinkMathClass();
     }
   }, [activeClass]);

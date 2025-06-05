@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -83,7 +82,7 @@ export function StudentProfile({ studentId, classId, className, onBack }: Studen
 
   // Auto-link Math Studies 10 class to Grade 10 skills when class data is loaded
   useEffect(() => {
-    if (classData && classData.name === 'Math Studies 10' && classData.subject === 'Mathematics' && classData.grade === 'Grade 10') {
+    if (classData && classData.name === 'Math Studies 10' && classData.subject === 'Math' && classData.grade === 'Grade 10') {
       console.log('Auto-linking Math Studies 10 class to Grade 10 Math skills');
       autoLinkMathClassToGrade10Skills().catch(error => {
         console.error('Failed to auto-link class skills:', error);

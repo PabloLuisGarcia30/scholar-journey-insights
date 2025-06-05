@@ -1,3 +1,4 @@
+
 import { supabase } from "@/integrations/supabase/client";
 import type { Question } from "@/utils/pdfGenerator";
 
@@ -714,7 +715,7 @@ export const autoLinkMathClassToGrade10Skills = async (): Promise<void> => {
       .from('active_classes')
       .select('*')
       .eq('name', 'Math Studies 10')
-      .eq('subject', 'Mathematics')
+      .eq('subject', 'Math')
       .eq('grade', 'Grade 10')
       .maybeSingle();
 
@@ -729,7 +730,7 @@ export const autoLinkMathClassToGrade10Skills = async (): Promise<void> => {
     }
 
     // Get all Grade 10 Math content skills
-    const contentSkills = await getContentSkillsBySubjectAndGrade('Mathematics', 'Grade 10');
+    const contentSkills = await getContentSkillsBySubjectAndGrade('Math', 'Grade 10');
     const skillIds = contentSkills.map(skill => skill.id);
 
     // Link the class to all Grade 10 Math skills
