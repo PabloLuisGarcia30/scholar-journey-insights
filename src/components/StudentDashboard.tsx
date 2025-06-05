@@ -87,10 +87,10 @@ export function StudentDashboard({ onSelectStudent }: StudentDashboardProps) {
     <div className="p-6 space-y-6">
       {/* Inspirational Header */}
       <div className="text-center py-8">
-        <h1 className="text-6xl font-bold bg-gradient-to-r from-blue-600 via-purple-600 to-indigo-600 bg-clip-text text-transparent leading-tight tracking-tight font-serif">
+        <h1 className="text-6xl font-bold bg-gradient-to-r from-slate-900 via-blue-900 to-slate-800 bg-clip-text text-transparent leading-tight tracking-tight font-sans">
           Empower a Student Today.
         </h1>
-        <div className="mt-4 w-24 h-1 bg-gradient-to-r from-blue-600 to-purple-600 mx-auto rounded-full"></div>
+        <div className="mt-4 w-24 h-1 bg-gradient-to-r from-slate-600 to-blue-600 mx-auto rounded-full"></div>
       </div>
 
       {/* Header */}
