@@ -70,8 +70,13 @@ serve(async (req) => {
     
     const openaiApiKey = Deno.env.get('OPENAI_API_KEY')
     if (!openaiApiKey) {
-      console.error('OpenAI API key not configured')
-      throw new Error('OpenAI API key not configured')
+      console.error('OpenAI API key not found in environment variables')
+      throw new Error('OpenAI API key not configured. Please add your OpenAI API key to Supabase secrets.')
+    }
+
+    if (openaiApiKey.length < 10) {
+      console.error('OpenAI API key appears to be invalid (too short)')
+      throw new Error('OpenAI API key appears to be invalid. Please check your API key.')
     }
 
     // Create more specific prompts based on grade and subject
@@ -83,6 +88,8 @@ serve(async (req) => {
       : `Generate a comprehensive practice test for a ${gradeLevel} ${subjectArea} student covering all major content areas appropriate for ${gradeLevel} ${subjectArea} curriculum. Create 10-12 questions that assess various skills and concepts at the ${gradeLevel} level. Use curriculum-appropriate vocabulary and examples suitable for ${gradeLevel} students.`
 
     console.log('Sending request to OpenAI with prompt:', prompt)
+    console.log('Using API key starting with:', openaiApiKey.substring(0, 10) + '...')
+    
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -130,14 +137,31 @@ RESPOND ONLY WITH THE JSON OBJECT - NO OTHER TEXT.`
       }),
     })
 
+    console.log('OpenAI response status:', response.status)
+    console.log('OpenAI response headers:', Object.fromEntries(response.headers.entries()))
+
     if (!response.ok) {
-      const errorData = await response.json()
-      console.error('OpenAI API error:', errorData)
-      throw new Error(`OpenAI API error: ${errorData.error?.message || response.statusText}`)
+      const errorText = await response.text()
+      console.error('OpenAI API error response:', errorText)
+      
+      let errorData
+      try {
+        errorData = JSON.parse(errorText)
+      } catch {
+        errorData = { error: { message: errorText } }
+      }
+      
+      if (response.status === 401) {
+        throw new Error('Invalid OpenAI API key. Please check your API key and try again.')
+      } else if (response.status === 429) {
+        throw new Error('OpenAI API rate limit exceeded. Please try again in a moment.')
+      } else {
+        throw new Error(`OpenAI API error: ${errorData.error?.message || 'Unknown error'}`)
+      }
     }
 
     const result = await response.json()
-    console.log('OpenAI practice test generation completed')
+    console.log('OpenAI practice test generation completed successfully')
     const generatedContent = result.choices[0]?.message?.content || "{}"
     
     // Try to parse and validate the generated content
