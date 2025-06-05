@@ -1,4 +1,3 @@
-
 import jsPDF from 'jspdf';
 
 export interface Question {
@@ -44,16 +43,26 @@ export const generateTestPDF = (testData: TestData) => {
     let headerYPos = 32;
     pdf.setTextColor(0, 0, 0);
     
-    // Exam ID Section
+    // EXAM ID Section - Make it MUCH more prominent for OCR
     pdf.setFillColor(220, 38, 38);
-    pdf.rect(margin, headerYPos, pageWidth - 2 * margin, 15, 'F');
+    pdf.rect(margin, headerYPos, pageWidth - 2 * margin, 25, 'F');
+    
+    // Add border for extra visibility
+    pdf.setDrawColor(0, 0, 0);
+    pdf.setLineWidth(2);
+    pdf.rect(margin, headerYPos, pageWidth - 2 * margin, 25);
     
     pdf.setTextColor(255, 255, 255);
-    pdf.setFontSize(10);
+    pdf.setFontSize(14);
     pdf.setFont(undefined, 'bold');
-    pdf.text(`EXAM ID: ${testData.examId}`, margin + 5, headerYPos + 10);
+    pdf.text(`EXAM ID: ${testData.examId}`, margin + 10, headerYPos + 10);
     
-    headerYPos += 20;
+    // Add a second line with just the ID for better OCR recognition
+    pdf.setFontSize(18);
+    pdf.setFont(undefined, 'bold');
+    pdf.text(testData.examId, margin + 10, headerYPos + 20);
+    
+    headerYPos += 30;
     pdf.setTextColor(0, 0, 0);
     
     // First page specific content
@@ -108,8 +117,16 @@ export const generateTestPDF = (testData: TestData) => {
       pdf.setFontSize(11);
       pdf.setFont(undefined, 'bold');
       pdf.text(`${testData.title} - Page ${pageNumber}`, margin, headerYPos);
-      pdf.setFontSize(7);
-      pdf.text(`Exam ID: ${testData.examId}`, pageWidth - margin - 35, headerYPos);
+      
+      // Add EXAM ID on every page for better OCR recognition
+      pdf.setFillColor(220, 38, 38);
+      pdf.rect(pageWidth - margin - 70, headerYPos - 8, 65, 15, 'F');
+      pdf.setTextColor(255, 255, 255);
+      pdf.setFontSize(10);
+      pdf.setFont(undefined, 'bold');
+      pdf.text(`EXAM ID: ${testData.examId}`, pageWidth - margin - 65, headerYPos);
+      pdf.setTextColor(0, 0, 0);
+      
       headerYPos += 12;
     }
     
@@ -119,8 +136,13 @@ export const generateTestPDF = (testData: TestData) => {
   const addFooter = (pageNumber: number, totalPages: number) => {
     pdf.setFontSize(6);
     pdf.setTextColor(107, 114, 128);
-    pdf.text(`Page ${pageNumber}/${totalPages}`, pageWidth - margin - 12, pageHeight - 6);
-    pdf.text(`${testData.title} | ${testData.examId}`, margin, pageHeight - 6);
+    pdf.text(`Page ${pageNumber}/${totalPages}`, pageWidth - margin - 12, pageHeight - 15);
+    pdf.text(`${testData.title}`, margin, pageHeight - 15);
+    
+    // Add EXAM ID in footer for extra OCR recognition
+    pdf.setFontSize(8);
+    pdf.setFont(undefined, 'bold');
+    pdf.text(`EXAM ID: ${testData.examId}`, margin, pageHeight - 6);
   };
 
   const calculateQuestionHeight = (question: Question) => {
@@ -152,8 +174,8 @@ export const generateTestPDF = (testData: TestData) => {
 
   // Calculate available content height for each page
   const getMaxContentHeight = (pageNumber: number) => {
-    const headerHeight = pageNumber === 1 ? 140 : 65; // Different header heights
-    const footerHeight = 20;
+    const headerHeight = pageNumber === 1 ? 150 : 75; // Adjusted for larger EXAM ID section
+    const footerHeight = 25; // Adjusted for EXAM ID in footer
     return pageHeight - headerHeight - footerHeight;
   };
 
