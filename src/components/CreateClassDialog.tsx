@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -32,7 +33,7 @@ export function CreateClassDialog({ onCreateClass }: CreateClassDialogProps) {
     teacher: ''
   });
 
-  const subjects = ['Mathematics', 'Science', 'English', 'History', 'Geography', 'Art', 'Music', 'Physical Education'];
+  const subjects = ['Math', 'Science', 'English', 'History', 'Geography', 'Art', 'Music', 'Physical Education'];
   const grades = ['Kindergarten', 'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6', 'Grade 7', 'Grade 8', 'Grade 9', 'Grade 10', 'Grade 11', 'Grade 12'];
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -57,7 +58,7 @@ export function CreateClassDialog({ onCreateClass }: CreateClassDialogProps) {
           <DialogHeader>
             <DialogTitle>Create New Class</DialogTitle>
             <DialogDescription>
-              Add a new class to organize your students. Fill in the details below.
+              Add a new class to organize your students. Content-specific skills will be automatically linked based on the subject and grade you select.
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">

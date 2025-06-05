@@ -125,6 +125,42 @@ export type Database = {
           },
         ]
       }
+      class_content_skills: {
+        Row: {
+          class_id: string
+          content_skill_id: string
+          created_at: string
+          id: string
+        }
+        Insert: {
+          class_id: string
+          content_skill_id: string
+          created_at?: string
+          id?: string
+        }
+        Update: {
+          class_id?: string
+          content_skill_id?: string
+          created_at?: string
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "class_content_skills_class_id_fkey"
+            columns: ["class_id"]
+            isOneToOne: false
+            referencedRelation: "active_classes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "class_content_skills_content_skill_id_fkey"
+            columns: ["content_skill_id"]
+            isOneToOne: false
+            referencedRelation: "content_skills"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       content_skill_scores: {
         Row: {
           created_at: string
@@ -242,6 +278,39 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      "Grade 10 Math Content Skills": {
+        Row: {
+          created_at: string
+          grade: string
+          id: string
+          skill_description: string
+          skill_name: string
+          Subject: string
+          topic: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          grade: string
+          id?: string
+          skill_description: string
+          skill_name: string
+          Subject: string
+          topic: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          grade?: string
+          id?: string
+          skill_description?: string
+          skill_name?: string
+          Subject?: string
+          topic?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       student_profiles: {
         Row: {

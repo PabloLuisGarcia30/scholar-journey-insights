@@ -160,6 +160,14 @@ export const createActiveClass = async (classData: {
       throw new Error(`Failed to create active class: ${error.message}`);
     }
 
+    // Auto-link content skills based on subject and grade
+    try {
+      await autoLinkClassToContentSkills(data.id, classData.subject, classData.grade);
+    } catch (skillError) {
+      console.warn('Failed to auto-link content skills:', skillError);
+      // Don't fail the class creation if skill linking fails
+    }
+
     return data;
   } catch (error) {
     console.error('Error in createActiveClass:', error);
@@ -650,19 +658,21 @@ export const linkClassToContentSkills = async (classId: string, contentSkillIds:
       throw new Error(`Failed to remove existing links: ${deleteError.message}`);
     }
 
-    // Add new links
-    const newLinks = contentSkillIds.map(skillId => ({
-      class_id: classId,
-      content_skill_id: skillId
-    }));
+    // Add new links if there are skills to link
+    if (contentSkillIds.length > 0) {
+      const newLinks = contentSkillIds.map(skillId => ({
+        class_id: classId,
+        content_skill_id: skillId
+      }));
 
-    const { error: insertError } = await supabase
-      .from('class_content_skills')
-      .insert(newLinks);
+      const { error: insertError } = await supabase
+        .from('class_content_skills')
+        .insert(newLinks);
 
-    if (insertError) {
-      console.error('Error linking class to content skills:', insertError);
-      throw new Error(`Failed to link class to content skills: ${insertError.message}`);
+      if (insertError) {
+        console.error('Error linking class to content skills:', insertError);
+        throw new Error(`Failed to link class to content skills: ${insertError.message}`);
+      }
     }
 
     console.log('Successfully linked class to content skills');
@@ -702,6 +712,27 @@ export const getLinkedContentSkillsForClass = async (classId: string): Promise<C
     return contentSkills;
   } catch (error) {
     console.error('Error in getLinkedContentSkillsForClass:', error);
+    throw error;
+  }
+};
+
+export const autoLinkClassToContentSkills = async (classId: string, subject: string, grade: string): Promise<void> => {
+  try {
+    console.log(`Auto-linking class ${classId} to ${subject} ${grade} skills`);
+    
+    // Get all content skills for the subject and grade
+    const contentSkills = await getContentSkillsBySubjectAndGrade(subject, grade);
+    const skillIds = contentSkills.map(skill => skill.id);
+
+    if (skillIds.length > 0) {
+      // Link the class to all matching content skills
+      await linkClassToContentSkills(classId, skillIds);
+      console.log(`Successfully auto-linked class to ${skillIds.length} ${subject} ${grade} skills`);
+    } else {
+      console.log(`No content skills found for ${subject} ${grade}`);
+    }
+  } catch (error) {
+    console.error('Error in autoLinkClassToContentSkills:', error);
     throw error;
   }
 };
