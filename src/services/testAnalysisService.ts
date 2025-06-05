@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 
 export interface ExtractTextRequest {
@@ -6,17 +5,58 @@ export interface ExtractTextRequest {
   fileName: string;
 }
 
+export interface StructuredData {
+  pages: Array<{
+    pageNumber: number;
+    blocks: Array<{
+      blockIndex: number;
+      text: string;
+      confidence: number;
+      boundingBox?: any;
+      type: string;
+    }>;
+    text: string;
+    confidence: number;
+  }>;
+  questions: Array<{
+    questionNumber: number;
+    questionText: string;
+    type: string;
+    options?: Array<{
+      letter: string;
+      text: string;
+      rawText: string;
+    }>;
+    rawText: string;
+    confidence: string;
+    notes?: string;
+  }>;
+  answers: Array<{
+    questionNumber: number;
+    studentAnswer: string;
+    type: string;
+    rawText: string;
+    confidence: string;
+  }>;
+  metadata: {
+    totalPages: number;
+    processingNotes: string[];
+  };
+}
+
 export interface ExtractTextResponse {
   extractedText: string;
   examId: string | null;
   studentName: string | null;
   fileName: string;
+  structuredData?: StructuredData;
 }
 
 export interface AnalyzeTestRequest {
   files: Array<{
     fileName: string;
     extractedText: string;
+    structuredData?: StructuredData;
   }>;
   examId: string;
   studentName: string;
@@ -45,7 +85,7 @@ export interface AnalyzeTestResponse {
 
 export const extractTextFromFile = async (request: ExtractTextRequest): Promise<ExtractTextResponse> => {
   try {
-    console.log('Calling extract-text function with:', request.fileName);
+    console.log('Calling extract-text function with enhanced OCR for:', request.fileName);
     const { data, error } = await supabase.functions.invoke('extract-text', {
       body: request
     })
@@ -55,7 +95,7 @@ export const extractTextFromFile = async (request: ExtractTextRequest): Promise<
       throw new Error(`Failed to extract text: ${error.message}`)
     }
 
-    console.log('Extract-text function response:', data);
+    console.log('Enhanced extract-text function response:', data);
     return data
   } catch (error) {
     console.error('Error calling extract-text function:', error)

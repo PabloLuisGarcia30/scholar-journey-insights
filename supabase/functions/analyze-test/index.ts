@@ -95,7 +95,6 @@ serve(async (req) => {
     const contentSkills = linkedContentSkills?.map((item: any) => item.content_skills).filter(Boolean) || []
     console.log('Found', contentSkills.length, 'linked Content-Specific skills')
 
-    // Step 3: Get Subject-Specific skills linked to this class
     console.log('Step 3: Fetching Subject-Specific skills for class:', examData.class_id)
     const { data: linkedSubjectSkills, error: subjectSkillsError } = await supabase
       .from('class_subject_skills')
@@ -124,7 +123,6 @@ serve(async (req) => {
     // Format Content-Specific skills for AI analysis with proper ordering
     let contentSkillsText = '';
     if (contentSkills.length > 0) {
-      // Group skills by topic
       const groupedSkills = contentSkills.reduce((acc: any, skill: any) => {
         if (!acc[skill.topic]) {
           acc[skill.topic] = [];
@@ -133,7 +131,6 @@ serve(async (req) => {
         return acc;
       }, {});
 
-      // Define the exact order for Grade 10 Math
       const isGrade10Math = classData?.subject === 'Math' && classData?.grade === 'Grade 10';
       
       let topics = Object.keys(groupedSkills);
@@ -150,7 +147,6 @@ serve(async (req) => {
         const remainingTopics = Object.keys(groupedSkills).filter(topic => !orderedTopics.includes(topic));
         topics = [...topics, ...remainingTopics];
 
-        // Sort skills within each topic
         const skillOrders: Record<string, string[]> = {
           'ALGEBRA AND FUNCTIONS': [
             'Factoring Polynomials',
@@ -204,7 +200,6 @@ serve(async (req) => {
         });
       }
 
-      // Format the skills text with proper ordering
       contentSkillsText = topics.map(topic => {
         const topicSkills = groupedSkills[topic].map((skill: any) => 
           `  - ${skill.skill_name}: ${skill.skill_description}`
@@ -218,29 +213,92 @@ serve(async (req) => {
       `- ${skill.skill_name}: ${skill.skill_description}`
     ).join('\n');
 
-    // Combine all extracted text
-    const combinedText = files.map((file: any) => 
-      `File: ${file.fileName}\nExtracted Text:\n${file.extractedText}`
-    ).join('\n\n---\n\n')
+    // Process structured OCR data for enhanced analysis
+    let structuredDataText = ''
+    const hasStructuredData = files.some((file: any) => file.structuredData)
+    
+    if (hasStructuredData) {
+      console.log('Processing enhanced structured OCR data...')
+      structuredDataText = files.map((file: any) => {
+        if (file.structuredData) {
+          const data = file.structuredData
+          let fileAnalysis = `\n=== STRUCTURED ANALYSIS FOR ${file.fileName} ===\n`
+          
+          // Add metadata
+          fileAnalysis += `Pages: ${data.metadata.totalPages}\n`
+          if (data.metadata.processingNotes.length > 0) {
+            fileAnalysis += `Processing Notes: ${data.metadata.processingNotes.join('; ')}\n`
+          }
+          
+          // Add questions with better structure
+          if (data.questions && data.questions.length > 0) {
+            fileAnalysis += `\nDETECTED QUESTIONS (${data.questions.length}):\n`
+            data.questions.forEach((q: any) => {
+              fileAnalysis += `Q${q.questionNumber}: ${q.questionText}\n`
+              fileAnalysis += `Type: ${q.type}, Confidence: ${q.confidence}\n`
+              if (q.options && q.options.length > 0) {
+                fileAnalysis += `Options:\n`
+                q.options.forEach((opt: any) => {
+                  fileAnalysis += `  ${opt.letter}. ${opt.text}\n`
+                })
+              }
+              if (q.notes) {
+                fileAnalysis += `Notes: ${q.notes}\n`
+              }
+              fileAnalysis += '\n'
+            })
+          }
+          
+          // Add detected answers
+          if (data.answers && data.answers.length > 0) {
+            fileAnalysis += `DETECTED STUDENT ANSWERS (${data.answers.length}):\n`
+            data.answers.forEach((a: any) => {
+              fileAnalysis += `Q${a.questionNumber}: ${a.studentAnswer} (confidence: ${a.confidence})\n`
+            })
+          }
+          
+          return fileAnalysis
+        }
+        return `File: ${file.fileName}\nExtracted Text:\n${file.extractedText}`
+      }).join('\n\n---\n\n')
+    } else {
+      // Fallback to original format
+      structuredDataText = files.map((file: any) => 
+        `File: ${file.fileName}\nExtracted Text:\n${file.extractedText}`
+      ).join('\n\n---\n\n')
+    }
 
     // Format answer key for AI analysis
     const answerKeyText = answerKeys.map((ak: any) => 
       `Question ${ak.question_number}: ${ak.question_text}\nType: ${ak.question_type}\nCorrect Answer: ${ak.correct_answer}\nPoints: ${ak.points}${ak.options ? `\nOptions: ${JSON.stringify(ak.options)}` : ''}`
     ).join('\n\n')
 
-    console.log('Step 4: Sending enhanced dual-skill analysis request to OpenAI...')
+    console.log('Step 4: Sending enhanced analysis request to OpenAI with structured OCR data...')
     
-    // Enhanced AI payload with detailed skill matching instructions for both skill types
+    // Enhanced AI payload with structured OCR data processing instructions
     const aiPayload = {
-      model: "gpt-4o-mini",
+      model: "gpt-4.1-2025-04-14",
       messages: [
         {
           role: "system",
-          content: `You are an AI grading assistant with enhanced dual skill-based analysis capabilities. You have been provided with:
+          content: `You are an AI grading assistant with enhanced dual skill-based analysis capabilities and structured OCR data processing. You have been provided with:
 
 1. The official answer key for exam "${examData.title}" (ID: ${examId})
 2. A comprehensive list of Content-Specific skills linked to this class
 3. Subject-Specific skills linked to this class for general mathematical thinking assessment
+4. ${hasStructuredData ? 'ENHANCED STRUCTURED OCR DATA with parsed questions, answers, and metadata' : 'Standard OCR extracted text'}
+
+ENHANCED STRUCTURED OCR PROCESSING:
+${hasStructuredData ? `
+- Use the structured question and answer data when available
+- Pay attention to confidence levels and processing notes
+- Cross-reference detected answers with parsed questions
+- If OCR data appears incomplete or unclear, use your best judgment to infer the intended content
+- Prioritize structured data over raw text when both are available
+` : `
+- Process the raw OCR text to identify questions and answers
+- Look for patterns that indicate question numbers, multiple choice options, and student responses
+`}
 
 ENHANCED DUAL-SKILL GRADING WORKFLOW:
 
@@ -248,6 +306,7 @@ STEP 1: Grade each question individually
 - For multiple choice and true/false: answers must match exactly
 - For short answer: look for key concepts, allow reasonable variations
 - For essay questions: evaluate based on key points and concepts
+- Use structured OCR data to identify student responses more accurately
 
 STEP 2: For EACH QUESTION, identify BOTH skill types it tests:
 
@@ -281,7 +340,7 @@ Return your response in this JSON format:
   "total_points_possible": 20,
   "grade": "85.5% (B+)",
   "feedback": "brief summary feedback for the student",
-  "detailed_analysis": "detailed question-by-question breakdown with scores, explanations, and which BOTH Content-Specific AND Subject-Specific skills each question tested",
+  "detailed_analysis": "detailed question-by-question breakdown with scores, explanations, and which BOTH Content-Specific AND Subject-Specific skills each question tested. Include notes about OCR clarity and any inferred content.",
   "question_skill_mapping": [
     {
       "question_number": 1,
@@ -306,17 +365,18 @@ CRITICAL REQUIREMENTS:
 - Include the question_skill_mapping array showing exactly which skills each question tests
 - Calculate skill scores ONLY from questions that actually test those specific skills
 - Be explicit in your detailed_analysis about which skills (both types) each question tests
-- Ensure both Content-Specific and Subject-Specific skill scores accurately reflect performance on questions testing those specific skills`
+- Ensure both Content-Specific and Subject-Specific skill scores accurately reflect performance on questions testing those specific skills
+- When OCR data is unclear or incomplete, note this in your analysis and do your best to infer the intended content`
         },
         {
           role: "user",
-          content: `Please analyze this student's test responses for "${examData.title}" (Exam ID: ${examId}) using the enhanced dual skill-based grading workflow.
+          content: `Please analyze this student's test responses for "${examData.title}" (Exam ID: ${examId}) using the enhanced dual skill-based grading workflow with structured OCR data processing.
 
 OFFICIAL ANSWER KEY:
 ${answerKeyText}
 
-STUDENT'S RESPONSES (OCR-extracted):
-${combinedText}
+${hasStructuredData ? 'ENHANCED STRUCTURED OCR DATA:' : 'STUDENT\'S RESPONSES (OCR-extracted):'}
+${structuredDataText}
 
 CONTENT-SPECIFIC SKILLS TO EVALUATE:
 ${contentSkillsText}
@@ -324,7 +384,7 @@ ${contentSkillsText}
 SUBJECT-SPECIFIC SKILLS TO EVALUATE:
 ${subjectSkillsText}
 
-Please provide a detailed grade report with accurate dual skill-based scoring that matches each question to the appropriate Content-Specific AND Subject-Specific skills. Include the question_skill_mapping array showing exactly which skills each question tests.`
+Please provide a detailed grade report with accurate dual skill-based scoring that matches each question to the appropriate Content-Specific AND Subject-Specific skills. Include the question_skill_mapping array showing exactly which skills each question tests. ${hasStructuredData ? 'Use the structured OCR data to more accurately identify questions and student responses.' : 'Parse the OCR text to identify questions and answers as clearly as possible.'}`
         }
       ],
       max_tokens: 5000,
@@ -347,7 +407,7 @@ Please provide a detailed grade report with accurate dual skill-based scoring th
     }
 
     const result = await aiResponse.json()
-    console.log('OpenAI enhanced dual-skill analysis completed')
+    console.log('OpenAI enhanced structured analysis completed')
     const analysisText = result.choices[0]?.message?.content || "No analysis received"
     
     // Try to parse as JSON, fallback to plain text
@@ -469,7 +529,7 @@ Please provide a detailed grade report with accurate dual skill-based scoring th
       }
     }
 
-    console.log('Enhanced dual-skill test result and skill scores saved successfully')
+    console.log('Enhanced structured test result and skill scores saved successfully')
 
     return new Response(
       JSON.stringify({
