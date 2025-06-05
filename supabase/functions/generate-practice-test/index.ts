@@ -147,6 +147,18 @@ serve(async (req) => {
     const subjectArea = subject || 'Math'
     const numQuestions = questionCount || 10
     
+    // Determine the appropriate description based on skill type
+    let testDescription = ''
+    if (skillName === 'super-exercise-content') {
+      testDescription = 'This Tailored practice test focuses on super exercise content to test your student\'s understanding of Grade 10 Math concepts. Based on her weaker Content-Related Skills.'
+    } else if (skillName === 'super-exercise-subject') {
+      testDescription = 'This comprehensive practice test focuses on subject-specific skills to test your student\'s understanding of Grade 10 Math concepts. Based on areas needing improvement.'
+    } else if (skillName) {
+      testDescription = `This targeted practice test focuses on ${skillName} to test your student's understanding of ${gradeLevel} ${subjectArea} concepts.`
+    } else {
+      testDescription = `This comprehensive practice test covers various ${gradeLevel} ${subjectArea} concepts to test your student's understanding.`
+    }
+    
     const basePrompt = skillName 
       ? `Generate a practice test for a ${gradeLevel} ${subjectArea} student focusing specifically on ${skillName}. Create exactly ${numQuestions} questions that test understanding of this skill at an appropriate ${gradeLevel} difficulty level. Use ${gradeLevel} ${subjectArea} curriculum standards and age-appropriate language and examples.`
       : `Generate a comprehensive practice test for a ${gradeLevel} ${subjectArea} student covering all major content areas appropriate for ${gradeLevel} ${subjectArea} curriculum. Create exactly ${numQuestions} questions that assess various skills and concepts at the ${gradeLevel} level. Use curriculum-appropriate vocabulary and examples suitable for ${gradeLevel} students.`
@@ -176,7 +188,7 @@ CRITICAL: You must respond with ONLY a valid JSON object. Do not include any mar
 Generate a JSON response with exactly this structure:
 {
   "title": "string",
-  "description": "string", 
+  "description": "${testDescription}", 
   "questions": [
     {
       "id": "string",
