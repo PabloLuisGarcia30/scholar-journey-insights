@@ -1,3 +1,4 @@
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
@@ -12,7 +13,7 @@ serve(async (req) => {
   }
 
   try {
-    console.log('Enhanced analyze-test function called with dual OCR data')
+    console.log('Enhanced analyze-test function called with dual OCR optimization')
     const { files, examId, studentName, studentEmail } = await req.json()
     console.log('Processing exam ID:', examId, 'for student:', studentName, 'with', files.length, 'files')
     
@@ -68,7 +69,7 @@ serve(async (req) => {
 
     console.log('Found exam:', examData.title, 'with', answerKeys.length, 'answer keys')
 
-    // Fetch skills data with IDs
+    // Fetch skills data with IDs in optimized format
     console.log('Step 2: Fetching Content-Specific skills for class:', examData.class_id)
     const { data: linkedContentSkills, error: contentSkillsError } = await supabase
       .from('class_content_skills')
@@ -116,7 +117,7 @@ serve(async (req) => {
 
     const classData = examData.classes
 
-    // Format skills with ID (Skill Name) format for enhanced precision
+    // Format skills in optimized ID (Skill Name) format
     let contentSkillsText = '';
     if (contentSkills.length > 0) {
       const groupedSkills = contentSkills.reduce((acc: any, skill: any) => {
@@ -143,40 +144,39 @@ serve(async (req) => {
       .map(skill => `- ${skill.id} (${skill.skill_name}): ${skill.skill_description}`)
       .join('\n');
 
-    // Create compressed file summaries instead of full verbose text
+    // Create compressed file summaries for optimal token usage
     let fileSummaries = ''
     const hasEnhancedData = files.some((file: any) => file.structuredData?.documentMetadata?.processingMethods?.includes('roboflow_bubbles'))
     
     if (hasEnhancedData) {
-      console.log('Creating compressed summaries from ENHANCED DUAL OCR data...')
+      console.log('Creating compressed summaries from enhanced dual OCR data for optimal token usage...')
       fileSummaries = files.map((file: any) => {
         if (file.structuredData) {
           const data = file.structuredData
-          let summary = `\nFile: ${file.fileName}\n`
+          let summary = `File: ${file.fileName}\n`
           
-          // Key metrics only
+          // Essential metrics only - optimized for AI focus
           summary += `Processing: ${data.documentMetadata.processingMethods.join(' + ')}\n`
-          summary += `Overall Confidence: ${(data.documentMetadata.overallConfidence * 100).toFixed(1)}%\n`
+          summary += `Confidence: ${(data.documentMetadata.overallConfidence * 100).toFixed(1)}%\n`
           summary += `Reliability: ${(data.validationResults.overallReliability * 100).toFixed(1)}%\n`
-          summary += `Cross-Validated: ${data.validationResults.crossValidationCount} answers\n`
+          summary += `Validated: ${data.validationResults.crossValidationCount}/${data.questions?.length || 0}\n`
           
-          // Detected answers summary
+          // Concise answer detection summary
           if (data.questions && data.questions.length > 0) {
-            summary += `Questions Detected: ${data.questions.length}\n`
-            summary += `Answers Detected:\n`
+            summary += `Detected Answers:\n`
             data.questions.forEach((q: any) => {
               if (q.detectedAnswer) {
                 const ans = q.detectedAnswer
-                summary += `Q${q.questionNumber}: ${ans.selectedOption} (${ans.detectionMethod}, ${(ans.confidence * 100).toFixed(0)}%${ans.crossValidated ? ', validated' : ''})\n`
+                summary += `Q${q.questionNumber}: ${ans.selectedOption} (${(ans.confidence * 100).toFixed(0)}%${ans.crossValidated ? ',✓' : ''})\n`
               } else {
-                summary += `Q${q.questionNumber}: No answer detected\n`
+                summary += `Q${q.questionNumber}: No detection\n`
               }
             })
           }
           
           return summary
         }
-        return `File: ${file.fileName}\nBasic OCR Text Length: ${file.extractedText.length} chars`
+        return `File: ${file.fileName}\nBasic OCR: ${file.extractedText.substring(0, 500)}...`
       }).join('\n---\n')
     } else {
       fileSummaries = files.map((file: any) => 
@@ -185,39 +185,47 @@ serve(async (req) => {
     }
 
     const answerKeyText = answerKeys.map((ak: any) => 
-      `Question ${ak.question_number}: ${ak.question_text}\nType: ${ak.question_type}\nCorrect Answer: ${ak.correct_answer}\nPoints: ${ak.points}${ak.options ? `\nOptions: ${JSON.stringify(ak.options)}` : ''}`
+      `Q${ak.question_number}: ${ak.question_text}\nType: ${ak.question_type}\nAnswer: ${ak.correct_answer}\nPoints: ${ak.points}${ak.options ? `\nOptions: ${JSON.stringify(ak.options)}` : ''}`
     ).join('\n\n')
 
-    console.log('Step 4: Sending ENHANCED analysis request to OpenAI with compressed data...')
+    console.log('Step 4: Sending optimized analysis request to OpenAI...')
     
     const aiPayload = {
       model: "gpt-3.5-turbo",
       messages: [
         {
           role: "system",
-          content: `You are an AI grading assistant. Grade the test and map each question to skills using the exact IDs provided.
+          content: `You are an advanced AI test grading assistant with dual OCR processing capabilities. Your expertise includes analyzing both traditional OCR text and enhanced bubble detection data for precise answer identification.
 
-WORKFLOW:
-1. Grade each question against the answer key
-2. Map each question to relevant skill IDs from the lists below
-3. Calculate skill scores based on questions that test each skill
+CORE CAPABILITIES:
+- Process dual OCR data (Google OCR + Roboflow bubble detection)
+- Validate answers through cross-referencing detection methods
+- Map questions to specific skill IDs with precision
+- Calculate accurate skill-based performance metrics
 
-Use EXACT skill IDs from these lists:
+GRADING WORKFLOW:
+1. Analyze student responses using all available detection data
+2. Grade each question against the provided answer key
+3. Map each question to relevant skill IDs from the provided lists
+4. Calculate skill scores based on questions that assess each skill
 
-CONTENT-SPECIFIC SKILLS:
+SKILL MAPPING PRECISION:
+Use EXACT skill IDs from these comprehensive skill databases:
+
+CONTENT-SPECIFIC SKILLS (by topic):
 ${contentSkillsText}
 
 SUBJECT-SPECIFIC SKILLS:
 ${subjectSkillsText}
 
-Return JSON with this structure:
+OUTPUT FORMAT - Return valid JSON only:
 {
   "overall_score": 85.5,
   "total_points_earned": 17,
   "total_points_possible": 20,
   "grade": "85.5% (B+)",
-  "feedback": "brief feedback",
-  "detailed_analysis": "question-by-question breakdown",
+  "feedback": "concise performance summary",
+  "detailed_analysis": "question-by-question breakdown with reasoning",
   "question_skill_mapping": [
     {
       "question_number": 1,
@@ -242,12 +250,11 @@ Return JSON with this structure:
   }
 }
 
-Map each question to skills and calculate scores accurately.`
+Focus on accuracy in skill mapping and leverage all available detection confidence metrics for reliable grading.`
         },
         {
           role: "user",
-          content: `Grade this test for "${examData.title}" (Exam ID: ${examId})
-
+          content: `Grade test: "${examData.title}" (ID: ${examId})
 Class: ${classData?.subject} ${classData?.grade}
 
 ANSWER KEY:
@@ -256,10 +263,10 @@ ${answerKeyText}
 STUDENT RESPONSES:
 ${fileSummaries}
 
-Map each question to the appropriate skill IDs and calculate accurate skill scores.`
+Analyze responses, grade accurately, and map each question to appropriate skill IDs for comprehensive performance assessment.`
         }
       ],
-      max_tokens: 4000,
+      max_tokens: 4500,
       temperature: 0.05
     }
 
@@ -279,13 +286,13 @@ Map each question to the appropriate skill IDs and calculate accurate skill scor
     }
 
     const result = await aiResponse.json()
-    console.log('Enhanced OCR OpenAI analysis completed')
+    console.log('Enhanced OpenAI analysis completed with optimized processing')
     const analysisText = result.choices[0]?.message?.content || "No analysis received"
     
     let parsedAnalysis
     try {
       parsedAnalysis = JSON.parse(analysisText)
-      console.log('Successfully parsed enhanced AI analysis with:')
+      console.log('Successfully parsed enhanced AI analysis:')
       console.log('- Content-Specific skill scores:', parsedAnalysis.content_skill_scores?.length || 0)
       console.log('- Subject-Specific skill scores:', parsedAnalysis.subject_skill_scores?.length || 0)
       console.log('- Question skill mappings:', parsedAnalysis.question_skill_mapping?.length || 0)
@@ -294,11 +301,12 @@ Map each question to the appropriate skill IDs and calculate accurate skill scor
         console.log('- Cross-validated answers:', parsedAnalysis.dual_ocr_summary.cross_validated_answers)
       }
     } catch {
+      console.error('Failed to parse AI analysis, using fallback structure')
       parsedAnalysis = {
         overall_score: 0,
         total_points_earned: 0,
         total_points_possible: examData.total_points || 0,
-        grade: "Analysis failed",
+        grade: "Analysis parsing failed",
         feedback: "Unable to parse enhanced analysis results",
         detailed_analysis: analysisText,
         question_skill_mapping: [],
@@ -409,7 +417,7 @@ Map each question to the appropriate skill IDs and calculate accurate skill scor
       }
     }
 
-    console.log('Enhanced dual OCR test result and skill scores saved successfully')
+    console.log('Enhanced dual OCR test analysis completed successfully with optimized token usage')
 
     return new Response(
       JSON.stringify({
