@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { ArrowLeft, Plus, Trash2, FileText, Clock, CheckCircle, Edit, Download, Key, RefreshCw, Printer } from "lucide-react";
+import { ArrowLeft, FileText, RefreshCw, Printer, CheckCircle, Edit, Key } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -17,7 +17,6 @@ import { TestDetails } from "@/components/TestCreator/TestDetails";
 import { QuestionEditor } from "@/components/TestCreator/QuestionEditor";
 import { saveExamToDatabase, getAllActiveClasses, type ExamData, type ActiveClass } from "@/services/examService";
 
-// Add the missing interface
 interface PrintTestsDialogProps {
   selectedClass: ActiveClass;
   examId: string;
@@ -71,7 +70,6 @@ const testTemplates: TestTemplate[] = [
   }
 ];
 
-// Generate unique exam ID
 const generateExamId = () => {
   const timestamp = Date.now();
   const random = Math.random().toString(36).substring(2, 8);
@@ -117,7 +115,6 @@ const TestCreator = () => {
       setTestTitle(template.name);
       setTestDescription(template.description);
       
-      // Generate unique exam ID when template is selected
       const newExamId = generateExamId();
       setExamId(newExamId);
       
@@ -179,7 +176,6 @@ const TestCreator = () => {
   };
 
   const handleAnswerKeyComplete = () => {
-    // Check if all questions have correct answers
     const incompleteQuestions = questions.filter(q => !q.correctAnswer || q.correctAnswer === '');
     if (incompleteQuestions.length > 0) {
       toast.error(`Please provide correct answers for all questions. ${incompleteQuestions.length} question(s) missing answers.`);
@@ -225,81 +221,7 @@ const TestCreator = () => {
       toast.success(`Test saved successfully! Exam ID: ${examId}`);
       setCurrentStep('preview');
     } catch (error) {
-      // Error already handled in saveTestToDatabase
       return;
-    }
-  };
-
-  const generateStudentTests = async () => {
-    if (!selectedClassId.trim()) {
-      toast.error('Please select a class first');
-      return;
-    }
-
-    const selectedClass = availableClasses.find(c => c.id === selectedClassId);
-    if (!selectedClass || !selectedClass.students || selectedClass.students.length === 0) {
-      toast.error('No students found in the selected class');
-      return;
-    }
-
-    setIsGeneratingStudentTests(true);
-
-    try {
-      // Import the active students service to get student names
-      const { getAllActiveStudents } = await import('@/services/examService');
-      const allStudents = await getAllActiveStudents();
-      
-      // Filter students that are in this class
-      const classStudents = allStudents.filter(student => 
-        selectedClass.students.includes(student.id)
-      );
-
-      if (classStudents.length === 0) {
-        toast.error('No student details found for this class');
-        return;
-      }
-
-      const className = selectedClass.name;
-      const studentNames = classStudents.map(student => student.name);
-      
-      const testData: TestData = {
-        examId,
-        title: testTitle,
-        description: testDescription,
-        className,
-        timeLimit,
-        questions,
-      };
-
-      // Check if the exam is already saved to database
-      const { getExamByExamId } = await import('@/services/examService');
-      const existingExam = await getExamByExamId(examId);
-      
-      if (!existingExam) {
-        // Save to database first if not already saved
-        const examData: ExamData = {
-          ...testData,
-          totalPoints: questions.reduce((sum, q) => sum + q.points, 0),
-        };
-        
-        await saveTestToDatabase(examData, selectedClassId);
-      }
-      
-      // Import the new function
-      const { generateStudentTestPDFs } = await import('@/utils/pdfGenerator');
-      
-      // Generate individual tests for each student
-      generateStudentTestPDFs(testData, studentNames);
-      
-      // Show centered success dialog instead of toast
-      setSuccessMessage(`Generated ${studentNames.length} individual test PDFs for each student in ${className}!`);
-      setShowSuccessDialog(true);
-      setCurrentStep('preview');
-    } catch (error) {
-      console.error('Error generating student tests:', error);
-      toast.error('Failed to generate student tests. Please try again.');
-    } finally {
-      setIsGeneratingStudentTests(false);
     }
   };
 
@@ -322,13 +244,11 @@ const TestCreator = () => {
       };
 
       if (selectedPdfFormat === 'consolidated') {
-        // Import and use consolidated PDF generation
         const { generateConsolidatedTestPDF } = await import('@/utils/pdfGenerator');
         generateConsolidatedTestPDF(testData, studentNames);
         
         setSuccessMessage(`Consolidated PDF has been downloaded with all ${studentNames.length} student tests in one document - just open and print!`);
       } else {
-        // Import and use individual PDF generation
         const { generateStudentTestPDFs } = await import('@/utils/pdfGenerator');
         generateStudentTestPDFs(testData, studentNames);
         
@@ -571,34 +491,16 @@ const TestCreator = () => {
               This will be used for skill-based grading and will appear on the test PDF.
             </p>
           </div>
-
-          {selectedClassId && (
-            <div className="bg-green-50 p-4 rounded-lg">
-              <h3 className="font-semibold text-green-900 mb-2">Generate Individual Student Tests</h3>
-              <p className="text-sm text-green-800 mb-3">
-                This will create separate test PDFs with each student's name pre-filled from the class roster.
-              </p>
-            </div>
-          )}
         </CardContent>
       </Card>
       
       <Button 
-        onClick={generateStudentTests} 
-        disabled={isGeneratingStudentTests || !selectedClassId}
+        onClick={finalizeTest} 
+        disabled={!selectedClassId}
         className="w-full"
       >
-        {isGeneratingStudentTests ? (
-          <>
-            <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-            Generating Individual Tests...
-          </>
-        ) : (
-          <>
-            <FileText className="h-4 w-4 mr-2" />
-            Generate Individual Student Tests
-          </>
-        )}
+        <FileText className="h-4 w-4 mr-2" />
+        Save Test & Continue to Preview
       </Button>
     </div>
   );
@@ -638,7 +540,6 @@ const TestCreator = () => {
             
             setStudentNames(classStudentNames);
             
-            // Auto-select all students when dialog opens
             if (selectedStudentsForPrint.length === 0) {
               onSelectAll(classStudentNames);
             }
@@ -679,7 +580,6 @@ const TestCreator = () => {
               </p>
             </div>
 
-            {/* PDF Format Selection */}
             <div className="space-y-3">
               <Label className="text-base font-semibold">PDF Format</Label>
               <RadioGroup value={selectedFormat} onValueChange={(value: 'individual' | 'consolidated') => setSelectedFormat(value)}>
@@ -910,7 +810,6 @@ const TestCreator = () => {
         {currentStep === 'class-input' && renderClassInput()}
         {currentStep === 'preview' && renderPreview()}
 
-        {/* Success Dialog - Centered on screen */}
         <Dialog open={showSuccessDialog} onOpenChange={setShowSuccessDialog}>
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
