@@ -6,6 +6,58 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+// Helper function to extract JSON from various response formats
+function extractJSON(content: string): any {
+  console.log('Raw OpenAI response content:', content)
+  
+  // Try to parse as direct JSON first
+  try {
+    return JSON.parse(content)
+  } catch {
+    // If that fails, try to extract JSON from markdown code blocks
+    const jsonMatch = content.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/)
+    if (jsonMatch) {
+      try {
+        console.log('Found JSON in code block:', jsonMatch[1])
+        return JSON.parse(jsonMatch[1])
+      } catch (e) {
+        console.error('Failed to parse JSON from code block:', e)
+      }
+    }
+    
+    // Try to find JSON object in the text (look for { ... })
+    const objectMatch = content.match(/\{[\s\S]*\}/)
+    if (objectMatch) {
+      try {
+        console.log('Found JSON object in text:', objectMatch[0])
+        return JSON.parse(objectMatch[0])
+      } catch (e) {
+        console.error('Failed to parse JSON object from text:', e)
+      }
+    }
+    
+    // If all parsing attempts fail, throw an error
+    throw new Error('No valid JSON found in response')
+  }
+}
+
+// Helper function to validate the test structure
+function validateTestStructure(data: any): boolean {
+  if (!data || typeof data !== 'object') return false
+  if (!data.title || typeof data.title !== 'string') return false
+  if (!data.questions || !Array.isArray(data.questions)) return false
+  if (data.questions.length === 0) return false
+  
+  // Validate each question has required fields
+  for (const question of data.questions) {
+    if (!question.id || !question.type || !question.question || typeof question.points !== 'number') {
+      return false
+    }
+  }
+  
+  return true
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
@@ -42,25 +94,31 @@ serve(async (req) => {
         messages: [
           {
             role: 'system',
-            content: `You are an expert ${subjectArea} educator specializing in ${gradeLevel} curriculum. Generate a JSON response with the following structure:
-            {
-              "title": "string",
-              "description": "string", 
-              "questions": [
-                {
-                  "id": "string",
-                  "type": "multiple-choice|true-false|short-answer",
-                  "question": "string",
-                  "options": ["string"] (only for multiple-choice),
-                  "correctAnswer": "string",
-                  "points": number
-                }
-              ],
-              "totalPoints": number,
-              "estimatedTime": number (in minutes)
-            }
+            content: `You are an expert ${subjectArea} educator specializing in ${gradeLevel} curriculum. 
+
+CRITICAL: You must respond with ONLY a valid JSON object. Do not include any markdown formatting, code blocks, or explanatory text. 
+
+Generate a JSON response with exactly this structure:
+{
+  "title": "string",
+  "description": "string", 
+  "questions": [
+    {
+      "id": "string",
+      "type": "multiple-choice|true-false|short-answer",
+      "question": "string",
+      "options": ["string"] (only for multiple-choice),
+      "correctAnswer": "string",
+      "points": number
+    }
+  ],
+  "totalPoints": number,
+  "estimatedTime": number
+}
             
-            Make questions challenging but appropriate for ${gradeLevel} level. Use vocabulary and examples suitable for ${gradeLevel} students. For ${subjectArea}, ensure content aligns with ${gradeLevel} ${subjectArea} curriculum standards. Use a mix of question types. For multiple choice, provide 4 options with only one correct answer.`
+Make questions challenging but appropriate for ${gradeLevel} level. Use vocabulary and examples suitable for ${gradeLevel} students. For ${subjectArea}, ensure content aligns with ${gradeLevel} ${subjectArea} curriculum standards. Use a mix of question types. For multiple choice, provide 4 options with only one correct answer.
+
+RESPOND ONLY WITH THE JSON OBJECT - NO OTHER TEXT.`
           },
           {
             role: 'user',
@@ -82,13 +140,31 @@ serve(async (req) => {
     console.log('OpenAI practice test generation completed')
     const generatedContent = result.choices[0]?.message?.content || "{}"
     
-    // Try to parse as JSON, fallback to error response
+    // Try to parse and validate the generated content
     let parsedTest
     try {
-      parsedTest = JSON.parse(generatedContent)
-      console.log('Successfully parsed practice test with', parsedTest.questions?.length || 0, 'questions')
-    } catch {
-      throw new Error('Failed to parse generated test content')
+      parsedTest = extractJSON(generatedContent)
+      console.log('Successfully extracted JSON from response')
+      
+      // Validate the structure
+      if (!validateTestStructure(parsedTest)) {
+        console.error('Invalid test structure:', parsedTest)
+        throw new Error('Generated test does not have the required structure')
+      }
+      
+      // Ensure required fields have defaults if missing
+      if (!parsedTest.totalPoints) {
+        parsedTest.totalPoints = parsedTest.questions.reduce((sum: number, q: any) => sum + (q.points || 1), 0)
+      }
+      if (!parsedTest.estimatedTime) {
+        parsedTest.estimatedTime = Math.max(15, parsedTest.questions.length * 2)
+      }
+      
+      console.log('Successfully parsed and validated practice test with', parsedTest.questions?.length || 0, 'questions')
+    } catch (error) {
+      console.error('Failed to parse or validate generated content:', error)
+      console.error('Raw content was:', generatedContent)
+      throw new Error(`Failed to parse generated test content: ${error.message}`)
     }
 
     return new Response(
