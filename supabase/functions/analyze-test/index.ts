@@ -98,6 +98,98 @@ serve(async (req) => {
     const classData = examData.classes
     const subjectSkills = ['Problem Solving', 'Mathematical Reasoning', 'Communication', 'Critical Thinking']
 
+    // Format Content-Specific skills for AI analysis with proper ordering
+    let contentSkillsText = '';
+    if (contentSkills.length > 0) {
+      // Group skills by topic
+      const groupedSkills = contentSkills.reduce((acc: any, skill: any) => {
+        if (!acc[skill.topic]) {
+          acc[skill.topic] = [];
+        }
+        acc[skill.topic].push(skill);
+        return acc;
+      }, {});
+
+      // Define the exact order for Grade 10 Math
+      const isGrade10Math = classData?.subject === 'Math' && classData?.grade === 'Grade 10';
+      
+      let topics = Object.keys(groupedSkills);
+      if (isGrade10Math) {
+        const orderedTopics = [
+          'ALGEBRA AND FUNCTIONS',
+          'GEOMETRY', 
+          'TRIGONOMETRY',
+          'DATA ANALYSIS AND PROBABILITY',
+          'PROBLEM SOLVING AND REASONING'
+        ];
+        
+        topics = orderedTopics.filter(topic => groupedSkills[topic]);
+        const remainingTopics = Object.keys(groupedSkills).filter(topic => !orderedTopics.includes(topic));
+        topics = [...topics, ...remainingTopics];
+
+        // Sort skills within each topic
+        const skillOrders: Record<string, string[]> = {
+          'ALGEBRA AND FUNCTIONS': [
+            'Factoring Polynomials',
+            'Solving Systems of Equations',
+            'Understanding Function Notation',
+            'Graphing Linear and Quadratic Functions',
+            'Working with Exponential Functions'
+          ],
+          'GEOMETRY': [
+            'Properties of Similar Triangles',
+            'Area and Perimeter Calculations',
+            'Volume and Surface Area of 3D Objects',
+            'Coordinate Geometry',
+            'Geometric Transformations'
+          ],
+          'TRIGONOMETRY': [
+            'Basic Trigonometric Ratios',
+            'Solving Right Triangle Problems',
+            'Unit Circle and Angle Measures',
+            'Trigonometric Identities',
+            'Applications of Trigonometry'
+          ],
+          'DATA ANALYSIS AND PROBABILITY': [
+            'Statistical Measures and Interpretation',
+            'Probability Calculations',
+            'Data Collection and Sampling',
+            'Creating and Interpreting Graphs',
+            'Making Predictions from Data'
+          ],
+          'PROBLEM SOLVING AND REASONING': [
+            'Mathematical Modeling',
+            'Critical Thinking in Mathematics',
+            'Pattern Recognition',
+            'Logical Reasoning',
+            'Problem-Solving Strategies'
+          ]
+        };
+
+        topics.forEach(topic => {
+          if (skillOrders[topic]) {
+            const order = skillOrders[topic];
+            groupedSkills[topic].sort((a: any, b: any) => {
+              const aIndex = order.indexOf(a.skill_name);
+              const bIndex = order.indexOf(b.skill_name);
+              if (aIndex === -1 && bIndex === -1) return 0;
+              if (aIndex === -1) return 1;
+              if (bIndex === -1) return -1;
+              return aIndex - bIndex;
+            });
+          }
+        });
+      }
+
+      // Format the skills text with proper ordering
+      contentSkillsText = topics.map(topic => {
+        const topicSkills = groupedSkills[topic].map((skill: any) => 
+          `  - ${skill.skill_name}: ${skill.skill_description}`
+        ).join('\n');
+        return `${topic}:\n${topicSkills}`;
+      }).join('\n\n');
+    }
+
     // Combine all extracted text
     const combinedText = files.map((file: any) => 
       `File: ${file.fileName}\nExtracted Text:\n${file.extractedText}`
@@ -107,11 +199,6 @@ serve(async (req) => {
     const answerKeyText = answerKeys.map((ak: any) => 
       `Question ${ak.question_number}: ${ak.question_text}\nType: ${ak.question_type}\nCorrect Answer: ${ak.correct_answer}\nPoints: ${ak.points}${ak.options ? `\nOptions: ${JSON.stringify(ak.options)}` : ''}`
     ).join('\n\n')
-
-    // Format Content-Specific skills for AI analysis
-    const contentSkillsText = contentSkills.map((skill: any) => 
-      `- ${skill.skill_name}: ${skill.skill_description} (Topic: ${skill.topic})`
-    ).join('\n')
 
     console.log('Step 3: Sending enhanced analysis request to OpenAI...')
     // Enhanced AI payload with detailed skill matching instructions

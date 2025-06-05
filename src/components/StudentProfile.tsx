@@ -210,7 +210,7 @@ export function StudentProfile({ studentId, classId, className, onBack }: Studen
       grouped[topic].push(skillScore);
     });
 
-    // Sort topics in the order we want them displayed for Grade 10 Math
+    // Sort topics in the exact order specified for Grade 10 Math
     if (isGrade10MathClass()) {
       const orderedTopics = [
         'ALGEBRA AND FUNCTIONS',
@@ -223,6 +223,57 @@ export function StudentProfile({ studentId, classId, className, onBack }: Studen
       const orderedGrouped: Record<string, typeof skills> = {};
       orderedTopics.forEach(topic => {
         if (grouped[topic]) {
+          // Sort skills within each topic
+          const skillOrders: Record<string, string[]> = {
+            'ALGEBRA AND FUNCTIONS': [
+              'Factoring Polynomials',
+              'Solving Systems of Equations',
+              'Understanding Function Notation',
+              'Graphing Linear and Quadratic Functions',
+              'Working with Exponential Functions'
+            ],
+            'GEOMETRY': [
+              'Properties of Similar Triangles',
+              'Area and Perimeter Calculations',
+              'Volume and Surface Area of 3D Objects',
+              'Coordinate Geometry',
+              'Geometric Transformations'
+            ],
+            'TRIGONOMETRY': [
+              'Basic Trigonometric Ratios',
+              'Solving Right Triangle Problems',
+              'Unit Circle and Angle Measures',
+              'Trigonometric Identities',
+              'Applications of Trigonometry'
+            ],
+            'DATA ANALYSIS AND PROBABILITY': [
+              'Statistical Measures and Interpretation',
+              'Probability Calculations',
+              'Data Collection and Sampling',
+              'Creating and Interpreting Graphs',
+              'Making Predictions from Data'
+            ],
+            'PROBLEM SOLVING AND REASONING': [
+              'Mathematical Modeling',
+              'Critical Thinking in Mathematics',
+              'Pattern Recognition',
+              'Logical Reasoning',
+              'Problem-Solving Strategies'
+            ]
+          };
+
+          if (skillOrders[topic]) {
+            const order = skillOrders[topic];
+            grouped[topic].sort((a, b) => {
+              const aIndex = order.indexOf(a.skill_name);
+              const bIndex = order.indexOf(b.skill_name);
+              if (aIndex === -1 && bIndex === -1) return 0;
+              if (aIndex === -1) return 1;
+              if (bIndex === -1) return -1;
+              return aIndex - bIndex;
+            });
+          }
+          
           orderedGrouped[topic] = grouped[topic];
         }
       });

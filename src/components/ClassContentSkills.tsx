@@ -102,7 +102,7 @@ export function ClassContentSkills({ activeClass }: ClassContentSkillsProps) {
     return acc;
   }, {} as Record<string, ContentSkill[]>);
 
-  // Sort topics for Grade 10 Math in the preferred order
+  // Define the exact order you specified for Grade 10 Math skills
   let topics = Object.keys(groupedSkills);
   if (isGrade10MathClass()) {
     const orderedTopics = [
@@ -118,6 +118,67 @@ export function ClassContentSkills({ activeClass }: ClassContentSkillsProps) {
     const remainingTopics = Object.keys(groupedSkills).filter(topic => !orderedTopics.includes(topic));
     topics = [...topics, ...remainingTopics];
   }
+
+  // Sort skills within each topic to maintain consistent ordering
+  const sortSkillsWithinTopic = (skills: ContentSkill[]) => {
+    if (isGrade10MathClass()) {
+      // Define skill ordering within each topic for Grade 10 Math
+      const skillOrders: Record<string, string[]> = {
+        'ALGEBRA AND FUNCTIONS': [
+          'Factoring Polynomials',
+          'Solving Systems of Equations',
+          'Understanding Function Notation',
+          'Graphing Linear and Quadratic Functions',
+          'Working with Exponential Functions'
+        ],
+        'GEOMETRY': [
+          'Properties of Similar Triangles',
+          'Area and Perimeter Calculations',
+          'Volume and Surface Area of 3D Objects',
+          'Coordinate Geometry',
+          'Geometric Transformations'
+        ],
+        'TRIGONOMETRY': [
+          'Basic Trigonometric Ratios',
+          'Solving Right Triangle Problems',
+          'Unit Circle and Angle Measures',
+          'Trigonometric Identities',
+          'Applications of Trigonometry'
+        ],
+        'DATA ANALYSIS AND PROBABILITY': [
+          'Statistical Measures and Interpretation',
+          'Probability Calculations',
+          'Data Collection and Sampling',
+          'Creating and Interpreting Graphs',
+          'Making Predictions from Data'
+        ],
+        'PROBLEM SOLVING AND REASONING': [
+          'Mathematical Modeling',
+          'Critical Thinking in Mathematics',
+          'Pattern Recognition',
+          'Logical Reasoning',
+          'Problem-Solving Strategies'
+        ]
+      };
+
+      // Find the topic for these skills
+      const topic = skills[0]?.topic;
+      if (topic && skillOrders[topic]) {
+        const order = skillOrders[topic];
+        return skills.sort((a, b) => {
+          const aIndex = order.indexOf(a.skill_name);
+          const bIndex = order.indexOf(b.skill_name);
+          if (aIndex === -1 && bIndex === -1) return 0;
+          if (aIndex === -1) return 1;
+          if (bIndex === -1) return -1;
+          return aIndex - bIndex;
+        });
+      }
+    }
+    
+    // Default alphabetical sorting for other subjects or unordered topics
+    return skills.sort((a, b) => a.skill_name.localeCompare(b.skill_name));
+  };
 
   const hasChanges = selectedSkills.size !== linkedSkills.length || 
     !linkedSkills.every(skill => selectedSkills.has(skill.id));
@@ -181,7 +242,7 @@ export function ClassContentSkills({ activeClass }: ClassContentSkillsProps) {
               <div key={topic}>
                 <h3 className="text-lg font-semibold text-gray-900 mb-3">{topic}</h3>
                 <div className="space-y-3">
-                  {groupedSkills[topic].map((skill) => (
+                  {sortSkillsWithinTopic(groupedSkills[topic]).map((skill) => (
                     <div key={skill.id} className="flex items-start gap-3 p-3 rounded-lg border border-gray-100">
                       <Checkbox
                         checked={selectedSkills.has(skill.id)}
