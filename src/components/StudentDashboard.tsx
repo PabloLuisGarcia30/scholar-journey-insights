@@ -4,47 +4,29 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { 
   Users, 
   TrendingUp, 
   Calendar, 
-  BookOpen, 
-  Target,
-  GraduationCap,
-  Clock,
-  Award
+  BookOpen
 } from "lucide-react";
 import { toast } from "sonner";
 import { 
   getAllActiveStudents, 
   getAllActiveClasses,
-  getStudentContentSkillScores,
   type ActiveStudent,
-  type ActiveClass,
-  type SkillScore
+  type ActiveClass
 } from "@/services/examService";
 
 interface StudentDashboardProps {
   onSelectStudent: (studentId: string, classId?: string, className?: string) => void;
 }
 
-// Mock content skills data for when no real data exists
-const mockContentSkills = [
-  { skill_name: "Polynomial Operations", score: 85, topic: "Algebra" },
-  { skill_name: "Quadratic Functions", score: 78, topic: "Algebra" },
-  { skill_name: "Trigonometric Ratios", score: 92, topic: "Trigonometry" },
-  { skill_name: "Linear Systems", score: 88, topic: "Algebra" },
-  { skill_name: "Exponential Functions", score: 74, topic: "Functions" },
-  { skill_name: "Statistical Analysis", score: 81, topic: "Statistics" },
-];
-
 export function StudentDashboard({ onSelectStudent }: StudentDashboardProps) {
   const [students, setStudents] = useState<ActiveStudent[]>([]);
   const [classes, setClasses] = useState<ActiveClass[]>([]);
-  const [contentSkills, setContentSkills] = useState<SkillScore[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterClass, setFilterClass] = useState<string>('all');
   const [loading, setLoading] = useState(true);
@@ -63,12 +45,6 @@ export function StudentDashboard({ onSelectStudent }: StudentDashboardProps) {
       
       setStudents(studentsData);
       setClasses(classesData);
-
-      // Try to load content skills for the first student as an example
-      if (studentsData.length > 0) {
-        const skillsData = await getStudentContentSkillScores(studentsData[0].id);
-        setContentSkills(skillsData);
-      }
     } catch (error) {
       console.error('Error loading dashboard data:', error);
       toast.error('Failed to load dashboard data');
@@ -89,22 +65,6 @@ export function StudentDashboard({ onSelectStudent }: StudentDashboardProps) {
     
     return matchesSearch && studentInClass;
   });
-
-  // Use mock data if no content skills exist
-  const displaySkills = contentSkills.length > 0 ? 
-    contentSkills.map(skill => ({
-      skill_name: skill.skill_name,
-      score: skill.score,
-      topic: 'General' // Default topic since it's not in SkillScore type
-    })) : 
-    mockContentSkills;
-
-  const getScoreColor = (score: number) => {
-    if (score >= 90) return 'bg-green-100 text-green-700';
-    if (score >= 80) return 'bg-blue-100 text-blue-700';
-    if (score >= 70) return 'bg-yellow-100 text-yellow-700';
-    return 'bg-red-100 text-red-700';
-  };
 
   if (loading) {
     return (
@@ -169,42 +129,6 @@ export function StudentDashboard({ onSelectStudent }: StudentDashboardProps) {
           </CardContent>
         </Card>
       </div>
-
-      {/* Content Specific Skills Overview */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Target className="h-5 w-5" />
-            Content-Specific Skills Overview
-            {contentSkills.length === 0 && (
-              <Badge variant="outline" className="ml-2">Mock Data</Badge>
-            )}
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {displaySkills.slice(0, 6).map((skill, index) => (
-              <div key={index} className="p-4 rounded-lg border border-gray-100 bg-gray-50">
-                <div className="flex items-center justify-between mb-2">
-                  <h4 className="font-medium text-sm">{skill.skill_name}</h4>
-                  <Badge className={getScoreColor(skill.score)} variant="outline">
-                    {Math.round(skill.score)}%
-                  </Badge>
-                </div>
-                <div className="text-xs text-gray-600 mb-2">{skill.topic}</div>
-                <Progress value={skill.score} className="h-2" />
-              </div>
-            ))}
-          </div>
-          {displaySkills.length > 6 && (
-            <div className="text-center mt-4">
-              <Button variant="outline" size="sm">
-                View All Skills ({displaySkills.length})
-              </Button>
-            </div>
-          )}
-        </CardContent>
-      </Card>
 
       {/* Student List */}
       <Card>
