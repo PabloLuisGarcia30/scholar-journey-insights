@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -11,6 +12,7 @@ import {
   getLinkedContentSkillsForClass,
   linkClassToContentSkills,
   autoLinkMathClassToGrade10Skills,
+  getGrade10MathContentSkills,
   type ContentSkill,
   type ActiveClass
 } from "@/services/examService";
@@ -26,10 +28,15 @@ export function ClassContentSkills({ activeClass }: ClassContentSkillsProps) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
+  // Helper function to check if this is a Grade 10 Math class
+  const isGrade10MathClass = () => {
+    return activeClass.subject === 'Math' && activeClass.grade === 'Grade 10';
+  };
+
   useEffect(() => {
     loadSkills();
-    // Auto-link Math Studies 10 class on first load
-    if (activeClass.name === 'Math Studies 10' && activeClass.subject === 'Math' && activeClass.grade === 'Grade 10') {
+    // Auto-link any Grade 10 Math class on first load
+    if (isGrade10MathClass()) {
       autoLinkMathClass();
     }
   }, [activeClass]);
@@ -37,10 +44,17 @@ export function ClassContentSkills({ activeClass }: ClassContentSkillsProps) {
   const loadSkills = async () => {
     try {
       setLoading(true);
-      const [available, linked] = await Promise.all([
-        getContentSkillsBySubjectAndGrade(activeClass.subject, activeClass.grade),
-        getLinkedContentSkillsForClass(activeClass.id)
-      ]);
+      
+      let available: ContentSkill[] = [];
+      
+      // Use Grade 10 Math skills for any Grade 10 Math class
+      if (isGrade10MathClass()) {
+        available = await getGrade10MathContentSkills();
+      } else {
+        available = await getContentSkillsBySubjectAndGrade(activeClass.subject, activeClass.grade);
+      }
+      
+      const linked = await getLinkedContentSkillsForClass(activeClass.id);
       
       setAvailableSkills(available);
       setLinkedSkills(linked);
@@ -57,7 +71,7 @@ export function ClassContentSkills({ activeClass }: ClassContentSkillsProps) {
     try {
       await autoLinkMathClassToGrade10Skills();
       await loadSkills(); // Refresh the data
-      toast.success('Math Studies 10 class has been automatically linked to Grade 10 Math skills!');
+      toast.success('Grade 10 Math class has been automatically linked to Grade 10 Math skills!');
     } catch (error) {
       console.error('Error auto-linking math class:', error);
       // Don't show error toast for auto-link as it's background operation
@@ -96,7 +110,23 @@ export function ClassContentSkills({ activeClass }: ClassContentSkillsProps) {
     return acc;
   }, {} as Record<string, ContentSkill[]>);
 
-  const topics = Object.keys(groupedSkills);
+  // Sort topics for Grade 10 Math in the preferred order
+  let topics = Object.keys(groupedSkills);
+  if (isGrade10MathClass()) {
+    const orderedTopics = [
+      'ALGEBRA AND FUNCTIONS',
+      'GEOMETRY', 
+      'TRIGONOMETRY',
+      'DATA ANALYSIS AND PROBABILITY',
+      'PROBLEM SOLVING AND REASONING'
+    ];
+    
+    topics = orderedTopics.filter(topic => groupedSkills[topic]);
+    // Add any remaining topics not in our ordered list
+    const remainingTopics = Object.keys(groupedSkills).filter(topic => !orderedTopics.includes(topic));
+    topics = [...topics, ...remainingTopics];
+  }
+
   const hasChanges = selectedSkills.size !== linkedSkills.length || 
     !linkedSkills.every(skill => selectedSkills.has(skill.id));
 
@@ -127,6 +157,9 @@ export function ClassContentSkills({ activeClass }: ClassContentSkillsProps) {
           <CardTitle className="flex items-center gap-2">
             <BookOpen className="h-5 w-5" />
             Content-Specific Skills for {activeClass.subject} {activeClass.grade}
+            {isGrade10MathClass() && (
+              <Badge variant="outline" className="ml-2">Math Studies 10</Badge>
+            )}
           </CardTitle>
           <div className="flex items-center gap-2">
             <Badge variant="outline">
