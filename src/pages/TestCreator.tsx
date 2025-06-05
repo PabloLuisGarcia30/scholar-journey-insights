@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { ArrowLeft, Plus, Trash2, FileText, Clock, CheckCircle, Edit, Download, Key, RefreshCw } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, FileText, Clock, CheckCircle, Edit, Download, Key, RefreshCw, Printer } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { Link } from "react-router-dom";
 import { generateTestPDF, type Question, type TestData } from "@/utils/pdfGenerator";
@@ -70,6 +71,9 @@ const TestCreator = () => {
   const [examId, setExamId] = useState<string>('');
   const [availableClasses, setAvailableClasses] = useState<ActiveClass[]>([]);
   const [isGeneratingStudentTests, setIsGeneratingStudentTests] = useState(false);
+  const [isPrintDialogOpen, setIsPrintDialogOpen] = useState(false);
+  const [selectedStudentsForPrint, setSelectedStudentsForPrint] = useState<string[]>([]);
+  const [isPrinting, setIsPrinting] = useState(false);
 
   useEffect(() => {
     const loadClasses = async () => {
@@ -274,6 +278,56 @@ const TestCreator = () => {
     } finally {
       setIsGeneratingStudentTests(false);
     }
+  };
+
+  const handlePrintTests = async (studentNames: string[]) => {
+    if (studentNames.length === 0) {
+      toast.error('Please select at least one student test to print');
+      return;
+    }
+
+    setIsPrinting(true);
+
+    try {
+      const testData: TestData = {
+        examId,
+        title: testTitle,
+        description: testDescription,
+        className: availableClasses.find(c => c.id === selectedClassId)?.name || 'Unknown Class',
+        timeLimit,
+        questions,
+      };
+
+      // Import the PDF generation function
+      const { generateStudentTestPDFs } = await import('@/utils/pdfGenerator');
+      
+      // Generate PDFs for selected students
+      generateStudentTestPDFs(testData, studentNames);
+      
+      toast.success(`Generated ${studentNames.length} test PDF${studentNames.length > 1 ? 's' : ''} for printing!`);
+      setIsPrintDialogOpen(false);
+    } catch (error) {
+      console.error('Error generating tests for printing:', error);
+      toast.error('Failed to generate tests for printing. Please try again.');
+    } finally {
+      setIsPrinting(false);
+    }
+  };
+
+  const toggleStudentSelection = (studentName: string) => {
+    setSelectedStudentsForPrint(prev => 
+      prev.includes(studentName) 
+        ? prev.filter(name => name !== studentName)
+        : [...prev, studentName]
+    );
+  };
+
+  const selectAllStudents = (studentNames: string[]) => {
+    setSelectedStudentsForPrint(studentNames);
+  };
+
+  const deselectAllStudents = () => {
+    setSelectedStudentsForPrint([]);
   };
 
   const renderTemplateSelection = () => (
@@ -518,6 +572,161 @@ const TestCreator = () => {
     </div>
   );
 
+  const PrintTestsDialog = ({ 
+    selectedClass, 
+    examId,
+    testTitle,
+    testDescription,
+    timeLimit,
+    questions,
+    isPrintDialogOpen,
+    setIsPrintDialogOpen,
+    selectedStudentsForPrint,
+    isPrinting,
+    onToggleStudent,
+    onSelectAll,
+    onDeselectAll,
+    onPrintTests
+  }: PrintTestsDialogProps) => {
+    const [studentNames, setStudentNames] = useState<string[]>([]);
+    const [isLoadingStudents, setIsLoadingStudents] = useState(false);
+
+    useEffect(() => {
+      const loadStudentNames = async () => {
+        if (isPrintDialogOpen && selectedClass.students && selectedClass.students.length > 0) {
+          setIsLoadingStudents(true);
+          try {
+            const { getAllActiveStudents } = await import('@/services/examService');
+            const allStudents = await getAllActiveStudents();
+            
+            const classStudentNames = allStudents
+              .filter(student => selectedClass.students.includes(student.id))
+              .map(student => student.name)
+              .sort();
+            
+            setStudentNames(classStudentNames);
+            
+            // Auto-select all students when dialog opens
+            if (selectedStudentsForPrint.length === 0) {
+              onSelectAll(classStudentNames);
+            }
+          } catch (error) {
+            console.error('Error loading student names:', error);
+            toast.error('Failed to load student names');
+          } finally {
+            setIsLoadingStudents(false);
+          }
+        }
+      };
+
+      loadStudentNames();
+    }, [isPrintDialogOpen, selectedClass.students]);
+
+    return (
+      <Dialog open={isPrintDialogOpen} onOpenChange={setIsPrintDialogOpen}>
+        <DialogTrigger asChild>
+          <Button className="flex-1">
+            <Printer className="h-4 w-4 mr-2" />
+            Print Tests Now
+          </Button>
+        </DialogTrigger>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Printer className="h-5 w-5" />
+              Print Student Tests
+            </DialogTitle>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            <div className="bg-blue-50 p-4 rounded-lg">
+              <h3 className="font-semibold text-blue-900 mb-2">{testTitle}</h3>
+              <p className="text-sm text-blue-800">Exam ID: {examId}</p>
+              <p className="text-sm text-blue-700">
+                Class: {selectedClass.name} ({selectedClass.student_count} students)
+              </p>
+            </div>
+
+            {isLoadingStudents ? (
+              <div className="flex items-center justify-center py-8">
+                <RefreshCw className="h-6 w-6 animate-spin mr-2" />
+                <span>Loading students...</span>
+              </div>
+            ) : (
+              <>
+                <div className="flex justify-between items-center">
+                  <h4 className="font-semibold">Select Students ({selectedStudentsForPrint.length}/{studentNames.length})</h4>
+                  <div className="flex gap-2">
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => onSelectAll(studentNames)}
+                      disabled={selectedStudentsForPrint.length === studentNames.length}
+                    >
+                      Select All
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={onDeselectAll}
+                      disabled={selectedStudentsForPrint.length === 0}
+                    >
+                      Deselect All
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 max-h-60 overflow-y-auto border rounded-lg p-4">
+                  {studentNames.map((studentName) => (
+                    <div key={studentName} className="flex items-center space-x-2">
+                      <Checkbox
+                        id={`student-${studentName}`}
+                        checked={selectedStudentsForPrint.includes(studentName)}
+                        onCheckedChange={() => onToggleStudent(studentName)}
+                      />
+                      <Label 
+                        htmlFor={`student-${studentName}`}
+                        className="text-sm cursor-pointer"
+                      >
+                        {studentName}
+                      </Label>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="flex justify-end gap-2 pt-4">
+                  <Button 
+                    variant="outline" 
+                    onClick={() => setIsPrintDialogOpen(false)}
+                    disabled={isPrinting}
+                  >
+                    Cancel
+                  </Button>
+                  <Button 
+                    onClick={() => onPrintTests(selectedStudentsForPrint)}
+                    disabled={isPrinting || selectedStudentsForPrint.length === 0}
+                  >
+                    {isPrinting ? (
+                      <>
+                        <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                        Generating PDFs...
+                      </>
+                    ) : (
+                      <>
+                        <Printer className="h-4 w-4 mr-2" />
+                        Print {selectedStudentsForPrint.length} Test{selectedStudentsForPrint.length !== 1 ? 's' : ''}
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+    );
+  };
+
   const renderPreview = () => {
     const selectedClass = availableClasses.find(c => c.id === selectedClassId);
     
@@ -597,23 +806,22 @@ const TestCreator = () => {
             Create Another Test
           </Button>
           {selectedClass && selectedClass.student_count > 0 && (
-            <Button 
-              onClick={generateStudentTests} 
-              disabled={isGeneratingStudentTests}
-              className="flex-1"
-            >
-              {isGeneratingStudentTests ? (
-                <>
-                  <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                  Generating...
-                </>
-              ) : (
-                <>
-                  <FileText className="h-4 w-4 mr-2" />
-                  Generate Individual Student Tests
-                </>
-              )}
-            </Button>
+            <PrintTestsDialog 
+              selectedClass={selectedClass}
+              examId={examId}
+              testTitle={testTitle}
+              testDescription={testDescription}
+              timeLimit={timeLimit}
+              questions={questions}
+              isPrintDialogOpen={isPrintDialogOpen}
+              setIsPrintDialogOpen={setIsPrintDialogOpen}
+              selectedStudentsForPrint={selectedStudentsForPrint}
+              isPrinting={isPrinting}
+              onToggleStudent={toggleStudentSelection}
+              onSelectAll={selectAllStudents}
+              onDeselectAll={deselectAllStudents}
+              onPrintTests={handlePrintTests}
+            />
           )}
         </div>
       </div>
