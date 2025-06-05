@@ -46,6 +46,19 @@ export interface Class {
   updated_at: string;
 }
 
+export interface ActiveClass {
+  id: string;
+  name: string;
+  subject: string;
+  grade: string;
+  teacher: string;
+  student_count: number;
+  avg_gpa: number;
+  students: string[];
+  created_at: string;
+  updated_at: string;
+}
+
 export interface StudentProfile {
   id: string;
   student_name: string;
@@ -95,6 +108,107 @@ export const getAllClasses = async (): Promise<Class[]> => {
     return data || [];
   } catch (error) {
     console.error('Error in getAllClasses:', error);
+    throw error;
+  }
+};
+
+export const getAllActiveClasses = async (): Promise<ActiveClass[]> => {
+  try {
+    console.log('Fetching all active classes');
+    
+    const { data, error } = await supabase
+      .from('active_classes')
+      .select('*')
+      .order('name');
+
+    if (error) {
+      console.error('Error fetching active classes:', error);
+      throw new Error(`Failed to fetch active classes: ${error.message}`);
+    }
+
+    return data || [];
+  } catch (error) {
+    console.error('Error in getAllActiveClasses:', error);
+    throw error;
+  }
+};
+
+export const createActiveClass = async (classData: {
+  name: string;
+  subject: string;
+  grade: string;
+  teacher: string;
+}): Promise<ActiveClass> => {
+  try {
+    console.log('Creating active class:', classData);
+    
+    const { data, error } = await supabase
+      .from('active_classes')
+      .insert({
+        name: classData.name,
+        subject: classData.subject,
+        grade: classData.grade,
+        teacher: classData.teacher,
+        student_count: 0,
+        avg_gpa: 0,
+        students: []
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Error creating active class:', error);
+      throw new Error(`Failed to create active class: ${error.message}`);
+    }
+
+    return data;
+  } catch (error) {
+    console.error('Error in createActiveClass:', error);
+    throw error;
+  }
+};
+
+export const updateActiveClass = async (
+  classId: string, 
+  updates: Partial<ActiveClass>
+): Promise<ActiveClass> => {
+  try {
+    console.log('Updating active class:', classId, updates);
+    
+    const { data, error } = await supabase
+      .from('active_classes')
+      .update(updates)
+      .eq('id', classId)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Error updating active class:', error);
+      throw new Error(`Failed to update active class: ${error.message}`);
+    }
+
+    return data;
+  } catch (error) {
+    console.error('Error in updateActiveClass:', error);
+    throw error;
+  }
+};
+
+export const deleteActiveClass = async (classId: string): Promise<void> => {
+  try {
+    console.log('Deleting active class:', classId);
+    
+    const { error } = await supabase
+      .from('active_classes')
+      .delete()
+      .eq('id', classId);
+
+    if (error) {
+      console.error('Error deleting active class:', error);
+      throw new Error(`Failed to delete active class: ${error.message}`);
+    }
+  } catch (error) {
+    console.error('Error in deleteActiveClass:', error);
     throw error;
   }
 };

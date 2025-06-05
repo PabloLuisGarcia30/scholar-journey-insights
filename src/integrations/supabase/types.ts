@@ -9,6 +9,45 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      active_classes: {
+        Row: {
+          avg_gpa: number | null
+          created_at: string
+          grade: string
+          id: string
+          name: string
+          student_count: number | null
+          students: string[] | null
+          subject: string
+          teacher: string
+          updated_at: string
+        }
+        Insert: {
+          avg_gpa?: number | null
+          created_at?: string
+          grade: string
+          id?: string
+          name: string
+          student_count?: number | null
+          students?: string[] | null
+          subject: string
+          teacher: string
+          updated_at?: string
+        }
+        Update: {
+          avg_gpa?: number | null
+          created_at?: string
+          grade?: string
+          id?: string
+          name?: string
+          student_count?: number | null
+          students?: string[] | null
+          subject?: string
+          teacher?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       answer_keys: {
         Row: {
           correct_answer: string

@@ -1,4 +1,5 @@
-import { useState } from "react";
+
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -20,54 +21,11 @@ import { Users, BookOpen, TrendingUp, Trash2 } from "lucide-react";
 import { CreateClassDialog } from "@/components/CreateClassDialog";
 import { AddStudentsDialog } from "@/components/AddStudentsDialog";
 import { toast } from "sonner";
+import { getAllActiveClasses, createActiveClass, updateActiveClass, deleteActiveClass, type ActiveClass } from "@/services/examService";
 
 interface ClassViewProps {
   onSelectStudent: (studentId: string, classId?: string, className?: string) => void;
 }
-
-// Mock class data - in a real app this would come from a database
-const initialMockClasses = [
-  {
-    id: '1',
-    name: 'Math Grade 6',
-    subject: 'Mathematics',
-    grade: '6',
-    teacher: 'Ms. Johnson',
-    studentCount: 28,
-    avgGpa: 3.4,
-    students: ['1', '2', '3', '4', '5']
-  },
-  {
-    id: '2',
-    name: 'Science Grade 7',
-    subject: 'Science',
-    grade: '7',
-    teacher: 'Mr. Chen',
-    studentCount: 24,
-    avgGpa: 3.6,
-    students: ['6', '7', '8', '9', '10']
-  },
-  {
-    id: '3',
-    name: 'English Grade 8',
-    subject: 'English',
-    grade: '8',
-    teacher: 'Mrs. Williams',
-    studentCount: 26,
-    avgGpa: 3.5,
-    students: ['11', '12', '13', '14', '15']
-  },
-  {
-    id: '4',
-    name: 'History Grade 9',
-    subject: 'History',
-    grade: '9',
-    teacher: 'Dr. Brown',
-    studentCount: 22,
-    avgGpa: 3.3,
-    students: ['16', '17', '18', '19', '20']
-  }
-];
 
 // Mock students for class details
 const mockStudents = [
@@ -79,49 +37,79 @@ const mockStudents = [
 ];
 
 export function ClassView({ onSelectStudent }: ClassViewProps) {
-  const [classes, setClasses] = useState(initialMockClasses);
+  const [classes, setClasses] = useState<ActiveClass[]>([]);
   const [selectedClass, setSelectedClass] = useState<string | null>(null);
   const [filterSubject, setFilterSubject] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
+  const [loading, setLoading] = useState(true);
 
-  const handleCreateClass = (classData: { name: string; subject: string; grade: string; teacher: string }) => {
-    const newClass = {
-      id: (classes.length + 1).toString(),
-      ...classData,
-      studentCount: 0,
-      avgGpa: 0,
-      students: []
-    };
-    setClasses([...classes, newClass]);
+  useEffect(() => {
+    loadClasses();
+  }, []);
+
+  const loadClasses = async () => {
+    try {
+      setLoading(true);
+      const activeClasses = await getAllActiveClasses();
+      setClasses(activeClasses);
+    } catch (error) {
+      console.error('Error loading classes:', error);
+      toast.error('Failed to load classes');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleDeleteClass = (classId: string, className: string) => {
-    setClasses(prevClasses => prevClasses.filter(cls => cls.id !== classId));
-    toast.success(`Class "${className}" has been deleted`);
+  const handleCreateClass = async (classData: { name: string; subject: string; grade: string; teacher: string }) => {
+    try {
+      const newClass = await createActiveClass(classData);
+      setClasses([...classes, newClass]);
+      toast.success(`Class "${newClass.name}" has been created successfully!`);
+    } catch (error) {
+      console.error('Error creating class:', error);
+      toast.error('Failed to create class. Please try again.');
+    }
   };
 
-  const handleAddStudents = (classId: string, studentIds: string[]) => {
-    setClasses(prevClasses => 
-      prevClasses.map(cls => {
-        if (cls.id === classId) {
-          const updatedStudents = [...cls.students, ...studentIds];
-          const studentGpas = mockStudents
-            .filter(s => updatedStudents.includes(s.id))
-            .map(s => s.gpa);
-          const avgGpa = studentGpas.length > 0 
-            ? Number((studentGpas.reduce((sum, gpa) => sum + gpa, 0) / studentGpas.length).toFixed(1))
-            : 0;
+  const handleDeleteClass = async (classId: string, className: string) => {
+    try {
+      await deleteActiveClass(classId);
+      setClasses(prevClasses => prevClasses.filter(cls => cls.id !== classId));
+      toast.success(`Class "${className}" has been deleted`);
+    } catch (error) {
+      console.error('Error deleting class:', error);
+      toast.error('Failed to delete class. Please try again.');
+    }
+  };
 
-          return {
-            ...cls,
-            students: updatedStudents,
-            studentCount: updatedStudents.length,
-            avgGpa
-          };
-        }
-        return cls;
-      })
-    );
+  const handleAddStudents = async (classId: string, studentIds: string[]) => {
+    try {
+      const classToUpdate = classes.find(cls => cls.id === classId);
+      if (!classToUpdate) return;
+
+      const updatedStudents = [...classToUpdate.students, ...studentIds];
+      const studentGpas = mockStudents
+        .filter(s => updatedStudents.includes(s.id))
+        .map(s => s.gpa);
+      const avgGpa = studentGpas.length > 0 
+        ? Number((studentGpas.reduce((sum, gpa) => sum + gpa, 0) / studentGpas.length).toFixed(1))
+        : 0;
+
+      const updatedClass = await updateActiveClass(classId, {
+        students: updatedStudents,
+        student_count: updatedStudents.length,
+        avg_gpa: avgGpa
+      });
+
+      setClasses(prevClasses => 
+        prevClasses.map(cls => cls.id === classId ? updatedClass : cls)
+      );
+
+      toast.success('Students added successfully!');
+    } catch (error) {
+      console.error('Error adding students:', error);
+      toast.error('Failed to add students. Please try again.');
+    }
   };
 
   const filteredClasses = classes.filter(cls => {
@@ -132,6 +120,16 @@ export function ClassView({ onSelectStudent }: ClassViewProps) {
   });
 
   const subjects = [...new Set(classes.map(cls => cls.subject))];
+
+  if (loading) {
+    return (
+      <div className="p-6">
+        <div className="flex items-center justify-center py-12">
+          <div className="text-lg text-gray-600">Loading classes...</div>
+        </div>
+      </div>
+    );
+  }
 
   if (selectedClass) {
     const classData = classes.find(cls => cls.id === selectedClass);
@@ -160,7 +158,7 @@ export function ClassView({ onSelectStudent }: ClassViewProps) {
                 enrolledStudentIds={classData.students}
               />
               <div className="text-right">
-                <div className="text-2xl font-bold text-gray-900">{classData.avgGpa}</div>
+                <div className="text-2xl font-bold text-gray-900">{classData.avg_gpa}</div>
                 <div className="text-sm text-gray-600">Class Average GPA</div>
               </div>
             </div>
@@ -171,7 +169,7 @@ export function ClassView({ onSelectStudent }: ClassViewProps) {
           <Card>
             <CardContent className="p-4 text-center">
               <Users className="h-8 w-8 text-blue-600 mx-auto mb-2" />
-              <div className="text-2xl font-bold">{classData.studentCount}</div>
+              <div className="text-2xl font-bold">{classData.student_count}</div>
               <div className="text-sm text-gray-600">Total Students</div>
             </CardContent>
           </Card>
@@ -196,7 +194,7 @@ export function ClassView({ onSelectStudent }: ClassViewProps) {
             <CardTitle>Class Roster</CardTitle>
           </CardHeader>
           <CardContent>
-            {classData.studentCount === 0 ? (
+            {classData.student_count === 0 ? (
               <div className="text-center py-8">
                 <Users className="h-12 w-12 text-gray-400 mx-auto mb-4" />
                 <h3 className="text-lg font-medium text-gray-900 mb-2">No students enrolled</h3>
@@ -322,11 +320,11 @@ export function ClassView({ onSelectStudent }: ClassViewProps) {
               >
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-600">Students:</span>
-                  <span className="font-medium">{classItem.studentCount}</span>
+                  <span className="font-medium">{classItem.student_count}</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-600">Avg GPA:</span>
-                  <span className="font-medium">{classItem.avgGpa || 'N/A'}</span>
+                  <span className="font-medium">{classItem.avg_gpa || 'N/A'}</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-600">Subject:</span>
@@ -338,7 +336,7 @@ export function ClassView({ onSelectStudent }: ClassViewProps) {
         ))}
       </div>
 
-      {filteredClasses.length === 0 && (
+      {filteredClasses.length === 0 && !loading && (
         <div className="text-center py-12">
           <BookOpen className="h-12 w-12 text-gray-400 mx-auto mb-4" />
           <h3 className="text-lg font-medium text-gray-900 mb-2">No classes found</h3>

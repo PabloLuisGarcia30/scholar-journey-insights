@@ -14,15 +14,7 @@ import { generateTestPDF, type Question, type TestData } from "@/utils/pdfGenera
 import { TemplateSelection, type TestTemplate } from "@/components/TestCreator/TemplateSelection";
 import { TestDetails } from "@/components/TestCreator/TestDetails";
 import { QuestionEditor } from "@/components/TestCreator/QuestionEditor";
-import { saveExamToDatabase, getAllClasses, type ExamData, type Class } from "@/services/examService";
-
-// Import the classes data structure from ClassView
-const availableClasses: Class[] = [
-  { id: '1', name: 'Math Grade 6', subject: 'Mathematics', grade: '6', teacher: 'Ms. Johnson' },
-  { id: '2', name: 'Science Grade 7', subject: 'Science', grade: '7', teacher: 'Mr. Chen' },
-  { id: '3', name: 'English Grade 8', subject: 'English', grade: '8', teacher: 'Mrs. Williams' },
-  { id: '4', name: 'History Grade 9', subject: 'History', grade: '9', teacher: 'Dr. Brown' }
-];
+import { saveExamToDatabase, getAllActiveClasses, type ExamData, type ActiveClass } from "@/services/examService";
 
 const testTemplates: TestTemplate[] = [
   {
@@ -76,12 +68,12 @@ const TestCreator = () => {
   const [questions, setQuestions] = useState<Question[]>([]);
   const [currentStep, setCurrentStep] = useState<'template' | 'details' | 'questions' | 'answer-key' | 'class-input' | 'preview'>('template');
   const [examId, setExamId] = useState<string>('');
-  const [availableClasses, setAvailableClasses] = useState<Class[]>([]);
+  const [availableClasses, setAvailableClasses] = useState<ActiveClass[]>([]);
 
   useEffect(() => {
     const loadClasses = async () => {
       try {
-        const classes = await getAllClasses();
+        const classes = await getAllActiveClasses();
         setAvailableClasses(classes);
       } catch (error) {
         console.error('Error loading classes:', error);
@@ -411,7 +403,7 @@ const TestCreator = () => {
                   <SelectItem key={classItem.id} value={classItem.id}>
                     <div className="flex flex-col">
                       <span className="font-medium">{classItem.name}</span>
-                      <span className="text-sm text-gray-500">{classItem.description}</span>
+                      <span className="text-sm text-gray-500">{classItem.subject} - Grade {classItem.grade}</span>
                     </div>
                   </SelectItem>
                 ))}
