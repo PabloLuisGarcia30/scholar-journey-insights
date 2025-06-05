@@ -562,7 +562,6 @@ const TestCreator = () => {
     const [studentNames, setStudentNames] = useState<string[]>([]);
     const [isLoadingStudents, setIsLoadingStudents] = useState(false);
     const [selectedFormat, setSelectedFormat] = useState<'individual' | 'consolidated'>('consolidated');
-    const [printMethod, setPrintMethod] = useState<'pdf' | 'direct'>('direct');
 
     useEffect(() => {
       const loadStudentNames = async () => {
@@ -597,14 +596,6 @@ const TestCreator = () => {
 
       loadStudentNames();
     }, [isPrintDialogOpen, selectedClass.students]);
-
-    const handlePrintClick = () => {
-      if (printMethod === 'direct') {
-        handleDirectPrint();
-      } else {
-        onPrintTests(selectedStudentsForPrint, selectedFormat);
-      }
-    };
 
     const handleDirectPrint = async () => {
       if (selectedStudentsForPrint.length === 0) {
@@ -688,30 +679,6 @@ const TestCreator = () => {
             </div>
 
             <div className="space-y-3">
-              <Label className="text-base font-semibold">Print Method</Label>
-              <RadioGroup value={printMethod} onValueChange={(value: 'pdf' | 'direct') => setPrintMethod(value)}>
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="direct" id="direct-print" />
-                  <Label htmlFor="direct-print" className="cursor-pointer">
-                    <div>
-                      <span className="font-medium">Direct Print (Recommended)</span>
-                      <p className="text-sm text-gray-500">Opens your system print dialog immediately - faster and more convenient</p>
-                    </div>
-                  </Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="pdf" id="pdf-print" />
-                  <Label htmlFor="pdf-print" className="cursor-pointer">
-                    <div>
-                      <span className="font-medium">Download PDF</span>
-                      <p className="text-sm text-gray-500">Downloads PDF files that you can save or print later</p>
-                    </div>
-                  </Label>
-                </div>
-              </RadioGroup>
-            </div>
-
-            <div className="space-y-3">
               <Label className="text-base font-semibold">Format</Label>
               <RadioGroup value={selectedFormat} onValueChange={(value: 'individual' | 'consolidated') => setSelectedFormat(value)}>
                 <div className="flex items-center space-x-2">
@@ -720,10 +687,7 @@ const TestCreator = () => {
                     <div>
                       <span className="font-medium">Consolidated</span>
                       <p className="text-sm text-gray-500">
-                        {printMethod === 'direct' 
-                          ? 'All student tests in one print job (easier to print)' 
-                          : 'All student tests in one PDF document'
-                        }
+                        All student tests in one print job (easier to print)
                       </p>
                     </div>
                   </Label>
@@ -734,10 +698,7 @@ const TestCreator = () => {
                     <div>
                       <span className="font-medium">Individual Tests</span>
                       <p className="text-sm text-gray-500">
-                        {printMethod === 'direct' 
-                          ? 'Separate print dialog for each student' 
-                          : 'Separate PDF file for each student'
-                        }
+                        Separate print dialog for each student
                       </p>
                     </div>
                   </Label>
@@ -801,7 +762,7 @@ const TestCreator = () => {
                     Cancel
                   </Button>
                   <Button 
-                    onClick={handlePrintClick}
+                    onClick={handleDirectPrint}
                     disabled={isPrinting || selectedStudentsForPrint.length === 0}
                   >
                     {isPrinting ? (
@@ -812,10 +773,8 @@ const TestCreator = () => {
                     ) : (
                       <>
                         <Printer className="h-4 w-4 mr-2" />
-                        {printMethod === 'direct' ? 'Print Now' : 'Generate'} 
-                        {selectedFormat === 'consolidated' ? ' Consolidated' : ` ${selectedStudentsForPrint.length}`} 
-                        {printMethod === 'pdf' && selectedFormat === 'individual' && selectedStudentsForPrint.length !== 1 ? ' PDFs' : ''}
-                        {printMethod === 'pdf' && selectedFormat === 'consolidated' ? ' PDF' : ''}
+                        Print Now
+                        {selectedFormat === 'consolidated' ? ' Consolidated' : ` ${selectedStudentsForPrint.length}`}
                       </>
                     )}
                   </Button>
