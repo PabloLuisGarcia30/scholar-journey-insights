@@ -5,6 +5,8 @@ export interface GeneratePracticeTestRequest {
   studentName: string;
   className: string;
   skillName?: string;
+  grade?: string;
+  subject?: string;
 }
 
 export interface Question {

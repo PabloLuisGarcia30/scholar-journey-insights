@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,10 +12,12 @@ interface PracticeTestGeneratorProps {
   studentName: string;
   className: string;
   skillName: string | null;
+  grade?: string;
+  subject?: string;
   onBack: () => void;
 }
 
-export function PracticeTestGenerator({ studentName, className, skillName, onBack }: PracticeTestGeneratorProps) {
+export function PracticeTestGenerator({ studentName, className, skillName, grade, subject, onBack }: PracticeTestGeneratorProps) {
   const [isGenerating, setIsGenerating] = useState(false);
   const [testData, setTestData] = useState<PracticeTestData | null>(null);
 
@@ -25,7 +28,9 @@ export function PracticeTestGenerator({ studentName, className, skillName, onBac
       const result = await generatePracticeTest({
         studentName,
         className,
-        skillName: skillName || undefined
+        skillName: skillName || undefined,
+        grade,
+        subject
       });
       
       setTestData(result);
@@ -166,6 +171,8 @@ export function PracticeTestGenerator({ studentName, className, skillName, onBac
                 <div className="space-y-1 text-sm text-blue-800">
                   <p><strong>Student:</strong> {studentName}</p>
                   <p><strong>Class:</strong> {className}</p>
+                  {grade && <p><strong>Grade:</strong> {grade}</p>}
+                  {subject && <p><strong>Subject:</strong> {subject}</p>}
                   {skillName ? (
                     <p><strong>Focus Skill:</strong> {skillName}</p>
                   ) : (
@@ -227,6 +234,8 @@ export function PracticeTestGenerator({ studentName, className, skillName, onBac
             <div className="flex items-center gap-4 text-sm text-gray-600">
               <span><strong>Student:</strong> {studentName}</span>
               <span><strong>Class:</strong> {className}</span>
+              {grade && <span><strong>Grade:</strong> {grade}</span>}
+              {subject && <span><strong>Subject:</strong> {subject}</span>}
               {skillName && <span><strong>Focus:</strong> {skillName}</span>}
             </div>
           </CardHeader>

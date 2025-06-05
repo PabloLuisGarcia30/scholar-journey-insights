@@ -392,6 +392,8 @@ export function StudentProfile({ studentId, classId, className, onBack }: Studen
         studentName={student?.name || ''}
         className={className}
         skillName={selectedSkill}
+        grade={classData?.grade}
+        subject={classData?.subject}
         onBack={handleBackFromPracticeTest}
       />
     );

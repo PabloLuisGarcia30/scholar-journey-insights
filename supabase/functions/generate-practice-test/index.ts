@@ -13,8 +13,8 @@ serve(async (req) => {
 
   try {
     console.log('Generate-practice-test function called')
-    const { studentName, className, skillName } = await req.json()
-    console.log('Generating practice test for:', studentName, 'in class:', className, 'skill:', skillName)
+    const { studentName, className, skillName, grade, subject } = await req.json()
+    console.log('Generating practice test for:', studentName, 'in class:', className, 'skill:', skillName, 'grade:', grade, 'subject:', subject)
     
     const openaiApiKey = Deno.env.get('OPENAI_API_KEY')
     if (!openaiApiKey) {
@@ -22,11 +22,15 @@ serve(async (req) => {
       throw new Error('OpenAI API key not configured')
     }
 
+    // Create more specific prompts based on grade and subject
+    const gradeLevel = grade || 'Grade 10'
+    const subjectArea = subject || 'Math'
+    
     const prompt = skillName 
-      ? `Generate a practice test for a student in ${className} focusing specifically on ${skillName}. Create 8-10 questions that test understanding of this skill at an appropriate difficulty level.`
-      : `Generate a comprehensive practice test for a student in ${className} covering all major content areas. Create 10-12 questions that assess various skills and concepts.`
+      ? `Generate a practice test for a ${gradeLevel} ${subjectArea} student focusing specifically on ${skillName}. Create 8-10 questions that test understanding of this skill at an appropriate ${gradeLevel} difficulty level. Use ${gradeLevel} ${subjectArea} curriculum standards and age-appropriate language and examples.`
+      : `Generate a comprehensive practice test for a ${gradeLevel} ${subjectArea} student covering all major content areas appropriate for ${gradeLevel} ${subjectArea} curriculum. Create 10-12 questions that assess various skills and concepts at the ${gradeLevel} level. Use curriculum-appropriate vocabulary and examples suitable for ${gradeLevel} students.`
 
-    console.log('Sending request to OpenAI...')
+    console.log('Sending request to OpenAI with prompt:', prompt)
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -38,7 +42,7 @@ serve(async (req) => {
         messages: [
           {
             role: 'system',
-            content: `You are an expert educator creating practice tests. Generate a JSON response with the following structure:
+            content: `You are an expert ${subjectArea} educator specializing in ${gradeLevel} curriculum. Generate a JSON response with the following structure:
             {
               "title": "string",
               "description": "string", 
@@ -56,7 +60,7 @@ serve(async (req) => {
               "estimatedTime": number (in minutes)
             }
             
-            Make questions challenging but appropriate for the grade level. Use a mix of question types. For multiple choice, provide 4 options with only one correct answer.`
+            Make questions challenging but appropriate for ${gradeLevel} level. Use vocabulary and examples suitable for ${gradeLevel} students. For ${subjectArea}, ensure content aligns with ${gradeLevel} ${subjectArea} curriculum standards. Use a mix of question types. For multiple choice, provide 4 options with only one correct answer.`
           },
           {
             role: 'user',
