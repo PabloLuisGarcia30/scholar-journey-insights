@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { Link } from "react-router-dom";
 import { extractTextFromFile, analyzeTest } from "@/services/testAnalysisService";
@@ -512,6 +513,13 @@ const UploadTest = () => {
           setAnalysisResult(analysisResult);
           setCurrentStep('complete');
           
+          // Define OCR metadata from analysis result
+          const ocrMetadata = {
+            reliability: analysisResult.dual_ocr_summary?.overall_reliability || 0,
+            confidence: analysisResult.dual_ocr_summary?.overall_reliability || 0,
+            detections: analysisResult.dual_ocr_summary?.high_confidence_detections || 0
+          };
+          
           // Cache result if enabled
           if (cacheEnabled && fileHash) {
             await CacheService.setCachedResult(
@@ -1015,7 +1023,6 @@ const UploadTest = () => {
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {/* ... keep existing code (existing statistics) */}
                   <div className="flex justify-between items-center p-3 bg-emerald-50 rounded-lg">
                     <span className="text-sm font-medium text-emerald-700">Auto Processing</span>
                     <span className="text-lg font-bold text-emerald-900">
