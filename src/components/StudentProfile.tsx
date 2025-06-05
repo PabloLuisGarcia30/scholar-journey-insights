@@ -65,6 +65,44 @@ const courseGrades = [
   { course: 'Software Engineering', grade: 'A-', credits: 4, progress: 89 },
 ];
 
+// Mock content skill scores for Pablo Luis Garcia
+const mockPabloContentSkillScores: SkillScore[] = [
+  // ALGEBRA AND FUNCTIONS
+  { id: 'mock-1', test_result_id: 'test-1', skill_name: 'Factoring Polynomials', score: 85, points_earned: 17, points_possible: 20, created_at: '2024-01-15' },
+  { id: 'mock-2', test_result_id: 'test-1', skill_name: 'Solving Systems of Equations', score: 92, points_earned: 23, points_possible: 25, created_at: '2024-01-15' },
+  { id: 'mock-3', test_result_id: 'test-1', skill_name: 'Understanding Function Notation', score: 78, points_earned: 19, points_possible: 24, created_at: '2024-01-15' },
+  { id: 'mock-4', test_result_id: 'test-2', skill_name: 'Graphing Linear and Quadratic Functions', score: 88, points_earned: 22, points_possible: 25, created_at: '2024-02-15' },
+  { id: 'mock-5', test_result_id: 'test-2', skill_name: 'Working with Exponential Functions', score: 75, points_earned: 15, points_possible: 20, created_at: '2024-02-15' },
+  
+  // GEOMETRY
+  { id: 'mock-6', test_result_id: 'test-1', skill_name: 'Properties of Similar Triangles', score: 90, points_earned: 18, points_possible: 20, created_at: '2024-01-15' },
+  { id: 'mock-7', test_result_id: 'test-1', skill_name: 'Area and Perimeter Calculations', score: 95, points_earned: 19, points_possible: 20, created_at: '2024-01-15' },
+  { id: 'mock-8', test_result_id: 'test-2', skill_name: 'Volume and Surface Area of 3D Objects', score: 82, points_earned: 20, points_possible: 24, created_at: '2024-02-15' },
+  { id: 'mock-9', test_result_id: 'test-2', skill_name: 'Coordinate Geometry', score: 87, points_earned: 21, points_possible: 24, created_at: '2024-02-15' },
+  { id: 'mock-10', test_result_id: 'test-3', skill_name: 'Geometric Transformations', score: 79, points_earned: 16, points_possible: 20, created_at: '2024-03-05' },
+  
+  // TRIGONOMETRY
+  { id: 'mock-11', test_result_id: 'test-1', skill_name: 'Basic Trigonometric Ratios', score: 93, points_earned: 22, points_possible: 24, created_at: '2024-01-15' },
+  { id: 'mock-12', test_result_id: 'test-2', skill_name: 'Solving Right Triangle Problems', score: 86, points_earned: 17, points_possible: 20, created_at: '2024-02-15' },
+  { id: 'mock-13', test_result_id: 'test-2', skill_name: 'Unit Circle and Angle Measures', score: 74, points_earned: 15, points_possible: 20, created_at: '2024-02-15' },
+  { id: 'mock-14', test_result_id: 'test-3', skill_name: 'Trigonometric Identities', score: 81, points_earned: 19, points_possible: 24, created_at: '2024-03-05' },
+  { id: 'mock-15', test_result_id: 'test-3', skill_name: 'Applications of Trigonometry', score: 89, points_earned: 18, points_possible: 20, created_at: '2024-03-05' },
+  
+  // DATA ANALYSIS AND PROBABILITY
+  { id: 'mock-16', test_result_id: 'test-1', skill_name: 'Statistical Measures and Interpretation', score: 91, points_earned: 22, points_possible: 24, created_at: '2024-01-15' },
+  { id: 'mock-17', test_result_id: 'test-2', skill_name: 'Probability Calculations', score: 83, points_earned: 20, points_possible: 24, created_at: '2024-02-15' },
+  { id: 'mock-18', test_result_id: 'test-2', skill_name: 'Data Collection and Sampling', score: 88, points_earned: 18, points_possible: 20, created_at: '2024-02-15' },
+  { id: 'mock-19', test_result_id: 'test-3', skill_name: 'Creating and Interpreting Graphs', score: 94, points_earned: 23, points_possible: 24, created_at: '2024-03-05' },
+  { id: 'mock-20', test_result_id: 'test-3', skill_name: 'Making Predictions from Data', score: 77, points_earned: 15, points_possible: 20, created_at: '2024-03-05' },
+  
+  // PROBLEM SOLVING AND REASONING
+  { id: 'mock-21', test_result_id: 'test-1', skill_name: 'Mathematical Modeling', score: 85, points_earned: 17, points_possible: 20, created_at: '2024-01-15' },
+  { id: 'mock-22', test_result_id: 'test-2', skill_name: 'Critical Thinking in Mathematics', score: 89, points_earned: 21, points_possible: 24, created_at: '2024-02-15' },
+  { id: 'mock-23', test_result_id: 'test-2', skill_name: 'Pattern Recognition', score: 92, points_earned: 18, points_possible: 20, created_at: '2024-02-15' },
+  { id: 'mock-24', test_result_id: 'test-3', skill_name: 'Logical Reasoning', score: 80, points_earned: 19, points_possible: 24, created_at: '2024-03-05' },
+  { id: 'mock-25', test_result_id: 'test-3', skill_name: 'Problem-Solving Strategies', score: 87, points_earned: 17, points_possible: 20, created_at: '2024-03-05' },
+];
+
 export function StudentProfile({ studentId, classId, className, onBack }: StudentProfileProps) {
   const [showPracticeTest, setShowPracticeTest] = useState(false);
   const [selectedSkill, setSelectedSkill] = useState<string | null>(null);
@@ -77,6 +115,9 @@ export function StudentProfile({ studentId, classId, className, onBack }: Studen
     queryKey: ['activeStudent', studentId],
     queryFn: () => getActiveStudentById(studentId),
   });
+
+  // Check if this is Pablo Luis Garcia and we should use mock data
+  const isPabloLuisGarcia = student?.name === 'Pablo Luis Garcia';
 
   // Fetch class data if in class view
   const { data: classData, isLoading: classLoading } = useQuery({
@@ -133,10 +174,15 @@ export function StudentProfile({ studentId, classId, className, onBack }: Studen
     queryFn: () => getStudentTestResults(studentId),
   });
 
-  // Fetch content skill scores
+  // Fetch content skill scores - use mock data for Pablo Luis Garcia
   const { data: contentSkillScores = [], isLoading: contentSkillsLoading } = useQuery({
     queryKey: ['studentContentSkills', studentId],
-    queryFn: () => getStudentContentSkillScores(studentId),
+    queryFn: () => {
+      if (isPabloLuisGarcia && isClassView && isGrade10MathClass()) {
+        return Promise.resolve(mockPabloContentSkillScores);
+      }
+      return getStudentContentSkillScores(studentId);
+    },
   });
 
   // Fetch subject skill scores
