@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -17,48 +18,40 @@ import {
 import { PracticeTestGenerator } from "@/components/PracticeTestGenerator";
 
 interface StudentSubjectSkillsProps {
-  studentId: string;
-  subjectSkillScores: any[];
-  classSubjectSkills: any[];
-  isLoading: boolean;
-  student: any;
-  classData: any;
+  comprehensiveSubjectSkillData: any[];
+  subjectSkillsLoading: boolean;
+  classSubjectSkillsLoading: boolean;
   isClassView: boolean;
+  classSubjectSkills: any[];
+  onGeneratePracticeTest: (skillName?: string) => void;
 }
 
 export function StudentSubjectSkills({ 
-  studentId, 
-  subjectSkillScores, 
-  classSubjectSkills, 
-  isLoading, 
-  student, 
-  classData,
-  isClassView 
+  comprehensiveSubjectSkillData,
+  subjectSkillsLoading,
+  classSubjectSkillsLoading,
+  isClassView,
+  classSubjectSkills,
+  onGeneratePracticeTest
 }: StudentSubjectSkillsProps) {
   const [showPracticeGenerator, setShowPracticeGenerator] = useState(false);
   const [selectedSkill, setSelectedSkill] = useState<string | null>(null);
 
-  const relevantSkills = isClassView ? classSubjectSkills : subjectSkillScores;
-
-  const getSkillScore = (skillName: string) => {
-    const score = subjectSkillScores.find(s => s.skill_name === skillName);
-    return score ? score.score : 0;
-  };
+  const relevantSkills = comprehensiveSubjectSkillData;
 
   const handlePractice = (skillName: string) => {
-    setSelectedSkill(skillName);
-    setShowPracticeGenerator(true);
+    onGeneratePracticeTest(skillName);
   };
 
   if (showPracticeGenerator) {
     return (
       <PracticeTestGenerator
-        studentName={student?.name || 'Unknown Student'}
-        className={classData ? `${classData.subject} ${classData.grade}` : 'Unknown Class'}
+        studentName="Student"
+        className="Unknown Class"
         skillName={selectedSkill}
-        grade={classData?.grade}
-        subject={classData?.subject}
-        classId={classData?.id}
+        grade="Grade 10"
+        subject="Math"
+        classId=""
         onBack={() => {
           setShowPracticeGenerator(false);
           setSelectedSkill(null);
@@ -66,6 +59,8 @@ export function StudentSubjectSkills({
       />
     );
   }
+
+  const isLoading = subjectSkillsLoading || classSubjectSkillsLoading;
 
   return (
     <Card>
@@ -81,11 +76,11 @@ export function StudentSubjectSkills({
               <p>No subject-specific skills found.</p>
             ) : (
               relevantSkills.map((skill: any) => {
-                const skillName = isClassView ? skill.skill_name : skill.skill_name;
-                const score = getSkillScore(skillName);
+                const skillName = skill.skill_name;
+                const score = skill.score || 0;
 
                 return (
-                  <div key={skill.id} className="border rounded-lg p-4">
+                  <div key={skill.id || skillName} className="border rounded-lg p-4">
                     <div className="flex justify-between items-center mb-2">
                       <div className="flex items-center space-x-4">
                         <Avatar>
@@ -94,7 +89,7 @@ export function StudentSubjectSkills({
                         </Avatar>
                         <div>
                           <h3 className="text-lg font-semibold">{skillName}</h3>
-                          <p className="text-sm text-gray-500">{skill.skill_description}</p>
+                          <p className="text-sm text-gray-500">{skill.skill_description || 'No description available'}</p>
                         </div>
                       </div>
                       <DropdownMenu>
