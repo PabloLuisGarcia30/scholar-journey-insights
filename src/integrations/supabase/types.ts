@@ -279,34 +279,28 @@ export type Database = {
           },
         ]
       }
-      "Grade 10 Math Content Skills": {
+      math_studies_10_skills: {
         Row: {
           created_at: string
-          grade: string
           id: string
           skill_description: string
           skill_name: string
-          Subject: string
           topic: string
           updated_at: string
         }
         Insert: {
           created_at?: string
-          grade: string
           id?: string
           skill_description: string
           skill_name: string
-          Subject: string
           topic: string
           updated_at?: string
         }
         Update: {
           created_at?: string
-          grade?: string
           id?: string
           skill_description?: string
           skill_name?: string
-          Subject?: string
           topic?: string
           updated_at?: string
         }

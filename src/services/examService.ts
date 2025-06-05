@@ -773,21 +773,21 @@ export const autoLinkMathClassToGrade10Skills = async (): Promise<void> => {
   }
 };
 
-export async function getGrade10MathContentSkills(): Promise<ContentSkill[]> {
-  console.log('Fetching Grade 10 Math content skills...');
+export async function getMathStudies10Skills(): Promise<ContentSkill[]> {
+  console.log('Fetching Math Studies 10 content skills...');
   
   const { data, error } = await supabase
-    .from('Grade 10 Math Content Skills')
+    .from('math_studies_10_skills')
     .select('*')
     .order('topic', { ascending: true })
     .order('skill_name', { ascending: true });
 
   if (error) {
-    console.error('Error fetching Grade 10 Math content skills:', error);
+    console.error('Error fetching Math Studies 10 content skills:', error);
     throw error;
   }
 
-  console.log('Grade 10 Math content skills fetched:', data?.length || 0);
+  console.log('Math Studies 10 content skills fetched:', data?.length || 0);
   
   // Map the data to match the ContentSkill interface
   return (data || []).map(skill => ({
@@ -795,9 +795,14 @@ export async function getGrade10MathContentSkills(): Promise<ContentSkill[]> {
     skill_name: skill.skill_name,
     skill_description: skill.skill_description,
     topic: skill.topic,
-    subject: skill.Subject, // Note: column name is "Subject" with capital S
-    grade: skill.grade,
+    subject: 'Math',
+    grade: 'Grade 10',
     created_at: skill.created_at,
     updated_at: skill.updated_at
   }));
+}
+
+export async function getGrade10MathContentSkills(): Promise<ContentSkill[]> {
+  // Use the new Math Studies 10 skills table instead
+  return getMathStudies10Skills();
 }
