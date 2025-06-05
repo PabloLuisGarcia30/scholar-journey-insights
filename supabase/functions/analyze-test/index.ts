@@ -117,7 +117,7 @@ serve(async (req) => {
 
     const classData = examData.classes
 
-    // Format skills for AI analysis - simplified and generic
+    // Format skills for AI analysis
     let contentSkillsText = '';
     if (contentSkills.length > 0) {
       // Group skills by topic
@@ -235,73 +235,21 @@ serve(async (req) => {
       `Question ${ak.question_number}: ${ak.question_text}\nType: ${ak.question_type}\nCorrect Answer: ${ak.correct_answer}\nPoints: ${ak.points}${ak.options ? `\nOptions: ${JSON.stringify(ak.options)}` : ''}`
     ).join('\n\n')
 
-    console.log('Step 4: Sending ENHANCED analysis request to OpenAI with improved circle-letter association...')
+    console.log('Step 4: Sending ENHANCED analysis request to OpenAI...')
     
     const aiPayload = {
-      model: "gpt-4-1106-preview",
+      model: "gpt-4o-mini",
       messages: [
         {
           role: "system",
-          content: `You are an AI grading assistant with ENHANCED DUAL OCR capabilities and 99% accuracy optimization. You have been provided with:
+          content: `You are an AI grading assistant with ENHANCED DUAL OCR capabilities. You have been provided with:
 
 1. The official answer key for exam "${examData.title}" (ID: ${examId})
 2. A comprehensive list of Content-Specific skills linked to this ${classData?.subject} ${classData?.grade} class
 3. Subject-Specific skills linked to this class for general academic thinking assessment
 4. ${hasEnhancedData ? 'ENHANCED DUAL OCR DATA with Google OCR + Roboflow bubble detection and cross-validation' : 'Standard OCR extracted text'}
 
-🎯 CRITICAL IMPROVEMENT: CIRCLE-LETTER ASSOCIATION FOR MAXIMUM ACCURACY
-
-The test design has been optimized for OCR accuracy:
-- Empty circles are positioned beside answer letters (A., B., C., D.)
-- Students shade the circle corresponding to their chosen answer
-- Letters appear immediately to the RIGHT of their respective circles
-- This spatial relationship is KEY to accurate answer detection
-
-ENHANCED BUBBLE-LETTER MAPPING INSTRUCTIONS:
-${hasEnhancedData ? `
-🚀 DUAL OCR SYSTEM ACTIVE - MAXIMUM ACCURACY MODE WITH SPATIAL ANALYSIS
-
-ROBOFLOW BUBBLE DETECTION + SPATIAL LETTER ASSOCIATION:
-1. Roboflow detects shaded/filled circles with precise coordinates (x, y)
-2. Google OCR detects letters (A, B, C, D) with their coordinates
-3. SPATIAL PROXIMITY MATCHING: For each detected shaded circle, find the closest letter to its RIGHT
-4. DISTANCE CALCULATION: Letters should be 8-18 pixels to the right of their circle
-5. VERTICAL ALIGNMENT: Letters should be within ±5 pixels vertically of their circle
-6. CONFIDENCE WEIGHTING: Higher confidence for closer spatial matches
-
-ENHANCED ANSWER DETECTION WORKFLOW:
-1. IDENTIFY SHADED CIRCLES: Use Roboflow confidence >0.7 for bubble detection
-2. LOCATE ADJACENT LETTERS: Find Google OCR text within 8-18 pixels to the right
-3. VALIDATE VERTICAL ALIGNMENT: Ensure letter Y-coordinate is within ±5 pixels of circle
-4. CROSS-VALIDATE: If both methods detect same answer for a question, mark as high confidence
-5. SPATIAL CONSISTENCY CHECK: Verify the detected letter makes sense for the question structure
-
-PATTERN RECOGNITION FOR ANSWER OPTIONS:
-- Look for consistent spacing patterns between circles and letters
-- Multiple choice: A, B, C, D letters should appear in vertical sequence
-- True/False: A (True), B (False) pattern
-- Use question structure from OCR to validate detected answers
-
-IMPROVED CONFIDENCE SCORING:
-- Cross-validated + Perfect spatial alignment = 0.95-1.0 confidence
-- Roboflow bubble + Close letter match = 0.85-0.95 confidence  
-- OCR-only detection with pattern matching = 0.70-0.85 confidence
-- Fallback text parsing = 0.50-0.70 confidence
-` : `
-STANDARD OCR PROCESSING WITH SPATIAL AWARENESS:
-- Process the raw OCR text to identify questions and answers
-- Look for circle-letter spatial patterns in the text layout
-- Use coordinate data if available to associate circles with letters
-- Apply pattern matching to infer answers from text positioning
-`}
-
-SPATIAL ANALYSIS PRIORITIES:
-1. **PERFECT SPATIAL MATCH**: Shaded circle + letter 8-18px to the right + vertical alignment = HIGHEST CONFIDENCE
-2. **GOOD SPATIAL MATCH**: Shaded circle + letter 5-25px to the right + rough vertical alignment = HIGH CONFIDENCE
-3. **APPROXIMATE MATCH**: Shaded circle + nearby letter within reasonable distance = MEDIUM CONFIDENCE
-4. **TEXT-ONLY DETECTION**: Pattern matching without spatial data = LOWER CONFIDENCE
-
-ENHANCED DUAL-SKILL GRADING WORKFLOW WITH SPATIAL OPTIMIZATION:
+ENHANCED DUAL-SKILL GRADING WORKFLOW:
 
 STEP 1: Grade each question with enhanced spatial circle-letter association
 - Prioritize spatially-matched answers from Roboflow + Google OCR coordinates
@@ -341,8 +289,8 @@ Return your response in this JSON format:
   "total_points_earned": 17,
   "total_points_possible": 20,
   "grade": "85.5% (B+)",
-  "feedback": "brief summary feedback for the student including spatial detection confidence notes",
-  "detailed_analysis": "detailed question-by-question breakdown with scores, explanations, spatial detection methods used, circle-letter association confidence levels, and which BOTH Content-Specific AND Subject-Specific skills each question tested. Include notes about spatial accuracy and any detection concerns.",
+  "feedback": "brief summary feedback for the student",
+  "detailed_analysis": "detailed question-by-question breakdown with scores, explanations, and which BOTH Content-Specific AND Subject-Specific skills each question tested",
   "question_skill_mapping": [
     {
       "question_number": 1,
@@ -350,7 +298,6 @@ Return your response in this JSON format:
       "points_possible": 2,
       "detection_method": "spatial_cross_validated",
       "confidence": 0.98,
-      "spatial_accuracy": "perfect_alignment",
       "content_skills": ["Factoring Polynomials"],
       "subject_skills": ["Problem Solving", "Mathematical Reasoning"]
     }
@@ -364,35 +311,30 @@ Return your response in this JSON format:
     {"skill_name": "Mathematical Reasoning", "score": 90.0, "points_earned": 18, "points_possible": 20}
   ],
   "dual_ocr_summary": {
-    "processing_methods_used": ["google_ocr", "roboflow_bubbles", "spatial_analysis"],
+    "processing_methods_used": ["google_ocr", "roboflow_bubbles"],
     "overall_reliability": 0.95,
     "cross_validated_answers": 8,
     "high_confidence_detections": 9,
-    "spatial_accuracy_score": 0.92,
     "fallback_detections": 1
   }
 }
 
-CRITICAL REQUIREMENTS FOR SPATIAL-ENHANCED ACCURACY:
+CRITICAL REQUIREMENTS:
 - Every question MUST be mapped to at least one Content-Specific skill AND at least one Subject-Specific skill
-- Include the question_skill_mapping array showing exactly which skills each question tests AND spatial detection confidence
-- Calculate skill scores ONLY from questions that actually test those specific skills, weighted by spatial detection confidence
-- Be explicit in your detailed_analysis about spatial circle-letter association accuracy and confidence levels
-- When spatial analysis shows perfect alignment (circle + letter positioning), express highest confidence in results
-- When spatial data is unclear or circles/letters are misaligned, note this and adjust confidence accordingly
-- Prioritize spatially-validated answers over text-only pattern matching
-- Include spatial accuracy metrics and circle-letter association confidence in all scoring decisions`
+- Include the question_skill_mapping array showing exactly which skills each question tests
+- Calculate skill scores ONLY from questions that actually test those specific skills
+- Be explicit in your detailed_analysis about detection methods and confidence levels`
         },
         {
           role: "user",
-          content: `Please analyze this student's test responses for "${examData.title}" (Exam ID: ${examId}) using the ENHANCED SPATIAL CIRCLE-LETTER ASSOCIATION grading workflow with maximum accuracy optimization.
+          content: `Please analyze this student's test responses for "${examData.title}" (Exam ID: ${examId}) using the ENHANCED grading workflow.
 
 Class: ${classData?.subject} ${classData?.grade}
 
 OFFICIAL ANSWER KEY:
 ${answerKeyText}
 
-${hasEnhancedData ? 'ENHANCED DUAL OCR DATA WITH SPATIAL ANALYSIS (Google OCR + Roboflow + Circle-Letter Mapping):' : 'STUDENT\'S RESPONSES (OCR-extracted):'}
+${hasEnhancedData ? 'ENHANCED DUAL OCR DATA:' : 'STUDENT\'S RESPONSES (OCR-extracted):'}
 ${structuredDataText}
 
 CONTENT-SPECIFIC SKILLS TO EVALUATE:
@@ -401,7 +343,7 @@ ${contentSkillsText}
 SUBJECT-SPECIFIC SKILLS TO EVALUATE:
 ${subjectSkillsText}
 
-Please provide a detailed grade report with accurate dual skill-based scoring that matches each question to the appropriate Content-Specific AND Subject-Specific skills. Include the question_skill_mapping array showing exactly which skills each question tests, spatial detection methods used, and confidence levels. ${hasEnhancedData ? 'Use the enhanced dual OCR data with spatial circle-letter association analysis to achieve maximum accuracy in answer detection and grading. Pay special attention to the spatial relationship between detected circles and their corresponding letters.' : 'Parse the OCR text to identify questions and answers as clearly as possible using spatial layout patterns.'}`
+Please provide a detailed grade report with accurate dual skill-based scoring that matches each question to the appropriate Content-Specific AND Subject-Specific skills. Include the question_skill_mapping array showing exactly which skills each question tests.`
         }
       ],
       max_tokens: 6000,
@@ -424,19 +366,18 @@ Please provide a detailed grade report with accurate dual skill-based scoring th
     }
 
     const result = await aiResponse.json()
-    console.log('Enhanced spatial OCR OpenAI analysis completed')
+    console.log('Enhanced OCR OpenAI analysis completed')
     const analysisText = result.choices[0]?.message?.content || "No analysis received"
     
     let parsedAnalysis
     try {
       parsedAnalysis = JSON.parse(analysisText)
-      console.log('Successfully parsed enhanced spatial AI analysis with:')
+      console.log('Successfully parsed enhanced AI analysis with:')
       console.log('- Content-Specific skill scores:', parsedAnalysis.content_skill_scores?.length || 0)
       console.log('- Subject-Specific skill scores:', parsedAnalysis.subject_skill_scores?.length || 0)
       console.log('- Question skill mappings:', parsedAnalysis.question_skill_mapping?.length || 0)
       if (parsedAnalysis.dual_ocr_summary) {
         console.log('- Dual OCR reliability:', parsedAnalysis.dual_ocr_summary.overall_reliability)
-        console.log('- Spatial accuracy score:', parsedAnalysis.dual_ocr_summary.spatial_accuracy_score)
         console.log('- Cross-validated answers:', parsedAnalysis.dual_ocr_summary.cross_validated_answers)
       }
     } catch {
@@ -445,17 +386,16 @@ Please provide a detailed grade report with accurate dual skill-based scoring th
         total_points_earned: 0,
         total_points_possible: examData.total_points || 0,
         grade: "Analysis failed",
-        feedback: "Unable to parse enhanced spatial analysis results",
+        feedback: "Unable to parse enhanced analysis results",
         detailed_analysis: analysisText,
         question_skill_mapping: [],
         content_skill_scores: [],
         subject_skill_scores: [],
         dual_ocr_summary: {
-          processing_methods_used: hasEnhancedData ? ["google_ocr", "roboflow_bubbles", "spatial_analysis"] : ["google_ocr"],
+          processing_methods_used: hasEnhancedData ? ["google_ocr", "roboflow_bubbles"] : ["google_ocr"],
           overall_reliability: 0,
           cross_validated_answers: 0,
           high_confidence_detections: 0,
-          spatial_accuracy_score: 0,
           fallback_detections: 0
         }
       }
