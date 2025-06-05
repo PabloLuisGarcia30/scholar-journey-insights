@@ -197,8 +197,7 @@ const TestCreator = () => {
     
     try {
       await saveTestToDatabase(testData, selectedClassId);
-      generateTestPDF(testData);
-      toast.success(`Test created and PDF generated successfully! Exam ID: ${examId}`);
+      toast.success(`Test saved successfully! Exam ID: ${examId}`);
       setCurrentStep('preview');
     } catch (error) {
       // Error already handled in saveTestToDatabase
@@ -484,48 +483,32 @@ const TestCreator = () => {
 
           {selectedClassId && (
             <div className="bg-green-50 p-4 rounded-lg">
-              <h3 className="font-semibold text-green-900 mb-2">Generate Options</h3>
+              <h3 className="font-semibold text-green-900 mb-2">Generate Individual Student Tests</h3>
               <p className="text-sm text-green-800 mb-3">
-                Choose how you want to generate the test PDFs:
+                This will create separate test PDFs with each student's name pre-filled from the class roster.
               </p>
-              <div className="space-y-2">
-                <div className="flex items-center gap-2 text-sm text-green-700">
-                  <span>•</span>
-                  <span><strong>Single Test:</strong> One blank test PDF for the class</span>
-                </div>
-                <div className="flex items-center gap-2 text-sm text-green-700">
-                  <span>•</span>
-                  <span><strong>Individual Tests:</strong> Separate PDFs with each student's name pre-filled</span>
-                </div>
-              </div>
             </div>
           )}
         </CardContent>
       </Card>
       
-      <div className="flex gap-2">
-        <Button onClick={finalizeTest} className="flex-1">
-          Generate Single Test PDF
-        </Button>
-        <Button 
-          onClick={generateStudentTests} 
-          disabled={isGeneratingStudentTests || !selectedClassId}
-          variant="outline"
-          className="flex-1"
-        >
-          {isGeneratingStudentTests ? (
-            <>
-              <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-              Generating Individual Tests...
-            </>
-          ) : (
-            <>
-              <FileText className="h-4 w-4 mr-2" />
-              Generate Individual Student Tests
-            </>
-          )}
-        </Button>
-      </div>
+      <Button 
+        onClick={generateStudentTests} 
+        disabled={isGeneratingStudentTests || !selectedClassId}
+        className="w-full"
+      >
+        {isGeneratingStudentTests ? (
+          <>
+            <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+            Generating Individual Tests...
+          </>
+        ) : (
+          <>
+            <FileText className="h-4 w-4 mr-2" />
+            Generate Individual Student Tests
+          </>
+        )}
+      </Button>
     </div>
   );
 
@@ -607,18 +590,11 @@ const TestCreator = () => {
           <Button onClick={() => setCurrentStep('template')} variant="outline">
             Create Another Test
           </Button>
-          <Button onClick={() => {
-            const className = selectedClass?.name || 'Unknown Class';
-            generateTestPDF({ examId, title: testTitle, description: testDescription, className, timeLimit, questions });
-          }}>
-            <Download className="h-4 w-4 mr-2" />
-            Download Single PDF
-          </Button>
           {selectedClass && selectedClass.student_count > 0 && (
             <Button 
               onClick={generateStudentTests} 
               disabled={isGeneratingStudentTests}
-              variant="secondary"
+              className="flex-1"
             >
               {isGeneratingStudentTests ? (
                 <>
@@ -628,7 +604,7 @@ const TestCreator = () => {
               ) : (
                 <>
                   <FileText className="h-4 w-4 mr-2" />
-                  Generate Individual Tests
+                  Generate Individual Student Tests
                 </>
               )}
             </Button>
