@@ -68,6 +68,17 @@ export interface StudentProfile {
   updated_at: string;
 }
 
+export interface ActiveStudent {
+  id: string;
+  name: string;
+  email?: string;
+  year?: string;
+  major?: string;
+  gpa?: number;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface TestResult {
   id: string;
   student_id: string;
@@ -231,6 +242,153 @@ export const getClassById = async (classId: string): Promise<Class | null> => {
     return data;
   } catch (error) {
     console.error('Error in getClassById:', error);
+    throw error;
+  }
+};
+
+export const createActiveStudent = async (studentData: {
+  name: string;
+  email?: string;
+  year?: string;
+  major?: string;
+  gpa?: number;
+}): Promise<ActiveStudent> => {
+  try {
+    console.log('Creating active student:', studentData);
+    
+    const { data, error } = await supabase
+      .from('active_students')
+      .insert({
+        name: studentData.name,
+        email: studentData.email,
+        year: studentData.year,
+        major: studentData.major,
+        gpa: studentData.gpa
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Error creating active student:', error);
+      throw new Error(`Failed to create active student: ${error.message}`);
+    }
+
+    return data;
+  } catch (error) {
+    console.error('Error in createActiveStudent:', error);
+    throw error;
+  }
+};
+
+export const getAllActiveStudents = async (): Promise<ActiveStudent[]> => {
+  try {
+    console.log('Fetching all active students');
+    
+    const { data, error } = await supabase
+      .from('active_students')
+      .select('*')
+      .order('name');
+
+    if (error) {
+      console.error('Error fetching active students:', error);
+      throw new Error(`Failed to fetch active students: ${error.message}`);
+    }
+
+    return data || [];
+  } catch (error) {
+    console.error('Error in getAllActiveStudents:', error);
+    throw error;
+  }
+};
+
+export const getActiveStudentById = async (studentId: string): Promise<ActiveStudent | null> => {
+  try {
+    console.log('Fetching active student by ID:', studentId);
+    
+    const { data, error } = await supabase
+      .from('active_students')
+      .select('*')
+      .eq('id', studentId)
+      .maybeSingle();
+
+    if (error) {
+      console.error('Error fetching active student:', error);
+      throw new Error(`Failed to fetch active student: ${error.message}`);
+    }
+
+    return data;
+  } catch (error) {
+    console.error('Error in getActiveStudentById:', error);
+    throw error;
+  }
+};
+
+export const getStudentTestResults = async (studentId: string): Promise<TestResult[]> => {
+  try {
+    console.log('Fetching test results for student:', studentId);
+    
+    const { data, error } = await supabase
+      .from('test_results')
+      .select('*')
+      .eq('active_student_id', studentId)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('Error fetching test results:', error);
+      throw new Error(`Failed to fetch test results: ${error.message}`);
+    }
+
+    return data || [];
+  } catch (error) {
+    console.error('Error in getStudentTestResults:', error);
+    throw error;
+  }
+};
+
+export const getStudentContentSkillScores = async (studentId: string): Promise<SkillScore[]> => {
+  try {
+    console.log('Fetching content skill scores for student:', studentId);
+    
+    const { data, error } = await supabase
+      .from('content_skill_scores')
+      .select(`
+        *,
+        test_results!inner(active_student_id)
+      `)
+      .eq('test_results.active_student_id', studentId);
+
+    if (error) {
+      console.error('Error fetching content skill scores:', error);
+      throw new Error(`Failed to fetch content skill scores: ${error.message}`);
+    }
+
+    return data || [];
+  } catch (error) {
+    console.error('Error in getStudentContentSkillScores:', error);
+    throw error;
+  }
+};
+
+export const getStudentSubjectSkillScores = async (studentId: string): Promise<SkillScore[]> => {
+  try {
+    console.log('Fetching subject skill scores for student:', studentId);
+    
+    const { data, error } = await supabase
+      .from('subject_skill_scores')
+      .select(`
+        *,
+        test_results!inner(active_student_id)
+      `)
+      .eq('test_results.active_student_id', studentId);
+
+    if (error) {
+      console.error('Error fetching subject skill scores:', error);
+      throw new Error(`Failed to fetch subject skill scores: ${error.message}`);
+    }
+
+    return data || [];
+  } catch (error) {
+    console.error('Error in getStudentSubjectSkillScores:', error);
     throw error;
   }
 };

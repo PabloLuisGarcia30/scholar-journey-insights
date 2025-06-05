@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -17,11 +16,25 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Users, BookOpen, TrendingUp, Trash2 } from "lucide-react";
+import { Users, BookOpen, TrendingUp, Trash2, ArrowLeft } from "lucide-react";
 import { CreateClassDialog } from "@/components/CreateClassDialog";
 import { AddStudentsDialog } from "@/components/AddStudentsDialog";
 import { toast } from "sonner";
-import { getAllActiveClasses, createActiveClass, updateActiveClass, deleteActiveClass, type ActiveClass } from "@/services/examService";
+import { 
+  getAllActiveClasses, 
+  createActiveClass, 
+  updateActiveClass, 
+  deleteActiveClass, 
+  getAllActiveStudents,
+  getActiveStudentById,
+  getStudentTestResults,
+  getStudentContentSkillScores,
+  getStudentSubjectSkillScores,
+  type ActiveClass,
+  type ActiveStudent,
+  type TestResult,
+  type SkillScore
+} from "@/services/examService";
 
 interface ClassViewProps {
   onSelectStudent: (studentId: string, classId?: string, className?: string) => void;
@@ -39,24 +52,62 @@ const mockStudents = [
 export function ClassView({ onSelectStudent }: ClassViewProps) {
   const [classes, setClasses] = useState<ActiveClass[]>([]);
   const [selectedClass, setSelectedClass] = useState<string | null>(null);
+  const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
   const [filterSubject, setFilterSubject] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
+  const [allStudents, setAllStudents] = useState<ActiveStudent[]>([]);
+  const [studentDetails, setStudentDetails] = useState<{
+    student: ActiveStudent | null;
+    testResults: TestResult[];
+    contentSkills: SkillScore[];
+    subjectSkills: SkillScore[];
+  }>({
+    student: null,
+    testResults: [],
+    contentSkills: [],
+    subjectSkills: []
+  });
 
   useEffect(() => {
-    loadClasses();
+    loadData();
   }, []);
 
-  const loadClasses = async () => {
+  const loadData = async () => {
     try {
       setLoading(true);
-      const activeClasses = await getAllActiveClasses();
+      const [activeClasses, activeStudents] = await Promise.all([
+        getAllActiveClasses(),
+        getAllActiveStudents()
+      ]);
       setClasses(activeClasses);
+      setAllStudents(activeStudents);
     } catch (error) {
-      console.error('Error loading classes:', error);
-      toast.error('Failed to load classes');
+      console.error('Error loading data:', error);
+      toast.error('Failed to load data');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadStudentDetails = async (studentId: string) => {
+    try {
+      const [student, testResults, contentSkills, subjectSkills] = await Promise.all([
+        getActiveStudentById(studentId),
+        getStudentTestResults(studentId),
+        getStudentContentSkillScores(studentId),
+        getStudentSubjectSkillScores(studentId)
+      ]);
+
+      setStudentDetails({
+        student,
+        testResults,
+        contentSkills,
+        subjectSkills
+      });
+    } catch (error) {
+      console.error('Error loading student details:', error);
+      toast.error('Failed to load student details');
     }
   };
 
@@ -88,11 +139,9 @@ export function ClassView({ onSelectStudent }: ClassViewProps) {
       if (!classToUpdate) return;
 
       const updatedStudents = [...classToUpdate.students, ...studentIds];
-      const studentGpas = mockStudents
-        .filter(s => updatedStudents.includes(s.id))
-        .map(s => s.gpa);
-      const avgGpa = studentGpas.length > 0 
-        ? Number((studentGpas.reduce((sum, gpa) => sum + gpa, 0) / studentGpas.length).toFixed(1))
+      const enrolledStudents = allStudents.filter(s => updatedStudents.includes(s.id));
+      const avgGpa = enrolledStudents.length > 0 
+        ? Number((enrolledStudents.reduce((sum, s) => sum + (s.gpa || 0), 0) / enrolledStudents.length).toFixed(1))
         : 0;
 
       const updatedClass = await updateActiveClass(classId, {
@@ -110,6 +159,11 @@ export function ClassView({ onSelectStudent }: ClassViewProps) {
       console.error('Error adding students:', error);
       toast.error('Failed to add students. Please try again.');
     }
+  };
+
+  const handleStudentClick = (studentId: string, classId: string, className: string) => {
+    setSelectedStudentId(studentId);
+    loadStudentDetails(studentId);
   };
 
   const filteredClasses = classes.filter(cls => {
@@ -131,11 +185,174 @@ export function ClassView({ onSelectStudent }: ClassViewProps) {
     );
   }
 
+  // Student Details View
+  if (selectedStudentId && studentDetails.student) {
+    const { student, testResults, contentSkills, subjectSkills } = studentDetails;
+    
+    return (
+      <div className="p-6">
+        <div className="mb-6">
+          <Button 
+            variant="ghost" 
+            onClick={() => {
+              setSelectedStudentId(null);
+              setStudentDetails({ student: null, testResults: [], contentSkills: [], subjectSkills: [] });
+            }} 
+            className="mb-4"
+          >
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Back to Class
+          </Button>
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900">{student.name}</h1>
+              <p className="text-gray-600 mt-1">{student.email || 'No email provided'}</p>
+            </div>
+            <div className="text-right">
+              <div className="text-2xl font-bold text-gray-900">
+                {student.gpa ? Number(student.gpa).toFixed(2) : 'N/A'}
+              </div>
+              <div className="text-sm text-gray-600">GPA</div>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+          <Card>
+            <CardContent className="p-4 text-center">
+              <div className="text-2xl font-bold">{student.year || 'N/A'}</div>
+              <div className="text-sm text-gray-600">Year</div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-4 text-center">
+              <div className="text-2xl font-bold">{student.major || 'N/A'}</div>
+              <div className="text-sm text-gray-600">Major</div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-4 text-center">
+              <div className="text-2xl font-bold">{testResults.length}</div>
+              <div className="text-sm text-gray-600">Test Results</div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-4 text-center">
+              <div className="text-2xl font-bold">
+                {testResults.length > 0 
+                  ? (testResults.reduce((sum, result) => sum + result.overall_score, 0) / testResults.length).toFixed(1)
+                  : 'N/A'
+                }%
+              </div>
+              <div className="text-sm text-gray-600">Avg Score</div>
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Content Skill Scores</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {contentSkills.length > 0 ? (
+                <div className="space-y-3">
+                  {contentSkills.map((skill) => (
+                    <div key={skill.id} className="flex items-center justify-between">
+                      <span className="text-sm font-medium">{skill.skill_name}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm text-gray-600">
+                          {skill.points_earned}/{skill.points_possible}
+                        </span>
+                        <Badge variant="outline">
+                          {Number(skill.score).toFixed(1)}%
+                        </Badge>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-gray-500 text-center py-4">No content skill scores available</p>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Subject Skill Scores</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {subjectSkills.length > 0 ? (
+                <div className="space-y-3">
+                  {subjectSkills.map((skill) => (
+                    <div key={skill.id} className="flex items-center justify-between">
+                      <span className="text-sm font-medium">{skill.skill_name}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm text-gray-600">
+                          {skill.points_earned}/{skill.points_possible}
+                        </span>
+                        <Badge variant="outline">
+                          {Number(skill.score).toFixed(1)}%
+                        </Badge>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-gray-500 text-center py-4">No subject skill scores available</p>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Test Results</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {testResults.length > 0 ? (
+              <div className="space-y-3">
+                {testResults.map((result) => (
+                  <div key={result.id} className="flex items-center justify-between p-3 rounded-lg border">
+                    <div>
+                      <p className="font-medium">Exam ID: {result.exam_id}</p>
+                      <p className="text-sm text-gray-600">
+                        {new Date(result.created_at).toLocaleDateString()}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <div className="font-semibold">
+                        {result.total_points_earned}/{result.total_points_possible}
+                      </div>
+                      <Badge 
+                        className={
+                          result.overall_score >= 90 ? 'bg-green-100 text-green-700' :
+                          result.overall_score >= 80 ? 'bg-blue-100 text-blue-700' :
+                          result.overall_score >= 70 ? 'bg-yellow-100 text-yellow-700' :
+                          'bg-red-100 text-red-700'
+                        }
+                      >
+                        {Number(result.overall_score).toFixed(1)}%
+                      </Badge>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-gray-500 text-center py-4">No test results available</p>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // Class Detail View
   if (selectedClass) {
     const classData = classes.find(cls => cls.id === selectedClass);
     if (!classData) return null;
 
-    const enrolledStudents = mockStudents.filter(student => 
+    const enrolledStudents = allStudents.filter(student => 
       classData.students.includes(student.id)
     );
 
@@ -143,7 +360,8 @@ export function ClassView({ onSelectStudent }: ClassViewProps) {
       <div className="p-6">
         <div className="mb-6">
           <Button variant="ghost" onClick={() => setSelectedClass(null)} className="mb-4">
-            ← Back to Classes
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Back to Classes
           </Button>
           <div className="flex items-center justify-between">
             <div>
@@ -158,7 +376,7 @@ export function ClassView({ onSelectStudent }: ClassViewProps) {
                 enrolledStudentIds={classData.students}
               />
               <div className="text-right">
-                <div className="text-2xl font-bold text-gray-900">{classData.avg_gpa}</div>
+                <div className="text-2xl font-bold text-gray-900">{classData.avg_gpa || 0}</div>
                 <div className="text-sm text-gray-600">Class Average GPA</div>
               </div>
             </div>
@@ -212,7 +430,7 @@ export function ClassView({ onSelectStudent }: ClassViewProps) {
                   <div 
                     key={student.id}
                     className="flex items-center justify-between p-3 rounded-lg border hover:bg-gray-50 cursor-pointer"
-                    onClick={() => onSelectStudent(student.id, classData.id, classData.name)}
+                    onClick={() => handleStudentClick(student.id, classData.id, classData.name)}
                   >
                     <div className="flex items-center gap-3">
                       <Avatar className="h-8 w-8">
@@ -220,9 +438,14 @@ export function ClassView({ onSelectStudent }: ClassViewProps) {
                           {student.name.split(' ').map(n => n[0]).join('')}
                         </AvatarFallback>
                       </Avatar>
-                      <span className="font-medium">{student.name}</span>
+                      <div>
+                        <span className="font-medium">{student.name}</span>
+                        <p className="text-sm text-gray-600">{student.email || 'No email'}</p>
+                      </div>
                     </div>
-                    <Badge variant="outline">GPA: {student.gpa}</Badge>
+                    <Badge variant="outline">
+                      GPA: {student.gpa ? Number(student.gpa).toFixed(2) : 'N/A'}
+                    </Badge>
                   </div>
                 ))}
               </div>
@@ -233,6 +456,7 @@ export function ClassView({ onSelectStudent }: ClassViewProps) {
     );
   }
 
+  // Classes List View
   return (
     <div className="p-6">
       <div className="mb-6">

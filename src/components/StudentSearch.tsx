@@ -1,4 +1,5 @@
-import { useState } from "react";
+
+import { useState, useEffect } from "react";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -6,67 +7,91 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { GraduationCap } from "lucide-react";
 import { AddStudentDialog } from "@/components/AddStudentDialog";
+import { getAllActiveStudents, type ActiveStudent } from "@/services/examService";
+import { toast } from "sonner";
 
 interface StudentSearchProps {
   onSelectStudent: (studentId: string) => void;
 }
 
-// Mock data for demonstration with class assignments
-const mockStudents = Array.from({ length: 50 }, (_, i) => ({
-  id: String(i + 1),
-  name: `Student ${i + 1}`,
-  email: `student${i + 1}@university.edu`,
-  gpa: Number((Math.random() * 2 + 2).toFixed(2)),
-  year: ['Freshman', 'Sophomore', 'Junior', 'Senior'][Math.floor(Math.random() * 4)],
-  major: ['Computer Science', 'Mathematics', 'Physics', 'Biology', 'Chemistry'][Math.floor(Math.random() * 5)],
-  status: Math.random() > 0.8 ? 'At Risk' : Math.random() > 0.3 ? 'Good Standing' : 'Excellent',
-  class: ['Math Grade 6', 'Science Grade 7', 'English Grade 8', 'History Grade 9'][Math.floor(Math.random() * 4)]
-}));
-
-const classes = [...new Set(mockStudents.map(student => student.class))];
-
 export function StudentSearch({ onSelectStudent }: StudentSearchProps) {
   const [searchTerm, setSearchTerm] = useState("");
-  const [filterClass, setFilterClass] = useState<string>('all');
-  const [filteredStudents, setFilteredStudents] = useState(mockStudents);
+  const [filterMajor, setFilterMajor] = useState<string>('all');
+  const [filteredStudents, setFilteredStudents] = useState<ActiveStudent[]>([]);
+  const [allStudents, setAllStudents] = useState<ActiveStudent[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    loadStudents();
+  }, []);
+
+  const loadStudents = async () => {
+    try {
+      setLoading(true);
+      const students = await getAllActiveStudents();
+      setAllStudents(students);
+      setFilteredStudents(students);
+    } catch (error) {
+      console.error('Error loading students:', error);
+      toast.error('Failed to load students');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleSearch = (term: string) => {
     setSearchTerm(term);
-    applyFilters(term, filterClass);
+    applyFilters(term, filterMajor);
   };
 
-  const handleClassFilter = (classFilter: string) => {
-    setFilterClass(classFilter);
-    applyFilters(searchTerm, classFilter);
+  const handleMajorFilter = (majorFilter: string) => {
+    setFilterMajor(majorFilter);
+    applyFilters(searchTerm, majorFilter);
   };
 
-  const applyFilters = (term: string, classFilter: string) => {
-    let filtered = mockStudents.filter(student =>
+  const applyFilters = (term: string, majorFilter: string) => {
+    let filtered = allStudents.filter(student =>
       student.name.toLowerCase().includes(term.toLowerCase()) ||
-      student.email.toLowerCase().includes(term.toLowerCase()) ||
-      student.major.toLowerCase().includes(term.toLowerCase())
+      (student.email && student.email.toLowerCase().includes(term.toLowerCase())) ||
+      (student.major && student.major.toLowerCase().includes(term.toLowerCase()))
     );
 
-    if (classFilter !== 'all') {
-      filtered = filtered.filter(student => student.class === classFilter);
+    if (majorFilter !== 'all') {
+      filtered = filtered.filter(student => student.major === majorFilter);
     }
 
     setFilteredStudents(filtered);
   };
 
   const handleStudentAdded = () => {
-    // Refresh the student list or show a success message
-    console.log('Student added successfully');
+    loadStudents();
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'Excellent': return 'bg-green-100 text-green-700';
-      case 'Good Standing': return 'bg-blue-100 text-blue-700';
-      case 'At Risk': return 'bg-red-100 text-red-700';
-      default: return 'bg-gray-100 text-gray-700';
-    }
+  const getStatusColor = (gpa?: number) => {
+    if (!gpa) return 'bg-gray-100 text-gray-700';
+    if (gpa >= 3.5) return 'bg-green-100 text-green-700';
+    if (gpa >= 3.0) return 'bg-blue-100 text-blue-700';
+    return 'bg-red-100 text-red-700';
   };
+
+  const getStatusText = (gpa?: number) => {
+    if (!gpa) return 'No GPA';
+    if (gpa >= 3.5) return 'Excellent';
+    if (gpa >= 3.0) return 'Good Standing';
+    return 'At Risk';
+  };
+
+  const majors = [...new Set(allStudents.map(student => student.major).filter(Boolean))];
+
+  if (loading) {
+    return (
+      <div className="p-6">
+        <div className="flex items-center justify-center py-12">
+          <div className="text-lg text-gray-600">Loading students...</div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-6">
@@ -89,20 +114,20 @@ export function StudentSearch({ onSelectStudent }: StudentSearchProps) {
             onChange={(e) => handleSearch(e.target.value)}
             className="max-w-md"
           />
-          <Select value={filterClass} onValueChange={handleClassFilter}>
+          <Select value={filterMajor} onValueChange={handleMajorFilter}>
             <SelectTrigger className="w-48">
-              <SelectValue placeholder="Filter by class" />
+              <SelectValue placeholder="Filter by major" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All Classes</SelectItem>
-              {classes.map((className) => (
-                <SelectItem key={className} value={className}>{className}</SelectItem>
+              <SelectItem value="all">All Majors</SelectItem>
+              {majors.map((major) => (
+                <SelectItem key={major} value={major!}>{major}</SelectItem>
               ))}
             </SelectContent>
           </Select>
         </div>
         <p className="text-sm text-gray-500 mt-2">
-          Showing {filteredStudents.length} of {mockStudents.length} students
+          Showing {filteredStudents.length} of {allStudents.length} students
         </p>
       </div>
 
@@ -122,17 +147,18 @@ export function StudentSearch({ onSelectStudent }: StudentSearchProps) {
                 </Avatar>
                 <div className="flex-1 min-w-0">
                   <h3 className="font-semibold text-gray-900 truncate">{student.name}</h3>
-                  <p className="text-sm text-gray-600 truncate">{student.email}</p>
+                  <p className="text-sm text-gray-600 truncate">{student.email || 'No email'}</p>
                   <div className="flex items-center gap-2 mt-2">
-                    <Badge variant="outline">{student.year}</Badge>
-                    <Badge variant="outline" className={getStatusColor(student.status)}>
-                      {student.status}
+                    {student.year && <Badge variant="outline">{student.year}</Badge>}
+                    <Badge variant="outline" className={getStatusColor(student.gpa)}>
+                      {getStatusText(student.gpa)}
                     </Badge>
                   </div>
                   <div className="mt-2">
-                    <p className="text-xs text-blue-600 font-medium">{student.class}</p>
-                    <p className="text-sm text-gray-600">{student.major}</p>
-                    <p className="text-sm font-medium text-gray-900">GPA: {student.gpa}</p>
+                    {student.major && <p className="text-sm text-gray-600">{student.major}</p>}
+                    <p className="text-sm font-medium text-gray-900">
+                      GPA: {student.gpa ? Number(student.gpa).toFixed(2) : 'N/A'}
+                    </p>
                   </div>
                 </div>
               </div>
@@ -141,11 +167,11 @@ export function StudentSearch({ onSelectStudent }: StudentSearchProps) {
         ))}
       </div>
 
-      {filteredStudents.length === 0 && (
+      {filteredStudents.length === 0 && !loading && (
         <div className="text-center py-12">
           <GraduationCap className="h-12 w-12 text-gray-400 mx-auto mb-4" />
           <h3 className="text-lg font-medium text-gray-900 mb-2">No students found</h3>
-          <p className="text-gray-600">Try adjusting your search criteria</p>
+          <p className="text-gray-600">Try adjusting your search criteria or add a new student</p>
         </div>
       )}
     </div>

@@ -48,6 +48,39 @@ export type Database = {
         }
         Relationships: []
       }
+      active_students: {
+        Row: {
+          created_at: string
+          email: string | null
+          gpa: number | null
+          id: string
+          major: string | null
+          name: string
+          updated_at: string
+          year: string | null
+        }
+        Insert: {
+          created_at?: string
+          email?: string | null
+          gpa?: number | null
+          id?: string
+          major?: string | null
+          name: string
+          updated_at?: string
+          year?: string | null
+        }
+        Update: {
+          created_at?: string
+          email?: string | null
+          gpa?: number | null
+          id?: string
+          major?: string | null
+          name?: string
+          updated_at?: string
+          year?: string | null
+        }
+        Relationships: []
+      }
       answer_keys: {
         Row: {
           correct_answer: string
@@ -274,6 +307,7 @@ export type Database = {
       }
       test_results: {
         Row: {
+          active_student_id: string | null
           ai_feedback: string | null
           class_id: string
           created_at: string
@@ -286,6 +320,7 @@ export type Database = {
           total_points_possible: number
         }
         Insert: {
+          active_student_id?: string | null
           ai_feedback?: string | null
           class_id: string
           created_at?: string
@@ -298,6 +333,7 @@ export type Database = {
           total_points_possible: number
         }
         Update: {
+          active_student_id?: string | null
           ai_feedback?: string | null
           class_id?: string
           created_at?: string
@@ -310,6 +346,13 @@ export type Database = {
           total_points_possible?: number
         }
         Relationships: [
+          {
+            foreignKeyName: "test_results_active_student_id_fkey"
+            columns: ["active_student_id"]
+            isOneToOne: false
+            referencedRelation: "active_students"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "test_results_class_id_fkey"
             columns: ["class_id"]
