@@ -1,4 +1,3 @@
-
 import jsPDF from 'jspdf';
 
 export interface Question {
@@ -190,12 +189,12 @@ export const generateTestPDF = (testData: TestData) => {
     // Answer options calculation
     if (question.type === 'multiple-choice' && question.options) {
       question.options.forEach(option => {
-        const optionLines = pdf.splitTextToSize(option, pageWidth - margin - 50);
-        height += Math.max(optionLines.length * 5, 12) + 3;
+        const optionLines = pdf.splitTextToSize(option, pageWidth - margin - 80);
+        height += Math.max(optionLines.length * 5, 15) + 3;
       });
-      height += 5; // Extra spacing after options
+      height += 15; // Extra spacing for "Student Selected:" text
     } else if (question.type === 'true-false') {
-      height += 25; // Space for True/False options
+      height += 35; // Space for True/False options and selection box
     } else if (question.type === 'short-answer') {
       height += 25; // Answer lines
     } else if (question.type === 'essay') {
@@ -288,7 +287,7 @@ export const generateTestPDF = (testData: TestData) => {
         // Alternating background for better readability
         if (optionIndex % 2 === 1) {
           pdf.setFillColor(250, 250, 250);
-          pdf.rect(margin + 5, yPosition - 2, pageWidth - 2 * margin - 10, 12, 'F');
+          pdf.rect(margin + 5, yPosition - 2, pageWidth - 2 * margin - 10, 15, 'F');
         }
         
         // Option letter in circle
@@ -303,18 +302,32 @@ export const generateTestPDF = (testData: TestData) => {
         pdf.setTextColor(0, 0, 0);
         pdf.setFont(undefined, 'normal');
         pdf.setFontSize(9);
-        const optionLines = pdf.splitTextToSize(option, pageWidth - margin - 50);
+        const optionLines = pdf.splitTextToSize(option, pageWidth - margin - 80);
         pdf.text(optionLines, margin + 25, yPosition + 3);
-        
-        // Answer bubble
-        pdf.setDrawColor(107, 114, 128);
-        pdf.setLineWidth(1);
-        pdf.setFillColor(255, 255, 255);
-        pdf.circle(pageWidth - margin - 25, yPosition + 4, 5, 'FD');
         
         yPosition += Math.max(optionLines.length * 5, 12) + 3;
       });
+      
+      // Add "Student Selected:" text and answer box
       yPosition += 5;
+      pdf.setFontSize(10);
+      pdf.setFont(undefined, 'bold');
+      pdf.setTextColor(220, 38, 127);
+      pdf.text('Student Selected:', margin + 8, yPosition + 5);
+      
+      // Draw answer box for letter
+      pdf.setDrawColor(0, 0, 0);
+      pdf.setLineWidth(1.5);
+      pdf.setFillColor(255, 255, 255);
+      pdf.rect(margin + 75, yPosition - 2, 15, 12, 'FD');
+      
+      // Add instructional text
+      pdf.setFontSize(8);
+      pdf.setFont(undefined, 'italic');
+      pdf.setTextColor(107, 114, 128);
+      pdf.text('(Write letter A, B, C, or D)', margin + 95, yPosition + 5);
+      
+      yPosition += 10;
     } else if (question.type === 'true-false') {
       // True/False with better styling
       const options = ['True', 'False'];
@@ -332,15 +345,29 @@ export const generateTestPDF = (testData: TestData) => {
         pdf.setFont(undefined, 'normal');
         pdf.text(option, margin + 25, yPosition + 6);
         
-        // Answer bubble
-        pdf.setDrawColor(107, 114, 128);
-        pdf.setLineWidth(1);
-        pdf.setFillColor(255, 255, 255);
-        pdf.circle(pageWidth - margin - 25, yPosition + 4, 5, 'FD');
-        
         yPosition += 12;
       });
+      
+      // Add "Student Selected:" text and answer box for True/False
       yPosition += 3;
+      pdf.setFontSize(10);
+      pdf.setFont(undefined, 'bold');
+      pdf.setTextColor(220, 38, 127);
+      pdf.text('Student Selected:', margin + 8, yPosition + 5);
+      
+      // Draw answer box for letter
+      pdf.setDrawColor(0, 0, 0);
+      pdf.setLineWidth(1.5);
+      pdf.setFillColor(255, 255, 255);
+      pdf.rect(margin + 75, yPosition - 2, 15, 12, 'FD');
+      
+      // Add instructional text
+      pdf.setFontSize(8);
+      pdf.setFont(undefined, 'italic');
+      pdf.setTextColor(107, 114, 128);
+      pdf.text('(Write letter A or B)', margin + 95, yPosition + 5);
+      
+      yPosition += 10;
     } else if (question.type === 'short-answer') {
       pdf.setFontSize(9);
       pdf.setTextColor(107, 114, 128);
