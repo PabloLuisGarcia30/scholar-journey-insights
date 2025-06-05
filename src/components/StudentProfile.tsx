@@ -117,24 +117,36 @@ export function StudentProfile({ studentId, classId, className, onBack }: Studen
 
   // Create comprehensive skill data combining test scores with class skills
   const getComprehensiveSkillData = () => {
-    if (!isClassView || !classContentSkills.length) return contentSkillScores;
-
-    // Create a map of skill scores by skill name
-    const scoreMap = new Map(contentSkillScores.map(score => [score.skill_name, score]));
-
-    // Combine class skills with actual scores, showing 0 for untested skills
-    return classContentSkills.map(skill => {
-      const existingScore = scoreMap.get(skill.skill_name);
-      return existingScore || {
-        id: `placeholder-${skill.id}`,
-        test_result_id: '',
-        skill_name: skill.skill_name,
-        score: 0, // Show 0% for skills not yet tested
-        points_earned: 0,
-        points_possible: 0,
-        created_at: ''
-      };
+    console.log('Getting comprehensive skill data:', { 
+      isClassView, 
+      classContentSkillsLength: classContentSkills.length, 
+      contentSkillScoresLength: contentSkillScores.length,
+      classContentSkills,
+      contentSkillScores
     });
+
+    // If we're in class view and have class content skills, show all skills for the class
+    if (isClassView && classContentSkills.length > 0) {
+      // Create a map of skill scores by skill name
+      const scoreMap = new Map(contentSkillScores.map(score => [score.skill_name, score]));
+
+      // Combine class skills with actual scores, showing 0 for untested skills
+      return classContentSkills.map(skill => {
+        const existingScore = scoreMap.get(skill.skill_name);
+        return existingScore || {
+          id: `placeholder-${skill.id}`,
+          test_result_id: '',
+          skill_name: skill.skill_name,
+          score: 0, // Show 0% for skills not yet tested
+          points_earned: 0,
+          points_possible: 0,
+          created_at: ''
+        };
+      });
+    }
+
+    // Otherwise, just return the content skill scores from tests
+    return contentSkillScores;
   };
 
   const comprehensiveSkillData = getComprehensiveSkillData();
@@ -511,7 +523,12 @@ export function StudentProfile({ studentId, classId, className, onBack }: Studen
                     </div>
                   ) : (
                     <div className="text-center py-8">
-                      <p className="text-gray-600">No content skill data available.</p>
+                      <p className="text-gray-600">
+                        {isClassView && classContentSkillsLoading 
+                          ? 'Loading content skills...' 
+                          : 'No content skill data available.'
+                        }
+                      </p>
                     </div>
                   )}
                 </CardContent>
