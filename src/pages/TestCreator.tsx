@@ -246,13 +246,19 @@ const TestCreator = () => {
         questions,
       };
 
-      // Save to database first
-      const examData: ExamData = {
-        ...testData,
-        totalPoints: questions.reduce((sum, q) => sum + q.points, 0),
-      };
+      // Check if the exam is already saved to database
+      const { getExamByExamId } = await import('@/services/examService');
+      const existingExam = await getExamByExamId(examId);
       
-      await saveTestToDatabase(examData, selectedClassId);
+      if (!existingExam) {
+        // Save to database first if not already saved
+        const examData: ExamData = {
+          ...testData,
+          totalPoints: questions.reduce((sum, q) => sum + q.points, 0),
+        };
+        
+        await saveTestToDatabase(examData, selectedClassId);
+      }
       
       // Import the new function
       const { generateStudentTestPDFs } = await import('@/utils/pdfGenerator');
