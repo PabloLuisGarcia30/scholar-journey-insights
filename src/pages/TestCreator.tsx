@@ -206,17 +206,15 @@ const TestCreator = () => {
       console.log('Saving test data with answer key and exam ID:', testData);
       await saveExamToDatabase(testData, classId);
       toast({
-        title: "Success!",
+        title: "✅ Success!",
         description: `Test and answer key saved successfully! Exam ID: ${testData.examId}`,
-        className: "fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-50",
       });
     } catch (error) {
       console.error('Error saving test to database:', error);
       toast({
-        title: "Error",
+        title: "❌ Error",
         description: 'Failed to save test to database. Please try again.',
         variant: "destructive",
-        className: "fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-50",
       });
       throw error;
     }
@@ -225,10 +223,9 @@ const TestCreator = () => {
   const finalizeTest = async () => {
     if (!selectedClassId.trim()) {
       toast({
-        title: "Error",
+        title: "⚠️ Missing Information",
         description: 'Please select a class',
         variant: "destructive",
-        className: "fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-50",
       });
       return;
     }
@@ -249,9 +246,8 @@ const TestCreator = () => {
     try {
       await saveTestToDatabase(testData, selectedClassId);
       toast({
-        title: "Success!",
-        description: `Test saved successfully! Exam ID: ${examId}`,
-        className: "fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-50",
+        title: "🎉 Test Saved!",
+        description: `Successfully saved with ID: ${examId}`,
       });
       setCurrentStep('preview');
     } catch (error) {
