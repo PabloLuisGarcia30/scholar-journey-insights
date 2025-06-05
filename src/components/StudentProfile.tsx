@@ -17,7 +17,6 @@ import {
   getStudentSubjectSkillScores,
   getActiveClassById,
   getContentSkillsBySubjectAndGrade,
-  autoLinkMathClassToGrade10Skills,
   type ActiveStudent,
   type TestResult,
   type SkillScore,
@@ -84,16 +83,6 @@ export function StudentProfile({ studentId, classId, className, onBack }: Studen
   const isGrade10MathClass = () => {
     return classData && classData.subject === 'Math' && classData.grade === 'Grade 10';
   };
-
-  // Auto-link any Grade 10 Math class to Grade 10 skills when class data is loaded
-  useEffect(() => {
-    if (isGrade10MathClass()) {
-      console.log('Auto-linking Grade 10 Math class to Grade 10 Math skills');
-      autoLinkMathClassToGrade10Skills().catch(error => {
-        console.error('Failed to auto-link class skills:', error);
-      });
-    }
-  }, [classData]);
 
   // Fetch test results
   const { data: testResults = [], isLoading: testResultsLoading } = useQuery({
@@ -222,7 +211,6 @@ export function StudentProfile({ studentId, classId, className, onBack }: Studen
 
   const groupedSkills = groupSkillsByTopic(comprehensiveSkillData);
 
-  // ... keep existing code (helper functions for colors, trends, handlers)
   const getGradeColor = (grade: string | number) => {
     const numGrade = typeof grade === 'string' ? 
       (grade.startsWith('A') ? 90 : grade.startsWith('B') ? 80 : grade.startsWith('C') ? 70 : 60) : 
@@ -258,7 +246,6 @@ export function StudentProfile({ studentId, classId, className, onBack }: Studen
     setSelectedSkill(null);
   };
 
-  // ... keep existing code (loading states, practice test view, error states)
   if (showPracticeTest && className) {
     return (
       <PracticeTestGenerator
@@ -304,7 +291,6 @@ export function StudentProfile({ studentId, classId, className, onBack }: Studen
 
   return (
     <div className="p-6">
-      {/* ... keep existing code (header section, quick stats) */}
       <div className="mb-6">
         <Button variant="ghost" onClick={onBack} className="mb-4">
           <ArrowLeft className="h-4 w-4 mr-2" />
