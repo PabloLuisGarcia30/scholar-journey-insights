@@ -17,6 +17,7 @@ import { TestDetails } from "@/components/TestCreator/TestDetails";
 import { QuestionEditor } from "@/components/TestCreator/QuestionEditor";
 import { AISkillSelection } from "@/components/TestCreator/AISkillSelection";
 import { saveExamToDatabase, getAllActiveClasses, type ExamData, type ActiveClass, type ContentSkill } from "@/services/examService";
+import { generatePracticeTest, type GeneratePracticeTestRequest } from "@/services/practiceTestService";
 
 interface PrintTestsDialogProps {
   selectedClass: ActiveClass;
@@ -107,7 +108,7 @@ const TestCreator = () => {
   const [selectedClassId, setSelectedClassId] = useState('');
   const [timeLimit, setTimeLimit] = useState(60);
   const [questions, setQuestions] = useState<Question[]>([]);
-  const [currentStep, setCurrentStep] = useState<'template' | 'details' | 'questions' | 'answer-key' | 'class-input' | 'preview' | 'ai-class-selection' | 'ai-skill-selection'>('template');
+  const [currentStep, setCurrentStep] = useState<'template' | 'details' | 'questions' | 'answer-key' | 'class-input' | 'preview' | 'ai-class-selection' | 'ai-skill-selection' | 'ai-generating'>('template');
   const [examId, setExamId] = useState<string>('');
   const [availableClasses, setAvailableClasses] = useState<ActiveClass[]>([]);
   const [isGeneratingStudentTests, setIsGeneratingStudentTests] = useState(false);
@@ -120,6 +121,7 @@ const TestCreator = () => {
   const [isDownloadDialogOpen, setIsDownloadDialogOpen] = useState(false);
   const [selectedStudentsForDownload, setSelectedStudentsForDownload] = useState<string[]>([]);
   const [isDownloading, setIsDownloading] = useState(false);
+  const [isGeneratingQuestions, setIsGeneratingQuestions] = useState(false);
 
   useEffect(() => {
     const loadClasses = async () => {
@@ -197,6 +199,70 @@ const TestCreator = () => {
 
   const deleteQuestion = (questionId: string) => {
     setQuestions(questions.filter(q => q.id !== questionId));
+  };
+
+  const generateAIQuestions = async (selectedSkills: ContentSkill[], customSkills: string[]) => {
+    setIsGeneratingQuestions(true);
+    setCurrentStep('ai-generating');
+    
+    try {
+      const selectedClass = availableClasses.find(c => c.id === selectedClassId);
+      if (!selectedClass) {
+        throw new Error('Selected class not found');
+      }
+
+      // Combine selected skills and custom skills
+      const allSkills = [
+        ...selectedSkills.map(skill => skill.skill_name),
+        ...customSkills
+      ];
+
+      const request: GeneratePracticeTestRequest = {
+        studentName: 'Practice Test', // Generic name for teacher preview
+        className: selectedClass.name,
+        skillName: allSkills.join(', '),
+        grade: selectedClass.grade,
+        subject: selectedClass.subject
+      };
+
+      console.log('Generating AI questions with request:', request);
+      const practiceTestData = await generatePracticeTest(request);
+      
+      // Convert practice test questions to our Question format
+      const convertedQuestions: Question[] = practiceTestData.questions.map((q, index) => ({
+        id: `ai-q-${index}`,
+        type: q.type,
+        question: q.question,
+        options: q.options,
+        correctAnswer: q.correctAnswer || '',
+        points: q.points
+      }));
+
+      setQuestions(convertedQuestions);
+      setTestTitle(practiceTestData.title);
+      setTestDescription(practiceTestData.description);
+      setTimeLimit(practiceTestData.estimatedTime);
+      
+      toast({
+        title: "✅ Success!",
+        description: `Generated ${convertedQuestions.length} AI questions for your test`,
+      });
+      
+      // Go directly to answer key review
+      setCurrentStep('answer-key');
+      
+    } catch (error) {
+      console.error('Error generating AI questions:', error);
+      toast({
+        title: "❌ Error",
+        description: 'Failed to generate AI questions. Please try again.',
+        variant: "destructive",
+      });
+      // Go back to skill selection on error
+      setCurrentStep('ai-skill-selection');
+    } finally {
+      setIsGeneratingQuestions(false);
+    }
   };
 
   const handleGenerateTest = () => {
@@ -491,6 +557,36 @@ const TestCreator = () => {
     </div>
   );
 
+  const renderAIGenerating = () => (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <h2 className="text-2xl font-bold text-gray-900">Generating AI Questions</h2>
+      </div>
+      
+      {examId && (
+        <div className="bg-blue-50 p-3 rounded-lg">
+          <span className="text-sm font-medium text-blue-800">Exam ID: </span>
+          <span className="text-sm font-mono text-blue-900">{examId}</span>
+        </div>
+      )}
+      
+      <Card>
+        <CardContent className="text-center py-12">
+          <RefreshCw className="h-12 w-12 animate-spin mx-auto mb-4 text-blue-600" />
+          <h3 className="text-lg font-semibold mb-2">Creating Your AI Test</h3>
+          <p className="text-gray-600 mb-4">
+            Our AI is generating personalized questions based on your selected skills and class content...
+          </p>
+          <div className="bg-blue-50 p-4 rounded-lg">
+            <p className="text-sm text-blue-800">
+              This usually takes 10-30 seconds. Please wait while we craft the perfect test for your students.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+
   const renderTestDetails = () => (
     <TestDetails
       examId={examId}
@@ -523,12 +619,15 @@ const TestCreator = () => {
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
           <Key className="h-6 w-6" />
-          Answer Key
+          Answer Key Review
         </h2>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={() => setCurrentStep('questions')}>
+          <Button 
+            variant="outline" 
+            onClick={() => setCurrentStep(selectedTemplate === 'ai-test' ? 'ai-skill-selection' : 'questions')}
+          >
             <ArrowLeft className="h-4 w-4 mr-2" />
-            Back to Questions
+            {selectedTemplate === 'ai-test' ? 'Back to Skills' : 'Back to Questions'}
           </Button>
           <Button onClick={handleAnswerKeyComplete}>
             Continue to Class Selection
@@ -546,7 +645,10 @@ const TestCreator = () => {
       <div className="bg-blue-50 p-4 rounded-lg mb-6">
         <h3 className="font-semibold text-blue-900 mb-2">Answer Key Instructions</h3>
         <p className="text-sm text-blue-800">
-          Provide correct answers for all questions. This answer key will be saved securely and used by the AI grading system to automatically score student responses.
+          {selectedTemplate === 'ai-test' 
+            ? 'Review and adjust the AI-generated answers if needed. The AI has already provided correct answers, but you can modify them if necessary.'
+            : 'Provide correct answers for all questions. This answer key will be saved securely and used by the AI grading system to automatically score student responses.'
+          }
         </p>
       </div>
       
@@ -559,6 +661,9 @@ const TestCreator = () => {
                 <div className="flex items-center gap-2">
                   <span className="text-sm text-gray-500 capitalize">{question.type.replace('-', ' ')}</span>
                   <span className="text-sm text-gray-600">({question.points} pts)</span>
+                  {selectedTemplate === 'ai-test' && (
+                    <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded">AI Generated</span>
+                  )}
                 </div>
               </div>
             </CardHeader>
@@ -1252,13 +1357,9 @@ const TestCreator = () => {
           availableClasses={availableClasses}
           examId={examId}
           onBack={() => setCurrentStep('ai-class-selection')}
-          onContinue={(selectedSkills: ContentSkill[], customSkills: string[]) => {
-            // TODO: Generate AI questions based on selected skills
-            console.log('Selected skills:', selectedSkills);
-            console.log('Custom skills:', customSkills);
-            setCurrentStep('details');
-          }}
+          onContinue={generateAIQuestions}
         />}
+        {currentStep === 'ai-generating' && renderAIGenerating()}
         {currentStep === 'details' && renderTestDetails()}
         {currentStep === 'questions' && renderQuestionEditor()}
         {currentStep === 'answer-key' && renderAnswerKey()}
