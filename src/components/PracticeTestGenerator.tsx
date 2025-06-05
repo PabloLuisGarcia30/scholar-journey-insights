@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, FileText, Download, RefreshCw, Zap, Printer } from "lucide-react";
 import { toast } from "sonner";
 import jsPDF from 'jspdf';
-import { generatePracticeTest, PracticeTestData, Question } from "@/services/practiceTestService";
+import { generatePracticeTest, PracticeTestData, PracticeTestQuestion } from "@/services/practiceTestService";
 import { printTest } from "@/services/printService";
 
 interface PracticeTestGeneratorProps {
