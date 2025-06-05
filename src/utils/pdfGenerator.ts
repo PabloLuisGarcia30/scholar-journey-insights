@@ -1,4 +1,3 @@
-
 import jsPDF from 'jspdf';
 
 export interface Question {
@@ -52,21 +51,8 @@ export const generateConsolidatedTestPDF = (testData: TestData, studentNames: st
   
   let currentPage = 1;
   let yPosition = margin;
-  let totalPages = 1; // Will be calculated after generating all content
 
-  // Calculate total pages needed
-  const calculateTotalPages = () => {
-    let tempPages = 0;
-    studentNames.forEach(() => {
-      // Each student gets their own test, estimate pages needed
-      tempPages += Math.max(1, Math.ceil(testData.questions.length / 3)); // Rough estimate
-    });
-    return tempPages;
-  };
-
-  totalPages = calculateTotalPages();
-
-  const addHeader = (pageNumber: number, studentName?: string) => {
+  const addHeader = (pageNumber: number) => {
     // Header background
     pdf.setFillColor(30, 58, 138);
     pdf.rect(0, 0, pageWidth, 18, 'F');
@@ -90,40 +76,7 @@ export const generateConsolidatedTestPDF = (testData: TestData, studentNames: st
     pdf.setFont(undefined, 'normal');
     pdf.text(`Class: ${testData.className} | Time: ${testData.timeLimit} min | Points: ${testData.questions.reduce((sum, q) => sum + q.points, 0)}`, margin, headerYPos);
     
-    headerYPos += 8;
-    
-    // Student name section (prominent for consolidated PDF)
-    if (studentName) {
-      pdf.setFillColor(248, 250, 252);
-      pdf.setDrawColor(148, 163, 184);
-      pdf.setLineWidth(1);
-      pdf.rect(margin, headerYPos, pageWidth - 2 * margin, 16, 'FD');
-      
-      pdf.setFontSize(10);
-      pdf.setFont(undefined, 'bold');
-      pdf.setTextColor(30, 58, 138);
-      pdf.text(`STUDENT: ${studentName}`, margin + 5, headerYPos + 10);
-      
-      headerYPos += 20;
-    } else {
-      // Regular student info section
-      pdf.setDrawColor(148, 163, 184);
-      pdf.setLineWidth(0.5);
-      pdf.rect(margin, headerYPos, pageWidth - 2 * margin, 12, 'D');
-      
-      pdf.setFontSize(7);
-      pdf.text('Name:', margin + 3, headerYPos + 7);
-      pdf.line(margin + 20, headerYPos + 8, margin + 70, headerYPos + 8);
-      
-      pdf.text('ID:', margin + 80, headerYPos + 7);
-      pdf.line(margin + 92, headerYPos + 8, margin + 130, headerYPos + 8);
-      
-      pdf.text('Date:', margin + 140, headerYPos + 7);
-      pdf.line(margin + 155, headerYPos + 8, pageWidth - margin - 3, headerYPos + 8);
-      
-      headerYPos += 16;
-    }
-    
+    headerYPos += 10;
     return headerYPos;
   };
 
@@ -134,20 +87,43 @@ export const generateConsolidatedTestPDF = (testData: TestData, studentNames: st
     pdf.text(`ID: ${testData.examId}`, margin, pageHeight - 6);
   };
 
-  const addStudentSeparator = (studentName: string) => {
-    // Add a new page for each student
-    if (currentPage > 1) {
-      addFooter(currentPage, totalPages);
-      pdf.addPage();
-      currentPage++;
+  const addStudentHeader = (studentName: string) => {
+    // Add some space before student header if not at top of page
+    if (yPosition > 40) {
+      yPosition += 8;
     }
     
-    yPosition = addHeader(currentPage, studentName);
+    // Check if we need a new page for the student header
+    if (yPosition + 25 > pageHeight - 25) {
+      addFooter(currentPage, currentPage); // Will be updated later
+      pdf.addPage();
+      currentPage++;
+      yPosition = addHeader(currentPage);
+    }
+    
+    // Student name section (prominent header)
+    pdf.setFillColor(248, 250, 252);
+    pdf.setDrawColor(148, 163, 184);
+    pdf.setLineWidth(1);
+    pdf.rect(margin, yPosition, pageWidth - 2 * margin, 16, 'FD');
+    
+    pdf.setFontSize(10);
+    pdf.setFont(undefined, 'bold');
+    pdf.setTextColor(30, 58, 138);
+    pdf.text(`STUDENT: ${studentName}`, margin + 5, yPosition + 10);
+    
+    yPosition += 20;
   };
+
+  // Calculate rough total pages (this is an estimate)
+  let totalPages = Math.max(1, Math.ceil((studentNames.length * testData.questions.length) / 4));
+
+  // Start first page
+  yPosition = addHeader(currentPage);
 
   // Generate tests for each student
   studentNames.forEach((studentName, studentIndex) => {
-    addStudentSeparator(studentName);
+    addStudentHeader(studentName);
     
     // Add questions for this student
     testData.questions.forEach((question, questionIndex) => {
