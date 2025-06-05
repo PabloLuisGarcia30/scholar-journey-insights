@@ -1,8 +1,9 @@
-
 import { useState } from "react";
 import { Upload, FileText, Image, Video, Brain, ArrowLeft, CheckCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { Link } from "react-router-dom";
 import { extractTextFromFile, analyzeTest } from "@/services/testAnalysisService";
