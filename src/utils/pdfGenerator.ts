@@ -1,3 +1,4 @@
+
 import jsPDF from 'jspdf';
 
 export interface Question {
@@ -7,7 +8,6 @@ export interface Question {
   options?: string[];
   correctAnswer?: string | boolean;
   points: number;
-  explanation?: string;
 }
 
 export interface TestData {
