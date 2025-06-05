@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -17,6 +18,7 @@ import {
   getStudentSubjectSkillScores,
   getActiveClassById,
   getContentSkillsBySubjectAndGrade,
+  autoLinkMathClassToGrade10Skills,
   type ActiveStudent,
   type TestResult,
   type SkillScore,
@@ -78,6 +80,16 @@ export function StudentProfile({ studentId, classId, className, onBack }: Studen
     queryFn: () => classId ? getActiveClassById(classId) : Promise.resolve(null),
     enabled: !!classId,
   });
+
+  // Auto-link Math Studies 10 class to Grade 10 skills when class data is loaded
+  useEffect(() => {
+    if (classData && classData.name === 'Math Studies 10' && classData.subject === 'Mathematics' && classData.grade === 'Grade 10') {
+      console.log('Auto-linking Math Studies 10 class to Grade 10 Math skills');
+      autoLinkMathClassToGrade10Skills().catch(error => {
+        console.error('Failed to auto-link class skills:', error);
+      });
+    }
+  }, [classData]);
 
   // Fetch test results
   const { data: testResults = [], isLoading: testResultsLoading } = useQuery({
@@ -526,6 +538,8 @@ export function StudentProfile({ studentId, classId, className, onBack }: Studen
                       <p className="text-gray-600">
                         {isClassView && classContentSkillsLoading 
                           ? 'Loading content skills...' 
+                          : classContentSkills.length === 0 && isClassView
+                          ? 'No content skills found for this class. The Grade 10 Math skills will be auto-linked shortly.'
                           : 'No content skill data available.'
                         }
                       </p>
