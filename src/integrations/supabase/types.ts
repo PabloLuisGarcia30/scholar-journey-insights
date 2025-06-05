@@ -9,7 +9,86 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
-      [_ in never]: never
+      answer_keys: {
+        Row: {
+          correct_answer: string
+          created_at: string
+          exam_id: string
+          id: string
+          options: Json | null
+          points: number
+          question_number: number
+          question_text: string
+          question_type: string
+        }
+        Insert: {
+          correct_answer: string
+          created_at?: string
+          exam_id: string
+          id?: string
+          options?: Json | null
+          points?: number
+          question_number: number
+          question_text: string
+          question_type: string
+        }
+        Update: {
+          correct_answer?: string
+          created_at?: string
+          exam_id?: string
+          id?: string
+          options?: Json | null
+          points?: number
+          question_number?: number
+          question_text?: string
+          question_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "answer_keys_exam_id_fkey"
+            columns: ["exam_id"]
+            isOneToOne: false
+            referencedRelation: "exams"
+            referencedColumns: ["exam_id"]
+          },
+        ]
+      }
+      exams: {
+        Row: {
+          class_name: string | null
+          created_at: string
+          description: string | null
+          exam_id: string
+          id: string
+          time_limit: number | null
+          title: string
+          total_points: number | null
+          updated_at: string
+        }
+        Insert: {
+          class_name?: string | null
+          created_at?: string
+          description?: string | null
+          exam_id: string
+          id?: string
+          time_limit?: number | null
+          title: string
+          total_points?: number | null
+          updated_at?: string
+        }
+        Update: {
+          class_name?: string | null
+          created_at?: string
+          description?: string | null
+          exam_id?: string
+          id?: string
+          time_limit?: number | null
+          title?: string
+          total_points?: number | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

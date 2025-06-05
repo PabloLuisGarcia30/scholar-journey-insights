@@ -14,6 +14,7 @@ import { generateTestPDF, type Question, type TestData } from "@/utils/pdfGenera
 import { TemplateSelection, type TestTemplate } from "@/components/TestCreator/TemplateSelection";
 import { TestDetails } from "@/components/TestCreator/TestDetails";
 import { QuestionEditor } from "@/components/TestCreator/QuestionEditor";
+import { saveExamToDatabase, type ExamData } from "@/services/examService";
 
 // Import the classes data structure from ClassView
 const availableClasses = [
@@ -155,9 +156,16 @@ const TestCreator = () => {
     setCurrentStep('class-input');
   };
 
-  const saveTestToDatabase = async (testData: any) => {
-    console.log('Test data with answer key and exam ID saved:', testData);
-    toast.success(`Test and answer key saved successfully! Exam ID: ${testData.examId}`);
+  const saveTestToDatabase = async (testData: ExamData) => {
+    try {
+      console.log('Saving test data with answer key and exam ID:', testData);
+      await saveExamToDatabase(testData);
+      toast.success(`Test and answer key saved successfully! Exam ID: ${testData.examId}`);
+    } catch (error) {
+      console.error('Error saving test to database:', error);
+      toast.error('Failed to save test to database. Please try again.');
+      throw error;
+    }
   };
 
   const finalizeTest = async () => {
@@ -166,26 +174,25 @@ const TestCreator = () => {
       return;
     }
     
-    const testData: TestData = {
+    const testData: ExamData = {
       examId,
       title: testTitle,
       description: testDescription,
       className,
       timeLimit,
+      totalPoints: questions.reduce((sum, q) => sum + q.points, 0),
       questions,
     };
     
-    const fullTestData = {
-      ...testData,
-      totalPoints: questions.reduce((sum, q) => sum + q.points, 0),
-      createdAt: new Date().toISOString(),
-    };
-    
-    await saveTestToDatabase(fullTestData);
-    
-    generateTestPDF(testData);
-    toast.success(`Test created and PDF generated successfully! Exam ID: ${examId}`);
-    setCurrentStep('preview');
+    try {
+      await saveTestToDatabase(testData);
+      generateTestPDF(testData);
+      toast.success(`Test created and PDF generated successfully! Exam ID: ${examId}`);
+      setCurrentStep('preview');
+    } catch (error) {
+      // Error already handled in saveTestToDatabase
+      return;
+    }
   };
 
   const renderTemplateSelection = () => (
