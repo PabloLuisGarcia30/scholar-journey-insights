@@ -35,7 +35,9 @@ export const TemplateSelection = ({ templates, selectedTemplate, onTemplateSelec
             <CardHeader>
               <CardTitle className="flex items-center gap-2" style={{ color: '#00CEC8' }}>
                 <FileText className="h-5 w-5" />
-                {template.name}
+                {template.id === 'custom' 
+                  ? "Build Custom Test" 
+                  : template.name}
               </CardTitle>
             </CardHeader>
             <CardContent>
