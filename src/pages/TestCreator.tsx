@@ -1,10 +1,11 @@
+
 import { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowLeft, FileText, Sparkles, Users, Key, Download, Save } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
-import { generatePDF, type Question } from '../utils/pdfGenerator';
-import { saveExamToDatabase, getActiveClasses, type ActiveClass, type ContentSkill } from '../services/examService';
+import { generateTestPDF, type Question } from '../utils/pdfGenerator';
+import { saveExamToDatabase, getAllActiveClasses, type ActiveClass, type ContentSkill } from '../services/examService';
 import { TemplateSelection, type TestTemplate } from '../components/TestCreator/TemplateSelection';
 import { TestDetails } from '../components/TestCreator/TestDetails';
 import { QuestionEditor } from '../components/TestCreator/QuestionEditor';
@@ -66,7 +67,7 @@ export default function TestCreator() {
   useEffect(() => {
     const loadClasses = async () => {
       try {
-        const classes = await getActiveClasses();
+        const classes = await getAllActiveClasses();
         setAvailableClasses(classes);
       } catch (error) {
         console.error('Error loading classes:', error);
@@ -214,9 +215,10 @@ export default function TestCreator() {
   };
 
   const handleDownloadPDF = () => {
-    generatePDF({
+    generateTestPDF({
       title: testTitle || 'Test',
       description: testDescription,
+      className: selectedClassId ? availableClasses.find(c => c.id === selectedClassId)?.name || 'Unknown Class' : 'No Class Selected',
       timeLimit,
       questions,
       examId
