@@ -88,19 +88,6 @@ export const generateConsolidatedTestPDF = (testData: TestData, studentNames: st
   };
 
   const addStudentHeader = (studentName: string) => {
-    // Add some space before student header if not at top of page
-    if (yPosition > 40) {
-      yPosition += 8;
-    }
-    
-    // Check if we need a new page for the student header
-    if (yPosition + 25 > pageHeight - 25) {
-      addFooter(currentPage, currentPage); // Will be updated later
-      pdf.addPage();
-      currentPage++;
-      yPosition = addHeader(currentPage);
-    }
-    
     // Student name section (prominent header)
     pdf.setFillColor(248, 250, 252);
     pdf.setDrawColor(148, 163, 184);
@@ -116,13 +103,21 @@ export const generateConsolidatedTestPDF = (testData: TestData, studentNames: st
   };
 
   // Calculate rough total pages (this is an estimate)
-  let totalPages = Math.max(1, Math.ceil((studentNames.length * testData.questions.length) / 4));
+  let totalPages = studentNames.length * 2; // Rough estimate of 2 pages per student
 
   // Start first page
   yPosition = addHeader(currentPage);
 
   // Generate tests for each student
   studentNames.forEach((studentName, studentIndex) => {
+    // Force new page for each student (except the first one)
+    if (studentIndex > 0) {
+      addFooter(currentPage, totalPages);
+      pdf.addPage();
+      currentPage++;
+      yPosition = addHeader(currentPage);
+    }
+    
     addStudentHeader(studentName);
     
     // Add questions for this student
@@ -130,7 +125,7 @@ export const generateConsolidatedTestPDF = (testData: TestData, studentNames: st
       const questionHeight = calculateQuestionHeight(question, pdf, pageWidth, margin);
       const maxContentHeight = pageHeight - 50; // Account for header/footer
       
-      // Page break if needed
+      // Page break if needed (for questions within the same student's test)
       if (yPosition + questionHeight > maxContentHeight) {
         addFooter(currentPage, totalPages);
         pdf.addPage();
@@ -269,15 +264,11 @@ export const generateConsolidatedTestPDF = (testData: TestData, studentNames: st
         yPosition += 3;
       }
     });
-    
-    // Add space between students (except for the last one)
-    if (studentIndex < studentNames.length - 1) {
-      yPosition += 10;
-    }
   });
   
-  // Add footer to last page
-  addFooter(currentPage, currentPage);
+  // Update total pages and add footer to last page
+  totalPages = currentPage;
+  addFooter(currentPage, totalPages);
   
   // Generate filename
   const fileName = `${testData.title.replace(/\s+/g, '_')}_${testData.examId}_Consolidated.pdf`;
