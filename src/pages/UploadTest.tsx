@@ -209,6 +209,9 @@ const UploadTest = () => {
     const newSessionId = ProgressService.generateSessionId();
     setSessionId(newSessionId);
     
+    // Declare firstOptimizedFile outside the measureOperation scope
+    let firstOptimizedFile: File;
+    
     try {
       // Track performance metrics
       await PerformanceMonitoringService.measureOperation(
@@ -244,7 +247,7 @@ const UploadTest = () => {
           });
 
           // Get the first optimized file for processing
-          const firstOptimizedFile = optimizedFiles[0].optimized;
+          firstOptimizedFile = optimizedFiles[0].optimized;
 
           // Smart OCR optimization if enabled
           if (smartOcrEnabled) {
@@ -416,8 +419,8 @@ const UploadTest = () => {
 
         },
         {
-          fileName: firstOptimizedFile.name,
-          fileSize: firstOptimizedFile.size,
+          fileName: firstOptimizedFile?.name || uploadedFiles[0]?.name || 'unknown',
+          fileSize: firstOptimizedFile?.size || uploadedFiles[0]?.size || 0,
           smartOcrEnabled
         }
       );
