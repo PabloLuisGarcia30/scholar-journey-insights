@@ -1,3 +1,4 @@
+
 import { useQuery } from "@tanstack/react-query";
 import { useEffect } from "react";
 import { 
@@ -74,7 +75,7 @@ export function useStudentProfileData({ studentId, classId, className }: UseStud
     },
     enabled: !!student, // Wait for student data to load first
     staleTime: isPabloLuisGarcia && classData && classData.subject === 'Math' && classData.grade === 'Grade 10' 
-      ? 5 * 60 * 1000 // 5 minutes cache for Pablo's mock data
+      ? 24 * 60 * 60 * 1000 // 24 hours cache for Pablo's mock data
       : 0, // No cache for regular data
   });
 
