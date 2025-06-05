@@ -26,12 +26,10 @@ export function AddStudentDialog({ onStudentAdded }: AddStudentDialogProps) {
     name: "",
     email: "",
     year: "",
-    major: "",
     gpa: "",
   });
 
   const years = ['Freshman', 'Sophomore', 'Junior', 'Senior'];
-  const majors = ['Computer Science', 'Mathematics', 'Physics', 'Biology', 'Chemistry'];
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -48,7 +46,6 @@ export function AddStudentDialog({ onStudentAdded }: AddStudentDialogProps) {
         name: formData.name.trim(),
         email: formData.email.trim() || undefined,
         year: formData.year || undefined,
-        major: formData.major || undefined,
         gpa: formData.gpa ? parseFloat(formData.gpa) : undefined,
       });
 
@@ -59,7 +56,6 @@ export function AddStudentDialog({ onStudentAdded }: AddStudentDialogProps) {
         name: "",
         email: "",
         year: "",
-        major: "",
         gpa: "",
       });
       setOpen(false);
@@ -139,20 +135,6 @@ export function AddStudentDialog({ onStudentAdded }: AddStudentDialogProps) {
                 placeholder="3.50"
               />
             </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label>Major</Label>
-            <Select value={formData.major} onValueChange={(value) => handleInputChange('major', value)}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select major" />
-              </SelectTrigger>
-              <SelectContent>
-                {majors.map((major) => (
-                  <SelectItem key={major} value={major}>{major}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
           </div>
 
           <div className="flex justify-end gap-2 pt-4">
