@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { ArrowLeft, FileText, RefreshCw, Printer, CheckCircle, Edit, Key } from "lucide-react";
+import { ArrowLeft, FileText, RefreshCw, Printer, CheckCircle, Edit, Key, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -317,6 +317,74 @@ const TestCreator = () => {
 
   const deselectAllStudents = () => {
     setSelectedStudentsForPrint([]);
+  };
+
+  const handleDownloadPDF = async () => {
+    const selectedClass = availableClasses.find(c => c.id === selectedClassId);
+    if (!selectedClass || !selectedClass.students || selectedClass.students.length === 0) {
+      toast({
+        title: "Error",
+        description: 'No students found in the selected class',
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const { getAllActiveStudents } = await import('@/services/examService');
+      const allStudents = await getAllActiveStudents();
+      
+      const classStudentNames = allStudents
+        .filter(student => selectedClass.students.includes(student.id))
+        .map(student => student.name)
+        .sort();
+
+      if (classStudentNames.length === 0) {
+        toast({
+          title: "Error",
+          description: 'No students found in the selected class',
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const testData = {
+        examId,
+        title: testTitle,
+        description: testDescription,
+        className: selectedClass.name,
+        timeLimit,
+        questions,
+      };
+
+      const { generateConsolidatedTestHTML } = await import('@/services/printService');
+      const htmlContent = generateConsolidatedTestHTML(testData, classStudentNames);
+      
+      // Create a blob with the HTML content
+      const blob = new Blob([htmlContent], { type: 'text/html' });
+      const url = URL.createObjectURL(blob);
+      
+      // Create a temporary link to download the file
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${testTitle.replace(/\s+/g, '_')}_All_Students.html`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      toast({
+        title: "Success!",
+        description: `Downloaded test for all ${classStudentNames.length} students. Open the HTML file in your browser to print.`,
+      });
+    } catch (error) {
+      console.error('Error downloading PDF:', error);
+      toast({
+        title: "Error",
+        description: 'Failed to download test. Please try again.',
+        variant: "destructive",
+      });
+    }
   };
 
   const renderTemplateSelection = () => (
@@ -866,22 +934,28 @@ const TestCreator = () => {
             Create Another Test
           </Button>
           {selectedClass && selectedClass.student_count > 0 && (
-            <PrintTestsDialog 
-              selectedClass={selectedClass}
-              examId={examId}
-              testTitle={testTitle}
-              testDescription={testDescription}
-              timeLimit={timeLimit}
-              questions={questions}
-              isPrintDialogOpen={isPrintDialogOpen}
-              setIsPrintDialogOpen={setIsPrintDialogOpen}
-              selectedStudentsForPrint={selectedStudentsForPrint}
-              isPrinting={isPrinting}
-              onToggleStudent={toggleStudentSelection}
-              onSelectAll={selectAllStudents}
-              onDeselectAll={deselectAllStudents}
-              onPrintTests={handlePrintTests}
-            />
+            <>
+              <PrintTestsDialog 
+                selectedClass={selectedClass}
+                examId={examId}
+                testTitle={testTitle}
+                testDescription={testDescription}
+                timeLimit={timeLimit}
+                questions={questions}
+                isPrintDialogOpen={isPrintDialogOpen}
+                setIsPrintDialogOpen={setIsPrintDialogOpen}
+                selectedStudentsForPrint={selectedStudentsForPrint}
+                isPrinting={isPrinting}
+                onToggleStudent={toggleStudentSelection}
+                onSelectAll={selectAllStudents}
+                onDeselectAll={deselectAllStudents}
+                onPrintTests={handlePrintTests}
+              />
+              <Button onClick={handleDownloadPDF} variant="outline">
+                <Download className="h-4 w-4 mr-2" />
+                Download PDF to Print Later
+              </Button>
+            </>
           )}
         </div>
       </div>
