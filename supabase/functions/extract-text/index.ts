@@ -235,23 +235,42 @@ serve(async (req) => {
 
     const finalConfidence = blockCount > 0 ? overallConfidence / blockCount : 0
 
-    // Step 4: OpenAI-powered intelligent parsing with circuit breaker and retry
-    console.log('Step 4: OpenAI intelligent parsing and question extraction (with retry logic)...')
+    // Step 4: Enhanced OpenAI-powered intelligent parsing with improved exam ID detection
+    console.log('Step 4: Enhanced OpenAI intelligent parsing with improved exam ID detection (with retry logic)...')
     
-    const structuredParsingPrompt = `Analyze this test document OCR text and extract structured information. Look for:
+    const enhancedParsingPrompt = `Analyze this test document OCR text and extract structured information with enhanced exam ID detection. Look for:
 
-1. Exam/Test identification (ID, title, etc.)
-2. Student information (name, ID, etc.)  
+1. Exam/Test identification (try multiple patterns):
+   - Standard formats: EXAM123, TEST-456, ID_789
+   - Course codes: MAT101, ENG201, SCI302
+   - Date-based: 2024-01-15, 01152024
+   - Combined formats: MATH-101-EXAM, TEST_ENG_201
+   - QR codes or barcode references
+   - Headers/footers with exam information
+
+2. Student information (name, ID, email, etc.)  
 3. Questions with their numbers, text, and answer choices
 4. Any bubble-sheet or multiple choice patterns
+5. Page indicators and document structure
+
+Apply these enhanced exam ID detection rules:
+- Look for patterns near document headers/titles
+- Check for consistent formatting throughout document
+- Consider partial matches and suggest corrections
+- Look for exam IDs in different locations (top, bottom, corners)
+- Detect split exam IDs across lines
 
 OCR Text:
 ${extractedText}
 
-Return a JSON response with this structure:
+Return a JSON response with this enhanced structure:
 {
   "examId": "string or null",
+  "examIdConfidence": "high|medium|low",
+  "examIdLocation": "header|footer|body|multiple",
+  "potentialExamIds": ["array of possible exam ID matches"],
   "studentName": "string or null", 
+  "studentNameConfidence": "high|medium|low",
   "questions": [
     {
       "questionNumber": number,
@@ -263,14 +282,28 @@ Return a JSON response with this structure:
     }
   ],
   "documentType": "test|exam|bubble_sheet|homework",
-  "processingNotes": ["any notable observations"]
+  "pageIndicators": {
+    "currentPage": number,
+    "totalPages": number,
+    "pageMarkings": ["array of page-related text found"]
+  },
+  "processingNotes": ["any notable observations about exam ID detection"]
 }`
 
     let parsedData = {
       examId: null,
+      examIdConfidence: 'low',
+      examIdLocation: 'none',
+      potentialExamIds: [],
       studentName: null,
+      studentNameConfidence: 'low',
       questions: [],
       documentType: 'test',
+      pageIndicators: {
+        currentPage: 1,
+        totalPages: 1,
+        pageMarkings: []
+      },
       processingNotes: []
     }
 
@@ -288,11 +321,11 @@ Return a JSON response with this structure:
               messages: [
                 {
                   role: 'system',
-                  content: 'You are an expert at parsing educational documents from OCR text. Extract structured information accurately and return only valid JSON.'
+                  content: 'You are an expert at parsing educational documents from OCR text with enhanced exam ID detection capabilities. Extract structured information accurately and return only valid JSON. Pay special attention to exam ID patterns and provide confidence ratings.'
                 },
                 {
                   role: 'user', 
-                  content: structuredParsingPrompt
+                  content: enhancedParsingPrompt
                 }
               ],
               temperature: 0.1,
@@ -311,15 +344,55 @@ Return a JSON response with this structure:
       const aiContent = aiResult.choices?.[0]?.message?.content || '{}'
       
       try {
-        parsedData = JSON.parse(aiContent)
-        console.log('OpenAI parsing successful, found', parsedData.questions?.length || 0, 'questions')
+        const enhancedParsedData = JSON.parse(aiContent)
+        parsedData = { ...parsedData, ...enhancedParsedData }
+        console.log('Enhanced OpenAI parsing successful, found', parsedData.questions?.length || 0, 'questions')
+        console.log('Exam ID detection:', parsedData.examId, 'confidence:', parsedData.examIdConfidence)
+        console.log('Potential exam IDs found:', parsedData.potentialExamIds)
       } catch (e) {
-        console.warn('Failed to parse OpenAI response as JSON:', e)
-        parsedData.processingNotes.push('AI parsing failed, using basic extraction')
+        console.warn('Failed to parse enhanced OpenAI response as JSON:', e)
+        parsedData.processingNotes.push('Enhanced AI parsing failed, using basic extraction')
       }
     } catch (error) {
-      console.warn('OpenAI parsing request failed (using fallback):', error)
-      parsedData.processingNotes.push('AI parsing unavailable - using fallback')
+      console.warn('Enhanced OpenAI parsing request failed (using fallback):', error)
+      parsedData.processingNotes.push('Enhanced AI parsing unavailable - using fallback')
+    }
+
+    // Enhanced fallback exam ID detection if AI parsing failed
+    if (!parsedData.examId && extractedText) {
+      console.log('Applying enhanced fallback exam ID detection...')
+      
+      const fallbackPatterns = [
+        /(?:exam|test|id)[\s\-_]*:?\s*([A-Z0-9\-_]{3,15})/gi,
+        /(?:^|\s)([A-Z]{2,4}[\-_]?\d{2,6})(?:\s|$)/g,
+        /(?:^|\s)(EXAM[\-_]?\d{2,6})(?:\s|$)/gi,
+        /(?:^|\s)(TEST[\-_]?\d{2,6})(?:\s|$)/gi,
+        /(?:^|\s)([A-Z]\d{3,6})(?:\s|$)/g,
+        /(?:^|\s)(\d{4,6}[A-Z]{1,3})(?:\s|$)/g,
+      ]
+      
+      const fallbackMatches = []
+      for (const pattern of fallbackPatterns) {
+        const matches = extractedText.match(pattern)
+        if (matches) {
+          fallbackMatches.push(...matches.map(m => m.trim()))
+        }
+      }
+      
+      if (fallbackMatches.length > 0) {
+        const cleanedMatches = [...new Set(fallbackMatches)]
+          .map(match => match.replace(/[^\w\-]/g, ''))
+          .filter(match => match.length >= 3 && match.length <= 15)
+        
+        if (cleanedMatches.length > 0) {
+          parsedData.examId = cleanedMatches[0]
+          parsedData.examIdConfidence = 'medium'
+          parsedData.examIdLocation = 'pattern_match'
+          parsedData.potentialExamIds = cleanedMatches
+          parsedData.processingNotes.push('Exam ID detected using enhanced fallback patterns')
+          console.log('Enhanced fallback detection found exam ID:', parsedData.examId)
+        }
+      }
     }
 
     // Step 5: Enhanced cross-validation with spatial bubble matching
