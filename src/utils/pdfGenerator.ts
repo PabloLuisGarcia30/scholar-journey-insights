@@ -1,4 +1,3 @@
-
 import jsPDF from 'jspdf';
 
 export interface Question {
@@ -41,6 +40,298 @@ export const generateStudentTestPDFs = (testData: TestData, studentNames: string
       generateSingleTestPDF(studentTestData, true);
     }, index * 100);
   });
+};
+
+// New function to generate consolidated PDF with all students
+export const generateConsolidatedTestPDF = (testData: TestData, studentNames: string[]) => {
+  const pdf = new jsPDF();
+  const pageWidth = pdf.internal.pageSize.getWidth();
+  const pageHeight = pdf.internal.pageSize.getHeight();
+  const margin = 12;
+  
+  let currentPage = 1;
+  let yPosition = margin;
+  let totalPages = 1; // Will be calculated after generating all content
+
+  // Calculate total pages needed
+  const calculateTotalPages = () => {
+    let tempPages = 0;
+    studentNames.forEach(() => {
+      // Each student gets their own test, estimate pages needed
+      tempPages += Math.max(1, Math.ceil(testData.questions.length / 3)); // Rough estimate
+    });
+    return tempPages;
+  };
+
+  totalPages = calculateTotalPages();
+
+  const addHeader = (pageNumber: number, studentName?: string) => {
+    // Header background
+    pdf.setFillColor(30, 58, 138);
+    pdf.rect(0, 0, pageWidth, 18, 'F');
+    
+    pdf.setTextColor(255, 255, 255);
+    pdf.setFontSize(12);
+    pdf.setFont(undefined, 'bold');
+    pdf.text(testData.title, margin, 12);
+    
+    // Exam ID
+    pdf.setFontSize(9);
+    const examIdText = `ID: ${testData.examId}`;
+    const examIdWidth = pdf.getTextWidth(examIdText);
+    pdf.text(examIdText, pageWidth - margin - examIdWidth, 12);
+    
+    let headerYPos = 22;
+    pdf.setTextColor(0, 0, 0);
+    
+    // Class info
+    pdf.setFontSize(8);
+    pdf.setFont(undefined, 'normal');
+    pdf.text(`Class: ${testData.className} | Time: ${testData.timeLimit} min | Points: ${testData.questions.reduce((sum, q) => sum + q.points, 0)}`, margin, headerYPos);
+    
+    headerYPos += 8;
+    
+    // Student name section (prominent for consolidated PDF)
+    if (studentName) {
+      pdf.setFillColor(248, 250, 252);
+      pdf.setDrawColor(148, 163, 184);
+      pdf.setLineWidth(1);
+      pdf.rect(margin, headerYPos, pageWidth - 2 * margin, 16, 'FD');
+      
+      pdf.setFontSize(10);
+      pdf.setFont(undefined, 'bold');
+      pdf.setTextColor(30, 58, 138);
+      pdf.text(`STUDENT: ${studentName}`, margin + 5, headerYPos + 10);
+      
+      headerYPos += 20;
+    } else {
+      // Regular student info section
+      pdf.setDrawColor(148, 163, 184);
+      pdf.setLineWidth(0.5);
+      pdf.rect(margin, headerYPos, pageWidth - 2 * margin, 12, 'D');
+      
+      pdf.setFontSize(7);
+      pdf.text('Name:', margin + 3, headerYPos + 7);
+      pdf.line(margin + 20, headerYPos + 8, margin + 70, headerYPos + 8);
+      
+      pdf.text('ID:', margin + 80, headerYPos + 7);
+      pdf.line(margin + 92, headerYPos + 8, margin + 130, headerYPos + 8);
+      
+      pdf.text('Date:', margin + 140, headerYPos + 7);
+      pdf.line(margin + 155, headerYPos + 8, pageWidth - margin - 3, headerYPos + 8);
+      
+      headerYPos += 16;
+    }
+    
+    return headerYPos;
+  };
+
+  const addFooter = (pageNumber: number, totalPages: number) => {
+    pdf.setFontSize(7);
+    pdf.setTextColor(107, 114, 128);
+    pdf.text(`Page ${pageNumber}/${totalPages}`, pageWidth - margin - 15, pageHeight - 6);
+    pdf.text(`ID: ${testData.examId}`, margin, pageHeight - 6);
+  };
+
+  const addStudentSeparator = (studentName: string) => {
+    // Add a new page for each student
+    if (currentPage > 1) {
+      addFooter(currentPage, totalPages);
+      pdf.addPage();
+      currentPage++;
+    }
+    
+    yPosition = addHeader(currentPage, studentName);
+  };
+
+  // Generate tests for each student
+  studentNames.forEach((studentName, studentIndex) => {
+    addStudentSeparator(studentName);
+    
+    // Add questions for this student
+    testData.questions.forEach((question, questionIndex) => {
+      const questionHeight = calculateQuestionHeight(question);
+      const maxContentHeight = pageHeight - 50; // Account for header/footer
+      
+      // Page break if needed
+      if (yPosition + questionHeight > maxContentHeight) {
+        addFooter(currentPage, totalPages);
+        pdf.addPage();
+        currentPage++;
+        yPosition = addHeader(currentPage);
+      }
+      
+      // Question header
+      pdf.setFillColor(248, 250, 252);
+      pdf.setDrawColor(203, 213, 225);
+      pdf.setLineWidth(0.2);
+      pdf.rect(margin, yPosition, pageWidth - 2 * margin, 6, 'FD');
+      
+      // Question number and info
+      pdf.setFontSize(8);
+      pdf.setFont(undefined, 'bold');
+      pdf.setTextColor(30, 58, 138);
+      pdf.text(`${questionIndex + 1}.`, margin + 3, yPosition + 4);
+      
+      pdf.setFontSize(6);
+      pdf.setTextColor(107, 114, 128);
+      const typeText = question.type.replace('-', ' ').toUpperCase();
+      pdf.text(`[${typeText}]`, margin + 15, yPosition + 4);
+      
+      pdf.setTextColor(220, 38, 127);
+      pdf.setFont(undefined, 'bold');
+      pdf.text(`${question.points}pt`, pageWidth - margin - 12, yPosition + 4);
+      
+      yPosition += 10;
+      
+      // Question text
+      pdf.setTextColor(0, 0, 0);
+      pdf.setFont(undefined, 'normal');
+      pdf.setFontSize(8);
+      const questionLines = pdf.splitTextToSize(question.question, pageWidth - 2 * margin - 8);
+      pdf.text(questionLines, margin + 3, yPosition);
+      yPosition += questionLines.length * 3 + 3;
+      
+      // Answer options based on question type
+      if (question.type === 'multiple-choice' && question.options) {
+        question.options.forEach((option, optionIndex) => {
+          const optionLetter = String.fromCharCode(65 + optionIndex);
+          
+          pdf.setFillColor(59, 130, 246);
+          pdf.circle(margin + 7, yPosition + 2, 1.5, 'F');
+          pdf.setTextColor(255, 255, 255);
+          pdf.setFontSize(6);
+          pdf.setFont(undefined, 'bold');
+          pdf.text(optionLetter, margin + 6, yPosition + 3);
+          
+          pdf.setTextColor(0, 0, 0);
+          pdf.setFont(undefined, 'normal');
+          pdf.setFontSize(7);
+          const optionLines = pdf.splitTextToSize(option, pageWidth - margin - 50);
+          pdf.text(optionLines, margin + 12, yPosition + 1);
+          
+          yPosition += Math.max(optionLines.length * 3, 6) + 0.5;
+        });
+        
+        // Answer box
+        yPosition += 1;
+        pdf.setFontSize(6);
+        pdf.setFont(undefined, 'bold');
+        pdf.setTextColor(220, 38, 127);
+        pdf.text('Answer:', margin + 3, yPosition + 3);
+        
+        pdf.setDrawColor(0, 0, 0);
+        pdf.setLineWidth(0.5);
+        pdf.setFillColor(255, 255, 255);
+        pdf.rect(margin + 20, yPosition, 8, 5, 'FD');
+        
+        yPosition += 7;
+      } else if (question.type === 'true-false') {
+        const options = ['True', 'False'];
+        options.forEach((option, idx) => {
+          const letter = String.fromCharCode(65 + idx);
+          
+          pdf.setFillColor(idx === 0 ? 34 : 239, idx === 0 ? 197 : 68, idx === 0 ? 94 : 68);
+          pdf.circle(margin + 7, yPosition + 2, 1.5, 'F');
+          pdf.setTextColor(255, 255, 255);
+          pdf.setFontSize(6);
+          pdf.setFont(undefined, 'bold');
+          pdf.text(letter, margin + 6, yPosition + 3);
+          
+          pdf.setTextColor(0, 0, 0);
+          pdf.setFont(undefined, 'normal');
+          pdf.setFontSize(7);
+          pdf.text(option, margin + 12, yPosition + 2);
+          
+          yPosition += 6;
+        });
+        
+        // Answer box
+        yPosition += 1;
+        pdf.setFontSize(6);
+        pdf.setFont(undefined, 'bold');
+        pdf.setTextColor(220, 38, 127);
+        pdf.text('Answer:', margin + 3, yPosition + 3);
+        
+        pdf.setDrawColor(0, 0, 0);
+        pdf.setLineWidth(0.5);
+        pdf.setFillColor(255, 255, 255);
+        pdf.rect(margin + 20, yPosition, 8, 5, 'FD');
+        
+        yPosition += 7;
+      } else if (question.type === 'short-answer') {
+        pdf.setFontSize(6);
+        pdf.setTextColor(107, 114, 128);
+        pdf.text('Answer:', margin + 3, yPosition + 1);
+        yPosition += 4;
+        
+        pdf.setDrawColor(203, 213, 225);
+        pdf.setLineWidth(0.3);
+        pdf.line(margin + 3, yPosition, pageWidth - margin - 3, yPosition);
+        yPosition += 7;
+      } else if (question.type === 'essay') {
+        pdf.setFontSize(6);
+        pdf.setTextColor(107, 114, 128);
+        pdf.text('Answer:', margin + 3, yPosition + 1);
+        yPosition += 4;
+        
+        for (let i = 0; i < 2; i++) {
+          pdf.setDrawColor(203, 213, 225);
+          pdf.setLineWidth(0.3);
+          pdf.line(margin + 3, yPosition, pageWidth - margin - 3, yPosition);
+          yPosition += 4;
+        }
+        yPosition += 3;
+      }
+      
+      // Question separator
+      if (questionIndex < testData.questions.length - 1) {
+        pdf.setDrawColor(229, 231, 235);
+        pdf.setLineWidth(0.2);
+        pdf.line(margin + 3, yPosition + 1, pageWidth - margin - 3, yPosition + 1);
+        yPosition += 3;
+      }
+    });
+    
+    // Add space between students (except for the last one)
+    if (studentIndex < studentNames.length - 1) {
+      yPosition += 10;
+    }
+  });
+  
+  // Add footer to last page
+  addFooter(currentPage, currentPage);
+  
+  // Generate filename
+  const fileName = `${testData.title.replace(/\s+/g, '_')}_${testData.examId}_Consolidated.pdf`;
+  pdf.save(fileName);
+};
+
+const calculateQuestionHeight = (question: Question) => {
+  let height = 8; // Question header height
+    
+  // Question text calculation - very compact
+  pdf.setFontSize(8); // Smaller font
+  const questionLines = pdf.splitTextToSize(question.question, pageWidth - 2 * margin - 8);
+  height += questionLines.length * 3 + 5; // Added 2pt buffer between header and question
+  
+  // Answer options calculation - ultra compact
+  if (question.type === 'multiple-choice' && question.options) {
+    question.options.forEach(option => {
+      const optionLines = pdf.splitTextToSize(option, pageWidth - margin - 50);
+      height += Math.max(optionLines.length * 3, 6) + 0.5; // Minimal spacing
+    });
+    height += 5; // Minimal spacing for answer box
+  } else if (question.type === 'true-false') {
+    height += 12; // Very compact
+  } else if (question.type === 'short-answer') {
+    height += 10; // Very compact
+  } else if (question.type === 'essay') {
+    height += 15; // Compact
+  }
+  
+  height += 3; // Minimal bottom margin
+  return height;
 };
 
 const generateSingleTestPDF = (testData: TestData | StudentTestData, isStudentSpecific = false) => {
@@ -131,33 +422,6 @@ const generateSingleTestPDF = (testData: TestData | StudentTestData, isStudentSp
     pdf.setTextColor(107, 114, 128);
     pdf.text(`Page ${pageNumber}/${totalPages}`, pageWidth - margin - 15, pageHeight - 6);
     pdf.text(`ID: ${testData.examId}`, margin, pageHeight - 6);
-  };
-
-  const calculateQuestionHeight = (question: Question) => {
-    let height = 8; // Question header height
-    
-    // Question text calculation - very compact
-    pdf.setFontSize(8); // Smaller font
-    const questionLines = pdf.splitTextToSize(question.question, pageWidth - 2 * margin - 8);
-    height += questionLines.length * 3 + 5; // Added 2pt buffer between header and question
-    
-    // Answer options calculation - ultra compact
-    if (question.type === 'multiple-choice' && question.options) {
-      question.options.forEach(option => {
-        const optionLines = pdf.splitTextToSize(option, pageWidth - margin - 50);
-        height += Math.max(optionLines.length * 3, 6) + 0.5; // Minimal spacing
-      });
-      height += 5; // Minimal spacing for answer box
-    } else if (question.type === 'true-false') {
-      height += 12; // Very compact
-    } else if (question.type === 'short-answer') {
-      height += 10; // Very compact
-    } else if (question.type === 'essay') {
-      height += 15; // Compact
-    }
-    
-    height += 3; // Minimal bottom margin
-    return height;
   };
 
   const getMaxContentHeight = (pageNumber: number) => {

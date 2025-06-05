@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { Link } from "react-router-dom";
-import { generateTestPDF, type Question, type TestData } from "@/utils/pdfGenerator";
+import { generateTestPDF, generateConsolidatedTestPDF, type Question, type TestData } from "@/utils/pdfGenerator";
 import { TemplateSelection, type TestTemplate } from "@/components/TestCreator/TemplateSelection";
 import { TestDetails } from "@/components/TestCreator/TestDetails";
 import { QuestionEditor } from "@/components/TestCreator/QuestionEditor";
@@ -32,7 +32,7 @@ interface PrintTestsDialogProps {
   onToggleStudent: (studentName: string) => void;
   onSelectAll: (studentNames: string[]) => void;
   onDeselectAll: () => void;
-  onPrintTests: (studentNames: string[]) => void;
+  onPrintTests: (studentNames: string[], pdfFormat: 'individual' | 'consolidated') => void;
 }
 
 const testTemplates: TestTemplate[] = [
@@ -94,6 +94,7 @@ const TestCreator = () => {
   const [isPrinting, setIsPrinting] = useState(false);
   const [showSuccessDialog, setShowSuccessDialog] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
+  const [pdfFormat, setPdfFormat] = useState<'individual' | 'consolidated'>('individual');
 
   useEffect(() => {
     const loadClasses = async () => {
@@ -302,7 +303,7 @@ const TestCreator = () => {
     }
   };
 
-  const handlePrintTests = async (studentNames: string[]) => {
+  const handlePrintTests = async (studentNames: string[], selectedPdfFormat: 'individual' | 'consolidated') => {
     if (studentNames.length === 0) {
       toast.error('Please select at least one student test to print');
       return;
@@ -320,14 +321,20 @@ const TestCreator = () => {
         questions,
       };
 
-      // Import the PDF generation function
-      const { generateStudentTestPDFs } = await import('@/utils/pdfGenerator');
+      if (selectedPdfFormat === 'consolidated') {
+        // Import and use consolidated PDF generation
+        const { generateConsolidatedTestPDF } = await import('@/utils/pdfGenerator');
+        generateConsolidatedTestPDF(testData, studentNames);
+        
+        setSuccessMessage(`Consolidated PDF has been downloaded with all ${studentNames.length} student tests in one document - just open and print!`);
+      } else {
+        // Import and use individual PDF generation
+        const { generateStudentTestPDFs } = await import('@/utils/pdfGenerator');
+        generateStudentTestPDFs(testData, studentNames);
+        
+        setSuccessMessage(`PDFs have successfully downloaded - just open the pdf and print them individually.`);
+      }
       
-      // Generate PDFs for selected students
-      generateStudentTestPDFs(testData, studentNames);
-      
-      // Show centered success dialog instead of toast
-      setSuccessMessage(`PDFs have successfully downloaded - just open the pdf and print them individually.`);
       setShowSuccessDialog(true);
       setIsPrintDialogOpen(false);
     } catch (error) {
@@ -614,6 +621,7 @@ const TestCreator = () => {
   }: PrintTestsDialogProps) => {
     const [studentNames, setStudentNames] = useState<string[]>([]);
     const [isLoadingStudents, setIsLoadingStudents] = useState(false);
+    const [selectedFormat, setSelectedFormat] = useState<'individual' | 'consolidated'>('individual');
 
     useEffect(() => {
       const loadStudentNames = async () => {
@@ -669,6 +677,31 @@ const TestCreator = () => {
               <p className="text-sm text-blue-700">
                 Class: {selectedClass.name} ({selectedClass.student_count} students)
               </p>
+            </div>
+
+            {/* PDF Format Selection */}
+            <div className="space-y-3">
+              <Label className="text-base font-semibold">PDF Format</Label>
+              <RadioGroup value={selectedFormat} onValueChange={(value: 'individual' | 'consolidated') => setSelectedFormat(value)}>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="individual" id="individual" />
+                  <Label htmlFor="individual" className="cursor-pointer">
+                    <div>
+                      <span className="font-medium">Individual PDFs</span>
+                      <p className="text-sm text-gray-500">Separate PDF file for each student (current behavior)</p>
+                    </div>
+                  </Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="consolidated" id="consolidated" />
+                  <Label htmlFor="consolidated" className="cursor-pointer">
+                    <div>
+                      <span className="font-medium">Consolidated PDF</span>
+                      <p className="text-sm text-gray-500">All student tests in one PDF document (easier to print)</p>
+                    </div>
+                  </Label>
+                </div>
+              </RadioGroup>
             </div>
 
             {isLoadingStudents ? (
@@ -727,7 +760,7 @@ const TestCreator = () => {
                     Cancel
                   </Button>
                   <Button 
-                    onClick={() => onPrintTests(selectedStudentsForPrint)}
+                    onClick={() => onPrintTests(selectedStudentsForPrint, selectedFormat)}
                     disabled={isPrinting || selectedStudentsForPrint.length === 0}
                   >
                     {isPrinting ? (
@@ -738,7 +771,8 @@ const TestCreator = () => {
                     ) : (
                       <>
                         <Printer className="h-4 w-4 mr-2" />
-                        Print {selectedStudentsForPrint.length} Test{selectedStudentsForPrint.length !== 1 ? 's' : ''}
+                        Generate {selectedFormat === 'consolidated' ? 'Consolidated' : selectedStudentsForPrint.length} 
+                        {selectedFormat === 'individual' && selectedStudentsForPrint.length !== 1 ? ' PDFs' : ' PDF'}
                       </>
                     )}
                   </Button>
