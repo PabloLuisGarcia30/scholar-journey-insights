@@ -15,6 +15,10 @@ import { EnhancedProgressIndicator, ProcessingStep } from "@/components/Enhanced
 import { ResultsManager } from "@/components/ResultsManager";
 import { PerformanceMonitoringService, SmartOcrService } from "@/services/advancedServices";
 import { BatchProcessingManager, PerformanceDashboard } from "@/components/AdvancedFeatures";
+import { CacheService } from "@/services/cacheService";
+import { ErrorHandlingService } from "@/services/errorHandlingService";
+import { SecurityService } from "@/services/securityService";
+import { EnterpriseFeatures } from "@/components/EnterpriseFeatures";
 
 const UploadTest = () => {
   const [dragActive, setDragActive] = useState(false);
@@ -34,6 +38,10 @@ const UploadTest = () => {
   const [showBatchProcessing, setShowBatchProcessing] = useState(false);
   const [showPerformanceDashboard, setShowPerformanceDashboard] = useState(false);
   const [smartOcrEnabled, setSmartOcrEnabled] = useState(true);
+  const [showEnterpriseFeatures, setShowEnterpriseFeatures] = useState(false);
+  const [cacheEnabled, setCacheEnabled] = useState(true);
+  const [securityScanEnabled, setSecurityScanEnabled] = useState(true);
+  const [fileHash, setFileHash] = useState<string>('');
 
   // Initialize processing steps
   useEffect(() => {
@@ -95,13 +103,22 @@ const UploadTest = () => {
   };
 
   const handleFiles = async (files: File[]) => {
+    // Track user action for audit
+    ErrorHandlingService.trackUserAction(`file_upload_${files.length}_files`);
+    
     // Update upload step
     updateProcessingStep('upload', { status: 'active', progress: 0 });
     
-    // Batch validation
+    // Batch validation with security scanning
     const batchValidation = FileValidationService.validateBatch(files);
     
     if (batchValidation.invalid.length > 0) {
+      await ErrorHandlingService.reportError(
+        new Error(`${batchValidation.invalid.length} files failed validation`),
+        { invalidFiles: batchValidation.invalid.map(f => f.name) },
+        undefined,
+        sessionId
+      );
       toast.error(`${batchValidation.invalid.length} files are invalid and will be skipped`);
     }
     
@@ -109,7 +126,7 @@ const UploadTest = () => {
       batchValidation.warnings.forEach(warning => toast.warning(warning));
     }
 
-    // Process valid files
+    // Process valid files with security scanning
     const validFiles = batchValidation.valid;
     const previews: FilePreview[] = [];
     const validations: Record<string, FileValidationResult> = {};
@@ -122,6 +139,30 @@ const UploadTest = () => {
       });
       
       try {
+        // Security scan if enabled
+        if (securityScanEnabled) {
+          const securityScan = await SecurityService.scanFileContent(file);
+          
+          if (securityScan.scanResults.riskLevel === 'critical') {
+            toast.error(`Security risk detected in ${file.name}: ${securityScan.scanResults.threats.join(', ')}`);
+            continue;
+          }
+          
+          if (securityScan.scanResults.riskLevel === 'high') {
+            toast.warning(`High security risk in ${file.name}: ${securityScan.scanResults.threats.join(', ')}`);
+          }
+          
+          // Log security scan
+          await SecurityService.logAuditEvent(
+            'security_scan',
+            file.name,
+            { scanResults: securityScan.scanResults },
+            undefined,
+            sessionId,
+            true
+          );
+        }
+
         const [preview, validation] = await Promise.all([
           FileValidationService.createPreview(file),
           FileValidationService.validateFile(file)
@@ -131,6 +172,12 @@ const UploadTest = () => {
         validations[file.name] = validation;
       } catch (error) {
         console.error(`Failed to process file ${file.name}:`, error);
+        await ErrorHandlingService.reportError(
+          error,
+          { fileName: file.name, fileSize: file.size },
+          undefined,
+          sessionId
+        );
         toast.error(`Failed to process ${file.name}`);
       }
     }
@@ -213,6 +260,35 @@ const UploadTest = () => {
     let firstOptimizedFile: File;
     
     try {
+      // Check cache first if enabled
+      let cachedResult = null;
+      if (cacheEnabled && uploadedFiles.length > 0) {
+        const hash = await CacheService.generateFileHash(uploadedFiles[0]);
+        setFileHash(hash);
+        cachedResult = await CacheService.getCachedResult(hash);
+        
+        if (cachedResult) {
+          setAnalysisResult(cachedResult);
+          setCurrentStep('complete');
+          setExtractedExamId(cachedResult.examId || 'cached');
+          setDetectedStudentName(cachedResult.studentName || 'Cached Result');
+          toast.success("Results loaded from cache!");
+          
+          // Log cache hit
+          await SecurityService.logAuditEvent(
+            'cache_hit',
+            uploadedFiles[0].name,
+            { fileHash: hash },
+            undefined,
+            newSessionId,
+            true
+          );
+          
+          setIsProcessing(false);
+          return;
+        }
+      }
+
       // Track performance metrics
       await PerformanceMonitoringService.measureOperation(
         'full_pipeline',
@@ -231,13 +307,23 @@ const UploadTest = () => {
                 description: `Optimizing ${file.name}...`
               });
               
-              const optimization = await FileOptimizationService.processFileForUpload(file);
-              return {
-                original: file,
-                optimized: optimization.optimizedFile,
-                compressionRatio: optimization.compressionRatio,
-                processingTime: optimization.processingTime
-              };
+              try {
+                const optimization = await FileOptimizationService.processFileForUpload(file);
+                return {
+                  original: file,
+                  optimized: optimization.optimizedFile,
+                  compressionRatio: optimization.compressionRatio,
+                  processingTime: optimization.processingTime
+                };
+              } catch (error) {
+                await ErrorHandlingService.reportError(
+                  error,
+                  { fileName: file.name, stage: 'optimization' },
+                  undefined,
+                  newSessionId
+                );
+                throw error;
+              }
             })
           );
 
@@ -273,12 +359,30 @@ const UploadTest = () => {
             description: 'Running Google OCR + Roboflow bubble detection...'
           });
 
-          const extractResult = await extractTextFromFile({
-            fileContent: base64Content,
-            fileName: firstOptimizedFile.name
-          });
+          let extractResult;
+          try {
+            extractResult = await extractTextFromFile({
+              fileContent: base64Content,
+              fileName: firstOptimizedFile.name
+            });
+          } catch (error) {
+            await ErrorHandlingService.reportError(
+              error,
+              { fileName: firstOptimizedFile.name, stage: 'ocr_extraction' },
+              undefined,
+              newSessionId
+            );
+            throw error;
+          }
 
           if (!extractResult.examId) {
+            const error = new Error('Could not find Exam ID in the document');
+            await ErrorHandlingService.reportError(
+              error,
+              { fileName: firstOptimizedFile.name, stage: 'exam_id_detection' },
+              undefined,
+              newSessionId
+            );
             updateProcessingStep('extracting', { 
               status: 'error',
               error: 'Could not find Exam ID in the document'
@@ -337,16 +441,26 @@ const UploadTest = () => {
                 description: `Analyzing file ${index + 1} of ${optimizedFiles.length}...`
               });
               
-              const base64Content = await FileOptimizationService.convertFileToBase64Chunked(fileData.optimized);
-              const result = await extractTextFromFile({
-                fileContent: base64Content,
-                fileName: fileData.optimized.name
-              });
-              return {
-                fileName: fileData.optimized.name,
-                extractedText: result.extractedText,
-                structuredData: result.structuredData
-              };
+              try {
+                const base64Content = await FileOptimizationService.convertFileToBase64Chunked(fileData.optimized);
+                const result = await extractTextFromFile({
+                  fileContent: base64Content,
+                  fileName: fileData.optimized.name
+                });
+                return {
+                  fileName: fileData.optimized.name,
+                  extractedText: result.extractedText,
+                  structuredData: result.structuredData
+                };
+              } catch (error) {
+                await ErrorHandlingService.reportError(
+                  error,
+                  { fileName: fileData.optimized.name, stage: 'individual_analysis' },
+                  undefined,
+                  newSessionId
+                );
+                throw error;
+              }
             })
           );
 
@@ -357,14 +471,43 @@ const UploadTest = () => {
 
           const finalStudentName = detectedStudentName || manualStudentName.trim();
 
-          const analysisResult = await analyzeTest({
-            files: allFileResults,
-            examId: extractResult.examId,
-            studentName: finalStudentName
-          });
+          let analysisResult;
+          try {
+            analysisResult = await analyzeTest({
+              files: allFileResults,
+              examId: extractResult.examId,
+              studentName: finalStudentName
+            });
+          } catch (error) {
+            await ErrorHandlingService.reportError(
+              error,
+              { examId: extractResult.examId, studentName: finalStudentName, stage: 'final_analysis' },
+              undefined,
+              newSessionId
+            );
+            throw error;
+          }
 
           setAnalysisResult(analysisResult);
           setCurrentStep('complete');
+          
+          // Cache result if enabled
+          if (cacheEnabled && fileHash) {
+            await CacheService.setCachedResult(
+              fileHash,
+              firstOptimizedFile.name,
+              firstOptimizedFile.size,
+              {
+                ...analysisResult,
+                examId: extractResult.examId,
+                studentName: finalStudentName
+              },
+              {
+                processingTime: Date.now() - processingStartTime,
+                ocrReliability: ocrMetadata.reliability
+              }
+            );
+          }
           
           // Update final step
           const analysisMetadata = {
@@ -394,6 +537,21 @@ const UploadTest = () => {
               }
             );
           }
+
+          // Log successful processing
+          await SecurityService.logAuditEvent(
+            'file_processing',
+            firstOptimizedFile.name,
+            {
+              examId: extractResult.examId,
+              studentName: finalStudentName,
+              processingTime: Date.now() - processingStartTime,
+              reliability: analysisMetadata.reliability
+            },
+            undefined,
+            newSessionId,
+            true
+          );
 
           // Save progress
           const progress: ProcessingProgress = {
@@ -426,6 +584,21 @@ const UploadTest = () => {
       );
     } catch (error) {
       console.error("Error processing document:", error);
+      
+      // Report error with full context
+      await ErrorHandlingService.reportError(
+        error,
+        {
+          fileName: firstOptimizedFile?.name || uploadedFiles[0]?.name,
+          sessionId: newSessionId,
+          stage: 'document_processing',
+          cacheEnabled,
+          securityScanEnabled,
+          smartOcrEnabled
+        },
+        undefined,
+        newSessionId
+      );
       
       // Update current step with error
       const currentActiveStep = processingSteps.find(step => step.status === 'active');
@@ -519,11 +692,11 @@ const UploadTest = () => {
         </div>
 
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Upload Test - Enhanced Dual OCR</h1>
-          <p className="text-gray-600">Upload test documents for automatic Google OCR + Roboflow bubble detection and AI analysis with 99% accuracy</p>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">Upload Test - Enterprise Edition</h1>
+          <p className="text-gray-600">Enhanced processing with caching, security scanning, and enterprise-grade monitoring</p>
         </div>
 
-        {/* Advanced Features Toggle */}
+        {/* Enhanced Features Toggle */}
         <div className="mb-6 flex flex-wrap gap-2">
           <Button
             variant={showBatchProcessing ? "default" : "outline"}
@@ -546,6 +719,27 @@ const UploadTest = () => {
           >
             Smart OCR {smartOcrEnabled ? '✓' : ''}
           </Button>
+          <Button
+            variant={showEnterpriseFeatures ? "default" : "outline"}
+            size="sm"
+            onClick={() => setShowEnterpriseFeatures(!showEnterpriseFeatures)}
+          >
+            Enterprise Features {showEnterpriseFeatures ? '✓' : ''}
+          </Button>
+          <Button
+            variant={cacheEnabled ? "default" : "outline"}
+            size="sm"
+            onClick={() => setCacheEnabled(!cacheEnabled)}
+          >
+            Caching {cacheEnabled ? '✓' : ''}
+          </Button>
+          <Button
+            variant={securityScanEnabled ? "default" : "outline"}
+            size="sm"
+            onClick={() => setSecurityScanEnabled(!securityScanEnabled)}
+          >
+            Security Scan {securityScanEnabled ? '✓' : ''}
+          </Button>
         </div>
 
         {/* Conditional Advanced Features */}
@@ -560,6 +754,16 @@ const UploadTest = () => {
         {showPerformanceDashboard && (
           <div className="mb-6">
             <PerformanceDashboard />
+          </div>
+        )}
+
+        {showEnterpriseFeatures && (
+          <div className="mb-6">
+            <EnterpriseFeatures onFeatureToggle={(feature, enabled) => {
+              console.log(`Feature ${feature} ${enabled ? 'enabled' : 'disabled'}`);
+              if (feature === 'cache') setCacheEnabled(enabled);
+              if (feature === 'security') setSecurityScanEnabled(enabled);
+            }} />
           </div>
         )}
 
@@ -581,7 +785,7 @@ const UploadTest = () => {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Upload className="h-5 w-5" />
-                Enhanced File Upload
+                Enterprise File Upload
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -609,6 +813,8 @@ const UploadTest = () => {
                 </p>
                 <p className="text-sm text-gray-500 mb-4">
                   or click to select files (images, PDFs) - up to 10MB each
+                  {securityScanEnabled && <span className="block text-green-600">✓ Security scanning enabled</span>}
+                  {cacheEnabled && <span className="block text-blue-600">✓ Caching enabled</span>}
                 </p>
                 <input
                   type="file"
@@ -669,12 +875,12 @@ const UploadTest = () => {
                 <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
                   <div className="flex items-center gap-3 mb-3">
                     <Brain className="h-5 w-5 text-blue-600" />
-                    <h3 className="font-medium text-blue-900">Ready for Enhanced Processing</h3>
+                    <h3 className="font-medium text-blue-900">Ready for Enterprise Processing</h3>
                   </div>
                   <p className="text-sm text-blue-700 mb-4">
                     {uploadedFiles.length === 0 
-                      ? "Upload your document first to enable Google OCR + Roboflow bubble detection and AI analysis."
-                      : "Your document is ready for enhanced dual OCR processing and AI analysis with 99% accuracy."
+                      ? "Upload your document to enable enterprise-grade processing with caching, security scanning, and AI analysis."
+                      : "Your document is ready for enterprise processing with enhanced security and performance features."
                     }
                   </p>
                   <Button 
@@ -685,12 +891,12 @@ const UploadTest = () => {
                     {isProcessing ? (
                       <>
                         <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                        Processing with Enhanced AI...
+                        Processing with Enterprise Features...
                       </>
                     ) : (
                       <>
                         <Brain className="h-4 w-4 mr-2" />
-                        Process with Enhanced Dual OCR
+                        Process with Enterprise Features
                       </>
                     )}
                   </Button>
@@ -711,7 +917,7 @@ const UploadTest = () => {
           ) : (
             <Card>
               <CardHeader>
-                <CardTitle>Enhanced Processing Statistics</CardTitle>
+                <CardTitle>Enterprise Processing Statistics</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
@@ -743,6 +949,18 @@ const UploadTest = () => {
                       {extractedExamId ? `✓ ${extractedExamId}` : "Pending"}
                     </span>
                   </div>
+                  <div className="flex justify-between items-center p-3 bg-indigo-50 rounded-lg">
+                    <span className="text-sm font-medium text-indigo-700">Cache Status</span>
+                    <span className="text-lg font-bold text-indigo-900">
+                      {cacheEnabled ? "✓ Enabled" : "Disabled"}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center p-3 bg-red-50 rounded-lg">
+                    <span className="text-sm font-medium text-red-700">Security Scan</span>
+                    <span className="text-lg font-bold text-red-900">
+                      {securityScanEnabled ? "✓ Active" : "Disabled"}
+                    </span>
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -764,6 +982,7 @@ const UploadTest = () => {
                 setAnalysisResult(null);
                 setCurrentStep('upload');
                 setIsProcessing(false);
+                setFileHash('');
                 setProcessingSteps(prev => prev.map(step => ({ ...step, status: 'pending' as const })));
               }}
               variant="outline"
