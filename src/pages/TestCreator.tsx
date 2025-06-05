@@ -34,6 +34,23 @@ interface PrintTestsDialogProps {
   onPrintTests: (studentNames: string[], pdfFormat: 'individual' | 'consolidated') => void;
 }
 
+interface DownloadDialogProps {
+  selectedClass: ActiveClass;
+  examId: string;
+  testTitle: string;
+  testDescription: string;
+  timeLimit: number;
+  questions: Question[];
+  isDownloadDialogOpen: boolean;
+  setIsDownloadDialogOpen: (open: boolean) => void;
+  selectedStudentsForDownload: string[];
+  isDownloading: boolean;
+  onToggleStudentDownload: (studentName: string) => void;
+  onSelectAllDownload: (studentNames: string[]) => void;
+  onDeselectAllDownload: () => void;
+  onDownloadPDF: (studentNames: string[]) => void;
+}
+
 const testTemplates: TestTemplate[] = [
   {
     id: 'math-quiz',
@@ -93,6 +110,9 @@ const TestCreator = () => {
   const [showSuccessDialog, setShowSuccessDialog] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
   const [pdfFormat, setPdfFormat] = useState<'individual' | 'consolidated'>('individual');
+  const [isDownloadDialogOpen, setIsDownloadDialogOpen] = useState(false);
+  const [selectedStudentsForDownload, setSelectedStudentsForDownload] = useState<string[]>([]);
+  const [isDownloading, setIsDownloading] = useState(false);
 
   useEffect(() => {
     const loadClasses = async () => {
@@ -319,35 +339,36 @@ const TestCreator = () => {
     setSelectedStudentsForPrint([]);
   };
 
-  const handleDownloadPDF = async () => {
+  const toggleStudentDownloadSelection = (studentName: string) => {
+    setSelectedStudentsForDownload(prev => 
+      prev.includes(studentName) 
+        ? prev.filter(name => name !== studentName)
+        : [...prev, studentName]
+    );
+  };
+
+  const selectAllStudentsDownload = (studentNames: string[]) => {
+    setSelectedStudentsForDownload(studentNames);
+  };
+
+  const deselectAllStudentsDownload = () => {
+    setSelectedStudentsForDownload([]);
+  };
+
+  const handleDownloadPDF = async (studentNames: string[]) => {
     const selectedClass = availableClasses.find(c => c.id === selectedClassId);
-    if (!selectedClass || !selectedClass.students || selectedClass.students.length === 0) {
+    if (!selectedClass || studentNames.length === 0) {
       toast({
         title: "Error",
-        description: 'No students found in the selected class',
+        description: 'Please select at least one student',
         variant: "destructive",
       });
       return;
     }
 
+    setIsDownloading(true);
+
     try {
-      const { getAllActiveStudents } = await import('@/services/examService');
-      const allStudents = await getAllActiveStudents();
-      
-      const classStudentNames = allStudents
-        .filter(student => selectedClass.students.includes(student.id))
-        .map(student => student.name)
-        .sort();
-
-      if (classStudentNames.length === 0) {
-        toast({
-          title: "Error",
-          description: 'No students found in the selected class',
-          variant: "destructive",
-        });
-        return;
-      }
-
       const testData = {
         examId,
         title: testTitle,
@@ -358,7 +379,7 @@ const TestCreator = () => {
       };
 
       const { generateConsolidatedTestHTML } = await import('@/services/printService');
-      const htmlContent = generateConsolidatedTestHTML(testData, classStudentNames);
+      const htmlContent = generateConsolidatedTestHTML(testData, studentNames);
       
       // Create a blob with the HTML content
       const blob = new Blob([htmlContent], { type: 'text/html' });
@@ -367,7 +388,7 @@ const TestCreator = () => {
       // Create a temporary link to download the file
       const link = document.createElement('a');
       link.href = url;
-      link.download = `${testTitle.replace(/\s+/g, '_')}_All_Students.html`;
+      link.download = `${testTitle.replace(/\s+/g, '_')}_${studentNames.length}_Students.html`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -375,8 +396,10 @@ const TestCreator = () => {
 
       toast({
         title: "Success!",
-        description: `Downloaded test for all ${classStudentNames.length} students. Open the HTML file in your browser to print.`,
+        description: `Downloaded test for ${studentNames.length} students. Open the HTML file in your browser to print.`,
       });
+      
+      setIsDownloadDialogOpen(false);
     } catch (error) {
       console.error('Error downloading PDF:', error);
       toast({
@@ -384,6 +407,8 @@ const TestCreator = () => {
         description: 'Failed to download test. Please try again.',
         variant: "destructive",
       });
+    } finally {
+      setIsDownloading(false);
     }
   };
 
@@ -610,6 +635,164 @@ const TestCreator = () => {
       </Button>
     </div>
   );
+
+  const DownloadTestsDialog = ({ 
+    selectedClass, 
+    examId,
+    testTitle,
+    testDescription,
+    timeLimit,
+    questions,
+    isDownloadDialogOpen,
+    setIsDownloadDialogOpen,
+    selectedStudentsForDownload,
+    isDownloading,
+    onToggleStudentDownload,
+    onSelectAllDownload,
+    onDeselectAllDownload,
+    onDownloadPDF
+  }: DownloadDialogProps) => {
+    const [studentNames, setStudentNames] = useState<string[]>([]);
+    const [isLoadingStudents, setIsLoadingStudents] = useState(false);
+
+    useEffect(() => {
+      const loadStudentNames = async () => {
+        if (isDownloadDialogOpen && selectedClass.students && selectedClass.students.length > 0) {
+          setIsLoadingStudents(true);
+          try {
+            const { getAllActiveStudents } = await import('@/services/examService');
+            const allStudents = await getAllActiveStudents();
+            
+            const classStudentNames = allStudents
+              .filter(student => selectedClass.students.includes(student.id))
+              .map(student => student.name)
+              .sort();
+            
+            setStudentNames(classStudentNames);
+            
+            if (selectedStudentsForDownload.length === 0) {
+              onSelectAllDownload(classStudentNames);
+            }
+          } catch (error) {
+            console.error('Error loading student names:', error);
+            toast({
+              title: "Error",
+              description: 'Failed to load student names',
+              variant: "destructive",
+            });
+          } finally {
+            setIsLoadingStudents(false);
+          }
+        }
+      };
+
+      loadStudentNames();
+    }, [isDownloadDialogOpen, selectedClass.students]);
+
+    return (
+      <Dialog open={isDownloadDialogOpen} onOpenChange={setIsDownloadDialogOpen}>
+        <DialogTrigger asChild>
+          <Button variant="outline">
+            <Download className="h-4 w-4 mr-2" />
+            Download PDF to Print Later
+          </Button>
+        </DialogTrigger>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Download className="h-5 w-5" />
+              Download Student Tests
+            </DialogTitle>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            <div className="bg-blue-50 p-4 rounded-lg">
+              <h3 className="font-semibold text-blue-900 mb-2">{testTitle}</h3>
+              <p className="text-sm text-blue-800">Exam ID: {examId}</p>
+              <p className="text-sm text-blue-700">
+                Class: {selectedClass.name} ({selectedClass.student_count} students)
+              </p>
+            </div>
+
+            {isLoadingStudents ? (
+              <div className="flex items-center justify-center py-8">
+                <RefreshCw className="h-6 w-6 animate-spin mr-2" />
+                <span>Loading students...</span>
+              </div>
+            ) : (
+              <>
+                <div className="flex justify-between items-center">
+                  <h4 className="font-semibold">Select Students ({selectedStudentsForDownload.length}/{studentNames.length})</h4>
+                  <div className="flex gap-2">
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => onSelectAllDownload(studentNames)}
+                      disabled={selectedStudentsForDownload.length === studentNames.length}
+                    >
+                      Select All
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={onDeselectAllDownload}
+                      disabled={selectedStudentsForDownload.length === 0}
+                    >
+                      Deselect All
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 max-h-60 overflow-y-auto border rounded-lg p-4">
+                  {studentNames.map((studentName) => (
+                    <div key={studentName} className="flex items-center space-x-2">
+                      <Checkbox
+                        id={`download-student-${studentName}`}
+                        checked={selectedStudentsForDownload.includes(studentName)}
+                        onCheckedChange={() => onToggleStudentDownload(studentName)}
+                      />
+                      <Label 
+                        htmlFor={`download-student-${studentName}`}
+                        className="text-sm cursor-pointer"
+                      >
+                        {studentName}
+                      </Label>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="flex justify-end gap-2 pt-4">
+                  <Button 
+                    variant="outline" 
+                    onClick={() => setIsDownloadDialogOpen(false)}
+                    disabled={isDownloading}
+                  >
+                    Cancel
+                  </Button>
+                  <Button 
+                    onClick={() => onDownloadPDF(selectedStudentsForDownload)}
+                    disabled={isDownloading || selectedStudentsForDownload.length === 0}
+                  >
+                    {isDownloading ? (
+                      <>
+                        <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                        Downloading...
+                      </>
+                    ) : (
+                      <>
+                        <Download className="h-4 w-4 mr-2" />
+                        Download ({selectedStudentsForDownload.length} students)
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+    );
+  };
 
   const PrintTestsDialog = ({ 
     selectedClass, 
@@ -951,10 +1134,22 @@ const TestCreator = () => {
                 onDeselectAll={deselectAllStudents}
                 onPrintTests={handlePrintTests}
               />
-              <Button onClick={handleDownloadPDF} variant="outline">
-                <Download className="h-4 w-4 mr-2" />
-                Download PDF to Print Later
-              </Button>
+              <DownloadTestsDialog
+                selectedClass={selectedClass}
+                examId={examId}
+                testTitle={testTitle}
+                testDescription={testDescription}
+                timeLimit={timeLimit}
+                questions={questions}
+                isDownloadDialogOpen={isDownloadDialogOpen}
+                setIsDownloadDialogOpen={setIsDownloadDialogOpen}
+                selectedStudentsForDownload={selectedStudentsForDownload}
+                isDownloading={isDownloading}
+                onToggleStudentDownload={toggleStudentDownloadSelection}
+                onSelectAllDownload={selectAllStudentsDownload}
+                onDeselectAllDownload={deselectAllStudentsDownload}
+                onDownloadPDF={handleDownloadPDF}
+              />
             </>
           )}
         </div>
