@@ -1,3 +1,4 @@
+
 import jsPDF from 'jspdf';
 
 export interface Question {
@@ -124,6 +125,12 @@ export const generateTestPDF = (testData: TestData) => {
     
     height += 3; // Minimal bottom margin
     return height;
+  };
+
+  const getMaxContentHeight = (pageNumber: number) => {
+    const headerHeight = pageNumber === 1 ? 50 : 32; // Very compact headers
+    const footerHeight = 15;
+    return pageHeight - headerHeight - footerHeight;
   };
 
   // Calculate total pages
