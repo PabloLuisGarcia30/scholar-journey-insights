@@ -1,4 +1,3 @@
-
 import jsPDF from 'jspdf';
 
 export interface Question {
@@ -38,11 +37,19 @@ export const generateTestPDF = (testData: TestData) => {
     pdf.setFont(undefined, 'bold');
     pdf.text(testData.title, margin, 12);
     
-    // Exam ID - positioned to fit within page width
+    // Exam ID - positioned to fit within page width with proper spacing
     pdf.setFontSize(9);
     const examIdText = `ID: ${testData.examId}`;
     const examIdWidth = pdf.getTextWidth(examIdText);
-    pdf.text(examIdText, pageWidth - margin - examIdWidth, 12);
+    const titleWidth = pdf.getTextWidth(testData.title);
+    const availableSpace = pageWidth - margin - titleWidth - margin - 5; // 5pt buffer
+    
+    if (examIdWidth <= availableSpace) {
+      pdf.text(examIdText, pageWidth - margin - examIdWidth, 12);
+    } else {
+      // If doesn't fit on same line, place on next line
+      pdf.text(examIdText, pageWidth - margin - examIdWidth, 15);
+    }
     
     let headerYPos = 22;
     pdf.setTextColor(0, 0, 0);
@@ -93,12 +100,12 @@ export const generateTestPDF = (testData: TestData) => {
   };
 
   const calculateQuestionHeight = (question: Question) => {
-    let height = 8; // Much more compact question header
+    let height = 8; // Question header height
     
     // Question text calculation - very compact
     pdf.setFontSize(8); // Smaller font
     const questionLines = pdf.splitTextToSize(question.question, pageWidth - 2 * margin - 8);
-    height += questionLines.length * 3 + 3; // Very tight line spacing
+    height += questionLines.length * 3 + 5; // Added 2pt buffer between header and question
     
     // Answer options calculation - ultra compact
     if (question.type === 'multiple-choice' && question.options) {
@@ -117,12 +124,6 @@ export const generateTestPDF = (testData: TestData) => {
     
     height += 3; // Minimal bottom margin
     return height;
-  };
-
-  const getMaxContentHeight = (pageNumber: number) => {
-    const headerHeight = pageNumber === 1 ? 50 : 32; // Very compact headers
-    const footerHeight = 15;
-    return pageHeight - headerHeight - footerHeight;
   };
 
   // Calculate total pages
@@ -181,7 +182,10 @@ export const generateTestPDF = (testData: TestData) => {
     pdf.setFont(undefined, 'bold');
     pdf.text(`${question.points}pt`, pageWidth - margin - 12, yPosition + 4);
     
-    yPosition += 8; // Very compact
+    yPosition += 8; // Move past header
+    
+    // Add small buffer before question text to prevent overlap
+    yPosition += 2;
     
     // Ultra compact question text
     pdf.setTextColor(0, 0, 0);
