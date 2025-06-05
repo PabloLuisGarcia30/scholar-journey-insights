@@ -1,3 +1,4 @@
+
 import { supabase } from "@/integrations/supabase/client";
 import type { Question } from "@/utils/pdfGenerator";
 
@@ -539,11 +540,28 @@ export const saveTestResult = async (
   try {
     console.log('Saving test result for student:', studentId);
     
-    // Insert test result
+    // The studentId parameter should be the active_students.id
+    // We need to find the corresponding student_profiles.id
+    const { data: activeStudent, error: activeStudentError } = await supabase
+      .from('active_students')
+      .select('*')
+      .eq('id', studentId)
+      .single();
+
+    if (activeStudentError) {
+      console.error('Error finding active student:', activeStudentError);
+      throw new Error(`Failed to find active student: ${activeStudentError.message}`);
+    }
+
+    // Find the corresponding student profile
+    const studentProfile = await createOrFindStudent(activeStudent.name, activeStudent.email);
+    
+    // Insert test result with both IDs
     const { data: testResult, error: resultError } = await supabase
       .from('test_results')
       .insert({
-        student_id: studentId,
+        student_id: studentProfile.id, // student_profiles.id
+        active_student_id: studentId, // active_students.id  
         exam_id: examId,
         class_id: classId,
         overall_score: overallScore,

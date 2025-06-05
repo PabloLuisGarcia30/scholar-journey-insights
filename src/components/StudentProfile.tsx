@@ -127,22 +127,71 @@ export function StudentProfile({ studentId, classId, className, onBack }: Studen
     }
   }, [classData, classId]);
 
-  // Fetch test results
+  // Fetch test results - use the active student ID
   const { data: testResults = [], isLoading: testResultsLoading } = useQuery({
     queryKey: ['studentTestResults', studentId],
-    queryFn: () => getStudentTestResults(studentId),
+    queryFn: async () => {
+      console.log('Fetching test results for active student ID:', studentId);
+      
+      const { data, error } = await supabase
+        .from('test_results')
+        .select('*')
+        .eq('active_student_id', studentId)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('Error fetching test results:', error);
+        throw new Error(`Failed to fetch test results: ${error.message}`);
+      }
+
+      return data || [];
+    },
   });
 
-  // Fetch content skill scores
+  // Fetch content skill scores - use the active student ID
   const { data: contentSkillScores = [], isLoading: contentSkillsLoading } = useQuery({
     queryKey: ['studentContentSkills', studentId],
-    queryFn: () => getStudentContentSkillScores(studentId),
+    queryFn: async () => {
+      console.log('Fetching content skill scores for active student ID:', studentId);
+      
+      const { data, error } = await supabase
+        .from('content_skill_scores')
+        .select(`
+          *,
+          test_results!inner(active_student_id)
+        `)
+        .eq('test_results.active_student_id', studentId);
+
+      if (error) {
+        console.error('Error fetching content skill scores:', error);
+        throw new Error(`Failed to fetch content skill scores: ${error.message}`);
+      }
+
+      return data || [];
+    },
   });
 
-  // Fetch subject skill scores
+  // Fetch subject skill scores - use the active student ID
   const { data: subjectSkillScores = [], isLoading: subjectSkillsLoading } = useQuery({
     queryKey: ['studentSubjectSkills', studentId],
-    queryFn: () => getStudentSubjectSkillScores(studentId),
+    queryFn: async () => {
+      console.log('Fetching subject skill scores for active student ID:', studentId);
+      
+      const { data, error } = await supabase
+        .from('subject_skill_scores')
+        .select(`
+          *,
+          test_results!inner(active_student_id)
+        `)
+        .eq('test_results.active_student_id', studentId);
+
+      if (error) {
+        console.error('Error fetching subject skill scores:', error);
+        throw new Error(`Failed to fetch subject skill scores: ${error.message}`);
+      }
+
+      return data || [];
+    },
   });
 
   // Fetch content skills for the class to show complete skill set
