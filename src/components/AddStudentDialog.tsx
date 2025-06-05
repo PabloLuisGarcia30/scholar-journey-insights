@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -25,7 +26,6 @@ export function AddStudentDialog({ onStudentAdded }: AddStudentDialogProps) {
     name: "",
     email: "",
     year: "",
-    gpa: "",
   });
 
   const years = ['Kindergarten', 'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6', 'Grade 7', 'Grade 8', 'Grade 9', 'Grade 10', 'Grade 11', 'Grade 12'];
@@ -45,7 +45,6 @@ export function AddStudentDialog({ onStudentAdded }: AddStudentDialogProps) {
         name: formData.name.trim(),
         email: formData.email.trim() || undefined,
         year: formData.year || undefined,
-        gpa: formData.gpa ? parseFloat(formData.gpa) : undefined,
       });
 
       toast.success(`Student "${formData.name}" has been added successfully!`);
@@ -55,7 +54,6 @@ export function AddStudentDialog({ onStudentAdded }: AddStudentDialogProps) {
         name: "",
         email: "",
         year: "",
-        gpa: "",
       });
       setOpen(false);
       onStudentAdded();
@@ -106,34 +104,18 @@ export function AddStudentDialog({ onStudentAdded }: AddStudentDialogProps) {
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Year</Label>
-              <Select value={formData.year} onValueChange={(value) => handleInputChange('year', value)}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select year" />
-                </SelectTrigger>
-                <SelectContent>
-                  {years.map((year) => (
-                    <SelectItem key={year} value={year}>{year}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="gpa">GPA</Label>
-              <Input
-                id="gpa"
-                type="number"
-                step="0.01"
-                min="0"
-                max="4"
-                value={formData.gpa}
-                onChange={(e) => handleInputChange('gpa', e.target.value)}
-                placeholder="3.50"
-              />
-            </div>
+          <div className="space-y-2">
+            <Label>Year</Label>
+            <Select value={formData.year} onValueChange={(value) => handleInputChange('year', value)}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select year" />
+              </SelectTrigger>
+              <SelectContent>
+                {years.map((year) => (
+                  <SelectItem key={year} value={year}>{year}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="flex justify-end gap-2 pt-4">
