@@ -561,7 +561,7 @@ const TestCreator = () => {
   }: PrintTestsDialogProps) => {
     const [studentNames, setStudentNames] = useState<string[]>([]);
     const [isLoadingStudents, setIsLoadingStudents] = useState(false);
-    const [selectedFormat, setSelectedFormat] = useState<'individual' | 'consolidated'>('individual');
+    const [selectedFormat, setSelectedFormat] = useState<'individual' | 'consolidated'>('consolidated');
     const [printMethod, setPrintMethod] = useState<'pdf' | 'direct'>('direct');
 
     useEffect(() => {
@@ -715,20 +715,6 @@ const TestCreator = () => {
               <Label className="text-base font-semibold">Format</Label>
               <RadioGroup value={selectedFormat} onValueChange={(value: 'individual' | 'consolidated') => setSelectedFormat(value)}>
                 <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="individual" id="individual" />
-                  <Label htmlFor="individual" className="cursor-pointer">
-                    <div>
-                      <span className="font-medium">Individual Tests</span>
-                      <p className="text-sm text-gray-500">
-                        {printMethod === 'direct' 
-                          ? 'Separate print dialog for each student' 
-                          : 'Separate PDF file for each student'
-                        }
-                      </p>
-                    </div>
-                  </Label>
-                </div>
-                <div className="flex items-center space-x-2">
                   <RadioGroupItem value="consolidated" id="consolidated" />
                   <Label htmlFor="consolidated" className="cursor-pointer">
                     <div>
@@ -737,6 +723,20 @@ const TestCreator = () => {
                         {printMethod === 'direct' 
                           ? 'All student tests in one print job (easier to print)' 
                           : 'All student tests in one PDF document'
+                        }
+                      </p>
+                    </div>
+                  </Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="individual" id="individual" />
+                  <Label htmlFor="individual" className="cursor-pointer">
+                    <div>
+                      <span className="font-medium">Individual Tests</span>
+                      <p className="text-sm text-gray-500">
+                        {printMethod === 'direct' 
+                          ? 'Separate print dialog for each student' 
+                          : 'Separate PDF file for each student'
                         }
                       </p>
                     </div>
