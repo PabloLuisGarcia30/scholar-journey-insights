@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { ArrowLeft, Plus, Trash2, FileText, Clock, CheckCircle, Edit, Download, Key } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,10 +14,10 @@ import { generateTestPDF, type Question, type TestData } from "@/utils/pdfGenera
 import { TemplateSelection, type TestTemplate } from "@/components/TestCreator/TemplateSelection";
 import { TestDetails } from "@/components/TestCreator/TestDetails";
 import { QuestionEditor } from "@/components/TestCreator/QuestionEditor";
-import { saveExamToDatabase, type ExamData } from "@/services/examService";
+import { saveExamToDatabase, getAllClasses, type ExamData, type Class } from "@/services/examService";
 
 // Import the classes data structure from ClassView
-const availableClasses = [
+const availableClasses: Class[] = [
   { id: '1', name: 'Math Grade 6', subject: 'Mathematics', grade: '6', teacher: 'Ms. Johnson' },
   { id: '2', name: 'Science Grade 7', subject: 'Science', grade: '7', teacher: 'Mr. Chen' },
   { id: '3', name: 'English Grade 8', subject: 'English', grade: '8', teacher: 'Mrs. Williams' },
@@ -71,11 +71,26 @@ const TestCreator = () => {
   const [selectedTemplate, setSelectedTemplate] = useState<string>('');
   const [testTitle, setTestTitle] = useState('');
   const [testDescription, setTestDescription] = useState('');
-  const [className, setClassName] = useState('');
+  const [selectedClassId, setSelectedClassId] = useState('');
   const [timeLimit, setTimeLimit] = useState(60);
   const [questions, setQuestions] = useState<Question[]>([]);
   const [currentStep, setCurrentStep] = useState<'template' | 'details' | 'questions' | 'answer-key' | 'class-input' | 'preview'>('template');
   const [examId, setExamId] = useState<string>('');
+  const [availableClasses, setAvailableClasses] = useState<Class[]>([]);
+
+  useEffect(() => {
+    const loadClasses = async () => {
+      try {
+        const classes = await getAllClasses();
+        setAvailableClasses(classes);
+      } catch (error) {
+        console.error('Error loading classes:', error);
+        toast.error('Failed to load classes');
+      }
+    };
+
+    loadClasses();
+  }, []);
 
   const handleTemplateSelect = (templateId: string) => {
     const template = testTemplates.find(t => t.id === templateId);
@@ -156,10 +171,10 @@ const TestCreator = () => {
     setCurrentStep('class-input');
   };
 
-  const saveTestToDatabase = async (testData: ExamData) => {
+  const saveTestToDatabase = async (testData: ExamData, classId: string) => {
     try {
       console.log('Saving test data with answer key and exam ID:', testData);
-      await saveExamToDatabase(testData);
+      await saveExamToDatabase(testData, classId);
       toast.success(`Test and answer key saved successfully! Exam ID: ${testData.examId}`);
     } catch (error) {
       console.error('Error saving test to database:', error);
@@ -169,10 +184,13 @@ const TestCreator = () => {
   };
 
   const finalizeTest = async () => {
-    if (!className.trim()) {
+    if (!selectedClassId.trim()) {
       toast.error('Please select a class');
       return;
     }
+    
+    const selectedClass = availableClasses.find(c => c.id === selectedClassId);
+    const className = selectedClass?.name || 'Unknown Class';
     
     const testData: ExamData = {
       examId,
@@ -185,7 +203,7 @@ const TestCreator = () => {
     };
     
     try {
-      await saveTestToDatabase(testData);
+      await saveTestToDatabase(testData, selectedClassId);
       generateTestPDF(testData);
       toast.success(`Test created and PDF generated successfully! Exam ID: ${examId}`);
       setCurrentStep('preview');
@@ -384,23 +402,23 @@ const TestCreator = () => {
         <CardContent className="space-y-4">
           <div>
             <Label htmlFor="class-select">Class Name</Label>
-            <Select value={className} onValueChange={setClassName}>
+            <Select value={selectedClassId} onValueChange={setSelectedClassId}>
               <SelectTrigger>
                 <SelectValue placeholder="Select a class" />
               </SelectTrigger>
               <SelectContent>
                 {availableClasses.map((classItem) => (
-                  <SelectItem key={classItem.id} value={classItem.name}>
+                  <SelectItem key={classItem.id} value={classItem.id}>
                     <div className="flex flex-col">
                       <span className="font-medium">{classItem.name}</span>
-                      <span className="text-sm text-gray-500">{classItem.teacher} • Grade {classItem.grade}</span>
+                      <span className="text-sm text-gray-500">{classItem.description}</span>
                     </div>
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
             <p className="text-sm text-gray-500 mt-1">
-              This will be used for data classification and will appear on the test PDF.
+              This will be used for skill-based grading and will appear on the test PDF.
             </p>
           </div>
         </CardContent>
@@ -434,8 +452,10 @@ const TestCreator = () => {
               <span className="text-sm font-mono text-red-900">{examId}</span>
             </div>
           )}
-          {className && (
-            <p className="text-sm text-blue-600 font-medium">Class: {className}</p>
+          {selectedClassId && (
+            <p className="text-sm text-blue-600 font-medium">
+              Class: {availableClasses.find(c => c.id === selectedClassId)?.name}
+            </p>
           )}
         </CardHeader>
         <CardContent>
@@ -480,7 +500,11 @@ const TestCreator = () => {
         <Button onClick={() => setCurrentStep('template')} variant="outline">
           Create Another Test
         </Button>
-        <Button onClick={() => generateTestPDF({ examId, title: testTitle, description: testDescription, className, timeLimit, questions })}>
+        <Button onClick={() => {
+          const selectedClass = availableClasses.find(c => c.id === selectedClassId);
+          const className = selectedClass?.name || 'Unknown Class';
+          generateTestPDF({ examId, title: testTitle, description: testDescription, className, timeLimit, questions });
+        }}>
           <Download className="h-4 w-4 mr-2" />
           Download PDF
         </Button>

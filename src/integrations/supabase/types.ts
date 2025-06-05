@@ -53,8 +53,77 @@ export type Database = {
           },
         ]
       }
+      classes: {
+        Row: {
+          content_skills: string[] | null
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+          subject_skills: string[] | null
+          updated_at: string
+        }
+        Insert: {
+          content_skills?: string[] | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          name: string
+          subject_skills?: string[] | null
+          updated_at?: string
+        }
+        Update: {
+          content_skills?: string[] | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          name?: string
+          subject_skills?: string[] | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      content_skill_scores: {
+        Row: {
+          created_at: string
+          id: string
+          points_earned: number
+          points_possible: number
+          score: number
+          skill_name: string
+          test_result_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          points_earned: number
+          points_possible: number
+          score: number
+          skill_name: string
+          test_result_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          points_earned?: number
+          points_possible?: number
+          score?: number
+          skill_name?: string
+          test_result_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "content_skill_scores_test_result_id_fkey"
+            columns: ["test_result_id"]
+            isOneToOne: false
+            referencedRelation: "test_results"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       exams: {
         Row: {
+          class_id: string | null
           class_name: string | null
           created_at: string
           description: string | null
@@ -66,6 +135,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          class_id?: string | null
           class_name?: string | null
           created_at?: string
           description?: string | null
@@ -77,6 +147,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          class_id?: string | null
           class_name?: string | null
           created_at?: string
           description?: string | null
@@ -87,7 +158,141 @@ export type Database = {
           total_points?: number | null
           updated_at?: string
         }
+        Relationships: [
+          {
+            foreignKeyName: "exams_class_id_fkey"
+            columns: ["class_id"]
+            isOneToOne: false
+            referencedRelation: "classes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      student_profiles: {
+        Row: {
+          created_at: string
+          email: string | null
+          id: string
+          student_id: string | null
+          student_name: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          email?: string | null
+          id?: string
+          student_id?: string | null
+          student_name: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          email?: string | null
+          id?: string
+          student_id?: string | null
+          student_name?: string
+          updated_at?: string
+        }
         Relationships: []
+      }
+      subject_skill_scores: {
+        Row: {
+          created_at: string
+          id: string
+          points_earned: number
+          points_possible: number
+          score: number
+          skill_name: string
+          test_result_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          points_earned: number
+          points_possible: number
+          score: number
+          skill_name: string
+          test_result_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          points_earned?: number
+          points_possible?: number
+          score?: number
+          skill_name?: string
+          test_result_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "subject_skill_scores_test_result_id_fkey"
+            columns: ["test_result_id"]
+            isOneToOne: false
+            referencedRelation: "test_results"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      test_results: {
+        Row: {
+          ai_feedback: string | null
+          class_id: string
+          created_at: string
+          detailed_analysis: string | null
+          exam_id: string
+          id: string
+          overall_score: number
+          student_id: string
+          total_points_earned: number
+          total_points_possible: number
+        }
+        Insert: {
+          ai_feedback?: string | null
+          class_id: string
+          created_at?: string
+          detailed_analysis?: string | null
+          exam_id: string
+          id?: string
+          overall_score: number
+          student_id: string
+          total_points_earned: number
+          total_points_possible: number
+        }
+        Update: {
+          ai_feedback?: string | null
+          class_id?: string
+          created_at?: string
+          detailed_analysis?: string | null
+          exam_id?: string
+          id?: string
+          overall_score?: number
+          student_id?: string
+          total_points_earned?: number
+          total_points_possible?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "test_results_class_id_fkey"
+            columns: ["class_id"]
+            isOneToOne: false
+            referencedRelation: "classes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "test_results_exam_id_fkey"
+            columns: ["exam_id"]
+            isOneToOne: false
+            referencedRelation: "exams"
+            referencedColumns: ["exam_id"]
+          },
+          {
+            foreignKeyName: "test_results_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "student_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {

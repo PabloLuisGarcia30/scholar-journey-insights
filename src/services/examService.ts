@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import type { Question } from "@/utils/pdfGenerator";
 
@@ -18,6 +17,7 @@ export interface StoredExam {
   title: string;
   description: string;
   class_name: string;
+  class_id: string;
   time_limit: number;
   total_points: number;
   created_at: string;
@@ -36,11 +36,96 @@ export interface AnswerKey {
   created_at: string;
 }
 
-export const saveExamToDatabase = async (examData: ExamData): Promise<void> => {
+export interface Class {
+  id: string;
+  name: string;
+  description: string;
+  content_skills: string[];
+  subject_skills: string[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface StudentProfile {
+  id: string;
+  student_name: string;
+  email?: string;
+  student_id?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TestResult {
+  id: string;
+  student_id: string;
+  exam_id: string;
+  class_id: string;
+  overall_score: number;
+  total_points_earned: number;
+  total_points_possible: number;
+  ai_feedback?: string;
+  detailed_analysis?: string;
+  created_at: string;
+}
+
+export interface SkillScore {
+  id: string;
+  test_result_id: string;
+  skill_name: string;
+  score: number;
+  points_earned: number;
+  points_possible: number;
+  created_at: string;
+}
+
+export const getAllClasses = async (): Promise<Class[]> => {
+  try {
+    console.log('Fetching all classes');
+    
+    const { data, error } = await supabase
+      .from('classes')
+      .select('*')
+      .order('name');
+
+    if (error) {
+      console.error('Error fetching classes:', error);
+      throw new Error(`Failed to fetch classes: ${error.message}`);
+    }
+
+    return data || [];
+  } catch (error) {
+    console.error('Error in getAllClasses:', error);
+    throw error;
+  }
+};
+
+export const getClassById = async (classId: string): Promise<Class | null> => {
+  try {
+    console.log('Fetching class by ID:', classId);
+    
+    const { data, error } = await supabase
+      .from('classes')
+      .select('*')
+      .eq('id', classId)
+      .maybeSingle();
+
+    if (error) {
+      console.error('Error fetching class:', error);
+      throw new Error(`Failed to fetch class: ${error.message}`);
+    }
+
+    return data;
+  } catch (error) {
+    console.error('Error in getClassById:', error);
+    throw error;
+  }
+};
+
+export const saveExamToDatabase = async (examData: ExamData, classId: string): Promise<void> => {
   try {
     console.log('Saving exam to database:', examData.examId);
     
-    // Insert exam metadata
+    // Insert exam metadata with class reference
     const { error: examError } = await supabase
       .from('exams')
       .insert({
@@ -48,6 +133,7 @@ export const saveExamToDatabase = async (examData: ExamData): Promise<void> => {
         title: examData.title,
         description: examData.description,
         class_name: examData.className,
+        class_id: classId,
         time_limit: examData.timeLimit,
         total_points: examData.totalPoints
       });
@@ -90,6 +176,133 @@ export const saveExamToDatabase = async (examData: ExamData): Promise<void> => {
     console.log('Exam and answer keys saved successfully');
   } catch (error) {
     console.error('Error in saveExamToDatabase:', error);
+    throw error;
+  }
+};
+
+export const createOrFindStudent = async (studentName: string, email?: string): Promise<StudentProfile> => {
+  try {
+    console.log('Creating or finding student:', studentName);
+    
+    // Try to find existing student by name
+    const { data: existingStudent, error: findError } = await supabase
+      .from('student_profiles')
+      .select('*')
+      .eq('student_name', studentName)
+      .maybeSingle();
+
+    if (findError && findError.code !== 'PGRST116') {
+      throw new Error(`Failed to search for student: ${findError.message}`);
+    }
+
+    if (existingStudent) {
+      console.log('Found existing student:', existingStudent.id);
+      return existingStudent;
+    }
+
+    // Create new student profile
+    const { data: newStudent, error: createError } = await supabase
+      .from('student_profiles')
+      .insert({
+        student_name: studentName,
+        email: email
+      })
+      .select()
+      .single();
+
+    if (createError) {
+      console.error('Error creating student:', createError);
+      throw new Error(`Failed to create student: ${createError.message}`);
+    }
+
+    console.log('Created new student:', newStudent.id);
+    return newStudent;
+  } catch (error) {
+    console.error('Error in createOrFindStudent:', error);
+    throw error;
+  }
+};
+
+export const saveTestResult = async (
+  studentId: string,
+  examId: string,
+  classId: string,
+  overallScore: number,
+  totalPointsEarned: number,
+  totalPointsPossible: number,
+  aiFeedback?: string,
+  detailedAnalysis?: string,
+  contentSkillScores?: Array<{skill_name: string, score: number, points_earned: number, points_possible: number}>,
+  subjectSkillScores?: Array<{skill_name: string, score: number, points_earned: number, points_possible: number}>
+): Promise<TestResult> => {
+  try {
+    console.log('Saving test result for student:', studentId);
+    
+    // Insert test result
+    const { data: testResult, error: resultError } = await supabase
+      .from('test_results')
+      .insert({
+        student_id: studentId,
+        exam_id: examId,
+        class_id: classId,
+        overall_score: overallScore,
+        total_points_earned: totalPointsEarned,
+        total_points_possible: totalPointsPossible,
+        ai_feedback: aiFeedback,
+        detailed_analysis: detailedAnalysis
+      })
+      .select()
+      .single();
+
+    if (resultError) {
+      console.error('Error saving test result:', resultError);
+      throw new Error(`Failed to save test result: ${resultError.message}`);
+    }
+
+    // Save content skill scores
+    if (contentSkillScores && contentSkillScores.length > 0) {
+      const contentScores = contentSkillScores.map(skill => ({
+        test_result_id: testResult.id,
+        skill_name: skill.skill_name,
+        score: skill.score,
+        points_earned: skill.points_earned,
+        points_possible: skill.points_possible
+      }));
+
+      const { error: contentError } = await supabase
+        .from('content_skill_scores')
+        .insert(contentScores);
+
+      if (contentError) {
+        console.error('Error saving content skill scores:', contentError);
+        throw new Error(`Failed to save content skill scores: ${contentError.message}`);
+      }
+    }
+
+    // Save subject skill scores
+    if (subjectSkillScores && subjectSkillScores.length > 0) {
+      const subjectScores = subjectSkillScores.map(skill => ({
+        test_result_id: testResult.id,
+        skill_name: skill.skill_name,
+        score: skill.score,
+        points_earned: skill.points_earned,
+        points_possible: skill.points_possible
+      }));
+
+      const { error: subjectError } = await supabase
+        .from('subject_skill_scores')
+        .insert(subjectScores);
+
+      if (subjectError) {
+        console.error('Error saving subject skill scores:', subjectError);
+        throw new Error(`Failed to save subject skill scores: ${subjectError.message}`);
+      }
+    }
+
+    console.log('Test result and skill scores saved successfully');
+    return testResult;
+  } catch (error) {
+    console.error('Error in saveTestResult:', error);
     throw error;
   }
 };

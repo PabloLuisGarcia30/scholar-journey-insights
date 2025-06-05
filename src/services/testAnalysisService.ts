@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 
 export interface ExtractTextRequest {
@@ -18,12 +17,28 @@ export interface AnalyzeTestRequest {
     extractedText: string;
   }>;
   examId: string;
+  studentName?: string;
+  studentEmail?: string;
+}
+
+export interface SkillScore {
+  skill_name: string;
+  score: number;
+  points_earned: number;
+  points_possible: number;
 }
 
 export interface AnalyzeTestResponse {
+  overall_score: number;
+  total_points_earned: number;
+  total_points_possible: number;
   grade: string;
   feedback: string;
-  analysis: string;
+  detailed_analysis: string;
+  content_skill_scores: SkillScore[];
+  subject_skill_scores: SkillScore[];
+  student_id: string;
+  test_result_id: string;
 }
 
 export const extractTextFromFile = async (request: ExtractTextRequest): Promise<ExtractTextResponse> => {

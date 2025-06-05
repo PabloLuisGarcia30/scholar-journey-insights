@@ -13,10 +13,17 @@ const UploadTest = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [currentStep, setCurrentStep] = useState<'upload' | 'extracting' | 'analyzing' | 'complete'>('upload');
   const [extractedExamId, setExtractedExamId] = useState("");
+  const [studentName, setStudentName] = useState("");
+  const [studentEmail, setStudentEmail] = useState("");
   const [analysisResult, setAnalysisResult] = useState<{
+    overall_score: number;
+    total_points_earned: number;
+    total_points_possible: number;
     grade: string;
     feedback: string;
-    analysis: string;
+    detailed_analysis: string;
+    content_skill_scores: Array<{skill_name: string, score: number, points_earned: number, points_possible: number}>;
+    subject_skill_scores: Array<{skill_name: string, score: number, points_earned: number, points_possible: number}>;
   } | null>(null);
 
   const handleDrag = (e: React.DragEvent) => {
@@ -74,6 +81,11 @@ const UploadTest = () => {
       return;
     }
 
+    if (!studentName.trim()) {
+      toast.error("Please enter the student's name.");
+      return;
+    }
+
     setIsProcessing(true);
     
     try {
@@ -119,7 +131,9 @@ const UploadTest = () => {
 
       const analysisResult = await analyzeTest({
         files: allFileResults,
-        examId: extractResult.examId
+        examId: extractResult.examId,
+        studentName: studentName.trim(),
+        studentEmail: studentEmail.trim() || undefined
       });
 
       setAnalysisResult(analysisResult);
@@ -138,6 +152,8 @@ const UploadTest = () => {
   const resetProcess = () => {
     setUploadedFiles([]);
     setExtractedExamId("");
+    setStudentName("");
+    setStudentEmail("");
     setAnalysisResult(null);
     setCurrentStep('upload');
     setIsProcessing(false);
@@ -274,6 +290,38 @@ const UploadTest = () => {
                 </Button>
               </div>
 
+              {/* Student Information */}
+              {uploadedFiles.length > 0 && !analysisResult && (
+                <div className="mt-6 space-y-4">
+                  <div className="p-4 bg-gray-50 rounded-lg border">
+                    <h3 className="font-medium text-gray-900 mb-3">Student Information</h3>
+                    <div className="space-y-3">
+                      <div>
+                        <Label htmlFor="student-name">Student Name *</Label>
+                        <Input
+                          id="student-name"
+                          value={studentName}
+                          onChange={(e) => setStudentName(e.target.value)}
+                          placeholder="Enter student's full name"
+                          className="mt-1"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="student-email">Student Email (Optional)</Label>
+                        <Input
+                          id="student-email"
+                          type="email"
+                          value={studentEmail}
+                          onChange={(e) => setStudentEmail(e.target.value)}
+                          placeholder="student@example.com"
+                          className="mt-1"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Process Document Button */}
               {uploadedFiles.length > 0 && !analysisResult && (
                 <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
@@ -286,7 +334,7 @@ const UploadTest = () => {
                   </p>
                   <Button 
                     onClick={processDocument}
-                    disabled={isProcessing}
+                    disabled={isProcessing || !studentName.trim()}
                     className="w-full bg-blue-600 hover:bg-blue-700"
                   >
                     {isProcessing ? (
@@ -301,6 +349,9 @@ const UploadTest = () => {
                       </>
                     )}
                   </Button>
+                  {!studentName.trim() && (
+                    <p className="text-xs text-red-600 mt-2">Please enter the student's name to continue</p>
+                  )}
                 </div>
               )}
 
@@ -309,20 +360,55 @@ const UploadTest = () => {
                 <div className="mt-6 p-4 bg-green-50 rounded-lg border border-green-200">
                   <div className="flex items-center gap-3 mb-3">
                     <CheckCircle className="h-5 w-5 text-green-600" />
-                    <h3 className="font-medium text-green-900">Analysis Complete</h3>
+                    <h3 className="font-medium text-green-900">Analysis Complete - {studentName}</h3>
                   </div>
                   <div className="space-y-3">
                     <div>
-                      <span className="text-sm font-medium text-green-700">Grade: </span>
+                      <span className="text-sm font-medium text-green-700">Overall Grade: </span>
                       <span className="text-lg font-bold text-green-900">{analysisResult.grade}</span>
+                    </div>
+                    <div>
+                      <span className="text-sm font-medium text-green-700">Score: </span>
+                      <span className="text-sm text-green-800">
+                        {analysisResult.total_points_earned}/{analysisResult.total_points_possible} points
+                      </span>
                     </div>
                     <div>
                       <span className="text-sm font-medium text-green-700">Feedback: </span>
                       <p className="text-sm text-green-800">{analysisResult.feedback}</p>
                     </div>
+                    
+                    {/* Content Skills */}
+                    {analysisResult.content_skill_scores && analysisResult.content_skill_scores.length > 0 && (
+                      <div>
+                        <span className="text-sm font-medium text-green-700">Content Skills: </span>
+                        <div className="mt-1 space-y-1">
+                          {analysisResult.content_skill_scores.map((skill, index) => (
+                            <div key={index} className="text-xs text-green-700 bg-green-100 px-2 py-1 rounded">
+                              {skill.skill_name}: {skill.score.toFixed(1)}% ({skill.points_earned}/{skill.points_possible})
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Subject Skills */}
+                    {analysisResult.subject_skill_scores && analysisResult.subject_skill_scores.length > 0 && (
+                      <div>
+                        <span className="text-sm font-medium text-green-700">Subject Skills: </span>
+                        <div className="mt-1 space-y-1">
+                          {analysisResult.subject_skill_scores.map((skill, index) => (
+                            <div key={index} className="text-xs text-green-700 bg-green-100 px-2 py-1 rounded">
+                              {skill.skill_name}: {skill.score.toFixed(1)}% ({skill.points_earned}/{skill.points_possible})
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    
                     <details className="text-sm">
                       <summary className="font-medium text-green-700 cursor-pointer">View Detailed Analysis</summary>
-                      <pre className="mt-2 p-3 bg-white rounded border text-xs whitespace-pre-wrap">{analysisResult.analysis}</pre>
+                      <pre className="mt-2 p-3 bg-white rounded border text-xs whitespace-pre-wrap">{analysisResult.detailed_analysis}</pre>
                     </details>
                   </div>
                   <Button 
@@ -355,14 +441,20 @@ const UploadTest = () => {
                   </span>
                 </div>
                 <div className="flex justify-between items-center p-3 bg-purple-50 rounded-lg">
-                  <span className="text-sm font-medium text-purple-700">Exam ID Status</span>
+                  <span className="text-sm font-medium text-purple-700">Student</span>
                   <span className="text-lg font-bold text-purple-900">
-                    {extractedExamId ? `✓ ${extractedExamId}` : "Pending"}
+                    {studentName || "Not entered"}
                   </span>
                 </div>
                 <div className="flex justify-between items-center p-3 bg-orange-50 rounded-lg">
-                  <span className="text-sm font-medium text-orange-700">Processing Status</span>
+                  <span className="text-sm font-medium text-orange-700">Exam ID Status</span>
                   <span className="text-lg font-bold text-orange-900">
+                    {extractedExamId ? `✓ ${extractedExamId}` : "Pending"}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+                  <span className="text-sm font-medium text-gray-700">Processing Status</span>
+                  <span className="text-lg font-bold text-gray-900">
                     {analysisResult ? "✓ Complete" : 
                      isProcessing ? "In Progress" : 
                      uploadedFiles.length > 0 ? "Ready" : "Waiting"}
