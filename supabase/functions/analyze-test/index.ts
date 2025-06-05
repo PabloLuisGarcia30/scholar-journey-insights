@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
@@ -69,7 +68,7 @@ serve(async (req) => {
 
     console.log('Found exam:', examData.title, 'with', answerKeys.length, 'answer keys')
 
-    // Fetch skills data
+    // Fetch skills data with IDs
     console.log('Step 2: Fetching Content-Specific skills for class:', examData.class_id)
     const { data: linkedContentSkills, error: contentSkillsError } = await supabase
       .from('class_content_skills')
@@ -117,10 +116,9 @@ serve(async (req) => {
 
     const classData = examData.classes
 
-    // Format skills for AI analysis
+    // Format skills with ID (Skill Name) format for enhanced precision
     let contentSkillsText = '';
     if (contentSkills.length > 0) {
-      // Group skills by topic
       const groupedSkills = contentSkills.reduce((acc: any, skill: any) => {
         if (!acc[skill.topic]) {
           acc[skill.topic] = [];
@@ -129,14 +127,12 @@ serve(async (req) => {
         return acc;
       }, {});
 
-      // Sort topics alphabetically for consistent ordering
       const topics = Object.keys(groupedSkills).sort();
 
       contentSkillsText = topics.map(topic => {
-        // Sort skills within each topic alphabetically
         const topicSkills = groupedSkills[topic]
           .sort((a: any, b: any) => a.skill_name.localeCompare(b.skill_name))
-          .map((skill: any) => `  - ${skill.skill_name}: ${skill.skill_description}`)
+          .map((skill: any) => `  - ${skill.id} (${skill.skill_name}): ${skill.skill_description}`)
           .join('\n');
         return `${topic}:\n${topicSkills}`;
       }).join('\n\n');
@@ -144,89 +140,46 @@ serve(async (req) => {
 
     const subjectSkillsText = subjectSkills
       .sort((a: any, b: any) => a.skill_name.localeCompare(b.skill_name))
-      .map(skill => `- ${skill.skill_name}: ${skill.skill_description}`)
+      .map(skill => `- ${skill.id} (${skill.skill_name}): ${skill.skill_description}`)
       .join('\n');
 
-    // Process enhanced structured OCR data
-    let structuredDataText = ''
+    // Create compressed file summaries instead of full verbose text
+    let fileSummaries = ''
     const hasEnhancedData = files.some((file: any) => file.structuredData?.documentMetadata?.processingMethods?.includes('roboflow_bubbles'))
     
     if (hasEnhancedData) {
-      console.log('Processing ENHANCED DUAL OCR structured data...')
-      structuredDataText = files.map((file: any) => {
+      console.log('Creating compressed summaries from ENHANCED DUAL OCR data...')
+      fileSummaries = files.map((file: any) => {
         if (file.structuredData) {
           const data = file.structuredData
-          let fileAnalysis = `\n=== ENHANCED DUAL OCR ANALYSIS FOR ${file.fileName} ===\n`
+          let summary = `\nFile: ${file.fileName}\n`
           
-          // Document metadata
-          fileAnalysis += `Processing Methods: ${data.documentMetadata.processingMethods.join(' + ')}\n`
-          fileAnalysis += `Overall Confidence: ${(data.documentMetadata.overallConfidence * 100).toFixed(1)}%\n`
-          fileAnalysis += `Pages: ${data.documentMetadata.totalPages}\n`
+          // Key metrics only
+          summary += `Processing: ${data.documentMetadata.processingMethods.join(' + ')}\n`
+          summary += `Overall Confidence: ${(data.documentMetadata.overallConfidence * 100).toFixed(1)}%\n`
+          summary += `Reliability: ${(data.validationResults.overallReliability * 100).toFixed(1)}%\n`
+          summary += `Cross-Validated: ${data.validationResults.crossValidationCount} answers\n`
           
-          if (data.documentMetadata.roboflowDetections > 0) {
-            fileAnalysis += `Roboflow Bubble Detections: ${data.documentMetadata.roboflowDetections}\n`
-          }
-          
-          // Validation results
-          fileAnalysis += `\nVALIDATION METRICS:\n`
-          fileAnalysis += `- Question-Answer Alignment: ${(data.validationResults.questionAnswerAlignment * 100).toFixed(1)}%\n`
-          fileAnalysis += `- Bubble Detection Accuracy: ${(data.validationResults.bubbleDetectionAccuracy * 100).toFixed(1)}%\n`
-          fileAnalysis += `- Text OCR Accuracy: ${(data.validationResults.textOcrAccuracy * 100).toFixed(1)}%\n`
-          fileAnalysis += `- Overall Reliability: ${(data.validationResults.overallReliability * 100).toFixed(1)}%\n`
-          fileAnalysis += `- Cross-Validated Answers: ${data.validationResults.crossValidationCount}\n`
-          fileAnalysis += `- Fallback Usage: ${data.validationResults.fallbackUsageCount}\n`
-          
-          // Processing notes
-          if (data.metadata.processingNotes.length > 0) {
-            fileAnalysis += `\nProcessing Notes: ${data.metadata.processingNotes.join('; ')}\n`
-          }
-          
-          // Enhanced questions with detected answers
+          // Detected answers summary
           if (data.questions && data.questions.length > 0) {
-            fileAnalysis += `\nDETECTED QUESTIONS WITH ENHANCED ANSWER DETECTION (${data.questions.length}):\n`
+            summary += `Questions Detected: ${data.questions.length}\n`
+            summary += `Answers Detected:\n`
             data.questions.forEach((q: any) => {
-              fileAnalysis += `Q${q.questionNumber}: ${q.questionText}\n`
-              fileAnalysis += `Type: ${q.type}, OCR Confidence: ${q.confidence}\n`
-              
-              if (q.options && q.options.length > 0) {
-                fileAnalysis += `Options:\n`
-                q.options.forEach((opt: any) => {
-                  fileAnalysis += `  ${opt.letter}. ${opt.text}\n`
-                })
-              }
-              
               if (q.detectedAnswer) {
                 const ans = q.detectedAnswer
-                fileAnalysis += `DETECTED ANSWER: ${ans.selectedOption}\n`
-                fileAnalysis += `Detection Method: ${ans.detectionMethod}\n`
-                fileAnalysis += `Confidence: ${(ans.confidence * 100).toFixed(1)}%\n`
-                fileAnalysis += `Cross-Validated: ${ans.crossValidated ? 'YES' : 'NO'}\n`
-                
-                if (ans.bubbleCoordinates) {
-                  fileAnalysis += `Bubble Location: (${ans.bubbleCoordinates.x.toFixed(0)}, ${ans.bubbleCoordinates.y.toFixed(0)})\n`
-                }
-                
-                if (ans.fallbackUsed) {
-                  fileAnalysis += `Note: Used fallback OCR detection\n`
-                }
+                summary += `Q${q.questionNumber}: ${ans.selectedOption} (${ans.detectionMethod}, ${(ans.confidence * 100).toFixed(0)}%${ans.crossValidated ? ', validated' : ''})\n`
               } else {
-                fileAnalysis += `DETECTED ANSWER: None detected\n`
+                summary += `Q${q.questionNumber}: No answer detected\n`
               }
-              
-              if (q.notes) {
-                fileAnalysis += `Notes: ${q.notes}\n`
-              }
-              fileAnalysis += '\n'
             })
           }
           
-          return fileAnalysis
+          return summary
         }
-        return `File: ${file.fileName}\nExtracted Text:\n${file.extractedText}`
-      }).join('\n\n---\n\n')
+        return `File: ${file.fileName}\nBasic OCR Text Length: ${file.extractedText.length} chars`
+      }).join('\n---\n')
     } else {
-      // Fallback to original format
-      structuredDataText = files.map((file: any) => 
+      fileSummaries = files.map((file: any) => 
         `File: ${file.fileName}\nExtracted Text:\n${file.extractedText}`
       ).join('\n\n---\n\n')
     }
@@ -235,80 +188,50 @@ serve(async (req) => {
       `Question ${ak.question_number}: ${ak.question_text}\nType: ${ak.question_type}\nCorrect Answer: ${ak.correct_answer}\nPoints: ${ak.points}${ak.options ? `\nOptions: ${JSON.stringify(ak.options)}` : ''}`
     ).join('\n\n')
 
-    console.log('Step 4: Sending ENHANCED analysis request to OpenAI...')
+    console.log('Step 4: Sending ENHANCED analysis request to OpenAI with compressed data...')
     
     const aiPayload = {
       model: "gpt-3.5-turbo",
       messages: [
         {
           role: "system",
-          content: `You are an AI grading assistant with ENHANCED DUAL OCR capabilities. You have been provided with:
+          content: `You are an AI grading assistant. Grade the test and map each question to skills using the exact IDs provided.
 
-1. The official answer key for exam "${examData.title}" (ID: ${examId})
-2. A comprehensive list of Content-Specific skills linked to this ${classData?.subject} ${classData?.grade} class
-3. Subject-Specific skills linked to this class for general academic thinking assessment
-4. ${hasEnhancedData ? 'ENHANCED DUAL OCR DATA with Google OCR + Roboflow bubble detection and cross-validation' : 'Standard OCR extracted text'}
+WORKFLOW:
+1. Grade each question against the answer key
+2. Map each question to relevant skill IDs from the lists below
+3. Calculate skill scores based on questions that test each skill
 
-ENHANCED DUAL-SKILL GRADING WORKFLOW:
+Use EXACT skill IDs from these lists:
 
-STEP 1: Grade each question with enhanced spatial circle-letter association
-- Prioritize spatially-matched answers from Roboflow + Google OCR coordinates
-- Use distance and alignment calculations to validate answer selections
-- Apply enhanced confidence multipliers based on spatial accuracy
-
-STEP 2: For EACH QUESTION, identify BOTH skill types it tests:
-
-A) Content-Specific Skills: Match each question to the most relevant Content-Specific skills from the provided list
-   - Use the skill descriptions to determine relevance
-   - A single question can test multiple Content-Specific skills
-
-B) Subject-Specific Skills: Identify which Subject-Specific skills each question requires:
-   ${subjectSkillsText}
-
-STEP 3: Calculate Content-Specific skill scores with spatial confidence weighting
-- For each Content-Specific skill, calculate the percentage based on:
-  - Points earned from questions testing that skill / Total points possible for questions testing that skill
-- Apply enhanced confidence multipliers based on spatial detection accuracy
-- Only include skills that are actually tested in this exam
-
-STEP 4: Calculate Subject-Specific skill scores with spatial confidence weighting
-- For each Subject-Specific skill, calculate the percentage based on:
-  - Points earned from questions testing that skill / Total points possible for questions testing that skill
-- Apply enhanced confidence multipliers based on spatial detection accuracy
-- Only include skills that are actually tested in this exam
-
-Content-Specific Skills Available for ${classData?.subject} ${classData?.grade}:
+CONTENT-SPECIFIC SKILLS:
 ${contentSkillsText}
 
-Subject-Specific Skills Available for ${classData?.subject} ${classData?.grade}:
+SUBJECT-SPECIFIC SKILLS:
 ${subjectSkillsText}
 
-Return your response in this JSON format:
+Return JSON with this structure:
 {
   "overall_score": 85.5,
   "total_points_earned": 17,
   "total_points_possible": 20,
   "grade": "85.5% (B+)",
-  "feedback": "brief summary feedback for the student",
-  "detailed_analysis": "detailed question-by-question breakdown with scores, explanations, and which BOTH Content-Specific AND Subject-Specific skills each question tested",
+  "feedback": "brief feedback",
+  "detailed_analysis": "question-by-question breakdown",
   "question_skill_mapping": [
     {
       "question_number": 1,
       "points_earned": 2,
       "points_possible": 2,
-      "detection_method": "spatial_cross_validated",
-      "confidence": 0.98,
-      "content_skills": ["Factoring Polynomials"],
-      "subject_skills": ["Problem Solving", "Mathematical Reasoning"]
+      "content_skill_ids": ["skill-id-1", "skill-id-2"],
+      "subject_skill_ids": ["skill-id-3"]
     }
   ],
   "content_skill_scores": [
-    {"skill_name": "Factoring Polynomials", "score": 90.0, "points_earned": 9, "points_possible": 10},
-    {"skill_name": "Solving Systems of Equations", "score": 80.0, "points_earned": 8, "points_possible": 10}
+    {"skill_name": "Skill Name", "score": 90.0, "points_earned": 9, "points_possible": 10}
   ],
   "subject_skill_scores": [
-    {"skill_name": "Problem Solving", "score": 85.0, "points_earned": 17, "points_possible": 20},
-    {"skill_name": "Mathematical Reasoning", "score": 90.0, "points_earned": 18, "points_possible": 20}
+    {"skill_name": "Skill Name", "score": 85.0, "points_earned": 17, "points_possible": 20}
   ],
   "dual_ocr_summary": {
     "processing_methods_used": ["google_ocr", "roboflow_bubbles"],
@@ -319,34 +242,24 @@ Return your response in this JSON format:
   }
 }
 
-CRITICAL REQUIREMENTS:
-- Every question MUST be mapped to at least one Content-Specific skill AND at least one Subject-Specific skill
-- Include the question_skill_mapping array showing exactly which skills each question tests
-- Calculate skill scores ONLY from questions that actually test those specific skills
-- Be explicit in your detailed_analysis about detection methods and confidence levels`
+Map each question to skills and calculate scores accurately.`
         },
         {
           role: "user",
-          content: `Please analyze this student's test responses for "${examData.title}" (Exam ID: ${examId}) using the ENHANCED grading workflow.
+          content: `Grade this test for "${examData.title}" (Exam ID: ${examId})
 
 Class: ${classData?.subject} ${classData?.grade}
 
-OFFICIAL ANSWER KEY:
+ANSWER KEY:
 ${answerKeyText}
 
-${hasEnhancedData ? 'ENHANCED DUAL OCR DATA:' : 'STUDENT\'S RESPONSES (OCR-extracted):'}
-${structuredDataText}
+STUDENT RESPONSES:
+${fileSummaries}
 
-CONTENT-SPECIFIC SKILLS TO EVALUATE:
-${contentSkillsText}
-
-SUBJECT-SPECIFIC SKILLS TO EVALUATE:
-${subjectSkillsText}
-
-Please provide a detailed grade report with accurate dual skill-based scoring that matches each question to the appropriate Content-Specific AND Subject-Specific skills. Include the question_skill_mapping array showing exactly which skills each question tests.`
+Map each question to the appropriate skill IDs and calculate accurate skill scores.`
         }
       ],
-      max_tokens: 6000,
+      max_tokens: 4000,
       temperature: 0.05
     }
 
