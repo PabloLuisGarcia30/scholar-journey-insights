@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -28,48 +29,21 @@ import {
   updateActiveClass, 
   deleteActiveClass, 
   getAllActiveStudents,
-  getActiveStudentById,
-  getStudentTestResults,
-  getStudentContentSkillScores,
-  getStudentSubjectSkillScores,
   type ActiveClass,
-  type ActiveStudent,
-  type TestResult,
-  type SkillScore
+  type ActiveStudent
 } from "@/services/examService";
 
 interface ClassViewProps {
   onSelectStudent: (studentId: string, classId?: string, className?: string) => void;
 }
 
-// Mock students for class details
-const mockStudents = [
-  { id: '1', name: 'Sarah Johnson', gpa: 3.8 },
-  { id: '2', name: 'Michael Chen', gpa: 3.2 },
-  { id: '3', name: 'Emma Williams', gpa: 3.9 },
-  { id: '4', name: 'David Brown', gpa: 3.1 },
-  { id: '5', name: 'Lisa Garcia', gpa: 3.6 }
-];
-
 export function ClassView({ onSelectStudent }: ClassViewProps) {
   const [classes, setClasses] = useState<ActiveClass[]>([]);
   const [selectedClass, setSelectedClass] = useState<string | null>(null);
-  const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
   const [filterSubject, setFilterSubject] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
   const [allStudents, setAllStudents] = useState<ActiveStudent[]>([]);
-  const [studentDetails, setStudentDetails] = useState<{
-    student: ActiveStudent | null;
-    testResults: TestResult[];
-    contentSkills: SkillScore[];
-    subjectSkills: SkillScore[];
-  }>({
-    student: null,
-    testResults: [],
-    contentSkills: [],
-    subjectSkills: []
-  });
 
   useEffect(() => {
     loadData();
@@ -89,27 +63,6 @@ export function ClassView({ onSelectStudent }: ClassViewProps) {
       toast.error('Failed to load data');
     } finally {
       setLoading(false);
-    }
-  };
-
-  const loadStudentDetails = async (studentId: string) => {
-    try {
-      const [student, testResults, contentSkills, subjectSkills] = await Promise.all([
-        getActiveStudentById(studentId),
-        getStudentTestResults(studentId),
-        getStudentContentSkillScores(studentId),
-        getStudentSubjectSkillScores(studentId)
-      ]);
-
-      setStudentDetails({
-        student,
-        testResults,
-        contentSkills,
-        subjectSkills
-      });
-    } catch (error) {
-      console.error('Error loading student details:', error);
-      toast.error('Failed to load student details');
     }
   };
 
@@ -164,8 +117,8 @@ export function ClassView({ onSelectStudent }: ClassViewProps) {
   };
 
   const handleStudentClick = (studentId: string, classId: string, className: string) => {
-    setSelectedStudentId(studentId);
-    loadStudentDetails(studentId);
+    // Pass the class context to the parent component
+    onSelectStudent(studentId, classId, className);
   };
 
   const filteredClasses = classes.filter(cls => {
@@ -183,168 +136,6 @@ export function ClassView({ onSelectStudent }: ClassViewProps) {
         <div className="flex items-center justify-center py-12">
           <div className="text-lg text-gray-600">Loading classes...</div>
         </div>
-      </div>
-    );
-  }
-
-  // Student Details View
-  if (selectedStudentId && studentDetails.student) {
-    const { student, testResults, contentSkills, subjectSkills } = studentDetails;
-    
-    return (
-      <div className="p-6">
-        <div className="mb-6">
-          <Button 
-            variant="ghost" 
-            onClick={() => {
-              setSelectedStudentId(null);
-              setStudentDetails({ student: null, testResults: [], contentSkills: [], subjectSkills: [] });
-            }} 
-            className="mb-4"
-          >
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Back to Class
-          </Button>
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900">{student.name}</h1>
-              <p className="text-gray-600 mt-1">{student.email || 'No email provided'}</p>
-            </div>
-            <div className="text-right">
-              <div className="text-2xl font-bold text-gray-900">
-                {student.gpa ? Number(student.gpa).toFixed(2) : 'N/A'}
-              </div>
-              <div className="text-sm text-gray-600">GPA</div>
-            </div>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-          <Card>
-            <CardContent className="p-4 text-center">
-              <div className="text-2xl font-bold">{student.year || 'N/A'}</div>
-              <div className="text-sm text-gray-600">Year</div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-4 text-center">
-              <div className="text-2xl font-bold">{student.major || 'N/A'}</div>
-              <div className="text-sm text-gray-600">Major</div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-4 text-center">
-              <div className="text-2xl font-bold">{testResults.length}</div>
-              <div className="text-sm text-gray-600">Test Results</div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-4 text-center">
-              <div className="text-2xl font-bold">
-                {testResults.length > 0 
-                  ? (testResults.reduce((sum, result) => sum + result.overall_score, 0) / testResults.length).toFixed(1)
-                  : 'N/A'
-                }%
-              </div>
-              <div className="text-sm text-gray-600">Avg Score</div>
-            </CardContent>
-          </Card>
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Content Skill Scores</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {contentSkills.length > 0 ? (
-                <div className="space-y-3">
-                  {contentSkills.map((skill) => (
-                    <div key={skill.id} className="flex items-center justify-between">
-                      <span className="text-sm font-medium">{skill.skill_name}</span>
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm text-gray-600">
-                          {skill.points_earned}/{skill.points_possible}
-                        </span>
-                        <Badge variant="outline">
-                          {Number(skill.score).toFixed(1)}%
-                        </Badge>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-gray-500 text-center py-4">No content skill scores available</p>
-              )}
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Subject Skill Scores</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {subjectSkills.length > 0 ? (
-                <div className="space-y-3">
-                  {subjectSkills.map((skill) => (
-                    <div key={skill.id} className="flex items-center justify-between">
-                      <span className="text-sm font-medium">{skill.skill_name}</span>
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm text-gray-600">
-                          {skill.points_earned}/{skill.points_possible}
-                        </span>
-                        <Badge variant="outline">
-                          {Number(skill.score).toFixed(1)}%
-                        </Badge>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-gray-500 text-center py-4">No subject skill scores available</p>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Test Results</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {testResults.length > 0 ? (
-              <div className="space-y-3">
-                {testResults.map((result) => (
-                  <div key={result.id} className="flex items-center justify-between p-3 rounded-lg border">
-                    <div>
-                      <p className="font-medium">Exam ID: {result.exam_id}</p>
-                      <p className="text-sm text-gray-600">
-                        {new Date(result.created_at).toLocaleDateString()}
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      <div className="font-semibold">
-                        {result.total_points_earned}/{result.total_points_possible}
-                      </div>
-                      <Badge 
-                        className={
-                          result.overall_score >= 90 ? 'bg-green-100 text-green-700' :
-                          result.overall_score >= 80 ? 'bg-blue-100 text-blue-700' :
-                          result.overall_score >= 70 ? 'bg-yellow-100 text-yellow-700' :
-                          'bg-red-100 text-red-700'
-                        }
-                      >
-                        {Number(result.overall_score).toFixed(1)}%
-                      </Badge>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-gray-500 text-center py-4">No test results available</p>
-            )}
-          </CardContent>
-        </Card>
       </div>
     );
   }
