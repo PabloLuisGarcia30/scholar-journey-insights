@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { ArrowLeft, FileText, RefreshCw, Printer, CheckCircle, Edit, Key } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -9,7 +10,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { toast } from "sonner";
+import { toast } from "@/hooks/use-toast";
 import { Link } from "react-router-dom";
 import { generateTestPDF, generateConsolidatedTestPDF, type Question, type TestData } from "@/utils/pdfGenerator";
 import { TemplateSelection, type TestTemplate } from "@/components/TestCreator/TemplateSelection";
@@ -189,17 +190,31 @@ const TestCreator = () => {
     try {
       console.log('Saving test data with answer key and exam ID:', testData);
       await saveExamToDatabase(testData, classId);
-      toast.success(`Test and answer key saved successfully! Exam ID: ${testData.examId}`);
+      toast({
+        title: "Success!",
+        description: `Test and answer key saved successfully! Exam ID: ${testData.examId}`,
+        className: "fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-50",
+      });
     } catch (error) {
       console.error('Error saving test to database:', error);
-      toast.error('Failed to save test to database. Please try again.');
+      toast({
+        title: "Error",
+        description: 'Failed to save test to database. Please try again.',
+        variant: "destructive",
+        className: "fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-50",
+      });
       throw error;
     }
   };
 
   const finalizeTest = async () => {
     if (!selectedClassId.trim()) {
-      toast.error('Please select a class');
+      toast({
+        title: "Error",
+        description: 'Please select a class',
+        variant: "destructive",
+        className: "fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-50",
+      });
       return;
     }
     
@@ -218,7 +233,11 @@ const TestCreator = () => {
     
     try {
       await saveTestToDatabase(testData, selectedClassId);
-      toast.success(`Test saved successfully! Exam ID: ${examId}`);
+      toast({
+        title: "Success!",
+        description: `Test saved successfully! Exam ID: ${examId}`,
+        className: "fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-50",
+      });
       setCurrentStep('preview');
     } catch (error) {
       return;
