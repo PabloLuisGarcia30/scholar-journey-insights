@@ -1,5 +1,6 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -58,6 +59,58 @@ function validateTestStructure(data: any): boolean {
   return true
 }
 
+async function getHistoricalQuestions(supabase: any, classId: string, skillName: string) {
+  try {
+    console.log('Fetching historical questions for class:', classId, 'skill:', skillName)
+    
+    // Get exams for this class
+    const { data: exams, error: examError } = await supabase
+      .from('exams')
+      .select('exam_id, title')
+      .eq('class_id', classId)
+
+    if (examError || !exams || exams.length === 0) {
+      console.log('No exams found for class:', classId)
+      return []
+    }
+
+    const examIds = exams.map((exam: any) => exam.exam_id)
+    console.log('Found exam IDs:', examIds)
+
+    // Get answer keys for these exams (limit to avoid overwhelming the AI)
+    const { data: questions, error: questionsError } = await supabase
+      .from('answer_keys')
+      .select('question_text, question_type, options, points, exam_id')
+      .in('exam_id', examIds)
+      .limit(5) // Limit to 5 examples to avoid token overflow
+
+    if (questionsError || !questions || questions.length === 0) {
+      console.log('No historical questions found')
+      return []
+    }
+
+    // Format questions for AI prompt
+    const formattedQuestions = questions.map((q: any, index: number) => {
+      const exam = exams.find((e: any) => e.exam_id === q.exam_id)
+      let questionText = `Example ${index + 1} (from "${exam?.title || 'Previous Test'}"):\n`
+      questionText += `Type: ${q.question_type}\n`
+      questionText += `Question: ${q.question_text}\n`
+      if (q.options && Array.isArray(q.options)) {
+        questionText += `Options: ${q.options.join(', ')}\n`
+      }
+      questionText += `Points: ${q.points}\n`
+      return questionText
+    }).join('\n---\n')
+
+    console.log(`Formatted ${questions.length} historical questions for AI`)
+    return formattedQuestions
+
+  } catch (error) {
+    console.error('Error fetching historical questions:', error)
+    return ''
+  }
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
@@ -65,8 +118,8 @@ serve(async (req) => {
 
   try {
     console.log('Generate-practice-test function called')
-    const { studentName, className, skillName, grade, subject, questionCount } = await req.json()
-    console.log('Generating practice test for:', studentName, 'in class:', className, 'skill:', skillName, 'grade:', grade, 'subject:', subject, 'questionCount:', questionCount)
+    const { studentName, className, skillName, grade, subject, questionCount, classId } = await req.json()
+    console.log('Generating practice test for:', studentName, 'in class:', className, 'skill:', skillName, 'grade:', grade, 'subject:', subject, 'questionCount:', questionCount, 'classId:', classId)
     
     const openaiApiKey = Deno.env.get('OPENAI_API_KEY')
     if (!openaiApiKey) {
@@ -79,17 +132,31 @@ serve(async (req) => {
       throw new Error('OpenAI API key appears to be invalid. Please check your API key.')
     }
 
+    // Initialize Supabase client for historical questions
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')
+    const supabaseKey = Deno.env.get('SUPABASE_ANON_KEY')
+    let historicalQuestions = ''
+    
+    if (supabaseUrl && supabaseKey && classId && skillName) {
+      const supabase = createClient(supabaseUrl, supabaseKey)
+      historicalQuestions = await getHistoricalQuestions(supabase, classId, skillName)
+    }
+
     // Create more specific prompts based on grade and subject
     const gradeLevel = grade || 'Grade 10'
     const subjectArea = subject || 'Math'
     const numQuestions = questionCount || 10
     
-    const prompt = skillName 
+    const basePrompt = skillName 
       ? `Generate a practice test for a ${gradeLevel} ${subjectArea} student focusing specifically on ${skillName}. Create exactly ${numQuestions} questions that test understanding of this skill at an appropriate ${gradeLevel} difficulty level. Use ${gradeLevel} ${subjectArea} curriculum standards and age-appropriate language and examples.`
       : `Generate a comprehensive practice test for a ${gradeLevel} ${subjectArea} student covering all major content areas appropriate for ${gradeLevel} ${subjectArea} curriculum. Create exactly ${numQuestions} questions that assess various skills and concepts at the ${gradeLevel} level. Use curriculum-appropriate vocabulary and examples suitable for ${gradeLevel} students.`
 
-    console.log('Sending request to OpenAI with prompt:', prompt)
-    console.log('Using API key starting with:', openaiApiKey.substring(0, 10) + '...')
+    // Add historical questions context if available
+    const enhancedPrompt = historicalQuestions 
+      ? `${basePrompt}\n\nIMPORTANT: Use these example questions from previous tests in this class as style templates. Generate NEW questions that follow similar patterns, formats, and difficulty levels:\n\n${historicalQuestions}\n\nCreate questions that match the style and complexity of these examples while covering the target skill area.`
+      : basePrompt
+
+    console.log('Sending request to OpenAI with enhanced prompt including', historicalQuestions ? 'historical questions' : 'base prompt only')
     
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
@@ -126,11 +193,13 @@ Generate a JSON response with exactly this structure:
             
 Make exactly ${numQuestions} questions that are challenging but appropriate for ${gradeLevel} level. Use vocabulary and examples suitable for ${gradeLevel} students. For ${subjectArea}, ensure content aligns with ${gradeLevel} ${subjectArea} curriculum standards. Use a mix of question types. For multiple choice, provide 4 options with only one correct answer.
 
+${historicalQuestions ? 'STYLE MATCHING: Follow the question patterns, formats, and difficulty levels shown in the provided examples from previous class tests. Generate NEW content that matches these established styles.' : ''}
+
 RESPOND ONLY WITH THE JSON OBJECT - NO OTHER TEXT.`
           },
           {
             role: 'user',
-            content: prompt
+            content: enhancedPrompt
           }
         ],
         temperature: 0.7,
@@ -139,7 +208,6 @@ RESPOND ONLY WITH THE JSON OBJECT - NO OTHER TEXT.`
     })
 
     console.log('OpenAI response status:', response.status)
-    console.log('OpenAI response headers:', Object.fromEntries(response.headers.entries()))
 
     if (!response.ok) {
       const errorText = await response.text()
@@ -186,6 +254,9 @@ RESPOND ONLY WITH THE JSON OBJECT - NO OTHER TEXT.`
       }
       
       console.log('Successfully parsed and validated practice test with', parsedTest.questions?.length || 0, 'questions')
+      if (historicalQuestions) {
+        console.log('Practice test generated using historical question patterns from class')
+      }
     } catch (error) {
       console.error('Failed to parse or validate generated content:', error)
       console.error('Raw content was:', generatedContent)

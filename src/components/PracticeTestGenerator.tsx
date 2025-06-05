@@ -15,10 +15,19 @@ interface PracticeTestGeneratorProps {
   skillName: string | null;
   grade?: string;
   subject?: string;
+  classId?: string;
   onBack: () => void;
 }
 
-export function PracticeTestGenerator({ studentName, className, skillName, grade, subject, onBack }: PracticeTestGeneratorProps) {
+export function PracticeTestGenerator({ 
+  studentName, 
+  className, 
+  skillName, 
+  grade, 
+  subject, 
+  classId,
+  onBack 
+}: PracticeTestGeneratorProps) {
   const [isGenerating, setIsGenerating] = useState(false);
   const [testData, setTestData] = useState<PracticeTestData | null>(null);
 
@@ -31,7 +40,8 @@ export function PracticeTestGenerator({ studentName, className, skillName, grade
         className,
         skillName: skillName || undefined,
         grade,
-        subject
+        subject,
+        classId
       });
       
       setTestData(result);
