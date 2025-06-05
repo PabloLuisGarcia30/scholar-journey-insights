@@ -326,8 +326,9 @@ const TestCreator = () => {
       // Generate PDFs for selected students
       generateStudentTestPDFs(testData, studentNames);
       
-      // Show toast notification with printing instructions
-      toast.success(`PDFs have successfully downloaded - just open the pdf and print them individually.`);
+      // Show centered success dialog instead of toast
+      setSuccessMessage(`PDFs have successfully downloaded - just open the pdf and print them individually.`);
+      setShowSuccessDialog(true);
       setIsPrintDialogOpen(false);
     } catch (error) {
       console.error('Error generating tests for printing:', error);
