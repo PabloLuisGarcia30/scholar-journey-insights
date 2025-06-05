@@ -1,3 +1,4 @@
+
 import { supabase } from "@/integrations/supabase/client";
 import type { Question } from "@/utils/pdfGenerator";
 
@@ -426,22 +427,67 @@ export const saveExamToDatabase = async (examData: ExamData, classId: string): P
   try {
     console.log('Saving exam to database:', examData.examId);
     
-    // Insert exam metadata with class reference
-    const { error: examError } = await supabase
+    // Check if exam already exists
+    const { data: existingExam, error: checkError } = await supabase
       .from('exams')
-      .insert({
-        exam_id: examData.examId,
-        title: examData.title,
-        description: examData.description,
-        class_name: examData.className,
-        class_id: classId,
-        time_limit: examData.timeLimit,
-        total_points: examData.totalPoints
-      });
+      .select('id')
+      .eq('exam_id', examData.examId)
+      .maybeSingle();
 
-    if (examError) {
-      console.error('Error saving exam:', examError);
-      throw new Error(`Failed to save exam: ${examError.message}`);
+    if (checkError) {
+      console.error('Error checking existing exam:', checkError);
+      throw new Error(`Failed to check existing exam: ${checkError.message}`);
+    }
+
+    // If exam doesn't exist, insert it
+    if (!existingExam) {
+      const { error: examError } = await supabase
+        .from('exams')
+        .insert({
+          exam_id: examData.examId,
+          title: examData.title,
+          description: examData.description,
+          class_name: examData.className,
+          class_id: classId,
+          time_limit: examData.timeLimit,
+          total_points: examData.totalPoints
+        });
+
+      if (examError) {
+        console.error('Error saving exam:', examError);
+        throw new Error(`Failed to save exam: ${examError.message}`);
+      }
+    } else {
+      console.log('Exam already exists, updating instead');
+      // Update existing exam
+      const { error: updateError } = await supabase
+        .from('exams')
+        .update({
+          title: examData.title,
+          description: examData.description,
+          class_name: examData.className,
+          class_id: classId,
+          time_limit: examData.timeLimit,
+          total_points: examData.totalPoints
+        })
+        .eq('exam_id', examData.examId);
+
+      if (updateError) {
+        console.error('Error updating exam:', updateError);
+        throw new Error(`Failed to update exam: ${updateError.message}`);
+      }
+    }
+
+    // Delete existing answer keys for this exam to avoid duplicates
+    const { error: deleteError } = await supabase
+      .from('answer_keys')
+      .delete()
+      .eq('exam_id', examData.examId);
+
+    if (deleteError) {
+      console.error('Error deleting existing answer keys:', deleteError);
+      // Don't throw here, just log the warning
+      console.warn('Could not delete existing answer keys, proceeding with insertion');
     }
 
     // Insert answer keys - convert correctAnswer to string properly handling all types
