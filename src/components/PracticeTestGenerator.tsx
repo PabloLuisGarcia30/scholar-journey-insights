@@ -1,11 +1,13 @@
+
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, FileText, Download, RefreshCw, Zap } from "lucide-react";
+import { ArrowLeft, FileText, Download, RefreshCw, Zap, Printer } from "lucide-react";
 import { toast } from "sonner";
 import jsPDF from 'jspdf';
 import { generatePracticeTest, PracticeTestData, Question } from "@/services/practiceTestService";
+import { printTest } from "@/services/printService";
 
 interface PracticeTestGeneratorProps {
   studentName: string;
@@ -40,6 +42,30 @@ export function PracticeTestGenerator({ studentName, className, skillName, grade
     } finally {
       setIsGenerating(false);
     }
+  };
+
+  const handlePrint = () => {
+    if (!testData) return;
+
+    // Convert PracticeTestData to the format expected by printService
+    const printableTestData = {
+      examId: `PRACTICE-${Date.now()}`,
+      title: testData.title,
+      description: testData.description || '',
+      className: className,
+      timeLimit: testData.estimatedTime,
+      questions: testData.questions.map(q => ({
+        id: q.id,
+        type: q.type,
+        question: q.question,
+        options: q.options,
+        correctAnswer: undefined, // Don't include answers in printed version
+        points: q.points
+      })),
+      studentName: studentName
+    };
+
+    printTest(printableTestData);
   };
 
   const generatePDF = () => {
@@ -228,9 +254,7 @@ export function PracticeTestGenerator({ studentName, className, skillName, grade
                       <FileText className="h-4 w-4 mr-2" />
                     )}
                     Generate {isSuperExercise ? 'Super Exercise' : 'Practice Exercises'}
-                  </>
-                )}
-              </Button>
+                  </Button>
             </CardContent>
           </Card>
         </div>
@@ -249,6 +273,10 @@ export function PracticeTestGenerator({ studentName, className, skillName, grade
           <Button variant="outline" onClick={() => setTestData(null)}>
             <RefreshCw className="h-4 w-4 mr-2" />
             Generate New Exercises
+          </Button>
+          <Button variant="outline" onClick={handlePrint}>
+            <Printer className="h-4 w-4 mr-2" />
+            Print
           </Button>
           <Button onClick={generatePDF}>
             <Download className="h-4 w-4 mr-2" />
