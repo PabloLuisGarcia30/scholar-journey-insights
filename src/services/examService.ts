@@ -800,98 +800,72 @@ export const autoLinkMathClassToGrade10Skills = async (): Promise<void> => {
 };
 
 export const getSubjectSkillsBySubjectAndGrade = async (subject: string, grade: string): Promise<SubjectSkill[]> => {
-  try {
-    console.log('Fetching subject skills for:', subject, grade);
-    
-    const { data, error } = await supabase
-      .from('subject_skills')
-      .select('*')
-      .eq('subject', subject)
-      .eq('grade', grade)
-      .order('skill_name');
+  const { data, error } = await supabase
+    .from('subject_skills')
+    .select('*')
+    .eq('subject', subject)
+    .eq('grade', grade)
+    .order('skill_name');
 
-    if (error) {
-      console.error('Error fetching subject skills:', error);
-      throw new Error(`Failed to fetch subject skills: ${error.message}`);
-    }
-
-    return data || [];
-  } catch (error) {
-    console.error('Error in getSubjectSkillsBySubjectAndGrade:', error);
+  if (error) {
+    console.error('Error fetching subject skills:', error);
     throw error;
   }
-};
 
-export const linkClassToSubjectSkills = async (classId: string, subjectSkillIds: string[]): Promise<void> => {
-  try {
-    console.log('Linking class to subject skills:', classId, subjectSkillIds);
-    
-    // Remove existing links for this class
-    const { error: deleteError } = await supabase
-      .from('class_subject_skills')
-      .delete()
-      .eq('class_id', classId);
-
-    if (deleteError) {
-      console.error('Error removing existing class subject skills:', deleteError);
-      throw new Error(`Failed to remove existing links: ${deleteError.message}`);
-    }
-
-    // Add new links if there are skills to link
-    if (subjectSkillIds.length > 0) {
-      const newLinks = subjectSkillIds.map(skillId => ({
-        class_id: classId,
-        subject_skill_id: skillId
-      }));
-
-      const { error: insertError } = await supabase
-        .from('class_subject_skills')
-        .insert(newLinks);
-
-      if (insertError) {
-        console.error('Error linking class to subject skills:', insertError);
-        throw new Error(`Failed to link class to subject skills: ${insertError.message}`);
-      }
-    }
-
-    console.log('Successfully linked class to subject skills');
-  } catch (error) {
-    console.error('Error in linkClassToSubjectSkills:', error);
-    throw error;
-  }
+  return data || [];
 };
 
 export const getLinkedSubjectSkillsForClass = async (classId: string): Promise<SubjectSkill[]> => {
-  try {
-    console.log('Fetching linked subject skills for class:', classId);
-    
-    const { data, error } = await supabase
-      .from('class_subject_skills')
-      .select(`
-        subject_skills (
-          id,
-          subject,
-          grade,
-          skill_name,
-          skill_description,
-          created_at,
-          updated_at
-        )
-      `)
-      .eq('class_id', classId);
+  const { data, error } = await supabase
+    .from('class_subject_skills')
+    .select(`
+      subject_skills (
+        id,
+        skill_name,
+        skill_description,
+        subject,
+        grade,
+        created_at,
+        updated_at
+      )
+    `)
+    .eq('class_id', classId);
 
-    if (error) {
-      console.error('Error fetching linked subject skills:', error);
-      throw new Error(`Failed to fetch linked subject skills: ${error.message}`);
-    }
-
-    // Extract the subject_skills from the nested structure
-    const subjectSkills = data?.map((item: any) => item.subject_skills).filter(Boolean) || [];
-    console.log('Found linked subject skills:', subjectSkills.length);
-    return subjectSkills;
-  } catch (error) {
-    console.error('Error in getLinkedSubjectSkillsForClass:', error);
+  if (error) {
+    console.error('Error fetching linked subject skills for class:', error);
     throw error;
+  }
+
+  return data?.map((item: any) => item.subject_skills).filter(Boolean) || [];
+};
+
+export const linkClassToSubjectSkills = async (classId: string, subjectSkillIds: string[]): Promise<void> => {
+  // First, delete existing links
+  const { error: deleteError } = await supabase
+    .from('class_subject_skills')
+    .delete()
+    .eq('class_id', classId);
+
+  if (deleteError) {
+    console.error('Error deleting existing subject skill links:', deleteError);
+    throw deleteError;
+  }
+
+  // Then, insert new links
+  if (subjectSkillIds.length > 0) {
+    const links = subjectSkillIds.map(skillId => ({
+      class_id: classId,
+      subject_skill_id: skillId
+    }));
+
+    const { error: insertError } = await supabase
+      .from('class_subject_skills')
+      .insert(links);
+
+    if (insertError) {
+      console.error('Error linking class to subject skills:', insertError);
+      throw insertError;
+    }
   }
 };
 

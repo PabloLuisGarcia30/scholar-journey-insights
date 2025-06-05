@@ -19,11 +19,15 @@ import {
   getContentSkillsBySubjectAndGrade,
   getLinkedContentSkillsForClass,
   linkClassToContentSkills,
+  getSubjectSkillsBySubjectAndGrade,
+  getLinkedSubjectSkillsForClass,
+  linkClassToSubjectSkills,
   type ActiveStudent,
   type TestResult,
   type SkillScore,
   type ActiveClass,
-  type ContentSkill
+  type ContentSkill,
+  type SubjectSkill
 } from "@/services/examService";
 
 interface StudentProfileProps {
@@ -92,17 +96,25 @@ export function StudentProfile({ studentId, classId, className, onBack }: Studen
       if (isGrade10MathClass() && classId) {
         try {
           console.log('Auto-linking Grade 10 Math class to Grade 10 Math skills');
-          // Get all Grade 10 Math content skills
-          const allSkills = await getContentSkillsBySubjectAndGrade('Math', 'Grade 10');
-          const skillIds = allSkills.map(skill => skill.id);
           
-          // Link the class to all Grade 10 Math skills
-          await linkClassToContentSkills(classId, skillIds);
-          console.log(`Successfully linked class to ${skillIds.length} Grade 10 Math skills`);
+          // Link Content-Specific Skills
+          const allContentSkills = await getContentSkillsBySubjectAndGrade('Math', 'Grade 10');
+          const contentSkillIds = allContentSkills.map(skill => skill.id);
+          await linkClassToContentSkills(classId, contentSkillIds);
+          console.log(`Successfully linked class to ${contentSkillIds.length} Grade 10 Math content skills`);
           
-          // Trigger a refetch of the linked skills
+          // Link Subject-Specific Skills
+          const allSubjectSkills = await getSubjectSkillsBySubjectAndGrade('Math', 'Grade 10');
+          const subjectSkillIds = allSubjectSkills.map(skill => skill.id);
+          await linkClassToSubjectSkills(classId, subjectSkillIds);
+          console.log(`Successfully linked class to ${subjectSkillIds.length} Grade 10 Math subject skills`);
+          
+          // Trigger refetch of both skill types
           if (classContentSkillsRefetch) {
             classContentSkillsRefetch();
+          }
+          if (classSubjectSkillsRefetch) {
+            classSubjectSkillsRefetch();
           }
         } catch (error) {
           console.error('Failed to auto-link Grade 10 Math skills:', error);
@@ -137,6 +149,13 @@ export function StudentProfile({ studentId, classId, className, onBack }: Studen
   const { data: classContentSkills = [], isLoading: classContentSkillsLoading, refetch: classContentSkillsRefetch } = useQuery({
     queryKey: ['classLinkedContentSkills', classId],
     queryFn: () => classId ? getLinkedContentSkillsForClass(classId) : Promise.resolve([]),
+    enabled: !!classId && !!isClassView,
+  });
+
+  // Fetch subject skills for the class to show complete skill set
+  const { data: classSubjectSkills = [], isLoading: classSubjectSkillsLoading, refetch: classSubjectSkillsRefetch } = useQuery({
+    queryKey: ['classLinkedSubjectSkills', classId],
+    queryFn: () => classId ? getLinkedSubjectSkillsForClass(classId) : Promise.resolve([]),
     enabled: !!classId && !!isClassView,
   });
 
@@ -189,6 +208,45 @@ export function StudentProfile({ studentId, classId, className, onBack }: Studen
   };
 
   const comprehensiveSkillData = getComprehensiveSkillData();
+
+  // Create comprehensive subject skill data combining test scores with class skills
+  const getComprehensiveSubjectSkillData = () => {
+    console.log('Getting comprehensive subject skill data:', { 
+      isClassView, 
+      isGrade10Math: isGrade10MathClass(),
+      classSubjectSkillsLength: classSubjectSkills.length, 
+      subjectSkillScoresLength: subjectSkillScores.length,
+      'Class Subject Skills:': classSubjectSkills.map(s => s.skill_name),
+      'Subject skill scores:': subjectSkillScores.map(s => s.skill_name)
+    });
+
+    // If we're in class view and have class subject skills, show all skills for the class
+    if (isClassView && classSubjectSkills.length > 0) {
+      console.log('Using linked class subject skills');
+      // Create a map of skill scores by skill name
+      const scoreMap = new Map(subjectSkillScores.map(score => [score.skill_name, score]));
+
+      // Combine class skills with actual scores, showing 0 for untested skills
+      return classSubjectSkills.map(skill => {
+        const existingScore = scoreMap.get(skill.skill_name);
+        return existingScore || {
+          id: `placeholder-${skill.id}`,
+          test_result_id: '',
+          skill_name: skill.skill_name,
+          score: 0, // Show 0% for skills not yet tested
+          points_earned: 0,
+          points_possible: 0,
+          created_at: ''
+        };
+      });
+    }
+
+    // Otherwise, just return the subject skill scores from tests
+    console.log('Using test result subject skill scores only');
+    return subjectSkillScores;
+  };
+
+  const comprehensiveSubjectSkillData = getComprehensiveSubjectSkillData();
 
   // Group skills by topic for better organization
   const groupSkillsByTopic = (skills: typeof comprehensiveSkillData) => {
@@ -658,18 +716,23 @@ export function StudentProfile({ studentId, classId, className, onBack }: Studen
                   <CardTitle>Subject Specific Skill Mastery</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  {subjectSkillsLoading ? (
+                  {(subjectSkillsLoading || classSubjectSkillsLoading) ? (
                     <div className="animate-pulse space-y-4">
                       {[...Array(5)].map((_, i) => (
                         <div key={i} className="h-16 bg-gray-200 rounded"></div>
                       ))}
                     </div>
-                  ) : subjectSkillScores.length > 0 ? (
+                  ) : comprehensiveSubjectSkillData.length > 0 ? (
                     <div className="space-y-3">
-                      {subjectSkillScores.map((skill, index) => (
+                      {comprehensiveSubjectSkillData.map((skill, index) => (
                         <div key={index} className="flex items-center justify-between p-4 rounded-lg border border-gray-100">
                           <div className="flex-1">
-                            <h4 className="font-semibold text-gray-900">{skill.skill_name}</h4>
+                            <div className="flex items-center gap-2">
+                              <h4 className="font-semibold text-gray-900">{skill.skill_name}</h4>
+                              {skill.score === 0 && (
+                                <Badge variant="outline" className="text-xs">Not tested</Badge>
+                              )}
+                            </div>
                             <Progress value={skill.score} className="mt-2 w-64" />
                           </div>
                           <div className="text-right">
@@ -684,7 +747,14 @@ export function StudentProfile({ studentId, classId, className, onBack }: Studen
                     <div className="text-center py-8">
                       <Target className="h-12 w-12 text-gray-400 mx-auto mb-4" />
                       <h3 className="text-lg font-medium text-gray-900 mb-2">No subject skill data available</h3>
-                      <p className="text-gray-600">Subject-specific skill analysis will appear here after test results are processed.</p>
+                      <p className="text-gray-600">
+                        {isClassView && classSubjectSkillsLoading
+                          ? 'Loading subject skills...' 
+                          : (classSubjectSkills.length === 0 && isClassView)
+                          ? 'No subject skills found for this class.'
+                          : 'Subject-specific skill analysis will appear here after test results are processed.'
+                        }
+                      </p>
                     </div>
                   )}
                 </CardContent>
