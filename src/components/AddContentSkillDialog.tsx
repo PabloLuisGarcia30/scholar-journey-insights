@@ -56,7 +56,9 @@ export function AddContentSkillDialog({ activeClass, onSkillAdded }: AddContentS
       setLoading(true);
       
       await createContentSkill({
-        ...values,
+        skill_name: values.skill_name,
+        skill_description: values.skill_description,
+        topic: values.topic,
         subject: activeClass.subject,
         grade: activeClass.grade,
       });
