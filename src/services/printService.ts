@@ -1,4 +1,3 @@
-
 import { Question, TestData } from '@/utils/pdfGenerator';
 
 export interface StudentTestData extends TestData {
@@ -67,16 +66,19 @@ export const generateTestHTML = (testData: TestData | StudentTestData): string =
           .option-circle {
             width: 12pt;
             height: 12pt;
-            border: 1px solid #3b82f6;
+            border: 1px solid #000;
             border-radius: 50%;
             display: inline-block;
-            text-align: center;
-            line-height: 10pt;
-            font-size: 8pt;
-            font-weight: bold;
-            color: white;
-            background: #3b82f6;
             margin-right: 6pt;
+            vertical-align: middle;
+            background: white;
+          }
+          
+          .option-letter {
+            display: inline-block;
+            margin-right: 6pt;
+            font-weight: bold;
+            font-size: 10pt;
             vertical-align: middle;
           }
           
@@ -146,16 +148,19 @@ export const generateTestHTML = (testData: TestData | StudentTestData): string =
           .option-circle {
             width: 16px;
             height: 16px;
-            border: 1px solid #3b82f6;
+            border: 1px solid #000;
             border-radius: 50%;
             display: inline-block;
-            text-align: center;
-            line-height: 14px;
-            font-size: 10px;
-            font-weight: bold;
-            color: white;
-            background: #3b82f6;
             margin-right: 8px;
+            vertical-align: middle;
+            background: white;
+          }
+          
+          .option-letter {
+            display: inline-block;
+            margin-right: 8px;
+            font-weight: bold;
+            font-size: 12px;
             vertical-align: middle;
           }
           
@@ -223,8 +228,9 @@ const generateQuestionHTML = (question: Question, index: number): string => {
     const optionsHTML = question.options.map((option, optionIndex) => {
       const optionLetter = String.fromCharCode(65 + optionIndex);
       return `
-        <div style="margin: 3pt 0;">
-          <span class="option-circle">${optionLetter}</span>
+        <div style="margin: 3pt 0; display: flex; align-items: center;">
+          <span class="option-circle"></span>
+          <span class="option-letter">${optionLetter}.</span>
           <span style="font-size: 9pt;">${option}</span>
         </div>
       `;
@@ -238,12 +244,14 @@ const generateQuestionHTML = (question: Question, index: number): string => {
     `;
   } else if (question.type === 'true-false') {
     answerSection = `
-      <div style="margin: 3pt 0;">
-        <span class="option-circle" style="background: #22c55e;">A</span>
+      <div style="margin: 3pt 0; display: flex; align-items: center;">
+        <span class="option-circle"></span>
+        <span class="option-letter">A.</span>
         <span style="font-size: 9pt;">True</span>
       </div>
-      <div style="margin: 3pt 0;">
-        <span class="option-circle" style="background: #ef4444;">B</span>
+      <div style="margin: 3pt 0; display: flex; align-items: center;">
+        <span class="option-circle"></span>
+        <span class="option-letter">B.</span>
         <span style="font-size: 9pt;">False</span>
       </div>
       <div style="margin-top: 6pt; font-size: 8pt; color: #dc2626; font-weight: bold;">
