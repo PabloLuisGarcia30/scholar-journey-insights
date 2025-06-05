@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { ArrowLeft, FileText, RefreshCw, Printer, CheckCircle, Edit, Key, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -17,7 +16,7 @@ import { TemplateSelection, type TestTemplate } from "@/components/TestCreator/T
 import { TestDetails } from "@/components/TestCreator/TestDetails";
 import { QuestionEditor } from "@/components/TestCreator/QuestionEditor";
 import { AISkillSelection } from "@/components/TestCreator/AISkillSelection";
-import { saveExamToDatabase, getAllActiveClasses, type ExamData, type ActiveClass } from "@/services/examService";
+import { saveExamToDatabase, getAllActiveClasses, type ExamData, type ActiveClass, type ContentSkill } from "@/services/examService";
 
 interface PrintTestsDialogProps {
   selectedClass: ActiveClass;
@@ -54,6 +53,12 @@ interface DownloadDialogProps {
 }
 
 const testTemplates: TestTemplate[] = [
+  {
+    id: 'ai-test',
+    name: 'Create an AI crafted Super Test tailored to your Class',
+    description: 'Let AI generate questions based on your class content skills and topics',
+    defaultQuestions: []
+  },
   {
     id: 'math-quiz',
     name: 'Math Quiz',
@@ -102,7 +107,7 @@ const TestCreator = () => {
   const [selectedClassId, setSelectedClassId] = useState('');
   const [timeLimit, setTimeLimit] = useState(60);
   const [questions, setQuestions] = useState<Question[]>([]);
-  const [currentStep, setCurrentStep] = useState<'template' | 'details' | 'questions' | 'answer-key' | 'class-input' | 'preview'>('template');
+  const [currentStep, setCurrentStep] = useState<'template' | 'details' | 'questions' | 'answer-key' | 'class-input' | 'preview' | 'ai-class-selection' | 'ai-skill-selection'>('template');
   const [examId, setExamId] = useState<string>('');
   const [availableClasses, setAvailableClasses] = useState<ActiveClass[]>([]);
   const [isGeneratingStudentTests, setIsGeneratingStudentTests] = useState(false);
@@ -144,17 +149,23 @@ const TestCreator = () => {
       const newExamId = generateExamId();
       setExamId(newExamId);
       
-      const defaultQuestions: Question[] = template.defaultQuestions.map((q, index) => ({
-        id: `q-${index}`,
-        type: q.type || 'multiple-choice',
-        question: q.question || '',
-        options: q.options || (q.type === 'multiple-choice' ? ['Option 1', 'Option 2', 'Option 3', 'Option 4'] : undefined),
-        correctAnswer: q.correctAnswer || '',
-        points: q.points || 1,
-      }));
-      
-      setQuestions(defaultQuestions);
-      setCurrentStep('details');
+      if (templateId === 'ai-test') {
+        // For AI test, go to class selection first
+        setCurrentStep('ai-class-selection');
+      } else {
+        // For regular templates, continue with normal flow
+        const defaultQuestions: Question[] = template.defaultQuestions.map((q, index) => ({
+          id: `q-${index}`,
+          type: q.type || 'multiple-choice',
+          question: q.question || '',
+          options: q.options || (q.type === 'multiple-choice' ? ['Option 1', 'Option 2', 'Option 3', 'Option 4'] : undefined),
+          correctAnswer: q.correctAnswer || '',
+          points: q.points || 1,
+        }));
+        
+        setQuestions(defaultQuestions);
+        setCurrentStep('details');
+      }
     }
   };
 
@@ -420,6 +431,64 @@ const TestCreator = () => {
       selectedTemplate={selectedTemplate}
       onTemplateSelect={handleTemplateSelect}
     />
+  );
+
+  const renderAIClassSelection = () => (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <h2 className="text-2xl font-bold text-gray-900">Select Class for AI Test</h2>
+        <Button variant="outline" onClick={() => setCurrentStep('template')}>
+          <ArrowLeft className="h-4 w-4 mr-2" />
+          Back to Templates
+        </Button>
+      </div>
+      
+      {examId && (
+        <div className="bg-blue-50 p-3 rounded-lg">
+          <span className="text-sm font-medium text-blue-800">Exam ID: </span>
+          <span className="text-sm font-mono text-blue-900">{examId}</span>
+        </div>
+      )}
+      
+      <Card>
+        <CardHeader>
+          <CardTitle>Choose Your Class</CardTitle>
+          <p className="text-sm text-gray-600">
+            Select the class for which you want to create an AI-generated test. This will determine the available content skills.
+          </p>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div>
+            <Label htmlFor="ai-class-select">Class Name</Label>
+            <Select value={selectedClassId} onValueChange={setSelectedClassId}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select a class" />
+              </SelectTrigger>
+              <SelectContent>
+                {availableClasses.map((classItem) => (
+                  <SelectItem key={classItem.id} value={classItem.id}>
+                    <div className="flex flex-col">
+                      <span className="font-medium">{classItem.name}</span>
+                      <span className="text-sm text-gray-500">
+                        {classItem.subject} - Grade {classItem.grade} ({classItem.student_count} students)
+                      </span>
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </CardContent>
+      </Card>
+      
+      <Button 
+        onClick={() => setCurrentStep('ai-skill-selection')} 
+        disabled={!selectedClassId}
+        className="w-full"
+      >
+        Continue to Skill Selection
+      </Button>
+    </div>
   );
 
   const renderTestDetails = () => (
@@ -1183,7 +1252,7 @@ const TestCreator = () => {
           availableClasses={availableClasses}
           examId={examId}
           onBack={() => setCurrentStep('ai-class-selection')}
-          onContinue={(selectedSkills, customSkills) => {
+          onContinue={(selectedSkills: ContentSkill[], customSkills: string[]) => {
             // TODO: Generate AI questions based on selected skills
             console.log('Selected skills:', selectedSkills);
             console.log('Custom skills:', customSkills);
