@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { ArrowLeft, FileText, RefreshCw, Printer, CheckCircle, Edit, Key } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -102,7 +101,11 @@ const TestCreator = () => {
         setAvailableClasses(classes);
       } catch (error) {
         console.error('Error loading classes:', error);
-        toast.error('Failed to load classes');
+        toast({
+          title: "Error",
+          description: 'Failed to load classes',
+          variant: "destructive",
+        });
       }
     };
 
@@ -165,11 +168,19 @@ const TestCreator = () => {
 
   const handleGenerateTest = () => {
     if (!testTitle.trim()) {
-      toast.error('Please enter a test title');
+      toast({
+        title: "Error",
+        description: 'Please enter a test title',
+        variant: "destructive",
+      });
       return;
     }
     if (questions.length === 0) {
-      toast.error('Please add at least one question');
+      toast({
+        title: "Error",
+        description: 'Please add at least one question',
+        variant: "destructive",
+      });
       return;
     }
     
@@ -179,7 +190,11 @@ const TestCreator = () => {
   const handleAnswerKeyComplete = () => {
     const incompleteQuestions = questions.filter(q => !q.correctAnswer || q.correctAnswer === '');
     if (incompleteQuestions.length > 0) {
-      toast.error(`Please provide correct answers for all questions. ${incompleteQuestions.length} question(s) missing answers.`);
+      toast({
+        title: "Error",
+        description: `Please provide correct answers for all questions. ${incompleteQuestions.length} question(s) missing answers.`,
+        variant: "destructive",
+      });
       return;
     }
     
@@ -246,7 +261,11 @@ const TestCreator = () => {
 
   const handlePrintTests = async (studentNames: string[], selectedPdfFormat: 'individual' | 'consolidated') => {
     if (studentNames.length === 0) {
-      toast.error('Please select at least one student test to print');
+      toast({
+        title: "Error",
+        description: 'Please select at least one student test to print',
+        variant: "destructive",
+      });
       return;
     }
 
@@ -278,7 +297,11 @@ const TestCreator = () => {
       setIsPrintDialogOpen(false);
     } catch (error) {
       console.error('Error generating tests for printing:', error);
-      toast.error('Failed to generate tests for printing. Please try again.');
+      toast({
+        title: "Error",
+        description: 'Failed to generate tests for printing. Please try again.',
+        variant: "destructive",
+      });
     } finally {
       setIsPrinting(false);
     }
@@ -565,7 +588,11 @@ const TestCreator = () => {
             }
           } catch (error) {
             console.error('Error loading student names:', error);
-            toast.error('Failed to load student names');
+            toast({
+              title: "Error",
+              description: 'Failed to load student names',
+              variant: "destructive",
+            });
           } finally {
             setIsLoadingStudents(false);
           }
@@ -585,7 +612,11 @@ const TestCreator = () => {
 
     const handleDirectPrint = async () => {
       if (selectedStudentsForPrint.length === 0) {
-        toast.error('Please select at least one student test to print');
+        toast({
+          title: "Error",
+          description: 'Please select at least one student test to print',
+          variant: "destructive",
+        });
         return;
       }
 
@@ -603,7 +634,10 @@ const TestCreator = () => {
 
         if (selectedFormat === 'consolidated') {
           printConsolidatedTests(testData, selectedStudentsForPrint);
-          toast.success('Opening print dialog for consolidated test...');
+          toast({
+            title: "Success!",
+            description: 'Opening print dialog for consolidated test...',
+          });
         } else {
           // For individual tests, print them one by one
           for (const studentName of selectedStudentsForPrint) {
@@ -615,13 +649,20 @@ const TestCreator = () => {
             // Small delay between prints to prevent browser issues
             await new Promise(resolve => setTimeout(resolve, 500));
           }
-          toast.success(`Opening print dialogs for ${selectedStudentsForPrint.length} individual tests...`);
+          toast({
+            title: "Success!",
+            description: `Opening print dialogs for ${selectedStudentsForPrint.length} individual tests...`,
+          });
         }
         
         setIsPrintDialogOpen(false);
       } catch (error) {
         console.error('Error printing tests:', error);
-        toast.error('Failed to print tests. Please try again.');
+        toast({
+          title: "Error",
+          description: 'Failed to print tests. Please try again.',
+          variant: "destructive",
+        });
       }
     };
 
