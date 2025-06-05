@@ -3,9 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { 
   ChartContainer, 
   ChartTooltip, 
-  ChartTooltipContent,
-  ChartLegend,
-  ChartLegendContent
+  ChartTooltipContent
 } from "@/components/ui/chart";
 import { 
   LineChart, 
@@ -20,30 +18,32 @@ import {
 
 // Mock data for score trends
 const scoresTrendData = [
-  { month: "Jan", averageScore: 78, testCount: 12 },
-  { month: "Feb", averageScore: 82, testCount: 15 },
-  { month: "Mar", averageScore: 79, testCount: 18 },
-  { month: "Apr", averageScore: 85, testCount: 14 },
-  { month: "May", averageScore: 88, testCount: 16 },
-  { month: "Jun", averageScore: 91, testCount: 13 }
+  { month: "Jan", averageScore: 78 },
+  { month: "Feb", averageScore: 82 },
+  { month: "Mar", averageScore: 79 },
+  { month: "Apr", averageScore: 85 },
+  { month: "May", averageScore: 88 },
+  { month: "Jun", averageScore: 91 }
 ];
 
 // Mock data for weak content skills
 const weakSkillsData = [
-  { skill: "Algebra", weakness: 45, studentsAffected: 23 },
-  { skill: "Geometry", weakness: 38, studentsAffected: 19 },
-  { skill: "Statistics", weakness: 52, studentsAffected: 27 },
-  { skill: "Calculus", weakness: 41, studentsAffected: 21 },
-  { skill: "Trigonometry", weakness: 35, studentsAffected: 18 },
-  { skill: "Probability", weakness: 48, studentsAffected: 25 }
+  { skill: "Algebra", weaknessLevel: 45 },
+  { skill: "Geometry", weaknessLevel: 38 },
+  { skill: "Statistics", weaknessLevel: 52 },
+  { skill: "Calculus", weaknessLevel: 41 },
+  { skill: "Trigonometry", weaknessLevel: 35 }
 ];
 
-const chartConfig = {
+const scoreChartConfig = {
   averageScore: {
-    label: "Average Score",
+    label: "Average Score (%)",
     color: "hsl(217, 91%, 60%)"
-  },
-  weakness: {
+  }
+};
+
+const skillsChartConfig = {
+  weaknessLevel: {
     label: "Weakness Level (%)",
     color: "hsl(0, 84%, 60%)"
   }
@@ -51,7 +51,7 @@ const chartConfig = {
 
 export function DashboardAnalytics() {
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+    <div className="space-y-6">
       {/* Score Trends Chart */}
       <Card>
         <CardHeader>
@@ -60,38 +60,37 @@ export function DashboardAnalytics() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <ChartContainer config={chartConfig} className="h-80">
-            <LineChart data={scoresTrendData}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis 
-                dataKey="month" 
-                tick={{ fontSize: 12 }}
-                axisLine={{ stroke: '#e2e8f0' }}
-              />
-              <YAxis 
-                domain={[70, 95]}
-                tick={{ fontSize: 12 }}
-                axisLine={{ stroke: '#e2e8f0' }}
-              />
-              <ChartTooltip 
-                content={
-                  <ChartTooltipContent 
-                    formatter={(value, name) => [
-                      `${value}${name === 'averageScore' ? '%' : ' tests'}`,
-                      name === 'averageScore' ? 'Average Score' : 'Tests Taken'
-                    ]}
-                  />
-                }
-              />
-              <Line 
-                type="monotone" 
-                dataKey="averageScore" 
-                stroke="var(--color-averageScore)"
-                strokeWidth={3}
-                dot={{ fill: "var(--color-averageScore)", strokeWidth: 2, r: 6 }}
-                activeDot={{ r: 8, stroke: "var(--color-averageScore)", strokeWidth: 2 }}
-              />
-            </LineChart>
+          <ChartContainer config={scoreChartConfig} className="h-80 w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={scoresTrendData} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                <XAxis 
+                  dataKey="month" 
+                  tick={{ fontSize: 12, fill: "#64748b" }}
+                  axisLine={{ stroke: '#e2e8f0' }}
+                />
+                <YAxis 
+                  domain={[70, 95]}
+                  tick={{ fontSize: 12, fill: "#64748b" }}
+                  axisLine={{ stroke: '#e2e8f0' }}
+                />
+                <ChartTooltip 
+                  content={
+                    <ChartTooltipContent 
+                      formatter={(value) => [`${value}%`, 'Average Score']}
+                    />
+                  }
+                />
+                <Line 
+                  type="monotone" 
+                  dataKey="averageScore" 
+                  stroke="var(--color-averageScore)"
+                  strokeWidth={3}
+                  dot={{ fill: "var(--color-averageScore)", strokeWidth: 2, r: 6 }}
+                  activeDot={{ r: 8, stroke: "var(--color-averageScore)", strokeWidth: 2 }}
+                />
+              </LineChart>
+            </ResponsiveContainer>
           </ChartContainer>
           <div className="mt-4 p-3 bg-blue-50 rounded-lg">
             <p className="text-sm text-blue-700">
@@ -109,38 +108,37 @@ export function DashboardAnalytics() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <ChartContainer config={chartConfig} className="h-80">
-            <BarChart data={weakSkillsData} layout="horizontal">
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis 
-                type="number" 
-                domain={[0, 60]}
-                tick={{ fontSize: 12 }}
-                axisLine={{ stroke: '#e2e8f0' }}
-              />
-              <YAxis 
-                type="category" 
-                dataKey="skill" 
-                tick={{ fontSize: 12 }}
-                axisLine={{ stroke: '#e2e8f0' }}
-                width={80}
-              />
-              <ChartTooltip 
-                content={
-                  <ChartTooltipContent 
-                    formatter={(value, name) => [
-                      `${value}${name === 'weakness' ? '%' : ' students'}`,
-                      name === 'weakness' ? 'Weakness Level' : 'Students Affected'
-                    ]}
-                  />
-                }
-              />
-              <Bar 
-                dataKey="weakness" 
-                fill="var(--color-weakness)"
-                radius={[0, 4, 4, 0]}
-              />
-            </BarChart>
+          <ChartContainer config={skillsChartConfig} className="h-80 w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={weakSkillsData} margin={{ top: 20, right: 30, left: 80, bottom: 20 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                <XAxis 
+                  type="number" 
+                  domain={[0, 60]}
+                  tick={{ fontSize: 12, fill: "#64748b" }}
+                  axisLine={{ stroke: '#e2e8f0' }}
+                />
+                <YAxis 
+                  type="category" 
+                  dataKey="skill" 
+                  tick={{ fontSize: 12, fill: "#64748b" }}
+                  axisLine={{ stroke: '#e2e8f0' }}
+                  width={70}
+                />
+                <ChartTooltip 
+                  content={
+                    <ChartTooltipContent 
+                      formatter={(value) => [`${value}%`, 'Weakness Level']}
+                    />
+                  }
+                />
+                <Bar 
+                  dataKey="weaknessLevel" 
+                  fill="var(--color-weaknessLevel)"
+                  radius={[0, 4, 4, 0]}
+                />
+              </BarChart>
+            </ResponsiveContainer>
           </ChartContainer>
           <div className="mt-4 p-3 bg-red-50 rounded-lg">
             <p className="text-sm text-red-700">
