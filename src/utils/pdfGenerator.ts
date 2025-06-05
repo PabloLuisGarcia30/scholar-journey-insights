@@ -84,12 +84,12 @@ export const generateTestPDF = (testData: TestData) => {
     pdf.text(questionLines, margin + 15, yPosition);
     yPosition += questionLines.length * 6 + 12;
     
-    // Answer options with drawable circles
+    // Answer options with drawable empty circles and letters beside them
     if (question.type === 'multiple-choice' && question.options) {
       question.options.forEach((option, optionIndex) => {
         const optionLetter = String.fromCharCode(65 + optionIndex);
         
-        // Draw empty circle for shading
+        // Draw empty circle
         const circleX = margin + 25;
         const circleY = yPosition - 3;
         const circleRadius = 3;
@@ -98,19 +98,33 @@ export const generateTestPDF = (testData: TestData) => {
         pdf.setLineWidth(0.5);
         pdf.circle(circleX, circleY, circleRadius, 'S'); // 'S' for stroke only (empty circle)
         
-        // Place letter beside the circle
+        // Place letter beside the circle (not inside)
         pdf.setFontSize(10);
-        pdf.setFont(undefined, 'normal');
+        pdf.setFont(undefined, 'bold');
         pdf.text(`${optionLetter}.`, circleX + 8, yPosition);
         
         // Place option text after letter
+        pdf.setFont(undefined, 'normal');
         const optionLines = pdf.splitTextToSize(option, pageWidth - 2 * margin - 50);
         pdf.text(optionLines, circleX + 18, yPosition);
         yPosition += Math.max(8, optionLines.length * 6);
       });
+      
+      // Answer box section
+      yPosition += 8;
+      pdf.setFontSize(8);
+      pdf.setTextColor(220, 38, 38); // Red color
+      pdf.setFont(undefined, 'bold');
+      pdf.text('Answer:', margin + 25, yPosition);
+      
+      // Draw answer box
+      pdf.setDrawColor(0, 0, 0);
+      pdf.setLineWidth(0.5);
+      pdf.rect(margin + 50, yPosition - 6, 15, 8, 'S');
+      
       yPosition += 8;
     } else if (question.type === 'true-false') {
-      // True option with circle
+      // True option with empty circle
       const trueCircleX = margin + 25;
       const trueCircleY = yPosition - 3;
       const circleRadius = 3;
@@ -120,18 +134,36 @@ export const generateTestPDF = (testData: TestData) => {
       pdf.circle(trueCircleX, trueCircleY, circleRadius, 'S');
       
       pdf.setFontSize(10);
+      pdf.setFont(undefined, 'bold');
       pdf.text('A.', trueCircleX + 8, yPosition);
+      pdf.setFont(undefined, 'normal');
       pdf.text('True', trueCircleX + 18, yPosition);
       yPosition += 10;
       
-      // False option with circle
+      // False option with empty circle
       const falseCircleX = margin + 25;
       const falseCircleY = yPosition - 3;
       
       pdf.circle(falseCircleX, falseCircleY, circleRadius, 'S');
+      pdf.setFont(undefined, 'bold');
       pdf.text('B.', falseCircleX + 8, yPosition);
+      pdf.setFont(undefined, 'normal');
       pdf.text('False', falseCircleX + 18, yPosition);
-      yPosition += 15;
+      yPosition += 8;
+      
+      // Answer box section
+      yPosition += 8;
+      pdf.setFontSize(8);
+      pdf.setTextColor(220, 38, 38); // Red color
+      pdf.setFont(undefined, 'bold');
+      pdf.text('Answer:', margin + 25, yPosition);
+      
+      // Draw answer box
+      pdf.setDrawColor(0, 0, 0);
+      pdf.setLineWidth(0.5);
+      pdf.rect(margin + 50, yPosition - 6, 15, 8, 'S');
+      
+      yPosition += 8;
     } else if (question.type === 'short-answer') {
       pdf.setFontSize(9);
       pdf.setTextColor(80, 80, 80);
@@ -257,20 +289,54 @@ export const generateConsolidatedTestPDF = (testData: TestData, studentNames: st
       pdf.text(questionLines, margin + 15, yPosition);
       yPosition += questionLines.length * 6 + 8;
       
-      // Answer options for multiple choice
+      // Answer options for multiple choice with empty circles
       if (question.type === 'multiple-choice' && question.options) {
         question.options.forEach((option, optionIndex) => {
           const optionLetter = String.fromCharCode(65 + optionIndex);
+          
+          // Draw empty circle
+          const circleX = margin + 25;
+          const circleY = yPosition - 3;
+          const circleRadius = 2;
+          
+          pdf.setDrawColor(0, 0, 0);
+          pdf.setLineWidth(0.5);
+          pdf.circle(circleX, circleY, circleRadius, 'S');
+          
           pdf.setFontSize(10);
-          pdf.text(`${optionLetter}) ${option}`, margin + 20, yPosition);
+          pdf.setFont(undefined, 'bold');
+          pdf.text(`${optionLetter}.`, circleX + 6, yPosition);
+          pdf.setFont(undefined, 'normal');
+          pdf.text(option, circleX + 14, yPosition);
           yPosition += 8;
         });
         yPosition += 5;
       } else if (question.type === 'true-false') {
+        // True option with empty circle
+        const trueCircleX = margin + 25;
+        const trueCircleY = yPosition - 3;
+        const circleRadius = 2;
+        
+        pdf.setDrawColor(0, 0, 0);
+        pdf.setLineWidth(0.5);
+        pdf.circle(trueCircleX, trueCircleY, circleRadius, 'S');
+        
         pdf.setFontSize(10);
-        pdf.text('A) True', margin + 20, yPosition);
+        pdf.setFont(undefined, 'bold');
+        pdf.text('A.', trueCircleX + 6, yPosition);
+        pdf.setFont(undefined, 'normal');
+        pdf.text('True', trueCircleX + 14, yPosition);
         yPosition += 8;
-        pdf.text('B) False', margin + 20, yPosition);
+        
+        // False option with empty circle
+        const falseCircleX = margin + 25;
+        const falseCircleY = yPosition - 3;
+        
+        pdf.circle(falseCircleX, falseCircleY, circleRadius, 'S');
+        pdf.setFont(undefined, 'bold');
+        pdf.text('B.', falseCircleX + 6, yPosition);
+        pdf.setFont(undefined, 'normal');
+        pdf.text('False', falseCircleX + 14, yPosition);
         yPosition += 13;
       } else if (question.type === 'short-answer') {
         pdf.setFontSize(9);
