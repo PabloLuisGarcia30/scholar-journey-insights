@@ -1,4 +1,3 @@
-
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { 
   ChartContainer, 
@@ -56,7 +55,7 @@ export function DashboardAnalytics() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            📈 Score Trends Over Time
+            Score Trends Over Time
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -104,7 +103,7 @@ export function DashboardAnalytics() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            🎯 Weak Content Skills Analysis
+            Weak Content Skills Analysis
           </CardTitle>
         </CardHeader>
         <CardContent>
