@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { ArrowLeft, FileText, RefreshCw, Printer, CheckCircle, Edit, Key, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -15,6 +16,7 @@ import { generateTestPDF, generateConsolidatedTestPDF, type Question, type TestD
 import { TemplateSelection, type TestTemplate } from "@/components/TestCreator/TemplateSelection";
 import { TestDetails } from "@/components/TestCreator/TestDetails";
 import { QuestionEditor } from "@/components/TestCreator/QuestionEditor";
+import { AISkillSelection } from "@/components/TestCreator/AISkillSelection";
 import { saveExamToDatabase, getAllActiveClasses, type ExamData, type ActiveClass } from "@/services/examService";
 
 interface PrintTestsDialogProps {
@@ -1175,6 +1177,19 @@ const TestCreator = () => {
         </div>
 
         {currentStep === 'template' && renderTemplateSelection()}
+        {currentStep === 'ai-class-selection' && renderAIClassSelection()}
+        {currentStep === 'ai-skill-selection' && <AISkillSelection 
+          selectedClassId={selectedClassId}
+          availableClasses={availableClasses}
+          examId={examId}
+          onBack={() => setCurrentStep('ai-class-selection')}
+          onContinue={(selectedSkills, customSkills) => {
+            // TODO: Generate AI questions based on selected skills
+            console.log('Selected skills:', selectedSkills);
+            console.log('Custom skills:', customSkills);
+            setCurrentStep('details');
+          }}
+        />}
         {currentStep === 'details' && renderTestDetails()}
         {currentStep === 'questions' && renderQuestionEditor()}
         {currentStep === 'answer-key' && renderAnswerKey()}
