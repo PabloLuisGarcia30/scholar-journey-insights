@@ -15,6 +15,7 @@ import {
   BarChart,
   Bar
 } from "recharts";
+import { mockPabloContentSkillScores } from "@/data/mockStudentData";
 
 // Mock data for score trends
 const scoresTrendData = [
@@ -26,16 +27,56 @@ const scoresTrendData = [
   { month: "Jun", averageScore: 91 }
 ];
 
-// Mock data for students' weak content skills
-const weakSkillsData = [
-  { student: "Alice Johnson", weaknessLevel: 45, subject: "Algebra" },
-  { student: "Bob Smith", weaknessLevel: 38, subject: "Geometry" },
-  { student: "Carol Davis", weaknessLevel: 52, subject: "Statistics" },
-  { student: "David Wilson", weaknessLevel: 41, subject: "Calculus" },
-  { student: "Emma Brown", weaknessLevel: 35, subject: "Trigonometry" },
-  { student: "Frank Miller", weaknessLevel: 48, subject: "Algebra" },
-  { student: "Grace Lee", weaknessLevel: 43, subject: "Geometry" }
-];
+// Process Pablo's mock data to create skill mastery matrix
+const createSkillMasteryMatrix = () => {
+  const skillCategories = {
+    'ALGEBRA AND FUNCTIONS': [],
+    'GEOMETRY': [],
+    'TRIGONOMETRY': [],
+    'DATA ANALYSIS AND PROBABILITY': [],
+    'PROBLEM SOLVING AND REASONING': []
+  };
+
+  // Categorize skills based on skill names
+  mockPabloContentSkillScores.forEach(skillScore => {
+    const skillName = skillScore.skill_name;
+    let category = 'PROBLEM SOLVING AND REASONING'; // default
+    
+    if (skillName.includes('Factoring') || skillName.includes('Systems of Equations') || 
+        skillName.includes('Function') || skillName.includes('Linear') || 
+        skillName.includes('Quadratic') || skillName.includes('Exponential')) {
+      category = 'ALGEBRA AND FUNCTIONS';
+    } else if (skillName.includes('Triangle') || skillName.includes('Area') || 
+               skillName.includes('Perimeter') || skillName.includes('Volume') || 
+               skillName.includes('Surface Area') || skillName.includes('Coordinate') || 
+               skillName.includes('Geometric')) {
+      category = 'GEOMETRY';
+    } else if (skillName.includes('Trigonometric') || skillName.includes('Triangle') || 
+               skillName.includes('Unit Circle') || skillName.includes('Angle')) {
+      category = 'TRIGONOMETRY';
+    } else if (skillName.includes('Statistical') || skillName.includes('Probability') || 
+               skillName.includes('Data') || skillName.includes('Graph') || 
+               skillName.includes('Predictions')) {
+      category = 'DATA ANALYSIS AND PROBABILITY';
+    }
+    
+    skillCategories[category].push(skillScore);
+  });
+
+  // Calculate average score for each category
+  return Object.entries(skillCategories).map(([category, skills]) => {
+    if (skills.length === 0) return { category, averageScore: 0, skillCount: 0 };
+    
+    const averageScore = skills.reduce((sum, skill) => sum + skill.score, 0) / skills.length;
+    return {
+      category: category.replace('AND', '&'), // Shorter labels for display
+      averageScore: Math.round(averageScore),
+      skillCount: skills.length
+    };
+  }).filter(item => item.skillCount > 0); // Only show categories with skills
+};
+
+const skillMasteryData = createSkillMasteryMatrix();
 
 const scoreChartConfig = {
   averageScore: {
@@ -44,11 +85,25 @@ const scoreChartConfig = {
   }
 };
 
-const skillsChartConfig = {
-  weaknessLevel: {
-    label: "Weakness Level (%)",
-    color: "hsl(0, 84%, 60%)"
+const masteryChartConfig = {
+  averageScore: {
+    label: "Mastery Level (%)",
+    color: "hsl(142, 71%, 45%)"
   }
+};
+
+const getMasteryColor = (score: number) => {
+  if (score >= 90) return "hsl(142, 71%, 45%)"; // Green - Mastered
+  if (score >= 80) return "hsl(217, 91%, 60%)"; // Blue - Proficient
+  if (score >= 70) return "hsl(45, 93%, 47%)"; // Yellow - Developing
+  return "hsl(0, 84%, 60%)"; // Red - Needs Support
+};
+
+const getMasteryLabel = (score: number) => {
+  if (score >= 90) return "Mastered";
+  if (score >= 80) return "Proficient";
+  if (score >= 70) return "Developing";
+  return "Needs Support";
 };
 
 export function DashboardAnalytics() {
@@ -102,52 +157,76 @@ export function DashboardAnalytics() {
         </CardContent>
       </Card>
 
-      {/* Weak Skills Chart */}
+      {/* Skill Mastery Matrix */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            Weak Content Skills Analysis
+            Skill Mastery Matrix - Pablo Luis Garcia (Grade 10 Math)
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <ChartContainer config={skillsChartConfig} className="h-80 w-full">
+          <ChartContainer config={masteryChartConfig} className="h-80 w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={weakSkillsData} margin={{ top: 20, right: 30, left: 120, bottom: 20 }}>
+              <BarChart data={skillMasteryData} margin={{ top: 20, right: 30, left: 20, bottom: 60 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                 <XAxis 
-                  type="number" 
-                  domain={[0, 60]}
-                  tick={{ fontSize: 12, fill: "#64748b" }}
+                  dataKey="category" 
+                  tick={{ fontSize: 10, fill: "#64748b" }}
                   axisLine={{ stroke: '#e2e8f0' }}
+                  angle={-45}
+                  textAnchor="end"
+                  height={80}
                 />
                 <YAxis 
-                  type="category" 
-                  dataKey="student" 
+                  domain={[0, 100]}
                   tick={{ fontSize: 12, fill: "#64748b" }}
                   axisLine={{ stroke: '#e2e8f0' }}
-                  width={110}
+                  label={{ value: 'Mastery Level (%)', angle: -90, position: 'insideLeft' }}
                 />
                 <ChartTooltip 
                   content={
                     <ChartTooltipContent 
                       formatter={(value, name, props) => [
-                        `${value}% weakness in ${props.payload.subject}`, 
-                        props.payload.student
+                        `${value}% - ${getMasteryLabel(value as number)} (${props.payload.skillCount} skills)`, 
+                        'Mastery Level'
                       ]}
                     />
                   }
                 />
                 <Bar 
-                  dataKey="weaknessLevel" 
-                  fill="var(--color-weaknessLevel)"
-                  radius={[0, 4, 4, 0]}
+                  dataKey="averageScore" 
+                  fill="var(--color-averageScore)"
+                  radius={[4, 4, 0, 0]}
+                  stroke="#fff"
+                  strokeWidth={1}
                 />
               </BarChart>
             </ResponsiveContainer>
           </ChartContainer>
-          <div className="mt-4 p-3 bg-red-50 rounded-lg">
-            <p className="text-sm text-red-700">
-              <strong>Focus Area:</strong> Carol Davis shows highest weakness level (52%) in Statistics - consider additional practice materials
+          
+          {/* Mastery Legend */}
+          <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="flex items-center gap-2">
+              <div className="w-4 h-4 rounded" style={{ backgroundColor: getMasteryColor(95) }}></div>
+              <span className="text-sm text-gray-600">Mastered (90%+)</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-4 h-4 rounded" style={{ backgroundColor: getMasteryColor(85) }}></div>
+              <span className="text-sm text-gray-600">Proficient (80-89%)</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-4 h-4 rounded" style={{ backgroundColor: getMasteryColor(75) }}></div>
+              <span className="text-sm text-gray-600">Developing (70-79%)</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-4 h-4 rounded" style={{ backgroundColor: getMasteryColor(65) }}></div>
+              <span className="text-sm text-gray-600">Needs Support (<70%)</span>
+            </div>
+          </div>
+
+          <div className="mt-4 p-3 bg-green-50 rounded-lg">
+            <p className="text-sm text-green-700">
+              <strong>Strength:</strong> Pablo shows excellent mastery in Trigonometry (87%) and strong performance in Algebra & Functions (85%). Focus area: Unit Circle concepts could use additional practice.
             </p>
           </div>
         </CardContent>
