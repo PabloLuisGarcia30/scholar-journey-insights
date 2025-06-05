@@ -1,3 +1,4 @@
+
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { 
   ChartContainer, 
@@ -25,13 +26,15 @@ const scoresTrendData = [
   { month: "Jun", averageScore: 91 }
 ];
 
-// Mock data for weak content skills
+// Mock data for students' weak content skills
 const weakSkillsData = [
-  { skill: "Algebra", weaknessLevel: 45 },
-  { skill: "Geometry", weaknessLevel: 38 },
-  { skill: "Statistics", weaknessLevel: 52 },
-  { skill: "Calculus", weaknessLevel: 41 },
-  { skill: "Trigonometry", weaknessLevel: 35 }
+  { student: "Alice Johnson", weaknessLevel: 45, subject: "Algebra" },
+  { student: "Bob Smith", weaknessLevel: 38, subject: "Geometry" },
+  { student: "Carol Davis", weaknessLevel: 52, subject: "Statistics" },
+  { student: "David Wilson", weaknessLevel: 41, subject: "Calculus" },
+  { student: "Emma Brown", weaknessLevel: 35, subject: "Trigonometry" },
+  { student: "Frank Miller", weaknessLevel: 48, subject: "Algebra" },
+  { student: "Grace Lee", weaknessLevel: 43, subject: "Geometry" }
 ];
 
 const scoreChartConfig = {
@@ -93,7 +96,7 @@ export function DashboardAnalytics() {
           </ChartContainer>
           <div className="mt-4 p-3 bg-blue-50 rounded-lg">
             <p className="text-sm text-blue-700">
-              📊 <strong>Insight:</strong> Steady improvement trend with 13% increase since January
+              <strong>Insight:</strong> Steady improvement trend with 13% increase since January
             </p>
           </div>
         </CardContent>
@@ -109,7 +112,7 @@ export function DashboardAnalytics() {
         <CardContent>
           <ChartContainer config={skillsChartConfig} className="h-80 w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={weakSkillsData} margin={{ top: 20, right: 30, left: 80, bottom: 20 }}>
+              <BarChart data={weakSkillsData} margin={{ top: 20, right: 30, left: 120, bottom: 20 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                 <XAxis 
                   type="number" 
@@ -119,15 +122,18 @@ export function DashboardAnalytics() {
                 />
                 <YAxis 
                   type="category" 
-                  dataKey="skill" 
+                  dataKey="student" 
                   tick={{ fontSize: 12, fill: "#64748b" }}
                   axisLine={{ stroke: '#e2e8f0' }}
-                  width={70}
+                  width={110}
                 />
                 <ChartTooltip 
                   content={
                     <ChartTooltipContent 
-                      formatter={(value) => [`${value}%`, 'Weakness Level']}
+                      formatter={(value, name, props) => [
+                        `${value}% weakness in ${props.payload.subject}`, 
+                        props.payload.student
+                      ]}
                     />
                   }
                 />
@@ -141,7 +147,7 @@ export function DashboardAnalytics() {
           </ChartContainer>
           <div className="mt-4 p-3 bg-red-50 rounded-lg">
             <p className="text-sm text-red-700">
-              ⚠️ <strong>Focus Area:</strong> Statistics shows highest weakness level (52%) - consider additional practice materials
+              <strong>Focus Area:</strong> Carol Davis shows highest weakness level (52%) in Statistics - consider additional practice materials
             </p>
           </div>
         </CardContent>
