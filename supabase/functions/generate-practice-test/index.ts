@@ -65,8 +65,8 @@ serve(async (req) => {
 
   try {
     console.log('Generate-practice-test function called')
-    const { studentName, className, skillName, grade, subject } = await req.json()
-    console.log('Generating practice test for:', studentName, 'in class:', className, 'skill:', skillName, 'grade:', grade, 'subject:', subject)
+    const { studentName, className, skillName, grade, subject, questionCount } = await req.json()
+    console.log('Generating practice test for:', studentName, 'in class:', className, 'skill:', skillName, 'grade:', grade, 'subject:', subject, 'questionCount:', questionCount)
     
     const openaiApiKey = Deno.env.get('OPENAI_API_KEY')
     if (!openaiApiKey) {
@@ -82,10 +82,11 @@ serve(async (req) => {
     // Create more specific prompts based on grade and subject
     const gradeLevel = grade || 'Grade 10'
     const subjectArea = subject || 'Math'
+    const numQuestions = questionCount || 10
     
     const prompt = skillName 
-      ? `Generate a practice test for a ${gradeLevel} ${subjectArea} student focusing specifically on ${skillName}. Create 8-10 questions that test understanding of this skill at an appropriate ${gradeLevel} difficulty level. Use ${gradeLevel} ${subjectArea} curriculum standards and age-appropriate language and examples.`
-      : `Generate a comprehensive practice test for a ${gradeLevel} ${subjectArea} student covering all major content areas appropriate for ${gradeLevel} ${subjectArea} curriculum. Create 10-12 questions that assess various skills and concepts at the ${gradeLevel} level. Use curriculum-appropriate vocabulary and examples suitable for ${gradeLevel} students.`
+      ? `Generate a practice test for a ${gradeLevel} ${subjectArea} student focusing specifically on ${skillName}. Create exactly ${numQuestions} questions that test understanding of this skill at an appropriate ${gradeLevel} difficulty level. Use ${gradeLevel} ${subjectArea} curriculum standards and age-appropriate language and examples.`
+      : `Generate a comprehensive practice test for a ${gradeLevel} ${subjectArea} student covering all major content areas appropriate for ${gradeLevel} ${subjectArea} curriculum. Create exactly ${numQuestions} questions that assess various skills and concepts at the ${gradeLevel} level. Use curriculum-appropriate vocabulary and examples suitable for ${gradeLevel} students.`
 
     console.log('Sending request to OpenAI with prompt:', prompt)
     console.log('Using API key starting with:', openaiApiKey.substring(0, 10) + '...')
@@ -123,7 +124,7 @@ Generate a JSON response with exactly this structure:
   "estimatedTime": number
 }
             
-Make questions challenging but appropriate for ${gradeLevel} level. Use vocabulary and examples suitable for ${gradeLevel} students. For ${subjectArea}, ensure content aligns with ${gradeLevel} ${subjectArea} curriculum standards. Use a mix of question types. For multiple choice, provide 4 options with only one correct answer.
+Make exactly ${numQuestions} questions that are challenging but appropriate for ${gradeLevel} level. Use vocabulary and examples suitable for ${gradeLevel} students. For ${subjectArea}, ensure content aligns with ${gradeLevel} ${subjectArea} curriculum standards. Use a mix of question types. For multiple choice, provide 4 options with only one correct answer.
 
 RESPOND ONLY WITH THE JSON OBJECT - NO OTHER TEXT.`
           },

@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { ArrowLeft, FileText, RefreshCw, Printer, CheckCircle, Edit, Key, Download } from "lucide-react";
+import { ArrowLeft, FileText, RefreshCw, Printer, CheckCircle, Edit, Key, Download, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -122,6 +122,8 @@ const TestCreator = () => {
   const [selectedStudentsForDownload, setSelectedStudentsForDownload] = useState<string[]>([]);
   const [isDownloading, setIsDownloading] = useState(false);
   const [isGeneratingQuestions, setIsGeneratingQuestions] = useState(false);
+  const [questionCount, setQuestionCount] = useState<number>(10);
+  const [isGeneratingSingleQuestion, setIsGeneratingSingleQuestion] = useState(false);
 
   useEffect(() => {
     const loadClasses = async () => {
@@ -222,7 +224,8 @@ const TestCreator = () => {
         className: selectedClass.name,
         skillName: allSkills.join(', '),
         grade: selectedClass.grade,
-        subject: selectedClass.subject
+        subject: selectedClass.subject,
+        questionCount: questionCount
       };
 
       console.log('Generating AI questions with request:', request);
@@ -263,6 +266,72 @@ const TestCreator = () => {
     } finally {
       setIsGeneratingQuestions(false);
     }
+  };
+
+  const generateSingleAIQuestion = async () => {
+    setIsGeneratingSingleQuestion(true);
+    
+    try {
+      const selectedClass = availableClasses.find(c => c.id === selectedClassId);
+      if (!selectedClass) {
+        throw new Error('Selected class not found');
+      }
+
+      const request: GeneratePracticeTestRequest = {
+        studentName: 'Single Question',
+        className: selectedClass.name,
+        skillName: 'Generate one additional question',
+        grade: selectedClass.grade,
+        subject: selectedClass.subject,
+        questionCount: 1
+      };
+
+      const practiceTestData = await generatePracticeTest(request);
+      
+      if (practiceTestData.questions && practiceTestData.questions.length > 0) {
+        const newQuestion: Question = {
+          id: `ai-q-${Date.now()}`,
+          type: practiceTestData.questions[0].type,
+          question: practiceTestData.questions[0].question,
+          options: practiceTestData.questions[0].options,
+          correctAnswer: practiceTestData.questions[0].correctAnswer || '',
+          points: practiceTestData.questions[0].points
+        };
+
+        setQuestions(prev => [...prev, newQuestion]);
+        
+        toast({
+          title: "✅ Success!",
+          description: 'Added new AI-generated question',
+        });
+      }
+      
+    } catch (error) {
+      console.error('Error generating single AI question:', error);
+      toast({
+        title: "❌ Error",
+        description: 'Failed to generate AI question. Please try again.',
+        variant: "destructive",
+      });
+    } finally {
+      setIsGeneratingSingleQuestion(false);
+    }
+  };
+
+  const addCustomQuestion = () => {
+    const newQuestion: Question = {
+      id: `custom-q-${Date.now()}`,
+      type: 'multiple-choice',
+      question: '',
+      options: ['Option 1', 'Option 2', 'Option 3', 'Option 4'],
+      correctAnswer: '',
+      points: 1,
+    };
+    setQuestions(prev => [...prev, newQuestion]);
+  };
+
+  const deleteQuestionFromAnswerKey = (questionId: string) => {
+    setQuestions(prev => prev.filter(q => q.id !== questionId));
   };
 
   const handleGenerateTest = () => {
@@ -544,6 +613,27 @@ const TestCreator = () => {
               </SelectContent>
             </Select>
           </div>
+
+          <div>
+            <Label htmlFor="question-count">Number of Questions</Label>
+            <Select value={questionCount.toString()} onValueChange={(value) => setQuestionCount(parseInt(value))}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select number of questions" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="5">5 Questions</SelectItem>
+                <SelectItem value="10">10 Questions</SelectItem>
+                <SelectItem value="15">15 Questions</SelectItem>
+                <SelectItem value="20">20 Questions</SelectItem>
+                <SelectItem value="25">25 Questions</SelectItem>
+                <SelectItem value="30">30 Questions</SelectItem>
+                <SelectItem value="40">40 Questions</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-sm text-gray-500 mt-1">
+              Choose how many questions the AI should generate for your test.
+            </p>
+          </div>
         </CardContent>
       </Card>
       
@@ -646,11 +736,42 @@ const TestCreator = () => {
         <h3 className="font-semibold text-blue-900 mb-2">Answer Key Instructions</h3>
         <p className="text-sm text-blue-800">
           {selectedTemplate === 'ai-test' 
-            ? 'Review and adjust the AI-generated answers if needed. The AI has already provided correct answers, but you can modify them if necessary.'
+            ? 'Review and adjust the AI-generated answers if needed. The AI has already provided correct answers, but you can modify them if necessary. You can also add or remove questions.'
             : 'Provide correct answers for all questions. This answer key will be saved securely and used by the AI grading system to automatically score student responses.'
           }
         </p>
       </div>
+
+      {selectedTemplate === 'ai-test' && (
+        <div className="flex gap-2 mb-4">
+          <Button 
+            onClick={generateSingleAIQuestion} 
+            variant="outline" 
+            size="sm"
+            disabled={isGeneratingSingleQuestion}
+          >
+            {isGeneratingSingleQuestion ? (
+              <>
+                <RefreshCw className="h-4 w-4 mr-1 animate-spin" />
+                Generating...
+              </>
+            ) : (
+              <>
+                <Plus className="h-4 w-4 mr-1" />
+                Add AI Generated Question
+              </>
+            )}
+          </Button>
+          <Button 
+            onClick={addCustomQuestion} 
+            variant="outline" 
+            size="sm"
+          >
+            <Plus className="h-4 w-4 mr-1" />
+            Add Custom Question
+          </Button>
+        </div>
+      )}
       
       <div className="space-y-4">
         {questions.map((question, index) => (
@@ -661,20 +782,39 @@ const TestCreator = () => {
                 <div className="flex items-center gap-2">
                   <span className="text-sm text-gray-500 capitalize">{question.type.replace('-', ' ')}</span>
                   <span className="text-sm text-gray-600">({question.points} pts)</span>
-                  {selectedTemplate === 'ai-test' && (
+                  {selectedTemplate === 'ai-test' && question.id.startsWith('ai-q-') && (
                     <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded">AI Generated</span>
                   )}
+                  {selectedTemplate === 'ai-test' && question.id.startsWith('custom-q-') && (
+                    <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded">Custom</span>
+                  )}
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    onClick={() => deleteQuestionFromAnswerKey(question.id)}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
                 </div>
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="bg-gray-50 p-3 rounded">
-                <p className="font-medium text-gray-900">{question.question}</p>
+                {selectedTemplate === 'ai-test' && question.id.startsWith('custom-q-') ? (
+                  <Textarea
+                    value={question.question}
+                    onChange={(e) => updateQuestion(question.id, 'question', e.target.value)}
+                    placeholder="Enter your question"
+                    className="bg-white"
+                  />
+                ) : (
+                  <p className="font-medium text-gray-900">{question.question}</p>
+                )}
               </div>
               
               {question.type === 'multiple-choice' && question.options && (
                 <div>
-                  <Label>Correct Answer</Label>
+                  <Label>Answer Options {selectedTemplate === 'ai-test' && question.id.startsWith('custom-q-') && '(Click to edit)'}</Label>
                   <div className="space-y-2 mt-2">
                     {question.options.map((option, optionIndex) => (
                       <div key={optionIndex} className="flex items-center gap-2">
@@ -686,7 +826,16 @@ const TestCreator = () => {
                             }
                           }}
                         />
-                        <span className="text-sm">{String.fromCharCode(65 + optionIndex)}) {option}</span>
+                        {selectedTemplate === 'ai-test' && question.id.startsWith('custom-q-') ? (
+                          <Input
+                            value={option}
+                            onChange={(e) => updateQuestionOption(question.id, optionIndex, e.target.value)}
+                            placeholder={`Option ${optionIndex + 1}`}
+                            className="flex-1"
+                          />
+                        ) : (
+                          <span className="text-sm flex-1">{String.fromCharCode(65 + optionIndex)}) {option}</span>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -741,6 +890,23 @@ const TestCreator = () => {
                 </div>
               )}
               
+              {selectedTemplate === 'ai-test' && question.id.startsWith('custom-q-') && (
+                <div className="flex items-center gap-4">
+                  <div>
+                    <Label htmlFor={`points-${question.id}`}>Points</Label>
+                    <Input
+                      id={`points-${question.id}`}
+                      type="number"
+                      value={question.points}
+                      onChange={(e) => updateQuestion(question.id, 'points', parseInt(e.target.value) || 1)}
+                      min="1"
+                      max="100"
+                      className="w-20"
+                    />
+                  </div>
+                </div>
+              )}
+              
               {!question.correctAnswer && (
                 <div className="p-2 bg-yellow-50 border border-yellow-200 rounded text-sm text-yellow-700">
                   ⚠️ Please provide a correct answer for this question
@@ -750,6 +916,14 @@ const TestCreator = () => {
           </Card>
         ))}
       </div>
+
+      {questions.length === 0 && (
+        <Card>
+          <CardContent className="text-center py-8">
+            <p className="text-gray-500">No questions available. Please go back and generate questions.</p>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 
