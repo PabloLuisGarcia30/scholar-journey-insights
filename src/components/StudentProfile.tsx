@@ -16,10 +16,12 @@ import {
   getStudentContentSkillScores, 
   getStudentSubjectSkillScores,
   getActiveClassById,
+  getContentSkillsBySubjectAndGrade,
   type ActiveStudent,
   type TestResult,
   type SkillScore,
-  type ActiveClass
+  type ActiveClass,
+  type ContentSkill
 } from "@/services/examService";
 
 interface StudentProfileProps {
@@ -92,6 +94,13 @@ export function StudentProfile({ studentId, classId, className, onBack }: Studen
     queryFn: () => getStudentSubjectSkillScores(studentId),
   });
 
+  // Fetch content skills for the class to show complete skill set
+  const { data: classContentSkills = [], isLoading: classContentSkillsLoading } = useQuery({
+    queryKey: ['classContentSkills', classData?.subject, classData?.grade],
+    queryFn: () => classData ? getContentSkillsBySubjectAndGrade(classData.subject, classData.grade) : Promise.resolve([]),
+    enabled: !!classData && isClassView,
+  });
+
   const isClassView = classId && className;
   const totalCredits = 120;
   const completedCredits = student?.gpa ? Math.floor(student.gpa * 20) : 84; // Mock calculation
@@ -103,6 +112,51 @@ export function StudentProfile({ studentId, classId, className, onBack }: Studen
     const average = testResults.reduce((sum, result) => sum + result.overall_score, 0) / testResults.length;
     return Math.round(average);
   };
+
+  // Create comprehensive skill data combining test scores with class skills
+  const getComprehensiveSkillData = () => {
+    if (!isClassView || !classContentSkills.length) return contentSkillScores;
+
+    // Create a map of skill scores by skill name
+    const scoreMap = new Map(contentSkillScores.map(score => [score.skill_name, score]));
+
+    // Combine class skills with actual scores, showing 0 for untested skills
+    return classContentSkills.map(skill => {
+      const existingScore = scoreMap.get(skill.skill_name);
+      return existingScore || {
+        id: `placeholder-${skill.id}`,
+        test_result_id: '',
+        skill_name: skill.skill_name,
+        score: 0, // Show 0% for skills not yet tested
+        points_earned: 0,
+        points_possible: 0,
+        created_at: ''
+      };
+    });
+  };
+
+  const comprehensiveSkillData = getComprehensiveSkillData();
+
+  // Group skills by topic for better organization
+  const groupSkillsByTopic = (skills: typeof comprehensiveSkillData) => {
+    if (!isClassView || !classContentSkills.length) return { 'General Skills': skills };
+
+    const grouped: Record<string, typeof skills> = {};
+    
+    skills.forEach(skillScore => {
+      const contentSkill = classContentSkills.find(cs => cs.skill_name === skillScore.skill_name);
+      const topic = contentSkill?.topic || 'General Skills';
+      
+      if (!grouped[topic]) {
+        grouped[topic] = [];
+      }
+      grouped[topic].push(skillScore);
+    });
+
+    return grouped;
+  };
+
+  const groupedSkills = groupSkillsByTopic(comprehensiveSkillData);
 
   const getGradeColor = (grade: string | number) => {
     const numGrade = typeof grade === 'string' ? 
@@ -119,6 +173,7 @@ export function StudentProfile({ studentId, classId, className, onBack }: Studen
     if (mastery >= 90) return 'bg-green-100 text-green-700';
     if (mastery >= 80) return 'bg-blue-100 text-blue-700';
     if (mastery >= 70) return 'bg-yellow-100 text-yellow-700';
+    if (mastery === 0) return 'bg-gray-100 text-gray-600'; // For untested skills
     return 'bg-red-100 text-red-700';
   };
 
@@ -379,7 +434,12 @@ export function StudentProfile({ studentId, classId, className, onBack }: Studen
               <Card>
                 <CardHeader>
                   <div className="flex items-center justify-between">
-                    <CardTitle>Content-Specific Skills</CardTitle>
+                    <CardTitle>
+                      {isClassView && classData 
+                        ? `${classData.subject} ${classData.grade} Content-Specific Skills`
+                        : 'Content-Specific Skills'
+                      }
+                    </CardTitle>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button className="flex items-center gap-2">
@@ -392,7 +452,7 @@ export function StudentProfile({ studentId, classId, className, onBack }: Studen
                         <DropdownMenuItem onClick={() => handleGeneratePracticeTest()}>
                           All Skills Combined
                         </DropdownMenuItem>
-                        {contentSkillScores.map((skill, index) => (
+                        {comprehensiveSkillData.map((skill, index) => (
                           <DropdownMenuItem 
                             key={index} 
                             onClick={() => handleGeneratePracticeTest(skill.skill_name)}
@@ -409,32 +469,43 @@ export function StudentProfile({ studentId, classId, className, onBack }: Studen
                   </div>
                 </CardHeader>
                 <CardContent>
-                  {contentSkillsLoading ? (
+                  {(contentSkillsLoading || classContentSkillsLoading) ? (
                     <div className="animate-pulse space-y-4">
                       {[...Array(5)].map((_, i) => (
                         <div key={i} className="h-16 bg-gray-200 rounded"></div>
                       ))}
                     </div>
-                  ) : contentSkillScores.length > 0 ? (
-                    <div className="space-y-4">
-                      {contentSkillScores.map((skill, index) => (
-                        <div key={index} className="flex items-center justify-between p-4 rounded-lg border border-gray-100">
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2">
-                              <h3 className="font-semibold text-gray-900">{skill.skill_name}</h3>
-                              {getTrendIcon('stable')}
-                            </div>
-                            <Progress value={skill.score} className="mt-2 w-64" />
-                          </div>
-                          <div className="text-right">
-                            <div className="text-2xl font-bold text-gray-900">{Math.round(skill.score)}%</div>
+                  ) : comprehensiveSkillData.length > 0 ? (
+                    <div className="space-y-6">
+                      {Object.entries(groupedSkills).map(([topic, skills]) => (
+                        <div key={topic}>
+                          <h3 className="text-lg font-semibold text-gray-900 mb-4">{topic}</h3>
+                          <div className="space-y-3">
+                            {skills.map((skill, index) => (
+                              <div key={`${topic}-${index}`} className="flex items-center justify-between p-4 rounded-lg border border-gray-100">
+                                <div className="flex-1">
+                                  <div className="flex items-center gap-2">
+                                    <h4 className="font-semibold text-gray-900">{skill.skill_name}</h4>
+                                    {skill.score === 0 && (
+                                      <Badge variant="outline" className="text-xs">Not tested</Badge>
+                                    )}
+                                  </div>
+                                  <Progress value={skill.score} className="mt-2 w-64" />
+                                </div>
+                                <div className="text-right">
+                                  <Badge className={getMasteryColor(skill.score)}>
+                                    {Math.round(skill.score)}%
+                                  </Badge>
+                                </div>
+                              </div>
+                            ))}
                           </div>
                         </div>
                       ))}
                     </div>
                   ) : (
                     <div className="text-center py-8">
-                      <p className="text-gray-600">No content skill scores available.</p>
+                      <p className="text-gray-600">No content skill data available.</p>
                     </div>
                   )}
                 </CardContent>
