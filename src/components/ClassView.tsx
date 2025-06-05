@@ -221,7 +221,7 @@ export function ClassView({ onSelectStudent }: ClassViewProps) {
           <Card>
             <CardContent className="p-4 text-center">
               <TrendingUp className="h-8 w-8 text-purple-600 mx-auto mb-2" />
-              <div className="text-2xl font-bold">Grade {classData.grade}</div>
+              <div className="text-2xl font-bold">{classData.grade}</div>
               <div className="text-sm text-gray-600">Grade Level</div>
             </CardContent>
           </Card>
@@ -374,7 +374,7 @@ export function ClassView({ onSelectStudent }: ClassViewProps) {
                   <p className="text-gray-600 text-sm">{classItem.teacher}</p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Badge variant="outline">Grade {classItem.grade}</Badge>
+                  <Badge variant="outline">{classItem.grade}</Badge>
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
                       <Button variant="ghost" size="sm" className="text-red-600 hover:text-red-700 hover:bg-red-50">
