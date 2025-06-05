@@ -1,12 +1,17 @@
+
 import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
 import { PracticeTestGenerator } from "./PracticeTestGenerator";
 import { StudentProfileHeader } from "./StudentProfile/StudentProfileHeader";
 import { StudentQuickStats } from "./StudentProfile/StudentQuickStats";
 import { TestResultsTab } from "./StudentProfile/TestResultsTab";
 import { SkillScoresTab } from "./StudentProfile/SkillScoresTab";
 import { ProgressTrendTab } from "./StudentProfile/ProgressTrendTab";
+import { ResponsiveContainer, BarChart, CartesianGrid, XAxis, YAxis, Tooltip, Bar } from 'recharts';
 import { supabase } from "@/integrations/supabase/client";
 import { 
   getActiveStudentById, 
