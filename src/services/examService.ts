@@ -57,16 +57,26 @@ export const saveExamToDatabase = async (examData: ExamData): Promise<void> => {
       throw new Error(`Failed to save exam: ${examError.message}`);
     }
 
-    // Insert answer keys
-    const answerKeys = examData.questions.map((question, index) => ({
-      exam_id: examData.examId,
-      question_number: index + 1,
-      question_text: question.question,
-      question_type: question.type,
-      correct_answer: question.correctAnswer || '',
-      points: question.points,
-      options: question.options ? { options: question.options } : null
-    }));
+    // Insert answer keys - convert correctAnswer to string if it's an array
+    const answerKeys = examData.questions.map((question, index) => {
+      // Convert correctAnswer to string format
+      let correctAnswerString = '';
+      if (Array.isArray(question.correctAnswer)) {
+        correctAnswerString = question.correctAnswer.join(', ');
+      } else {
+        correctAnswerString = question.correctAnswer || '';
+      }
+
+      return {
+        exam_id: examData.examId,
+        question_number: index + 1,
+        question_text: question.question,
+        question_type: question.type,
+        correct_answer: correctAnswerString,
+        points: question.points,
+        options: question.options ? { options: question.options } : null
+      };
+    });
 
     const { error: answerError } = await supabase
       .from('answer_keys')
