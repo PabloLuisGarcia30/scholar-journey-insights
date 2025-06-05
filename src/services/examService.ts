@@ -1,3 +1,4 @@
+
 import { supabase } from "@/integrations/supabase/client";
 import type { Question } from "@/utils/pdfGenerator";
 
@@ -34,16 +35,6 @@ export interface AnswerKey {
   points: number;
   options: any;
   created_at: string;
-}
-
-export interface Class {
-  id: string;
-  name: string;
-  description: string;
-  content_skills: string[];
-  subject_skills: string[];
-  created_at: string;
-  updated_at: string;
 }
 
 export interface ActiveClass {
@@ -101,27 +92,6 @@ export interface SkillScore {
   points_possible: number;
   created_at: string;
 }
-
-export const getAllClasses = async (): Promise<Class[]> => {
-  try {
-    console.log('Fetching all classes');
-    
-    const { data, error } = await supabase
-      .from('classes')
-      .select('*')
-      .order('name');
-
-    if (error) {
-      console.error('Error fetching classes:', error);
-      throw new Error(`Failed to fetch classes: ${error.message}`);
-    }
-
-    return data || [];
-  } catch (error) {
-    console.error('Error in getAllClasses:', error);
-    throw error;
-  }
-};
 
 export const getAllActiveClasses = async (): Promise<ActiveClass[]> => {
   try {
@@ -224,24 +194,24 @@ export const deleteActiveClass = async (classId: string): Promise<void> => {
   }
 };
 
-export const getClassById = async (classId: string): Promise<Class | null> => {
+export const getActiveClassById = async (classId: string): Promise<ActiveClass | null> => {
   try {
-    console.log('Fetching class by ID:', classId);
+    console.log('Fetching active class by ID:', classId);
     
     const { data, error } = await supabase
-      .from('classes')
+      .from('active_classes')
       .select('*')
       .eq('id', classId)
       .maybeSingle();
 
     if (error) {
-      console.error('Error fetching class:', error);
-      throw new Error(`Failed to fetch class: ${error.message}`);
+      console.error('Error fetching active class:', error);
+      throw new Error(`Failed to fetch active class: ${error.message}`);
     }
 
     return data;
   } catch (error) {
-    console.error('Error in getClassById:', error);
+    console.error('Error in getActiveClassById:', error);
     throw error;
   }
 };

@@ -125,36 +125,6 @@ export type Database = {
           },
         ]
       }
-      classes: {
-        Row: {
-          content_skills: string[] | null
-          created_at: string
-          description: string | null
-          id: string
-          name: string
-          subject_skills: string[] | null
-          updated_at: string
-        }
-        Insert: {
-          content_skills?: string[] | null
-          created_at?: string
-          description?: string | null
-          id?: string
-          name: string
-          subject_skills?: string[] | null
-          updated_at?: string
-        }
-        Update: {
-          content_skills?: string[] | null
-          created_at?: string
-          description?: string | null
-          id?: string
-          name?: string
-          subject_skills?: string[] | null
-          updated_at?: string
-        }
-        Relationships: []
-      }
       content_skill_scores: {
         Row: {
           created_at: string
@@ -235,7 +205,7 @@ export type Database = {
             foreignKeyName: "exams_class_id_fkey"
             columns: ["class_id"]
             isOneToOne: false
-            referencedRelation: "classes"
+            referencedRelation: "active_classes"
             referencedColumns: ["id"]
           },
         ]
@@ -357,7 +327,7 @@ export type Database = {
             foreignKeyName: "test_results_class_id_fkey"
             columns: ["class_id"]
             isOneToOne: false
-            referencedRelation: "classes"
+            referencedRelation: "active_classes"
             referencedColumns: ["id"]
           },
           {
