@@ -60,10 +60,7 @@ export function StudentContentSkills({
   };
 
   const getProgressColor = (score: number) => {
-    if (score >= 90) return "bg-emerald-500";
-    if (score >= 80) return "bg-blue-500";
-    if (score >= 70) return "bg-amber-500";
-    return "bg-rose-500";
+    return "bg-black";
   };
 
   return (
