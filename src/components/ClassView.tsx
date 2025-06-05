@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -28,6 +29,8 @@ import {
   updateActiveClass, 
   deleteActiveClass, 
   getAllActiveStudents,
+  getSubjectSkillsBySubjectAndGrade,
+  linkClassToSubjectSkills,
   type ActiveClass,
   type ActiveStudent
 } from "@/services/examService";
@@ -69,6 +72,24 @@ export function ClassView({ onSelectStudent }: ClassViewProps) {
     try {
       const newClass = await createActiveClass(classData);
       setClasses([...classes, newClass]);
+      
+      // Auto-link subject skills for Math Grade 10 classes
+      if (classData.subject === 'Math' && classData.grade === 'Grade 10') {
+        try {
+          console.log('Auto-linking subject skills for Math Grade 10 class:', newClass.id);
+          const subjectSkills = await getSubjectSkillsBySubjectAndGrade('Math', 'Grade 10');
+          const skillIds = subjectSkills.map(skill => skill.id);
+          
+          if (skillIds.length > 0) {
+            await linkClassToSubjectSkills(newClass.id, skillIds);
+            console.log(`Successfully auto-linked ${skillIds.length} Math Grade 10 subject skills to class ${newClass.id}`);
+          }
+        } catch (skillError) {
+          console.warn('Failed to auto-link subject skills to new Math Grade 10 class:', skillError);
+          // Don't fail the class creation if skill linking fails
+        }
+      }
+      
       toast.success(`Class "${newClass.name}" has been created successfully!`);
     } catch (error) {
       console.error('Error creating class:', error);

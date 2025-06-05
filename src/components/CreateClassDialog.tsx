@@ -58,7 +58,7 @@ export function CreateClassDialog({ onCreateClass }: CreateClassDialogProps) {
           <DialogHeader>
             <DialogTitle>Create New Class</DialogTitle>
             <DialogDescription>
-              Add a new class to organize your students. Content-specific skills will be automatically linked based on the subject and grade you select.
+              Add a new class to organize your students. Content-specific skills and subject-specific skills will be automatically linked based on the subject and grade you select.
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
