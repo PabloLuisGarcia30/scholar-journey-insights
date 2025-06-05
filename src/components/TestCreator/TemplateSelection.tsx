@@ -39,7 +39,11 @@ export const TemplateSelection = ({ templates, selectedTemplate, onTemplateSelec
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-gray-600">{template.description}</p>
+              <p className="text-gray-600">
+                {template.id === 'custom' 
+                  ? "You know your Students best. Build a Test for them!" 
+                  : template.description}
+              </p>
               <p className="text-sm text-blue-600 mt-2">
                 {template.defaultQuestions.length} default questions
               </p>
