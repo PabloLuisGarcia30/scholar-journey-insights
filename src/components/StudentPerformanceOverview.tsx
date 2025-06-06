@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -285,7 +284,7 @@ export function StudentPerformanceOverview() {
                     <Button
                       variant="outline"
                       size="icon"
-                      className="h-8 w-8 rounded-full"
+                      className="h-8 w-8 rounded-full bg-blue-50 hover:bg-blue-100 border-blue-200"
                       onClick={handleShowStudentsSkillsForAllSubjects}
                     >
                       <BookOpen className="h-4 w-4" />
@@ -395,7 +394,7 @@ export function StudentPerformanceOverview() {
                     <Button
                       variant="outline"
                       size="icon"
-                      className="h-8 w-8 rounded-full"
+                      className="h-8 w-8 rounded-full bg-blue-50 hover:bg-blue-100 border-blue-200"
                       onClick={handleShowStudentsSkillsForAllSubjects}
                     >
                       <BookOpen className="h-4 w-4" />
@@ -529,7 +528,7 @@ export function StudentPerformanceOverview() {
                   <Button
                     variant="outline"
                     size="icon"
-                    className="h-8 w-8 rounded-full"
+                    className="h-8 w-8 rounded-full bg-blue-50 hover:bg-blue-100 border-blue-200"
                     onClick={handleShowStudentsSkillsForAllSubjects}
                   >
                     <BookOpen className="h-4 w-4" />
