@@ -1,11 +1,10 @@
-
-
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Moon } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Moon, Users, FileText, User } from "lucide-react";
 import { 
   getAllActiveStudents,
   getStudentContentSkillScores,
@@ -113,14 +112,57 @@ export function StudentPerformanceOverview() {
     return "text-red-700";
   };
 
+  const handleShowByClasses = () => {
+    console.log('Show students by classes clicked');
+    // TODO: Implement class filtering functionality
+  };
+
+  const handleCreatePracticeForSeveral = () => {
+    console.log('Create practice exercise for several students clicked');
+    // TODO: Implement multi-student practice exercise creation
+  };
+
+  const handleCreatePracticeForOne = () => {
+    console.log('Create practice exercise for one student clicked');
+    // TODO: Implement single student practice exercise creation
+  };
+
   if (loading) {
     return (
       <Card className="w-full border-slate-200 shadow-sm">
         <CardHeader className="border-b border-slate-100 bg-slate-50/50">
-          <CardTitle className="text-xl font-semibold text-slate-800 flex items-center gap-2">
-            <Moon className="h-5 w-5 text-orange-500" />
-            Your Students: 5 Skills Most Needing Improving This Week
-          </CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-xl font-semibold text-slate-800 flex items-center gap-2">
+              <Moon className="h-5 w-5 text-orange-500" />
+              Your Students: 5 Skills Most Needing Improving This Week
+            </CardTitle>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-8 w-8 rounded-full"
+                onClick={handleShowByClasses}
+              >
+                <Users className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-8 w-8 rounded-full"
+                onClick={handleCreatePracticeForSeveral}
+              >
+                <FileText className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-8 w-8 rounded-full"
+                onClick={handleCreatePracticeForOne}
+              >
+                <User className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
         </CardHeader>
         <CardContent className="p-6">
           <div className="space-y-4">
@@ -145,10 +187,38 @@ export function StudentPerformanceOverview() {
     return (
       <Card className="w-full border-slate-200 shadow-sm">
         <CardHeader className="border-b border-slate-100 bg-slate-50/50">
-          <CardTitle className="text-xl font-semibold text-slate-800 flex items-center gap-2">
-            <Moon className="h-5 w-5 text-orange-500" />
-            Your Students: 5 Skills Most Needing Improving This Week
-          </CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-xl font-semibold text-slate-800 flex items-center gap-2">
+              <Moon className="h-5 w-5 text-orange-500" />
+              Your Students: 5 Skills Most Needing Improving This Week
+            </CardTitle>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-8 w-8 rounded-full"
+                onClick={handleShowByClasses}
+              >
+                <Users className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-8 w-8 rounded-full"
+                onClick={handleCreatePracticeForSeveral}
+              >
+                <FileText className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-8 w-8 rounded-full"
+                onClick={handleCreatePracticeForOne}
+              >
+                <User className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
         </CardHeader>
         <CardContent className="p-6">
           <div className="text-center py-8">
@@ -164,10 +234,41 @@ export function StudentPerformanceOverview() {
   return (
     <Card className="w-full border-slate-200 shadow-sm">
       <CardHeader className="border-b border-slate-100 bg-slate-50/50">
-        <CardTitle className="text-xl font-semibold text-slate-800 flex items-center gap-2">
-          <Moon className="h-5 w-5 text-orange-500" />
-          Your Students: 5 Skills Most Needing Improving This Week
-        </CardTitle>
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-xl font-semibold text-slate-800 flex items-center gap-2">
+            <Moon className="h-5 w-5 text-orange-500" />
+            Your Students: 5 Skills Most Needing Improving This Week
+          </CardTitle>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-8 w-8 rounded-full"
+              onClick={handleShowByClasses}
+              title="Show students by classes"
+            >
+              <Users className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-8 w-8 rounded-full"
+              onClick={handleCreatePracticeForSeveral}
+              title="Create practice exercise for several students"
+            >
+              <FileText className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-8 w-8 rounded-full"
+              onClick={handleCreatePracticeForOne}
+              title="Create practice exercise for one student"
+            >
+              <User className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
       </CardHeader>
       <CardContent className="p-6">
         <ScrollArea className="h-96 w-full">
@@ -230,4 +331,3 @@ export function StudentPerformanceOverview() {
     </Card>
   );
 }
-
