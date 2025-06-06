@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -5,11 +6,14 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Moon, Users, FileText, User } from "lucide-react";
 import { 
   getAllActiveStudents,
   getStudentContentSkillScores,
-  type ActiveStudent
+  getAllActiveClasses,
+  type ActiveStudent,
+  type ActiveClass
 } from "@/services/examService";
 
 interface SkillScore {
@@ -43,16 +47,26 @@ const generateMockSkills = (): SkillScore[] => {
 
 export function StudentPerformanceOverview() {
   const [studentsWithSkills, setStudentsWithSkills] = useState<StudentWithSkills[]>([]);
+  const [allStudentsWithSkills, setAllStudentsWithSkills] = useState<StudentWithSkills[]>([]);
+  const [classes, setClasses] = useState<ActiveClass[]>([]);
+  const [selectedClass, setSelectedClass] = useState<ActiveClass | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    loadStudentPerformanceData();
+    loadData();
   }, []);
 
-  const loadStudentPerformanceData = async () => {
+  const loadData = async () => {
     try {
       setLoading(true);
-      const students = await getAllActiveStudents();
+      
+      // Load both students and classes
+      const [students, classesData] = await Promise.all([
+        getAllActiveStudents(),
+        getAllActiveClasses()
+      ]);
+      
+      setClasses(classesData);
       
       const studentsWithSkillsData = await Promise.all(
         students.map(async (student) => {
@@ -90,12 +104,27 @@ export function StudentPerformanceOverview() {
         })
       );
 
-      // Include ALL students (both with real data and mock data)
+      setAllStudentsWithSkills(studentsWithSkillsData);
       setStudentsWithSkills(studentsWithSkillsData);
     } catch (error) {
-      console.error('Error loading student performance data:', error);
+      console.error('Error loading data:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleClassFilter = (selectedClass: ActiveClass | null) => {
+    setSelectedClass(selectedClass);
+    
+    if (!selectedClass) {
+      // Show all students
+      setStudentsWithSkills(allStudentsWithSkills);
+    } else {
+      // Filter students by class
+      const filteredStudents = allStudentsWithSkills.filter(student => 
+        selectedClass.students && selectedClass.students.includes(student.id)
+      );
+      setStudentsWithSkills(filteredStudents);
     }
   };
 
@@ -139,21 +168,30 @@ export function StudentPerformanceOverview() {
             </CardTitle>
             <TooltipProvider>
               <div className="flex items-center gap-2">
-                <Tooltip>
-                  <TooltipTrigger asChild>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
                     <Button
                       variant="outline"
                       size="icon"
                       className="h-8 w-8 rounded-full"
-                      onClick={handleShowByClasses}
                     >
                       <Users className="h-4 w-4" />
                     </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p>Show students by classes</p>
-                  </TooltipContent>
-                </Tooltip>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="bg-white shadow-lg border">
+                    <DropdownMenuItem onClick={() => handleClassFilter(null)}>
+                      All Students
+                    </DropdownMenuItem>
+                    {classes.map((classItem) => (
+                      <DropdownMenuItem 
+                        key={classItem.id}
+                        onClick={() => handleClassFilter(classItem)}
+                      >
+                        {classItem.name}
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Button
@@ -215,24 +253,38 @@ export function StudentPerformanceOverview() {
             <CardTitle className="text-xl font-semibold text-slate-800 flex items-center gap-2">
               <Moon className="h-5 w-5 text-orange-500" />
               Your Students: 5 Skills Most Needing Improving This Week
+              {selectedClass && (
+                <span className="text-sm font-normal text-slate-600">
+                  - {selectedClass.name}
+                </span>
+              )}
             </CardTitle>
             <TooltipProvider>
               <div className="flex items-center gap-2">
-                <Tooltip>
-                  <TooltipTrigger asChild>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
                     <Button
                       variant="outline"
                       size="icon"
                       className="h-8 w-8 rounded-full"
-                      onClick={handleShowByClasses}
                     >
                       <Users className="h-4 w-4" />
                     </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p>Show students by classes</p>
-                  </TooltipContent>
-                </Tooltip>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="bg-white shadow-lg border">
+                    <DropdownMenuItem onClick={() => handleClassFilter(null)}>
+                      All Students
+                    </DropdownMenuItem>
+                    {classes.map((classItem) => (
+                      <DropdownMenuItem 
+                        key={classItem.id}
+                        onClick={() => handleClassFilter(classItem)}
+                      >
+                        {classItem.name}
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Button
@@ -270,8 +322,15 @@ export function StudentPerformanceOverview() {
         <CardContent className="p-6">
           <div className="text-center py-8">
             <Moon className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">No Performance Data</h3>
-            <p className="text-gray-600">Students need to take tests to see performance data here</p>
+            <h3 className="text-lg font-medium text-gray-900 mb-2">
+              {selectedClass ? `No Students in ${selectedClass.name}` : 'No Performance Data'}
+            </h3>
+            <p className="text-gray-600">
+              {selectedClass 
+                ? 'This class has no students assigned or students need to take tests to see performance data'
+                : 'Students need to take tests to see performance data here'
+              }
+            </p>
           </div>
         </CardContent>
       </Card>
@@ -285,20 +344,41 @@ export function StudentPerformanceOverview() {
           <CardTitle className="text-xl font-semibold text-slate-800 flex items-center gap-2">
             <Moon className="h-5 w-5 text-orange-500" />
             Your Students: 5 Skills Most Needing Improving This Week
+            {selectedClass && (
+              <span className="text-sm font-normal text-slate-600">
+                - {selectedClass.name}
+              </span>
+            )}
           </CardTitle>
           <TooltipProvider>
             <div className="flex items-center gap-2">
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    className="h-8 w-8 rounded-full"
-                    onClick={handleShowByClasses}
-                  >
-                    <Users className="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        className="h-8 w-8 rounded-full"
+                      >
+                        <Users className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="bg-white shadow-lg border">
+                      <DropdownMenuItem onClick={() => handleClassFilter(null)}>
+                        All Students
+                      </DropdownMenuItem>
+                      {classes.map((classItem) => (
+                        <DropdownMenuItem 
+                          key={classItem.id}
+                          onClick={() => handleClassFilter(classItem)}
+                        >
+                          {classItem.name}
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </DropdownMenuTrigger>
                 <TooltipContent>
                   <p>Show students by classes</p>
                 </TooltipContent>
