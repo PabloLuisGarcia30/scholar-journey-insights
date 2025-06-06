@@ -1,10 +1,11 @@
 
+
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
-import { TrendingDown } from "lucide-react";
+import { Moon } from "lucide-react";
 import { 
   getAllActiveStudents,
   getStudentContentSkillScores,
@@ -117,7 +118,7 @@ export function StudentPerformanceOverview() {
       <Card className="w-full border-slate-200 shadow-sm">
         <CardHeader className="border-b border-slate-100 bg-slate-50/50">
           <CardTitle className="text-xl font-semibold text-slate-800 flex items-center gap-2">
-            <TrendingDown className="h-5 w-5 text-orange-500" />
+            <Moon className="h-5 w-5 text-orange-500" />
             Your Students: 5 Skills Most Needing Improving This Week
           </CardTitle>
         </CardHeader>
@@ -145,13 +146,13 @@ export function StudentPerformanceOverview() {
       <Card className="w-full border-slate-200 shadow-sm">
         <CardHeader className="border-b border-slate-100 bg-slate-50/50">
           <CardTitle className="text-xl font-semibold text-slate-800 flex items-center gap-2">
-            <TrendingDown className="h-5 w-5 text-orange-500" />
+            <Moon className="h-5 w-5 text-orange-500" />
             Your Students: 5 Skills Most Needing Improving This Week
           </CardTitle>
         </CardHeader>
         <CardContent className="p-6">
           <div className="text-center py-8">
-            <TrendingDown className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+            <Moon className="h-12 w-12 text-gray-400 mx-auto mb-4" />
             <h3 className="text-lg font-medium text-gray-900 mb-2">No Performance Data</h3>
             <p className="text-gray-600">Students need to take tests to see performance data here</p>
           </div>
@@ -164,7 +165,7 @@ export function StudentPerformanceOverview() {
     <Card className="w-full border-slate-200 shadow-sm">
       <CardHeader className="border-b border-slate-100 bg-slate-50/50">
         <CardTitle className="text-xl font-semibold text-slate-800 flex items-center gap-2">
-          <TrendingDown className="h-5 w-5 text-orange-500" />
+          <Moon className="h-5 w-5 text-orange-500" />
           Your Students: 5 Skills Most Needing Improving This Week
         </CardTitle>
       </CardHeader>
@@ -229,3 +230,4 @@ export function StudentPerformanceOverview() {
     </Card>
   );
 }
+
