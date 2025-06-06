@@ -6,7 +6,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Moon, Users, FileText, User } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Moon, Users, FileText, User, BookOpen } from "lucide-react";
 import { 
   getAllActiveStudents,
   getStudentContentSkillScores,
@@ -49,7 +50,12 @@ export function StudentPerformanceOverview() {
   const [allStudentsWithSkills, setAllStudentsWithSkills] = useState<StudentWithSkills[]>([]);
   const [classes, setClasses] = useState<ActiveClass[]>([]);
   const [selectedClass, setSelectedClass] = useState<ActiveClass | null>(null);
+  const [selectedSubject, setSelectedSubject] = useState<string>("");
+  const [viewMode, setViewMode] = useState<'class' | 'subject'>('class');
   const [loading, setLoading] = useState(true);
+
+  // Get unique subjects from classes
+  const availableSubjects = Array.from(new Set(classes.map(c => c.subject))).sort();
 
   useEffect(() => {
     loadData();
@@ -114,6 +120,8 @@ export function StudentPerformanceOverview() {
 
   const handleClassFilter = (selectedClass: ActiveClass | null) => {
     setSelectedClass(selectedClass);
+    setViewMode('class');
+    setSelectedSubject("");
     
     if (!selectedClass) {
       // Show all students
@@ -122,6 +130,32 @@ export function StudentPerformanceOverview() {
       // Filter students by class
       const filteredStudents = allStudentsWithSkills.filter(student => 
         selectedClass.students && selectedClass.students.includes(student.id)
+      );
+      setStudentsWithSkills(filteredStudents);
+    }
+  };
+
+  const handleSubjectFilter = (subject: string) => {
+    setSelectedSubject(subject);
+    setViewMode('subject');
+    setSelectedClass(null);
+    
+    if (!subject) {
+      // Show all students
+      setStudentsWithSkills(allStudentsWithSkills);
+    } else {
+      // Filter students by subject - only show students who are in at least one class for this subject
+      const subjectClasses = classes.filter(c => c.subject === subject);
+      const studentsInSubject = new Set();
+      
+      subjectClasses.forEach(cls => {
+        if (cls.students) {
+          cls.students.forEach(studentId => studentsInSubject.add(studentId));
+        }
+      });
+      
+      const filteredStudents = allStudentsWithSkills.filter(student => 
+        studentsInSubject.has(student.id)
       );
       setStudentsWithSkills(filteredStudents);
     }
@@ -156,6 +190,29 @@ export function StudentPerformanceOverview() {
     // TODO: Implement single student practice exercise creation
   };
 
+  const handleShowStudentsSkillsForAllSubjects = () => {
+    console.log('Show students skills for all subjects clicked');
+    // Reset to show all students with all skills
+    setViewMode('subject');
+    setSelectedClass(null);
+    setSelectedSubject("");
+    setStudentsWithSkills(allStudentsWithSkills);
+  };
+
+  const getDisplayTitle = () => {
+    let baseTitle = "Your Students: 5 Skills Most Needing Improving This Week";
+    
+    if (viewMode === 'class' && selectedClass) {
+      return `${baseTitle} - ${selectedClass.name}`;
+    } else if (viewMode === 'subject' && selectedSubject) {
+      return `${baseTitle} - ${selectedSubject} Subject`;
+    } else if (viewMode === 'subject' && !selectedSubject) {
+      return `${baseTitle} - All Subjects`;
+    }
+    
+    return baseTitle;
+  };
+
   if (loading) {
     return (
       <Card className="w-full border-slate-200 shadow-sm">
@@ -167,6 +224,7 @@ export function StudentPerformanceOverview() {
             </CardTitle>
             <TooltipProvider>
               <div className="flex items-center gap-2">
+                {/* ... keep existing code (loading state buttons) */}
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button
@@ -221,6 +279,21 @@ export function StudentPerformanceOverview() {
                     <p>Create practice exercise for one student</p>
                   </TooltipContent>
                 </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="h-8 w-8 rounded-full"
+                      onClick={handleShowStudentsSkillsForAllSubjects}
+                    >
+                      <BookOpen className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Show students skills for all subjects</p>
+                  </TooltipContent>
+                </Tooltip>
               </div>
             </TooltipProvider>
           </div>
@@ -251,12 +324,7 @@ export function StudentPerformanceOverview() {
           <div className="flex items-center justify-between">
             <CardTitle className="text-xl font-semibold text-slate-800 flex items-center gap-2">
               <Moon className="h-5 w-5 text-orange-500" />
-              Your Students: 5 Skills Most Needing Improving This Week
-              {selectedClass && (
-                <span className="text-sm font-normal text-slate-600">
-                  - {selectedClass.name}
-                </span>
-              )}
+              {getDisplayTitle()}
             </CardTitle>
             <TooltipProvider>
               <div className="flex items-center gap-2">
@@ -321,19 +389,60 @@ export function StudentPerformanceOverview() {
                     <p>Create practice exercise for one student</p>
                   </TooltipContent>
                 </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="h-8 w-8 rounded-full"
+                      onClick={handleShowStudentsSkillsForAllSubjects}
+                    >
+                      <BookOpen className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Show students skills for all subjects</p>
+                  </TooltipContent>
+                </Tooltip>
               </div>
             </TooltipProvider>
           </div>
+          
+          {/* Subject selector when in subject view mode */}
+          {viewMode === 'subject' && (
+            <div className="mt-4">
+              <Select value={selectedSubject} onValueChange={handleSubjectFilter}>
+                <SelectTrigger className="w-64">
+                  <SelectValue placeholder="Select a subject" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">All Subjects</SelectItem>
+                  {availableSubjects.map((subject) => (
+                    <SelectItem key={subject} value={subject}>
+                      {subject}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
         </CardHeader>
         <CardContent className="p-6">
           <div className="text-center py-8">
             <Moon className="h-12 w-12 text-gray-400 mx-auto mb-4" />
             <h3 className="text-lg font-medium text-gray-900 mb-2">
-              {selectedClass ? `No Students in ${selectedClass.name}` : 'No Performance Data'}
+              {viewMode === 'class' && selectedClass 
+                ? `No Students in ${selectedClass.name}`
+                : viewMode === 'subject' && selectedSubject
+                ? `No Students in ${selectedSubject} Subject`
+                : 'No Performance Data'
+              }
             </h3>
             <p className="text-gray-600">
-              {selectedClass 
+              {viewMode === 'class' && selectedClass
                 ? 'This class has no students assigned or students need to take tests to see performance data'
+                : viewMode === 'subject' && selectedSubject
+                ? `No students are enrolled in ${selectedSubject} classes or need to take tests to see performance data`
                 : 'Students need to take tests to see performance data here'
               }
             </p>
@@ -349,12 +458,7 @@ export function StudentPerformanceOverview() {
         <div className="flex items-center justify-between">
           <CardTitle className="text-xl font-semibold text-slate-800 flex items-center gap-2">
             <Moon className="h-5 w-5 text-orange-500" />
-            Your Students: 5 Skills Most Needing Improving This Week
-            {selectedClass && (
-              <span className="text-sm font-normal text-slate-600">
-                - {selectedClass.name}
-              </span>
-            )}
+            {getDisplayTitle()}
           </CardTitle>
           <TooltipProvider>
             <div className="flex items-center gap-2">
@@ -419,9 +523,43 @@ export function StudentPerformanceOverview() {
                   <p>Create practice exercise for one student</p>
                 </TooltipContent>
               </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="h-8 w-8 rounded-full"
+                    onClick={handleShowStudentsSkillsForAllSubjects}
+                  >
+                    <BookOpen className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Show students skills for all subjects</p>
+                </TooltipContent>
+              </Tooltip>
             </div>
           </TooltipProvider>
         </div>
+        
+        {/* Subject selector when in subject view mode */}
+        {viewMode === 'subject' && (
+          <div className="mt-4">
+            <Select value={selectedSubject} onValueChange={handleSubjectFilter}>
+              <SelectTrigger className="w-64">
+                <SelectValue placeholder="Select a subject" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">All Subjects</SelectItem>
+                {availableSubjects.map((subject) => (
+                  <SelectItem key={subject} value={subject}>
+                    {subject}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
       </CardHeader>
       <CardContent className="p-6">
         <ScrollArea className="h-96 w-full">
