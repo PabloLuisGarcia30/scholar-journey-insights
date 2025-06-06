@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -9,7 +8,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Moon, House, Users, UserCheck, BookOpen, X } from "lucide-react";
+import { Moon, House, FileText, FileCheck, BookOpen, X } from "lucide-react";
 import { 
   getAllActiveStudents,
   getStudentContentSkillScores,
@@ -334,7 +333,7 @@ export function StudentPerformanceOverview() {
                       className="h-8 w-8 rounded-full"
                       onClick={handleCreatePracticeForSeveral}
                     >
-                      <Users className="h-4 w-4" />
+                      <FileText className="h-4 w-4" />
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent>
@@ -349,7 +348,7 @@ export function StudentPerformanceOverview() {
                       className="h-8 w-8 rounded-full"
                       onClick={handleCreatePracticeForOne}
                     >
-                      <UserCheck className="h-4 w-4" />
+                      <FileCheck className="h-4 w-4" />
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent>
@@ -455,7 +454,7 @@ export function StudentPerformanceOverview() {
                       className="h-8 w-8 rounded-full"
                       onClick={handleCreatePracticeForSeveral}
                     >
-                      <Users className="h-4 w-4" />
+                      <FileText className="h-4 w-4" />
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent>
@@ -470,7 +469,7 @@ export function StudentPerformanceOverview() {
                       className="h-8 w-8 rounded-full"
                       onClick={handleCreatePracticeForOne}
                     >
-                      <UserCheck className="h-4 w-4" />
+                      <FileCheck className="h-4 w-4" />
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent>
@@ -648,7 +647,7 @@ export function StudentPerformanceOverview() {
                     className="h-8 w-8 rounded-full"
                     onClick={handleCreatePracticeForSeveral}
                   >
-                    <Users className="h-4 w-4" />
+                    <FileText className="h-4 w-4" />
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>
@@ -663,7 +662,7 @@ export function StudentPerformanceOverview() {
                     className="h-8 w-8 rounded-full"
                     onClick={handleCreatePracticeForOne}
                   >
-                    <UserCheck className="h-4 w-4" />
+                    <FileCheck className="h-4 w-4" />
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>
