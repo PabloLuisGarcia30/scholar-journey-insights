@@ -301,52 +301,93 @@ export function StudentPerformanceOverview() {
             </CardTitle>
             <TooltipProvider>
               <div className="flex items-center gap-2">
-                {/* Button 1: Show Students by Classes - Fixed structure */}
-                <div className="relative inline-block">
-                  <Tooltip delayDuration={0}>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        className="h-8 w-8 rounded-full"
-                        aria-label="Show Students by Classes"
-                      >
-                        <UserCheck className="h-4 w-4" />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent side="bottom" align="center" className="bg-white border z-50 shadow-md">
-                      <p>Show Students by Classes</p>
-                    </TooltipContent>
-                  </Tooltip>
-                  
-                  {/* Separate DropdownMenu not nested inside tooltip */}
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        className="h-8 w-8 rounded-full absolute inset-0 opacity-0"
-                      >
-                        <span className="sr-only">Open class menu</span>
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="bg-white shadow-lg border">
-                      <DropdownMenuItem onClick={() => handleClassFilter(null)}>
-                        All Students
-                      </DropdownMenuItem>
-                      {classes.map((classItem) => (
-                        <DropdownMenuItem 
-                          key={classItem.id}
-                          onClick={() => handleClassFilter(classItem)}
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          className="h-8 w-8 rounded-full"
                         >
-                          {classItem.name}
+                          <UserCheck className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="bg-white shadow-lg border">
+                        <DropdownMenuItem onClick={() => handleClassFilter(null)}>
+                          All Students
                         </DropdownMenuItem>
-                      ))}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
-                
-                {/* ... keep existing code (other buttons) */}
+                        {classes.map((classItem) => (
+                          <DropdownMenuItem 
+                            key={classItem.id}
+                            onClick={() => handleClassFilter(classItem)}
+                          >
+                            {classItem.name}
+                          </DropdownMenuItem>
+                        ))}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </TooltipTrigger>
+                  <TooltipContent className="bg-white border z-50">
+                    <p>Show Students by Classes</p>
+                  </TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="h-8 w-8 rounded-full"
+                      onClick={handleCreatePracticeForSeveral}
+                    >
+                      <FileText className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Create practice exercise for several students</p>
+                  </TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="h-8 w-8 rounded-full"
+                      onClick={handleCreatePracticeForOne}
+                    >
+                      <FileCheck className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Create practice exercise for one student</p>
+                  </TooltipContent>
+                </Tooltip>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          className="h-8 w-8 rounded-full bg-blue-50 hover:bg-blue-100 border-blue-200"
+                        >
+                          <BookOpen className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Show students skills options</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="bg-white shadow-lg border z-50">
+                    <DropdownMenuItem onClick={handleShowStudentsSkillsForAllSubjects}>
+                      All Subjects
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={handleShowMultiClassSelector}>
+                      Select Multiple Classes
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
             </TooltipProvider>
           </div>
@@ -381,52 +422,93 @@ export function StudentPerformanceOverview() {
             </CardTitle>
             <TooltipProvider>
               <div className="flex items-center gap-2">
-                {/* Button 1: Show Students by Classes - Fixed structure */}
-                <div className="relative inline-block">
-                  <Tooltip delayDuration={0}>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        className="h-8 w-8 rounded-full"
-                        aria-label="Show Students by Classes"
-                      >
-                        <UserCheck className="h-4 w-4" />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent side="bottom" align="center" className="bg-white border z-50 shadow-md">
-                      <p>Show Students by Classes</p>
-                    </TooltipContent>
-                  </Tooltip>
-                  
-                  {/* Separate DropdownMenu not nested inside tooltip */}
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        className="h-8 w-8 rounded-full absolute inset-0 opacity-0"
-                      >
-                        <span className="sr-only">Open class menu</span>
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="bg-white shadow-lg border">
-                      <DropdownMenuItem onClick={() => handleClassFilter(null)}>
-                        All Students
-                      </DropdownMenuItem>
-                      {classes.map((classItem) => (
-                        <DropdownMenuItem 
-                          key={classItem.id}
-                          onClick={() => handleClassFilter(classItem)}
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          className="h-8 w-8 rounded-full"
                         >
-                          {classItem.name}
+                          <UserCheck className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="bg-white shadow-lg border">
+                        <DropdownMenuItem onClick={() => handleClassFilter(null)}>
+                          All Students
                         </DropdownMenuItem>
-                      ))}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
-                
-                {/* ... keep existing code (other buttons) */}
+                        {classes.map((classItem) => (
+                          <DropdownMenuItem 
+                            key={classItem.id}
+                            onClick={() => handleClassFilter(classItem)}
+                          >
+                            {classItem.name}
+                          </DropdownMenuItem>
+                        ))}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </TooltipTrigger>
+                  <TooltipContent className="bg-white border z-50">
+                    <p>Show Students by Classes</p>
+                  </TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="h-8 w-8 rounded-full"
+                      onClick={handleCreatePracticeForSeveral}
+                    >
+                      <FileText className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Create practice exercise for several students</p>
+                  </TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="h-8 w-8 rounded-full"
+                      onClick={handleCreatePracticeForOne}
+                    >
+                      <FileCheck className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Create practice exercise for one student</p>
+                  </TooltipContent>
+                </Tooltip>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          className="h-8 w-8 rounded-full bg-blue-50 hover:bg-blue-100 border-blue-200"
+                        >
+                          <BookOpen className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Show students skills options</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="bg-white shadow-lg border z-50">
+                    <DropdownMenuItem onClick={handleShowStudentsSkillsForAllSubjects}>
+                      All Subjects
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={handleShowMultiClassSelector}>
+                      Select Multiple Classes
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
             </TooltipProvider>
           </div>
@@ -533,52 +615,96 @@ export function StudentPerformanceOverview() {
           </CardTitle>
           <TooltipProvider>
             <div className="flex items-center gap-2">
-              {/* Button 1: Show Students by Classes - Fixed structure */}
-              <div className="relative inline-block">
-                <Tooltip delayDuration={0}>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      className="h-8 w-8 rounded-full"
-                      aria-label="Show Students by Classes"
-                    >
-                      <UserCheck className="h-4 w-4" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent side="bottom" align="center" className="bg-white border z-50 shadow-md">
-                    <p>Show Students by Classes</p>
-                  </TooltipContent>
-                </Tooltip>
-                
-                {/* Separate DropdownMenu not nested inside tooltip */}
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      className="h-8 w-8 rounded-full absolute inset-0 opacity-0"
-                    >
-                      <span className="sr-only">Open class menu</span>
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="bg-white shadow-lg border">
-                    <DropdownMenuItem onClick={() => handleClassFilter(null)}>
-                      All Students
-                    </DropdownMenuItem>
-                    {classes.map((classItem) => (
-                      <DropdownMenuItem 
-                        key={classItem.id}
-                        onClick={() => handleClassFilter(classItem)}
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        className="h-8 w-8 rounded-full"
                       >
-                        {classItem.name}
+                        <UserCheck className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="bg-white shadow-lg border">
+                      <DropdownMenuItem onClick={() => handleClassFilter(null)}>
+                        All Students
                       </DropdownMenuItem>
-                    ))}
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
+                      {classes.map((classItem) => (
+                        <DropdownMenuItem 
+                          key={classItem.id}
+                          onClick={() => handleClassFilter(classItem)}
+                        >
+                          {classItem.name}
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </TooltipTrigger>
+                <TooltipContent className="bg-white border z-50">
+                  <p>Show Students by Classes</p>
+                </TooltipContent>
+              </Tooltip>
               
-              {/* ... keep existing code (other buttons) */}
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="h-8 w-8 rounded-full"
+                    onClick={handleCreatePracticeForSeveral}
+                  >
+                    <FileText className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Create practice exercise for several students</p>
+                </TooltipContent>
+              </Tooltip>
+              
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="h-8 w-8 rounded-full"
+                    onClick={handleCreatePracticeForOne}
+                  >
+                    <FileCheck className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Create practice exercise for one student</p>
+                </TooltipContent>
+              </Tooltip>
+              
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        className="h-8 w-8 rounded-full bg-blue-50 hover:bg-blue-100 border-blue-200"
+                      >
+                        <BookOpen className="h-4 w-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>Show students skills options</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="bg-white shadow-lg border z-50">
+                  <DropdownMenuItem onClick={handleShowStudentsSkillsForAllSubjects}>
+                    All Subjects
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleShowMultiClassSelector}>
+                    Select Multiple Classes
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </TooltipProvider>
         </div>
