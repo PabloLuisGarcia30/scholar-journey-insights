@@ -443,7 +443,7 @@ export function StudentPerformanceOverview() {
                     </DropdownMenu>
                   </TooltipTrigger>
                   <TooltipContent>
-                    <p>Show students by classes</p>
+                    <p>Show Students by Classes</p>
                   </TooltipContent>
                 </Tooltip>
                 <Tooltip>
@@ -636,7 +636,7 @@ export function StudentPerformanceOverview() {
                   </DropdownMenu>
                 </TooltipTrigger>
                 <TooltipContent>
-                  <p>Show students by classes</p>
+                  <p>Show Students by Classes</p>
                 </TooltipContent>
               </Tooltip>
               <Tooltip>
