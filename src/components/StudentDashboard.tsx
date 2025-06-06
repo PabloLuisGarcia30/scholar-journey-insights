@@ -19,7 +19,6 @@ import {
   type ActiveStudent,
   type ActiveClass
 } from "@/services/examService";
-import { DashboardAnalytics } from "@/components/DashboardAnalytics";
 
 interface StudentDashboardProps {
   onSelectStudent: (studentId: string, classId?: string, className?: string) => void;
@@ -138,9 +137,6 @@ export function StudentDashboard({ onSelectStudent }: StudentDashboardProps) {
           </CardContent>
         </Card>
       </div>
-
-      {/* Analytics Charts */}
-      <DashboardAnalytics />
 
       {/* Student List */}
       <Card>
