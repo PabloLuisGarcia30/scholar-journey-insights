@@ -53,12 +53,18 @@ export function StudentPerformanceOverview() {
   const [selectedClass, setSelectedClass] = useState<ActiveClass | null>(null);
   const [selectedSubject, setSelectedSubject] = useState<string>("all_subjects");
   const [selectedClasses, setSelectedClasses] = useState<ActiveClass[]>([]);
+  const [selectedSubjectForMultiClass, setSelectedSubjectForMultiClass] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'class' | 'subject' | 'multi-class'>('class');
   const [showMultiClassSelector, setShowMultiClassSelector] = useState(false);
   const [loading, setLoading] = useState(true);
 
   // Get unique subjects from classes
   const availableSubjects = Array.from(new Set(classes.map(c => c.subject))).sort();
+
+  // Get classes for the selected subject in multi-class mode
+  const classesForSelectedSubject = selectedSubjectForMultiClass 
+    ? classes.filter(c => c.subject === selectedSubjectForMultiClass)
+    : [];
 
   useEffect(() => {
     loadData();
@@ -126,6 +132,7 @@ export function StudentPerformanceOverview() {
     setViewMode('class');
     setSelectedSubject("all_subjects");
     setSelectedClasses([]);
+    setSelectedSubjectForMultiClass(null);
     setShowMultiClassSelector(false);
     
     if (!selectedClass) {
@@ -145,6 +152,7 @@ export function StudentPerformanceOverview() {
     setViewMode('subject');
     setSelectedClass(null);
     setSelectedClasses([]);
+    setSelectedSubjectForMultiClass(null);
     setShowMultiClassSelector(false);
     
     if (!subject || subject === "all_subjects") {
@@ -168,6 +176,16 @@ export function StudentPerformanceOverview() {
     }
   };
 
+  const handleSubjectSelection = (subject: string) => {
+    console.log('Subject selected for multi-class:', subject);
+    setSelectedSubjectForMultiClass(subject);
+    setViewMode('multi-class');
+    setSelectedClass(null);
+    setSelectedSubject("all_subjects");
+    setSelectedClasses([]);
+    setShowMultiClassSelector(true);
+  };
+
   const handleMultiClassSelection = (classItem: ActiveClass, checked: boolean) => {
     let newSelectedClasses: ActiveClass[];
     
@@ -181,7 +199,24 @@ export function StudentPerformanceOverview() {
     
     // Filter students based on selected classes and aggregate their lowest skills
     if (newSelectedClasses.length === 0) {
-      setStudentsWithSkills(allStudentsWithSkills);
+      // If no classes selected, show students from the selected subject
+      if (selectedSubjectForMultiClass) {
+        const subjectClasses = classes.filter(c => c.subject === selectedSubjectForMultiClass);
+        const studentsInSubject = new Set();
+        
+        subjectClasses.forEach(cls => {
+          if (cls.students) {
+            cls.students.forEach(studentId => studentsInSubject.add(studentId));
+          }
+        });
+        
+        const filteredStudents = allStudentsWithSkills.filter(student => 
+          studentsInSubject.has(student.id)
+        );
+        setStudentsWithSkills(filteredStudents);
+      } else {
+        setStudentsWithSkills(allStudentsWithSkills);
+      }
     } else {
       const studentsInSelectedClasses = new Set();
       newSelectedClasses.forEach(cls => {
@@ -229,30 +264,6 @@ export function StudentPerformanceOverview() {
     }
   };
 
-  const handleShowMultiClassSelector = () => {
-    console.log('Show multi-class selector clicked');
-    setViewMode('multi-class');
-    setSelectedClass(null);
-    setSelectedSubject("all_subjects");
-    setShowMultiClassSelector(true);
-    setSelectedClasses([]);
-    setStudentsWithSkills(allStudentsWithSkills);
-  };
-
-  const getScoreColor = (score: number) => {
-    if (score >= 86) return "from-emerald-400 to-emerald-600";
-    if (score >= 76) return "from-yellow-400 to-yellow-600";
-    if (score >= 61) return "from-orange-400 to-orange-600";
-    return "from-red-400 to-red-600";
-  };
-
-  const getScoreTextColor = (score: number) => {
-    if (score >= 86) return "text-emerald-700";
-    if (score >= 76) return "text-yellow-700";
-    if (score >= 61) return "text-orange-700";
-    return "text-red-700";
-  };
-
   const handleCreatePracticeForSeveral = () => {
     console.log('Create practice exercise for several students clicked');
     // TODO: Implement multi-student practice exercise creation
@@ -270,8 +281,23 @@ export function StudentPerformanceOverview() {
     setSelectedClass(null);
     setSelectedSubject("all_subjects");
     setSelectedClasses([]);
+    setSelectedSubjectForMultiClass(null);
     setShowMultiClassSelector(false);
     setStudentsWithSkills(allStudentsWithSkills);
+  };
+
+  const getScoreColor = (score: number) => {
+    if (score >= 86) return "from-emerald-400 to-emerald-600";
+    if (score >= 76) return "from-yellow-400 to-yellow-600";
+    if (score >= 61) return "from-orange-400 to-orange-600";
+    return "from-red-400 to-red-600";
+  };
+
+  const getScoreTextColor = (score: number) => {
+    if (score >= 86) return "text-emerald-700";
+    if (score >= 76) return "text-yellow-700";
+    if (score >= 61) return "text-orange-700";
+    return "text-red-700";
   };
 
   const getDisplayTitle = () => {
@@ -283,8 +309,12 @@ export function StudentPerformanceOverview() {
       return `${baseTitle} - ${selectedSubject} Subject`;
     } else if (viewMode === 'subject' && selectedSubject === "all_subjects") {
       return `${baseTitle} - All Subjects`;
-    } else if (viewMode === 'multi-class' && selectedClasses.length > 0) {
-      return `${baseTitle} - ${selectedClasses.map(c => c.name).join(', ')}`;
+    } else if (viewMode === 'multi-class') {
+      if (selectedClasses.length > 0) {
+        return `${baseTitle} - ${selectedClasses.map(c => c.name).join(', ')}`;
+      } else if (selectedSubjectForMultiClass) {
+        return `${baseTitle} - ${selectedSubjectForMultiClass} Subject`;
+      }
     }
     
     return baseTitle;
@@ -384,9 +414,14 @@ export function StudentPerformanceOverview() {
                       <DropdownMenuItem onClick={handleShowStudentsSkillsForAllSubjects}>
                         All Subjects
                       </DropdownMenuItem>
-                      <DropdownMenuItem onClick={handleShowMultiClassSelector}>
-                        Select Multiple Classes
-                      </DropdownMenuItem>
+                      {availableSubjects.map((subject) => (
+                        <DropdownMenuItem 
+                          key={subject}
+                          onClick={() => handleSubjectSelection(subject)}
+                        >
+                          {subject}
+                        </DropdownMenuItem>
+                      ))}
                     </DropdownMenuContent>
                   </DropdownMenu>
                   <Tooltip delayDuration={0}>
@@ -522,9 +557,14 @@ export function StudentPerformanceOverview() {
                       <DropdownMenuItem onClick={handleShowStudentsSkillsForAllSubjects}>
                         All Subjects
                       </DropdownMenuItem>
-                      <DropdownMenuItem onClick={handleShowMultiClassSelector}>
-                        Select Multiple Classes
-                      </DropdownMenuItem>
+                      {availableSubjects.map((subject) => (
+                        <DropdownMenuItem 
+                          key={subject}
+                          onClick={() => handleSubjectSelection(subject)}
+                        >
+                          {subject}
+                        </DropdownMenuItem>
+                      ))}
                     </DropdownMenuContent>
                   </DropdownMenu>
                   <Tooltip delayDuration={0}>
@@ -566,22 +606,28 @@ export function StudentPerformanceOverview() {
             </div>
           )}
 
-          {/* Multi-class selector */}
-          {showMultiClassSelector && (
+          {/* Multi-class selector for selected subject */}
+          {showMultiClassSelector && selectedSubjectForMultiClass && (
             <div className="mt-4">
               <div className="bg-slate-50 p-4 rounded-lg border">
                 <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-sm font-medium text-slate-900">Select Multiple Classes</h3>
+                  <h3 className="text-sm font-medium text-slate-900">
+                    Select Classes from {selectedSubjectForMultiClass}
+                  </h3>
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => setShowMultiClassSelector(false)}
+                    onClick={() => {
+                      setShowMultiClassSelector(false);
+                      setSelectedSubjectForMultiClass(null);
+                      setSelectedClasses([]);
+                    }}
                   >
                     <X className="h-4 w-4" />
                   </Button>
                 </div>
                 <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto">
-                  {classes.map((classItem) => (
+                  {classesForSelectedSubject.map((classItem) => (
                     <div key={classItem.id} className="flex items-center space-x-2">
                       <Checkbox
                         id={classItem.id}
@@ -620,6 +666,8 @@ export function StudentPerformanceOverview() {
                 ? `No Students in ${selectedSubject} Subject`
                 : viewMode === 'multi-class' && selectedClasses.length > 0
                 ? `No Students in Selected Classes`
+                : viewMode === 'multi-class' && selectedSubjectForMultiClass
+                ? `No Students in ${selectedSubjectForMultiClass} Classes`
                 : 'No Performance Data'
               }
             </h3>
@@ -630,6 +678,8 @@ export function StudentPerformanceOverview() {
                 ? `No students are enrolled in ${selectedSubject} classes or need to take tests to see performance data`
                 : viewMode === 'multi-class' && selectedClasses.length > 0
                 ? 'Selected classes have no students assigned or students need to take tests to see performance data'
+                : viewMode === 'multi-class' && selectedSubjectForMultiClass
+                ? `No students are enrolled in ${selectedSubjectForMultiClass} classes or need to take tests to see performance data`
                 : 'Students need to take tests to see performance data here'
               }
             </p>
@@ -662,7 +712,7 @@ export function StudentPerformanceOverview() {
                         <UserCheck className="h-4 w-4" />
                       </Button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="bg-white shadow-lg border">
+                    <DropdownMenuContent align="end" className="bg-white shadow-lg border z-50">
                       <DropdownMenuItem onClick={() => handleClassFilter(null)}>
                         All Students
                       </DropdownMenuItem>
@@ -716,7 +766,7 @@ export function StudentPerformanceOverview() {
                 </TooltipContent>
               </Tooltip>
               
-              {/* Button 4 - Book Open - Show Skills Options - FIXED STRUCTURE */}
+              {/* Button 4 - Book Open - Show Subject Selection - UPDATED */}
               <div className="relative">
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
@@ -732,9 +782,14 @@ export function StudentPerformanceOverview() {
                     <DropdownMenuItem onClick={handleShowStudentsSkillsForAllSubjects}>
                       All Subjects
                     </DropdownMenuItem>
-                    <DropdownMenuItem onClick={handleShowMultiClassSelector}>
-                      Select Multiple Classes
-                    </DropdownMenuItem>
+                    {availableSubjects.map((subject) => (
+                      <DropdownMenuItem 
+                        key={subject}
+                        onClick={() => handleSubjectSelection(subject)}
+                      >
+                        {subject}
+                      </DropdownMenuItem>
+                    ))}
                   </DropdownMenuContent>
                 </DropdownMenu>
                 <Tooltip delayDuration={0}>
@@ -742,14 +797,14 @@ export function StudentPerformanceOverview() {
                     <Button
                       variant="outline"
                       size="icon"
-                      className="h-8 w-8 rounded-full bg-blue-50 hover:bg-blue-100 border-blue-200 absolute inset-0 opacity-0"
+                      className="h-8 w-8 rounded-full bg-blue-50 hover:bg-blue-100 border-blue-200 absolute inset-0 opacity-0 pointer-events-none"
                       tabIndex={-1}
                     >
-                      <span className="sr-only">Show students skills options</span>
+                      <span className="sr-only">Select subjects and classes</span>
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent sideOffset={5}>
-                    <p>Show students skills options</p>
+                    <p>Select subjects and classes</p>
                   </TooltipContent>
                 </Tooltip>
               </div>
@@ -776,22 +831,28 @@ export function StudentPerformanceOverview() {
           </div>
         )}
 
-        {/* Multi-class selector */}
-        {showMultiClassSelector && (
+        {/* Multi-class selector for selected subject */}
+        {showMultiClassSelector && selectedSubjectForMultiClass && (
           <div className="mt-4">
             <div className="bg-slate-50 p-4 rounded-lg border">
               <div className="flex items-center justify-between mb-3">
-                <h3 className="text-sm font-medium text-slate-900">Select Multiple Classes</h3>
+                <h3 className="text-sm font-medium text-slate-900">
+                  Select Classes from {selectedSubjectForMultiClass}
+                </h3>
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => setShowMultiClassSelector(false)}
+                  onClick={() => {
+                    setShowMultiClassSelector(false);
+                    setSelectedSubjectForMultiClass(null);
+                    setSelectedClasses([]);
+                  }}
                 >
                   <X className="h-4 w-4" />
                 </Button>
               </div>
               <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto">
-                {classes.map((classItem) => (
+                {classesForSelectedSubject.map((classItem) => (
                   <div key={classItem.id} className="flex items-center space-x-2">
                     <Checkbox
                       id={classItem.id}
