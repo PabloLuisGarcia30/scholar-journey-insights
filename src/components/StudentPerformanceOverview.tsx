@@ -5,10 +5,10 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuCheckboxItem } from "@/components/ui/dropdown-menu";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Moon, UserCheck, FileText, FileCheck, BookOpen, X } from "lucide-react";
+import { Moon, UserCheck, FileText, FileCheck, BookOpen, X, Check } from "lucide-react";
 import { 
   getAllActiveStudents,
   getStudentContentSkillScores,
@@ -54,7 +54,10 @@ export function StudentPerformanceOverview() {
   const [selectedSubject, setSelectedSubject] = useState<string>("all_subjects");
   const [selectedClasses, setSelectedClasses] = useState<ActiveClass[]>([]);
   const [selectedSubjectForMultiClass, setSelectedSubjectForMultiClass] = useState<string | null>(null);
-  const [viewMode, setViewMode] = useState<'class' | 'subject' | 'multi-class'>('class');
+  // New state for multiple subject selection
+  const [selectedSubjects, setSelectedSubjects] = useState<string[]>([]);
+  const [subjectDropdownOpen, setSubjectDropdownOpen] = useState(false);
+  const [viewMode, setViewMode] = useState<'class' | 'subject' | 'multi-class' | 'multi-subject'>('class');
   const [showMultiClassSelector, setShowMultiClassSelector] = useState(false);
   const [loading, setLoading] = useState(true);
 
@@ -64,6 +67,11 @@ export function StudentPerformanceOverview() {
   // Get classes for the selected subject in multi-class mode
   const classesForSelectedSubject = selectedSubjectForMultiClass 
     ? classes.filter(c => c.subject === selectedSubjectForMultiClass)
+    : [];
+    
+  // Get all classes for the selected subjects in multi-subject mode
+  const classesForSelectedSubjects = selectedSubjects.length > 0
+    ? classes.filter(c => selectedSubjects.includes(c.subject))
     : [];
 
   useEffect(() => {
@@ -133,6 +141,7 @@ export function StudentPerformanceOverview() {
     setSelectedSubject("all_subjects");
     setSelectedClasses([]);
     setSelectedSubjectForMultiClass(null);
+    setSelectedSubjects([]);
     setShowMultiClassSelector(false);
     
     if (!selectedClass) {
@@ -153,6 +162,7 @@ export function StudentPerformanceOverview() {
     setSelectedClass(null);
     setSelectedClasses([]);
     setSelectedSubjectForMultiClass(null);
+    setSelectedSubjects([]);
     setShowMultiClassSelector(false);
     
     if (!subject || subject === "all_subjects") {
@@ -183,7 +193,88 @@ export function StudentPerformanceOverview() {
     setSelectedClass(null);
     setSelectedSubject("all_subjects");
     setSelectedClasses([]);
+    setSelectedSubjects([]);
     setShowMultiClassSelector(true);
+  };
+
+  // New function to handle multi-subject selection
+  const handleSubjectToggle = (subject: string) => {
+    setViewMode('multi-subject');
+    setSelectedClass(null);
+    setSelectedSubject("all_subjects");
+    setSelectedClasses([]);
+    setSelectedSubjectForMultiClass(null);
+    setShowMultiClassSelector(false);
+    
+    let newSelectedSubjects: string[];
+    if (selectedSubjects.includes(subject)) {
+      // Remove subject if already selected
+      newSelectedSubjects = selectedSubjects.filter(s => s !== subject);
+    } else {
+      // Add subject if not already selected
+      newSelectedSubjects = [...selectedSubjects, subject];
+    }
+    
+    setSelectedSubjects(newSelectedSubjects);
+    updateStudentsForMultiSubjects(newSelectedSubjects);
+  };
+
+  // Function to update students based on selected subjects
+  const updateStudentsForMultiSubjects = (subjects: string[]) => {
+    if (subjects.length === 0) {
+      // If no subjects selected, show all students
+      setStudentsWithSkills(allStudentsWithSkills);
+      return;
+    }
+    
+    // Get classes for selected subjects
+    const relevantClasses = classes.filter(c => subjects.includes(c.subject));
+    
+    // Get all students in these classes
+    const studentsInClasses = new Set<string>();
+    relevantClasses.forEach(cls => {
+      if (cls.students) {
+        cls.students.forEach(studentId => studentsInClasses.add(studentId));
+      }
+    });
+    
+    // Filter students who are in any of the selected subject classes
+    const filteredStudents = allStudentsWithSkills.filter(student => 
+      studentsInClasses.has(student.id)
+    );
+    
+    // Aggregate skills across all students in the classes and find the lowest
+    const allSkills: SkillScore[] = [];
+    filteredStudents.forEach(student => {
+      allSkills.push(...student.lowestSkills);
+    });
+    
+    // Group skills by name and calculate average scores
+    const skillAverages: { [key: string]: { total: number; count: number } } = {};
+    allSkills.forEach(skill => {
+      if (!skillAverages[skill.skill_name]) {
+        skillAverages[skill.skill_name] = { total: 0, count: 0 };
+      }
+      skillAverages[skill.skill_name].total += skill.score;
+      skillAverages[skill.skill_name].count += 1;
+    });
+    
+    // Convert to array and sort by average score
+    const aggregatedSkills = Object.entries(skillAverages)
+      .map(([skill_name, data]) => ({
+        skill_name,
+        score: Math.round(data.total / data.count)
+      }))
+      .sort((a, b) => a.score - b.score)
+      .slice(0, 5);
+    
+    // Update each student to show the top 5 lowest skills across all selected subjects
+    const updatedStudents = filteredStudents.map(student => ({
+      ...student,
+      lowestSkills: aggregatedSkills
+    }));
+    
+    setStudentsWithSkills(updatedStudents);
   };
 
   const handleMultiClassSelection = (classItem: ActiveClass, checked: boolean) => {
@@ -282,6 +373,7 @@ export function StudentPerformanceOverview() {
     setSelectedSubject("all_subjects");
     setSelectedClasses([]);
     setSelectedSubjectForMultiClass(null);
+    setSelectedSubjects([]);
     setShowMultiClassSelector(false);
     setStudentsWithSkills(allStudentsWithSkills);
   };
@@ -315,6 +407,8 @@ export function StudentPerformanceOverview() {
       } else if (selectedSubjectForMultiClass) {
         return `${baseTitle} - ${selectedSubjectForMultiClass} Subject`;
       }
+    } else if (viewMode === 'multi-subject' && selectedSubjects.length > 0) {
+      return `${baseTitle} - ${selectedSubjects.join(', ')}`;
     }
     
     return baseTitle;
@@ -398,9 +492,9 @@ export function StudentPerformanceOverview() {
                   </TooltipContent>
                 </Tooltip>
                 
-                {/* Button 4 - Book Open - Show Skills Options - FIXED STRUCTURE */}
+                {/* Button 4 - Book Open - Multi-Subject Selection - NEW IMPLEMENTATION */}
                 <div className="relative">
-                  <DropdownMenu>
+                  <DropdownMenu open={subjectDropdownOpen} onOpenChange={setSubjectDropdownOpen}>
                     <DropdownMenuTrigger asChild>
                       <Button
                         variant="outline"
@@ -410,17 +504,21 @@ export function StudentPerformanceOverview() {
                         <BookOpen className="h-4 w-4" />
                       </Button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="bg-white shadow-lg border">
+                    <DropdownMenuContent align="end" className="bg-white shadow-lg border z-50">
                       <DropdownMenuItem onClick={handleShowStudentsSkillsForAllSubjects}>
                         All Subjects
                       </DropdownMenuItem>
+                      
                       {availableSubjects.map((subject) => (
-                        <DropdownMenuItem 
+                        <DropdownMenuCheckboxItem
                           key={subject}
-                          onClick={() => handleSubjectSelection(subject)}
+                          checked={selectedSubjects.includes(subject)}
+                          onCheckedChange={() => handleSubjectToggle(subject)}
                         >
-                          {subject}
-                        </DropdownMenuItem>
+                          <div className="flex items-center">
+                            {subject}
+                          </div>
+                        </DropdownMenuCheckboxItem>
                       ))}
                     </DropdownMenuContent>
                   </DropdownMenu>
@@ -432,11 +530,11 @@ export function StudentPerformanceOverview() {
                         className="h-8 w-8 rounded-full bg-blue-50 hover:bg-blue-100 border-blue-200 absolute inset-0 opacity-0"
                         tabIndex={-1}
                       >
-                        <span className="sr-only">Show students skills options</span>
+                        <span className="sr-only">Select multiple subjects</span>
                       </Button>
                     </TooltipTrigger>
                     <TooltipContent sideOffset={5}>
-                      <p>Show students skills options</p>
+                      <p>Select multiple subjects</p>
                     </TooltipContent>
                   </Tooltip>
                 </div>
@@ -541,9 +639,9 @@ export function StudentPerformanceOverview() {
                   </TooltipContent>
                 </Tooltip>
 
-                {/* Button 4 - Book Open - Show Skills Options - FIXED STRUCTURE */}
+                {/* Button 4 - Book Open - Multi-Subject Selection - NEW IMPLEMENTATION */}
                 <div className="relative">
-                  <DropdownMenu>
+                  <DropdownMenu open={subjectDropdownOpen} onOpenChange={setSubjectDropdownOpen}>
                     <DropdownMenuTrigger asChild>
                       <Button
                         variant="outline"
@@ -553,17 +651,21 @@ export function StudentPerformanceOverview() {
                         <BookOpen className="h-4 w-4" />
                       </Button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="bg-white shadow-lg border">
+                    <DropdownMenuContent align="end" className="bg-white shadow-lg border z-50">
                       <DropdownMenuItem onClick={handleShowStudentsSkillsForAllSubjects}>
                         All Subjects
                       </DropdownMenuItem>
+                      
                       {availableSubjects.map((subject) => (
-                        <DropdownMenuItem 
+                        <DropdownMenuCheckboxItem
                           key={subject}
-                          onClick={() => handleSubjectSelection(subject)}
+                          checked={selectedSubjects.includes(subject)}
+                          onCheckedChange={() => handleSubjectToggle(subject)}
                         >
-                          {subject}
-                        </DropdownMenuItem>
+                          <div className="flex items-center">
+                            {subject}
+                          </div>
+                        </DropdownMenuCheckboxItem>
                       ))}
                     </DropdownMenuContent>
                   </DropdownMenu>
@@ -575,11 +677,11 @@ export function StudentPerformanceOverview() {
                         className="h-8 w-8 rounded-full bg-blue-50 hover:bg-blue-100 border-blue-200 absolute inset-0 opacity-0"
                         tabIndex={-1}
                       >
-                        <span className="sr-only">Show students skills options</span>
+                        <span className="sr-only">Select multiple subjects</span>
                       </Button>
                     </TooltipTrigger>
                     <TooltipContent sideOffset={5}>
-                      <p>Show students skills options</p>
+                      <p>Select multiple subjects</p>
                     </TooltipContent>
                   </Tooltip>
                 </div>
@@ -603,6 +705,25 @@ export function StudentPerformanceOverview() {
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+          )}
+
+          {/* Selected subjects display */}
+          {viewMode === 'multi-subject' && selectedSubjects.length > 0 && (
+            <div className="mt-4">
+              <div className="flex flex-wrap gap-2">
+                {selectedSubjects.map(subject => (
+                  <div key={subject} className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm flex items-center gap-1">
+                    {subject}
+                    <button 
+                      onClick={() => handleSubjectToggle(subject)}
+                      className="ml-1 rounded-full p-0.5 hover:bg-blue-200 transition-colors"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
 
@@ -667,7 +788,9 @@ export function StudentPerformanceOverview() {
                 : viewMode === 'multi-class' && selectedClasses.length > 0
                 ? `No Students in Selected Classes`
                 : viewMode === 'multi-class' && selectedSubjectForMultiClass
-                ? `No Students in ${selectedSubjectForMultiClass} Classes`
+                ? `No Students in ${selectedSubjectForMultiClass} Classes` 
+                : viewMode === 'multi-subject' && selectedSubjects.length > 0
+                ? `No Students in ${selectedSubjects.join(', ')}` 
                 : 'No Performance Data'
               }
             </h3>
@@ -680,6 +803,8 @@ export function StudentPerformanceOverview() {
                 ? 'Selected classes have no students assigned or students need to take tests to see performance data'
                 : viewMode === 'multi-class' && selectedSubjectForMultiClass
                 ? `No students are enrolled in ${selectedSubjectForMultiClass} classes or need to take tests to see performance data`
+                : viewMode === 'multi-subject' && selectedSubjects.length > 0
+                ? `No students are enrolled in ${selectedSubjects.join(', ')} or need to take tests to see performance data`
                 : 'Students need to take tests to see performance data here'
               }
             </p>
@@ -766,9 +891,9 @@ export function StudentPerformanceOverview() {
                 </TooltipContent>
               </Tooltip>
               
-              {/* Button 4 - Book Open - Show Subject Selection - UPDATED */}
+              {/* Button 4 - Book Open - Multi-Subject Selection - NEW IMPLEMENTATION */}
               <div className="relative">
-                <DropdownMenu>
+                <DropdownMenu open={subjectDropdownOpen} onOpenChange={setSubjectDropdownOpen}>
                   <DropdownMenuTrigger asChild>
                     <Button
                       variant="outline"
@@ -782,13 +907,17 @@ export function StudentPerformanceOverview() {
                     <DropdownMenuItem onClick={handleShowStudentsSkillsForAllSubjects}>
                       All Subjects
                     </DropdownMenuItem>
+                    
                     {availableSubjects.map((subject) => (
-                      <DropdownMenuItem 
+                      <DropdownMenuCheckboxItem
                         key={subject}
-                        onClick={() => handleSubjectSelection(subject)}
+                        checked={selectedSubjects.includes(subject)}
+                        onCheckedChange={() => handleSubjectToggle(subject)}
                       >
-                        {subject}
-                      </DropdownMenuItem>
+                        <div className="flex items-center">
+                          {subject}
+                        </div>
+                      </DropdownMenuCheckboxItem>
                     ))}
                   </DropdownMenuContent>
                 </DropdownMenu>
@@ -800,11 +929,11 @@ export function StudentPerformanceOverview() {
                       className="h-8 w-8 rounded-full bg-blue-50 hover:bg-blue-100 border-blue-200 absolute inset-0 opacity-0 pointer-events-none"
                       tabIndex={-1}
                     >
-                      <span className="sr-only">Select subjects and classes</span>
+                      <span className="sr-only">Select multiple subjects</span>
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent sideOffset={5}>
-                    <p>Select subjects and classes</p>
+                    <p>Select multiple subjects</p>
                   </TooltipContent>
                 </Tooltip>
               </div>
@@ -828,6 +957,25 @@ export function StudentPerformanceOverview() {
                 ))}
               </SelectContent>
             </Select>
+          </div>
+        )}
+
+        {/* Selected subjects display */}
+        {viewMode === 'multi-subject' && selectedSubjects.length > 0 && (
+          <div className="mt-4">
+            <div className="flex flex-wrap gap-2">
+              {selectedSubjects.map(subject => (
+                <div key={subject} className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm flex items-center gap-1">
+                  {subject}
+                  <button 
+                    onClick={() => handleSubjectToggle(subject)}
+                    className="ml-1 rounded-full p-0.5 hover:bg-blue-200 transition-colors"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+              ))}
+            </div>
           </div>
         )}
 
