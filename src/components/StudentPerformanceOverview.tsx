@@ -117,7 +117,7 @@ export function StudentPerformanceOverview() {
         <CardHeader className="border-b border-slate-100 bg-slate-50/50">
           <CardTitle className="text-xl font-semibold text-slate-800 flex items-center gap-2">
             <TrendingDown className="h-5 w-5 text-orange-500" />
-            Your Students - 5 Skills Most Needing Improving This Week
+            Your Students: 5 Skills Most Needing Improving This Week
           </CardTitle>
         </CardHeader>
         <CardContent className="p-6">
@@ -145,7 +145,7 @@ export function StudentPerformanceOverview() {
         <CardHeader className="border-b border-slate-100 bg-slate-50/50">
           <CardTitle className="text-xl font-semibold text-slate-800 flex items-center gap-2">
             <TrendingDown className="h-5 w-5 text-orange-500" />
-            Your Students - 5 Skills Most Needing Improving This Week
+            Your Students: 5 Skills Most Needing Improving This Week
           </CardTitle>
         </CardHeader>
         <CardContent className="p-6">
@@ -164,7 +164,7 @@ export function StudentPerformanceOverview() {
       <CardHeader className="border-b border-slate-100 bg-slate-50/50">
         <CardTitle className="text-xl font-semibold text-slate-800 flex items-center gap-2">
           <TrendingDown className="h-5 w-5 text-orange-500" />
-          Your Students - 5 Skills Most Needing Improving This Week
+          Your Students: 5 Skills Most Needing Improving This Week
         </CardTitle>
       </CardHeader>
       <CardContent className="p-6">
