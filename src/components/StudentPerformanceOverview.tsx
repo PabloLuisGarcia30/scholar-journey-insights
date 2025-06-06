@@ -301,7 +301,8 @@ export function StudentPerformanceOverview() {
             </CardTitle>
             <TooltipProvider>
               <div className="flex items-center gap-2">
-                <Tooltip>
+                {/* Button 1 - User Check - Class Filter */}
+                <Tooltip delayDuration={0}>
                   <TooltipTrigger asChild>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
@@ -332,7 +333,9 @@ export function StudentPerformanceOverview() {
                     <p>Show Students by Classes</p>
                   </TooltipContent>
                 </Tooltip>
-                <Tooltip>
+
+                {/* Button 2 - File Text - Create Practice for Several */}
+                <Tooltip delayDuration={0}>
                   <TooltipTrigger asChild>
                     <Button
                       variant="outline"
@@ -347,7 +350,9 @@ export function StudentPerformanceOverview() {
                     <p>Create practice exercise for several students</p>
                   </TooltipContent>
                 </Tooltip>
-                <Tooltip>
+
+                {/* Button 3 - File Check - Create Practice for One */}
+                <Tooltip delayDuration={0}>
                   <TooltipTrigger asChild>
                     <Button
                       variant="outline"
@@ -362,32 +367,44 @@ export function StudentPerformanceOverview() {
                     <p>Create practice exercise for one student</p>
                   </TooltipContent>
                 </Tooltip>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          className="h-8 w-8 rounded-full bg-blue-50 hover:bg-blue-100 border-blue-200"
-                        >
-                          <BookOpen className="h-4 w-4" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p>Show students skills options</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="bg-white shadow-lg border z-50">
-                    <DropdownMenuItem onClick={handleShowStudentsSkillsForAllSubjects}>
-                      All Subjects
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={handleShowMultiClassSelector}>
-                      Select Multiple Classes
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                
+                {/* Button 4 - Book Open - Show Skills Options - FIXED STRUCTURE */}
+                <div className="relative">
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        className="h-8 w-8 rounded-full bg-blue-50 hover:bg-blue-100 border-blue-200"
+                      >
+                        <BookOpen className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="bg-white shadow-lg border">
+                      <DropdownMenuItem onClick={handleShowStudentsSkillsForAllSubjects}>
+                        All Subjects
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={handleShowMultiClassSelector}>
+                        Select Multiple Classes
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                  <Tooltip delayDuration={0}>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        className="h-8 w-8 rounded-full bg-blue-50 hover:bg-blue-100 border-blue-200 absolute inset-0 opacity-0"
+                        tabIndex={-1}
+                      >
+                        <span className="sr-only">Show students skills options</span>
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent sideOffset={5}>
+                      <p>Show students skills options</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </div>
               </div>
             </TooltipProvider>
           </div>
@@ -422,7 +439,8 @@ export function StudentPerformanceOverview() {
             </CardTitle>
             <TooltipProvider>
               <div className="flex items-center gap-2">
-                <Tooltip>
+                {/* Button 1 - User Check - Class Filter */}
+                <Tooltip delayDuration={0}>
                   <TooltipTrigger asChild>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
@@ -453,7 +471,9 @@ export function StudentPerformanceOverview() {
                     <p>Show Students by Classes</p>
                   </TooltipContent>
                 </Tooltip>
-                <Tooltip>
+
+                {/* Button 2 - File Text - Create Practice for Several */}
+                <Tooltip delayDuration={0}>
                   <TooltipTrigger asChild>
                     <Button
                       variant="outline"
@@ -468,7 +488,9 @@ export function StudentPerformanceOverview() {
                     <p>Create practice exercise for several students</p>
                   </TooltipContent>
                 </Tooltip>
-                <Tooltip>
+
+                {/* Button 3 - File Check - Create Practice for One */}
+                <Tooltip delayDuration={0}>
                   <TooltipTrigger asChild>
                     <Button
                       variant="outline"
@@ -483,32 +505,44 @@ export function StudentPerformanceOverview() {
                     <p>Create practice exercise for one student</p>
                   </TooltipContent>
                 </Tooltip>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          className="h-8 w-8 rounded-full bg-blue-50 hover:bg-blue-100 border-blue-200"
-                        >
-                          <BookOpen className="h-4 w-4" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p>Show students skills options</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="bg-white shadow-lg border z-50">
-                    <DropdownMenuItem onClick={handleShowStudentsSkillsForAllSubjects}>
-                      All Subjects
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={handleShowMultiClassSelector}>
-                      Select Multiple Classes
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+
+                {/* Button 4 - Book Open - Show Skills Options - FIXED STRUCTURE */}
+                <div className="relative">
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        className="h-8 w-8 rounded-full bg-blue-50 hover:bg-blue-100 border-blue-200"
+                      >
+                        <BookOpen className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="bg-white shadow-lg border">
+                      <DropdownMenuItem onClick={handleShowStudentsSkillsForAllSubjects}>
+                        All Subjects
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={handleShowMultiClassSelector}>
+                        Select Multiple Classes
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                  <Tooltip delayDuration={0}>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        className="h-8 w-8 rounded-full bg-blue-50 hover:bg-blue-100 border-blue-200 absolute inset-0 opacity-0"
+                        tabIndex={-1}
+                      >
+                        <span className="sr-only">Show students skills options</span>
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent sideOffset={5}>
+                      <p>Show students skills options</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </div>
               </div>
             </TooltipProvider>
           </div>
@@ -615,7 +649,8 @@ export function StudentPerformanceOverview() {
           </CardTitle>
           <TooltipProvider>
             <div className="flex items-center gap-2">
-              <Tooltip>
+              {/* Button 1 - User Check - Class Filter */}
+              <Tooltip delayDuration={0}>
                 <TooltipTrigger asChild>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
@@ -647,7 +682,8 @@ export function StudentPerformanceOverview() {
                 </TooltipContent>
               </Tooltip>
               
-              <Tooltip>
+              {/* Button 2 - File Text - Create Practice for Several */}
+              <Tooltip delayDuration={0}>
                 <TooltipTrigger asChild>
                   <Button
                     variant="outline"
@@ -663,7 +699,8 @@ export function StudentPerformanceOverview() {
                 </TooltipContent>
               </Tooltip>
               
-              <Tooltip>
+              {/* Button 3 - File Check - Create Practice for One */}
+              <Tooltip delayDuration={0}>
                 <TooltipTrigger asChild>
                   <Button
                     variant="outline"
@@ -679,32 +716,43 @@ export function StudentPerformanceOverview() {
                 </TooltipContent>
               </Tooltip>
               
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        className="h-8 w-8 rounded-full bg-blue-50 hover:bg-blue-100 border-blue-200"
-                      >
-                        <BookOpen className="h-4 w-4" />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>Show students skills options</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="bg-white shadow-lg border z-50">
-                  <DropdownMenuItem onClick={handleShowStudentsSkillsForAllSubjects}>
-                    All Subjects
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={handleShowMultiClassSelector}>
-                    Select Multiple Classes
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+              {/* Button 4 - Book Open - Show Skills Options - FIXED STRUCTURE */}
+              <div className="relative">
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="h-8 w-8 rounded-full bg-blue-50 hover:bg-blue-100 border-blue-200"
+                    >
+                      <BookOpen className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="bg-white shadow-lg border z-50">
+                    <DropdownMenuItem onClick={handleShowStudentsSkillsForAllSubjects}>
+                      All Subjects
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={handleShowMultiClassSelector}>
+                      Select Multiple Classes
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+                <Tooltip delayDuration={0}>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="h-8 w-8 rounded-full bg-blue-50 hover:bg-blue-100 border-blue-200 absolute inset-0 opacity-0"
+                      tabIndex={-1}
+                    >
+                      <span className="sr-only">Show students skills options</span>
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent sideOffset={5}>
+                    <p>Show students skills options</p>
+                  </TooltipContent>
+                </Tooltip>
+              </div>
             </div>
           </TooltipProvider>
         </div>
