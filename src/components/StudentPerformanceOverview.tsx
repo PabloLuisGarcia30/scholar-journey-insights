@@ -173,7 +173,7 @@ export function StudentPerformanceOverview() {
             {studentsWithSkills.map((student) => (
               <div 
                 key={student.id}
-                className="flex items-center gap-4 p-4 rounded-lg border border-slate-200 bg-white hover:shadow-md transition-all duration-200"
+                className="flex items-start gap-4 p-4 rounded-lg border border-slate-200 bg-white hover:shadow-md transition-all duration-200"
               >
                 <div className="flex items-center gap-3 min-w-0 flex-1">
                   <Avatar className="h-12 w-12 ring-2 ring-slate-100">
@@ -187,40 +187,36 @@ export function StudentPerformanceOverview() {
                   </div>
                 </div>
                 
-                <div className="flex items-center gap-3">
+                <div className="flex items-start gap-4">
                   {student.lowestSkills.map((skill, index) => (
-                    <div key={index} className="group relative">
+                    <div key={index} className="flex flex-col items-center">
+                      <div className="text-xs text-slate-600 text-center mb-2 w-16 leading-tight">
+                        {skill.skill_name}
+                      </div>
                       <div 
                         className={`h-12 w-12 rounded-full bg-gradient-to-br ${getScoreColor(skill.score)} 
                           flex items-center justify-center shadow-sm hover:shadow-md hover:scale-105 
-                          transition-all duration-200 cursor-pointer`}
-                        title={`${skill.skill_name}: ${skill.score}%`}
+                          transition-all duration-200`}
                       >
-                        <span className={`text-xs font-bold text-white drop-shadow-sm`}>
+                        <span className="text-xs font-bold text-white drop-shadow-sm">
                           {skill.score}%
                         </span>
-                      </div>
-                      
-                      {/* Tooltip */}
-                      <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 
-                        bg-gray-900 text-white text-xs rounded opacity-0 group-hover:opacity-100 
-                        transition-opacity duration-200 pointer-events-none whitespace-nowrap z-10">
-                        {skill.skill_name}
-                        <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-4 
-                          border-transparent border-t-gray-900"></div>
                       </div>
                     </div>
                   ))}
                   
                   {/* Fill remaining slots if less than 5 skills */}
                   {[...Array(Math.max(0, 5 - student.lowestSkills.length))].map((_, index) => (
-                    <div 
-                      key={`empty-${index}`}
-                      className="h-12 w-12 rounded-full bg-slate-100 border-2 border-dashed border-slate-300
-                        flex items-center justify-center"
-                      title="No data available"
-                    >
-                      <span className="text-xs text-slate-400">—</span>
+                    <div key={`empty-${index}`} className="flex flex-col items-center">
+                      <div className="text-xs text-slate-400 text-center mb-2 w-16 leading-tight">
+                        No data
+                      </div>
+                      <div 
+                        className="h-12 w-12 rounded-full bg-slate-100 border-2 border-dashed border-slate-300
+                          flex items-center justify-center"
+                      >
+                        <span className="text-xs text-slate-400">—</span>
+                      </div>
                     </div>
                   ))}
                 </div>
