@@ -12,8 +12,7 @@ import {
   getContentSkillsBySubjectAndGrade,
   getSubjectSkillsBySubjectAndGrade,
   linkClassToContentSkills,
-  linkClassToSubjectSkills,
-  createScienceContentSkills
+  linkClassToSubjectSkills
 } from "@/services/examService";
 import { mockPabloContentSkillScores } from "@/data/mockStudentData";
 
@@ -112,17 +111,6 @@ export function useStudentProfileData({ studentId, classId, className }: UseStud
       if ((isGrade10MathClass() || isGrade10ScienceClass()) && classId) {
         try {
           console.log(`Auto-linking Grade 10 ${classData?.subject} class to Grade 10 ${classData?.subject} skills`);
-          
-          // Ensure Science skills exist before linking
-          if (isGrade10ScienceClass()) {
-            try {
-              await createScienceContentSkills();
-              console.log('Science content skills created or verified');
-            } catch (skillError) {
-              console.warn('Failed to create Science content skills:', skillError);
-              // Continue with linking as some skills might still exist
-            }
-          }
           
           // Link Content-Specific Skills
           const allContentSkills = await getContentSkillsBySubjectAndGrade(classData?.subject || '', classData?.grade || '');
