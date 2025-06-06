@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -12,7 +11,6 @@ import {
   getLinkedContentSkillsForClass,
   linkClassToContentSkills,
   autoLinkMathClassToGrade10Skills,
-  createScienceContentSkills,
   type ContentSkill,
   type ActiveClass
 } from "@/services/examService";
@@ -81,9 +79,7 @@ export function ClassContentSkills({ activeClass }: ClassContentSkillsProps) {
   
   const autoLinkScienceClass = async () => {
     try {
-      // First ensure Science skills exist
-      await createScienceContentSkills();
-      
+      // Science skills should already exist in the database from the SQL insert
       // Now auto-link the class to these skills
       const scienceSkills = await getContentSkillsBySubjectAndGrade('Science', 'Grade 10');
       if (scienceSkills.length > 0) {
