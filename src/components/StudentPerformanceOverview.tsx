@@ -8,7 +8,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Moon, House, FileText, FileCheck, BookOpen, X } from "lucide-react";
+import { Moon, UserCheck, FileText, FileCheck, BookOpen, X } from "lucide-react";
 import { 
   getAllActiveStudents,
   getStudentContentSkillScores,
@@ -308,7 +308,7 @@ export function StudentPerformanceOverview() {
                       size="icon"
                       className="h-8 w-8 rounded-full"
                     >
-                      <House className="h-4 w-4" />
+                      <UserCheck className="h-4 w-4" />
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="bg-white shadow-lg border">
@@ -424,7 +424,7 @@ export function StudentPerformanceOverview() {
                           size="icon"
                           className="h-8 w-8 rounded-full"
                         >
-                          <House className="h-4 w-4" />
+                          <UserCheck className="h-4 w-4" />
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end" className="bg-white shadow-lg border">
@@ -617,7 +617,7 @@ export function StudentPerformanceOverview() {
                         size="icon"
                         className="h-8 w-8 rounded-full"
                       >
-                        <House className="h-4 w-4" />
+                        <UserCheck className="h-4 w-4" />
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="bg-white shadow-lg border">
