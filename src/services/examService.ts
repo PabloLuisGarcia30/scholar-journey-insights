@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import type { Question } from "@/utils/pdfGenerator";
 
@@ -814,6 +813,21 @@ export const autoLinkClassToContentSkills = async (classId: string, subject: str
       console.log(`Successfully auto-linked class to ${skillIds.length} ${subject} ${grade} skills`);
     } else {
       console.log(`No content skills found for ${subject} ${grade}`);
+      
+      // If it's a Science class and no skills were found, create them
+      if (subject === 'Science') {
+        console.log('Creating Science skills since none were found');
+        await createScienceContentSkills();
+        
+        // Now try linking again
+        const scienceSkills = await getContentSkillsBySubjectAndGrade('Science', grade);
+        const scienceSkillIds = scienceSkills.map(skill => skill.id);
+        
+        if (scienceSkillIds.length > 0) {
+          await linkClassToContentSkills(classId, scienceSkillIds);
+          console.log(`Successfully created and linked ${scienceSkillIds.length} Science skills`);
+        }
+      }
     }
   } catch (error) {
     console.error('Error in autoLinkClassToContentSkills:', error);
@@ -971,4 +985,248 @@ export const createContentSkill = async (skillData: {
   
   console.log('Content skill created successfully:', data);
   return data;
+};
+
+export const createScienceContentSkills = async (): Promise<void> => {
+  console.log('Creating Science content skills for Grade 10');
+  
+  // Biology Topic Skills
+  const biologySkills = [
+    {
+      skill_name: 'Cell Structure and Function',
+      skill_description: 'Understanding the basic unit of life, cellular components, and their functions',
+      topic: 'BIOLOGY',
+      subject: 'Science',
+      grade: 'Grade 10'
+    },
+    {
+      skill_name: 'DNA and Genetics',
+      skill_description: 'Understanding DNA structure, replication, and the basics of inheritance',
+      topic: 'BIOLOGY',
+      subject: 'Science',
+      grade: 'Grade 10'
+    },
+    {
+      skill_name: 'Evolution and Natural Selection',
+      skill_description: 'Analyzing evidence for evolution and understanding the mechanisms of natural selection',
+      topic: 'BIOLOGY',
+      subject: 'Science',
+      grade: 'Grade 10'
+    },
+    {
+      skill_name: 'Ecology and Ecosystems',
+      skill_description: 'Understanding relationships between organisms and their environment, energy flow, and biodiversity',
+      topic: 'BIOLOGY',
+      subject: 'Science',
+      grade: 'Grade 10'
+    },
+    {
+      skill_name: 'Human Body Systems',
+      skill_description: 'Analyzing the structure and function of major human body systems',
+      topic: 'BIOLOGY',
+      subject: 'Science',
+      grade: 'Grade 10'
+    }
+  ];
+
+  // Chemistry Topic Skills
+  const chemistrySkills = [
+    {
+      skill_name: 'Atomic Structure',
+      skill_description: 'Understanding the structure of atoms, isotopes, and electron configurations',
+      topic: 'CHEMISTRY',
+      subject: 'Science',
+      grade: 'Grade 10'
+    },
+    {
+      skill_name: 'Periodic Table Trends',
+      skill_description: 'Recognizing patterns and trends in the periodic table of elements',
+      topic: 'CHEMISTRY',
+      subject: 'Science',
+      grade: 'Grade 10'
+    },
+    {
+      skill_name: 'Chemical Bonding',
+      skill_description: 'Understanding ionic, covalent, and metallic bonds and their properties',
+      topic: 'CHEMISTRY',
+      subject: 'Science',
+      grade: 'Grade 10'
+    },
+    {
+      skill_name: 'Chemical Reactions',
+      skill_description: 'Balancing equations, predicting products, and analyzing reaction types',
+      topic: 'CHEMISTRY',
+      subject: 'Science',
+      grade: 'Grade 10'
+    },
+    {
+      skill_name: 'Solutions and Concentrations',
+      skill_description: 'Understanding solubility, solution formation, and calculating concentrations',
+      topic: 'CHEMISTRY',
+      subject: 'Science',
+      grade: 'Grade 10'
+    }
+  ];
+
+  // Physics Topic Skills
+  const physicsSkills = [
+    {
+      skill_name: 'Motion and Forces',
+      skill_description: 'Applying Newton\'s laws to analyze forces and motion',
+      topic: 'PHYSICS',
+      subject: 'Science',
+      grade: 'Grade 10'
+    },
+    {
+      skill_name: 'Energy Transformations',
+      skill_description: 'Tracking energy changes in systems and understanding conservation of energy',
+      topic: 'PHYSICS',
+      subject: 'Science',
+      grade: 'Grade 10'
+    },
+    {
+      skill_name: 'Waves and Sound',
+      skill_description: 'Understanding wave properties, behavior, and applications',
+      topic: 'PHYSICS',
+      subject: 'Science',
+      grade: 'Grade 10'
+    },
+    {
+      skill_name: 'Electricity and Magnetism',
+      skill_description: 'Analyzing electric circuits, fields, and electromagnetic phenomena',
+      topic: 'PHYSICS',
+      subject: 'Science',
+      grade: 'Grade 10'
+    },
+    {
+      skill_name: 'Nuclear Physics',
+      skill_description: 'Understanding radioactivity, nuclear reactions, and their applications',
+      topic: 'PHYSICS',
+      subject: 'Science',
+      grade: 'Grade 10'
+    }
+  ];
+
+  // Earth Science Topic Skills
+  const earthScienceSkills = [
+    {
+      skill_name: 'Earth\'s Structure',
+      skill_description: 'Understanding the layers of Earth and plate tectonics',
+      topic: 'EARTH SCIENCE',
+      subject: 'Science',
+      grade: 'Grade 10'
+    },
+    {
+      skill_name: 'Weather and Climate',
+      skill_description: 'Analyzing atmospheric conditions, weather patterns, and climate change',
+      topic: 'EARTH SCIENCE',
+      subject: 'Science',
+      grade: 'Grade 10'
+    },
+    {
+      skill_name: 'The Solar System',
+      skill_description: 'Understanding the structure, scale, and components of our solar system',
+      topic: 'EARTH SCIENCE',
+      subject: 'Science',
+      grade: 'Grade 10'
+    },
+    {
+      skill_name: 'Rock Cycle and Minerals',
+      skill_description: 'Identifying types of rocks and minerals and understanding their formation',
+      topic: 'EARTH SCIENCE',
+      subject: 'Science',
+      grade: 'Grade 10'
+    },
+    {
+      skill_name: 'Natural Resources',
+      skill_description: 'Analyzing the use and conservation of Earth\'s natural resources',
+      topic: 'EARTH SCIENCE',
+      subject: 'Science',
+      grade: 'Grade 10'
+    }
+  ];
+
+  // Scientific Method Skills
+  const scientificMethodSkills = [
+    {
+      skill_name: 'Experimental Design',
+      skill_description: 'Designing valid scientific experiments with proper controls and variables',
+      topic: 'SCIENTIFIC METHOD',
+      subject: 'Science',
+      grade: 'Grade 10'
+    },
+    {
+      skill_name: 'Data Analysis',
+      skill_description: 'Collecting, organizing, and interpreting scientific data',
+      topic: 'SCIENTIFIC METHOD',
+      subject: 'Science',
+      grade: 'Grade 10'
+    },
+    {
+      skill_name: 'Scientific Communication',
+      skill_description: 'Effectively communicating scientific ideas and findings',
+      topic: 'SCIENTIFIC METHOD',
+      subject: 'Science',
+      grade: 'Grade 10'
+    },
+    {
+      skill_name: 'Critical Thinking in Science',
+      skill_description: 'Evaluating scientific claims and evidence critically',
+      topic: 'SCIENTIFIC METHOD',
+      subject: 'Science',
+      grade: 'Grade 10'
+    },
+    {
+      skill_name: 'Science and Technology Applications',
+      skill_description: 'Understanding how scientific principles are applied in technology and society',
+      topic: 'SCIENTIFIC METHOD',
+      subject: 'Science',
+      grade: 'Grade 10'
+    }
+  ];
+
+  const allScienceSkills = [
+    ...biologySkills,
+    ...chemistrySkills,
+    ...physicsSkills,
+    ...earthScienceSkills,
+    ...scientificMethodSkills
+  ];
+
+  try {
+    // Check if skills already exist to avoid duplicates
+    const { data: existingSkills } = await supabase
+      .from('content_skills')
+      .select('skill_name')
+      .eq('subject', 'Science')
+      .eq('grade', 'Grade 10');
+    
+    const existingSkillNames = new Set(existingSkills?.map(skill => skill.skill_name) || []);
+    
+    // Filter out skills that already exist
+    const skillsToCreate = allScienceSkills.filter(
+      skill => !existingSkillNames.has(skill.skill_name)
+    );
+    
+    if (skillsToCreate.length === 0) {
+      console.log('All Science skills already exist, skipping creation');
+      return;
+    }
+    
+    // Insert all skills in a batch
+    const { data, error } = await supabase
+      .from('content_skills')
+      .insert(skillsToCreate)
+      .select();
+      
+    if (error) {
+      console.error('Error creating Science skills:', error);
+      throw error;
+    }
+    
+    console.log(`Successfully created ${data?.length} Science content skills`);
+  } catch (error) {
+    console.error('Error in createScienceContentSkills:', error);
+    throw error;
+  }
 };

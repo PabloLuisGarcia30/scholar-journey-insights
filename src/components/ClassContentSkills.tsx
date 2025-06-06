@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -11,6 +12,7 @@ import {
   getLinkedContentSkillsForClass,
   linkClassToContentSkills,
   autoLinkMathClassToGrade10Skills,
+  createScienceContentSkills,
   type ContentSkill,
   type ActiveClass
 } from "@/services/examService";
@@ -31,12 +33,19 @@ export function ClassContentSkills({ activeClass }: ClassContentSkillsProps) {
   const isGrade10MathClass = () => {
     return activeClass.subject === 'Math' && activeClass.grade === 'Grade 10';
   };
+  
+  // Helper function to check if this is a Grade 10 Science class
+  const isGrade10ScienceClass = () => {
+    return activeClass.subject === 'Science' && activeClass.grade === 'Grade 10';
+  };
 
   useEffect(() => {
     loadSkills();
-    // Auto-link any Grade 10 Math class on first load
+    // Auto-link any Grade 10 class on first load
     if (isGrade10MathClass()) {
       autoLinkMathClass();
+    } else if (isGrade10ScienceClass()) {
+      autoLinkScienceClass();
     }
   }, [activeClass]);
 
@@ -66,6 +75,24 @@ export function ClassContentSkills({ activeClass }: ClassContentSkillsProps) {
       toast.success('Grade 10 Math class has been automatically linked to Grade 10 Math skills!');
     } catch (error) {
       console.error('Error auto-linking math class:', error);
+      // Don't show error toast for auto-link as it's background operation
+    }
+  };
+  
+  const autoLinkScienceClass = async () => {
+    try {
+      // First ensure Science skills exist
+      await createScienceContentSkills();
+      
+      // Now auto-link the class to these skills
+      const scienceSkills = await getContentSkillsBySubjectAndGrade('Science', 'Grade 10');
+      if (scienceSkills.length > 0) {
+        await linkClassToContentSkills(activeClass.id, scienceSkills.map(skill => skill.id));
+        await loadSkills(); // Refresh the data
+        toast.success('Grade 10 Science class has been automatically linked to Grade 10 Science skills!');
+      }
+    } catch (error) {
+      console.error('Error auto-linking science class:', error);
       // Don't show error toast for auto-link as it's background operation
     }
   };
@@ -102,10 +129,10 @@ export function ClassContentSkills({ activeClass }: ClassContentSkillsProps) {
     return acc;
   }, {} as Record<string, ContentSkill[]>);
 
-  // Define the exact order you specified for Grade 10 Math skills
+  // Define the order for various subjects
   let topics = Object.keys(groupedSkills);
   if (isGrade10MathClass()) {
-    const orderedTopics = [
+    const mathOrderedTopics = [
       'ALGEBRA AND FUNCTIONS',
       'GEOMETRY', 
       'TRIGONOMETRY',
@@ -113,9 +140,22 @@ export function ClassContentSkills({ activeClass }: ClassContentSkillsProps) {
       'PROBLEM SOLVING AND REASONING'
     ];
     
-    topics = orderedTopics.filter(topic => groupedSkills[topic]);
+    topics = mathOrderedTopics.filter(topic => groupedSkills[topic]);
     // Add any remaining topics not in our ordered list
-    const remainingTopics = Object.keys(groupedSkills).filter(topic => !orderedTopics.includes(topic));
+    const remainingTopics = Object.keys(groupedSkills).filter(topic => !mathOrderedTopics.includes(topic));
+    topics = [...topics, ...remainingTopics];
+  } else if (isGrade10ScienceClass()) {
+    const scienceOrderedTopics = [
+      'BIOLOGY',
+      'CHEMISTRY',
+      'PHYSICS',
+      'EARTH SCIENCE',
+      'SCIENTIFIC METHOD'
+    ];
+    
+    topics = scienceOrderedTopics.filter(topic => groupedSkills[topic]);
+    // Add any remaining topics not in our ordered list
+    const remainingTopics = Object.keys(groupedSkills).filter(topic => !scienceOrderedTopics.includes(topic));
     topics = [...topics, ...remainingTopics];
   }
 
@@ -174,6 +214,59 @@ export function ClassContentSkills({ activeClass }: ClassContentSkillsProps) {
           return aIndex - bIndex;
         });
       }
+    } else if (isGrade10ScienceClass()) {
+      // Define skill ordering within each topic for Grade 10 Science
+      const scienceSkillOrders: Record<string, string[]> = {
+        'BIOLOGY': [
+          'Cell Structure and Function',
+          'DNA and Genetics',
+          'Evolution and Natural Selection',
+          'Ecology and Ecosystems',
+          'Human Body Systems'
+        ],
+        'CHEMISTRY': [
+          'Atomic Structure',
+          'Periodic Table Trends',
+          'Chemical Bonding',
+          'Chemical Reactions',
+          'Solutions and Concentrations'
+        ],
+        'PHYSICS': [
+          'Motion and Forces',
+          'Energy Transformations',
+          'Waves and Sound',
+          'Electricity and Magnetism',
+          'Nuclear Physics'
+        ],
+        'EARTH SCIENCE': [
+          'Earth\'s Structure',
+          'Weather and Climate',
+          'The Solar System',
+          'Rock Cycle and Minerals',
+          'Natural Resources'
+        ],
+        'SCIENTIFIC METHOD': [
+          'Experimental Design',
+          'Data Analysis',
+          'Scientific Communication',
+          'Critical Thinking in Science',
+          'Science and Technology Applications'
+        ]
+      };
+      
+      // Find the topic for these skills
+      const topic = skills[0]?.topic;
+      if (topic && scienceSkillOrders[topic]) {
+        const order = scienceSkillOrders[topic];
+        return skills.sort((a, b) => {
+          const aIndex = order.indexOf(a.skill_name);
+          const bIndex = order.indexOf(b.skill_name);
+          if (aIndex === -1 && bIndex === -1) return 0;
+          if (aIndex === -1) return 1;
+          if (bIndex === -1) return -1;
+          return aIndex - bIndex;
+        });
+      }
     }
     
     // Default alphabetical sorting for other subjects or unordered topics
@@ -212,6 +305,9 @@ export function ClassContentSkills({ activeClass }: ClassContentSkillsProps) {
             Content-Specific Skills for {activeClass.subject} {activeClass.grade}
             {isGrade10MathClass() && (
               <Badge variant="outline" className="ml-2">Math Studies 10</Badge>
+            )}
+            {isGrade10ScienceClass() && (
+              <Badge variant="outline" className="ml-2">Science 10</Badge>
             )}
           </CardTitle>
           <div className="flex items-center gap-2">

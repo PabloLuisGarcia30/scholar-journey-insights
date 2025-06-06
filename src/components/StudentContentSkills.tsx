@@ -122,7 +122,9 @@ export function StudentContentSkills({
   return (
     <Card className="w-full border-slate-200 shadow-sm">
       <CardHeader className="flex flex-row items-center justify-between border-b border-slate-100 bg-slate-50/50">
-        <CardTitle className="text-xl font-semibold text-slate-800">Content-Specific Skills</CardTitle>
+        <CardTitle className="text-xl font-semibold text-slate-800">
+          {classData?.subject || ''} Content-Specific Skills
+        </CardTitle>
         {isClassView && (
           <Button
             variant="destructive"
@@ -136,54 +138,65 @@ export function StudentContentSkills({
         )}
       </CardHeader>
       <CardContent className="p-6">
-        <div className="space-y-8">
-          {Object.entries(groupedSkills).map(([topic, skills]) => (
-            <div key={topic} className="space-y-4">
-              <div className="flex items-center gap-3">
-                <div className="h-px bg-gradient-to-r from-slate-300 to-transparent flex-1"></div>
-                <h3 className="text-sm font-medium text-slate-500 uppercase tracking-wider px-3 py-1 bg-slate-100 rounded-full">
-                  {topic}
-                </h3>
-                <div className="h-px bg-gradient-to-l from-slate-300 to-transparent flex-1"></div>
-              </div>
-              <div className="space-y-4">
-                {skills.map((skill: any) => (
-                  <div key={skill.id || skill.skill_name} className="group p-4 rounded-lg border border-slate-200 bg-white hover:shadow-md transition-all duration-200">
-                    <div className="flex items-center justify-between mb-3">
-                      <h4 className="font-medium text-slate-900 group-hover:text-slate-700 transition-colors">
-                        {skill.skill_name}
-                      </h4>
-                      <div className="flex items-center gap-4">
-                        <span className={`font-semibold text-sm ${getScoreColor(skill.score)}`}>
-                          {skill.score}%
-                        </span>
-                        <Button 
-                          variant="outline" 
-                          size="sm"
-                          onClick={() => onGeneratePracticeTest(skill.skill_name)}
-                          className="text-xs font-medium border-slate-300 hover:bg-slate-50 hover:border-slate-400 transition-all duration-200"
-                        >
-                          <BookOpen className="h-3 w-3 mr-2" />
-                          Generate Practice Exercise
-                        </Button>
+        {Object.keys(groupedSkills).length === 0 ? (
+          <div className="text-center py-12">
+            <BookOpen className="h-12 w-12 text-slate-300 mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-slate-700 mb-2">No skills data available</h3>
+            <p className="text-slate-500 max-w-md mx-auto">
+              There are no content skills recorded for this {classData?.subject || 'subject'} yet.
+              Skills will appear once they have been assessed.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-8">
+            {Object.entries(groupedSkills).map(([topic, skills]) => (
+              <div key={topic} className="space-y-4">
+                <div className="flex items-center gap-3">
+                  <div className="h-px bg-gradient-to-r from-slate-300 to-transparent flex-1"></div>
+                  <h3 className="text-sm font-medium text-slate-500 uppercase tracking-wider px-3 py-1 bg-slate-100 rounded-full">
+                    {topic}
+                  </h3>
+                  <div className="h-px bg-gradient-to-l from-slate-300 to-transparent flex-1"></div>
+                </div>
+                <div className="space-y-4">
+                  {skills.map((skill: any) => (
+                    <div key={skill.id || skill.skill_name} className="group p-4 rounded-lg border border-slate-200 bg-white hover:shadow-md transition-all duration-200">
+                      <div className="flex items-center justify-between mb-3">
+                        <h4 className="font-medium text-slate-900 group-hover:text-slate-700 transition-colors">
+                          {skill.skill_name}
+                        </h4>
+                        <div className="flex items-center gap-4">
+                          <span className={`font-semibold text-sm ${getScoreColor(skill.score)}`}>
+                            {skill.score}%
+                          </span>
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => onGeneratePracticeTest(skill.skill_name)}
+                            className="text-xs font-medium border-slate-300 hover:bg-slate-50 hover:border-slate-400 transition-all duration-200"
+                          >
+                            <BookOpen className="h-3 w-3 mr-2" />
+                            Generate Practice Exercise
+                          </Button>
+                        </div>
+                      </div>
+                      <div className="relative">
+                        <Progress 
+                          value={skill.score} 
+                          className="h-2 bg-slate-100"
+                        />
+                        <div 
+                          className={`absolute top-0 left-0 h-2 rounded-full transition-all duration-300 ${getProgressColor(skill.score)}`}
+                          style={{ width: `${skill.score}%` }}
+                        />
                       </div>
                     </div>
-                    <div className="relative">
-                      <Progress 
-                        value={skill.score} 
-                        className="h-2 bg-slate-100"
-                      />
-                      <div 
-                        className={`absolute top-0 left-0 h-2 rounded-full transition-all duration-300 ${getProgressColor(skill.score)}`}
-                        style={{ width: `${skill.score}%` }}
-                      />
-                    </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </CardContent>
     </Card>
   );
