@@ -301,30 +301,37 @@ export function StudentPerformanceOverview() {
             </CardTitle>
             <TooltipProvider>
               <div className="flex items-center gap-2">
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      className="h-8 w-8 rounded-full"
-                    >
-                      <UserCheck className="h-4 w-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="bg-white shadow-lg border">
-                    <DropdownMenuItem onClick={() => handleClassFilter(null)}>
-                      All Students
-                    </DropdownMenuItem>
-                    {classes.map((classItem) => (
-                      <DropdownMenuItem 
-                        key={classItem.id}
-                        onClick={() => handleClassFilter(classItem)}
-                      >
-                        {classItem.name}
-                      </DropdownMenuItem>
-                    ))}
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          className="h-8 w-8 rounded-full"
+                        >
+                          <UserCheck className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="bg-white shadow-lg border">
+                        <DropdownMenuItem onClick={() => handleClassFilter(null)}>
+                          All Students
+                        </DropdownMenuItem>
+                        {classes.map((classItem) => (
+                          <DropdownMenuItem 
+                            key={classItem.id}
+                            onClick={() => handleClassFilter(classItem)}
+                          >
+                            {classItem.name}
+                          </DropdownMenuItem>
+                        ))}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </TooltipTrigger>
+                  <TooltipContent className="bg-white border z-50">
+                    <p>Show Students by Classes</p>
+                  </TooltipContent>
+                </Tooltip>
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Button
@@ -442,7 +449,7 @@ export function StudentPerformanceOverview() {
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </TooltipTrigger>
-                  <TooltipContent>
+                  <TooltipContent className="bg-white border z-50">
                     <p>Show Students by Classes</p>
                   </TooltipContent>
                 </Tooltip>
@@ -635,10 +642,11 @@ export function StudentPerformanceOverview() {
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </TooltipTrigger>
-                <TooltipContent>
+                <TooltipContent className="bg-white border z-50">
                   <p>Show Students by Classes</p>
                 </TooltipContent>
               </Tooltip>
+              
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
@@ -654,6 +662,7 @@ export function StudentPerformanceOverview() {
                   <p>Create practice exercise for several students</p>
                 </TooltipContent>
               </Tooltip>
+              
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
@@ -669,6 +678,7 @@ export function StudentPerformanceOverview() {
                   <p>Create practice exercise for one student</p>
                 </TooltipContent>
               </Tooltip>
+              
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Tooltip>
