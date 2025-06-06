@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -50,7 +51,7 @@ export function StudentPerformanceOverview() {
   const [allStudentsWithSkills, setAllStudentsWithSkills] = useState<StudentWithSkills[]>([]);
   const [classes, setClasses] = useState<ActiveClass[]>([]);
   const [selectedClass, setSelectedClass] = useState<ActiveClass | null>(null);
-  const [selectedSubject, setSelectedSubject] = useState<string>("");
+  const [selectedSubject, setSelectedSubject] = useState<string>("all_subjects");
   const [viewMode, setViewMode] = useState<'class' | 'subject'>('class');
   const [loading, setLoading] = useState(true);
 
@@ -121,7 +122,7 @@ export function StudentPerformanceOverview() {
   const handleClassFilter = (selectedClass: ActiveClass | null) => {
     setSelectedClass(selectedClass);
     setViewMode('class');
-    setSelectedSubject("");
+    setSelectedSubject("all_subjects");
     
     if (!selectedClass) {
       // Show all students
@@ -140,7 +141,7 @@ export function StudentPerformanceOverview() {
     setViewMode('subject');
     setSelectedClass(null);
     
-    if (!subject) {
+    if (!subject || subject === "all_subjects") {
       // Show all students
       setStudentsWithSkills(allStudentsWithSkills);
     } else {
@@ -195,7 +196,7 @@ export function StudentPerformanceOverview() {
     // Reset to show all students with all skills
     setViewMode('subject');
     setSelectedClass(null);
-    setSelectedSubject("");
+    setSelectedSubject("all_subjects");
     setStudentsWithSkills(allStudentsWithSkills);
   };
 
@@ -204,9 +205,9 @@ export function StudentPerformanceOverview() {
     
     if (viewMode === 'class' && selectedClass) {
       return `${baseTitle} - ${selectedClass.name}`;
-    } else if (viewMode === 'subject' && selectedSubject) {
+    } else if (viewMode === 'subject' && selectedSubject && selectedSubject !== "all_subjects") {
       return `${baseTitle} - ${selectedSubject} Subject`;
-    } else if (viewMode === 'subject' && !selectedSubject) {
+    } else if (viewMode === 'subject' && selectedSubject === "all_subjects") {
       return `${baseTitle} - All Subjects`;
     }
     
@@ -416,7 +417,7 @@ export function StudentPerformanceOverview() {
                   <SelectValue placeholder="Select a subject" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All Subjects</SelectItem>
+                  <SelectItem value="all_subjects">All Subjects</SelectItem>
                   {availableSubjects.map((subject) => (
                     <SelectItem key={subject} value={subject}>
                       {subject}
@@ -433,7 +434,7 @@ export function StudentPerformanceOverview() {
             <h3 className="text-lg font-medium text-gray-900 mb-2">
               {viewMode === 'class' && selectedClass 
                 ? `No Students in ${selectedClass.name}`
-                : viewMode === 'subject' && selectedSubject
+                : viewMode === 'subject' && selectedSubject && selectedSubject !== "all_subjects"
                 ? `No Students in ${selectedSubject} Subject`
                 : 'No Performance Data'
               }
@@ -441,7 +442,7 @@ export function StudentPerformanceOverview() {
             <p className="text-gray-600">
               {viewMode === 'class' && selectedClass
                 ? 'This class has no students assigned or students need to take tests to see performance data'
-                : viewMode === 'subject' && selectedSubject
+                : viewMode === 'subject' && selectedSubject && selectedSubject !== "all_subjects"
                 ? `No students are enrolled in ${selectedSubject} classes or need to take tests to see performance data`
                 : 'Students need to take tests to see performance data here'
               }
@@ -550,7 +551,7 @@ export function StudentPerformanceOverview() {
                 <SelectValue placeholder="Select a subject" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">All Subjects</SelectItem>
+                <SelectItem value="all_subjects">All Subjects</SelectItem>
                 {availableSubjects.map((subject) => (
                   <SelectItem key={subject} value={subject}>
                     {subject}
