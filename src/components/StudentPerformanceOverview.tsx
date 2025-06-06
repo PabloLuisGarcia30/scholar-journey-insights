@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -261,30 +260,37 @@ export function StudentPerformanceOverview() {
             </CardTitle>
             <TooltipProvider>
               <div className="flex items-center gap-2">
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      className="h-8 w-8 rounded-full"
-                    >
-                      <Users className="h-4 w-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="bg-white shadow-lg border">
-                    <DropdownMenuItem onClick={() => handleClassFilter(null)}>
-                      All Students
-                    </DropdownMenuItem>
-                    {classes.map((classItem) => (
-                      <DropdownMenuItem 
-                        key={classItem.id}
-                        onClick={() => handleClassFilter(classItem)}
-                      >
-                        {classItem.name}
-                      </DropdownMenuItem>
-                    ))}
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          className="h-8 w-8 rounded-full"
+                        >
+                          <Users className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="bg-white shadow-lg border">
+                        <DropdownMenuItem onClick={() => handleClassFilter(null)}>
+                          All Students
+                        </DropdownMenuItem>
+                        {classes.map((classItem) => (
+                          <DropdownMenuItem 
+                            key={classItem.id}
+                            onClick={() => handleClassFilter(classItem)}
+                          >
+                            {classItem.name}
+                          </DropdownMenuItem>
+                        ))}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Show students by classes</p>
+                  </TooltipContent>
+                </Tooltip>
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Button
@@ -378,7 +384,7 @@ export function StudentPerformanceOverview() {
                       ))}
                     </DropdownMenuContent>
                   </DropdownMenu>
-                </DropdownMenuTrigger>
+                </TooltipTrigger>
                 <TooltipContent>
                   <p>Show students by classes</p>
                 </TooltipContent>
