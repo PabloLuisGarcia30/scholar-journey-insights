@@ -1,4 +1,3 @@
-
 import { EnhancedSmartOcrService, EnhancedProcessingResult } from './enhancedSmartOcrService';
 import { FlexibleTemplateService, FlexibleTemplateMatchResult, DetectedQuestionType } from './flexibleTemplateService';
 import { HandwritingDetectionService, HandwritingAnalysis, Mark } from './handwritingDetectionService';
@@ -41,32 +40,27 @@ export interface ExtractedAnswer {
   boundingBox?: { x: number; y: number; width: number; height: number };
 }
 
-// Extended interfaces for database-driven processing
-interface ExtendedFormatAnalysis {
-  primaryFormat: 'bubble_sheet' | 'text_based' | 'mixed_format';
-  questionTypeDistribution: Record<string, number>;
-  complexity?: 'simple' | 'moderate' | 'complex';
-  estimatedProcessingTime: number;
-  expectedQuestionCount: number;
-}
-
-interface ExtendedTemplateLayout {
-  questionCount: number;
-  hasMultipleChoice: boolean;
-  hasTextBased: boolean;
-}
-
+// Simplified database template interface
 interface DatabaseTemplate {
   name: string;
   examId?: string;
   questionMap?: Record<number, QuestionInfo>;
-  layout: ExtendedTemplateLayout;
+  questionCount: number;
+  hasMultipleChoice: boolean;
+  hasTextBased: boolean;
 }
 
 interface QuestionInfo {
   type: string;
   correctAnswer: string;
   options: any;
+}
+
+// Enhanced template match result for database-driven processing
+interface DatabaseDrivenTemplateMatch extends FlexibleTemplateMatchResult {
+  databaseDriven: boolean;
+  questionCount?: number;
+  questionTypes?: Record<string, number>;
 }
 
 export class FlexibleOcrService extends EnhancedSmartOcrService {
@@ -89,8 +83,8 @@ export class FlexibleOcrService extends EnhancedSmartOcrService {
       const templateMatch = await this.recognizeTemplateFromDatabase(examId);
       
       if (templateMatch.databaseDriven) {
-        console.log(`📋 Database format: ${templateMatch.formatAnalysis.primaryFormat}`);
-        console.log(`📊 Question types: ${Object.keys(templateMatch.formatAnalysis.questionTypeDistribution).join(', ')}`);
+        console.log(`📋 Database format found: ${templateMatch.questionCount} questions`);
+        console.log(`📊 Question types: MC=${templateMatch.questionTypes?.multiple_choice || 0}, Text=${templateMatch.questionTypes?.text_based || 0}`);
       } else {
         console.log('📋 Using fallback detection - no database info available');
       }
@@ -146,9 +140,9 @@ export class FlexibleOcrService extends EnhancedSmartOcrService {
         processingMethodsUsed: processingMetrics.methodsUsed,
         databaseDriven: templateMatch.databaseDriven,
         questionValidation: {
-          expectedCount: templateMatch.formatAnalysis.expectedQuestionCount || 0,
+          expectedCount: templateMatch.questionCount || 0,
           detectedCount: questionTypeResults.length,
-          countMatch: Math.abs((templateMatch.formatAnalysis.expectedQuestionCount || 0) - questionTypeResults.length) <= 1
+          countMatch: Math.abs((templateMatch.questionCount || 0) - questionTypeResults.length) <= 1
         }
       };
       
@@ -180,13 +174,12 @@ export class FlexibleOcrService extends EnhancedSmartOcrService {
       return fileNameMatch[1];
     }
     
-    // TODO: Could add basic OCR to extract exam ID from image header
-    // For now, generate a fallback ID
+    // Generate a fallback ID
     return `EXAM_${Date.now().toString().slice(-6)}`;
   }
   
-  // Database-driven template recognition
-  private static async recognizeTemplateFromDatabase(examId: string): Promise<FlexibleTemplateMatchResult & { databaseDriven: boolean }> {
+  // Database-driven template recognition using existing answer_keys table
+  private static async recognizeTemplateFromDatabase(examId: string): Promise<DatabaseDrivenTemplateMatch> {
     try {
       console.log('🔍 Querying database for exam format:', examId);
       
@@ -226,11 +219,9 @@ export class FlexibleOcrService extends EnhancedSmartOcrService {
         name: 'database_driven',
         examId,
         questionMap,
-        layout: {
-          questionCount: answerKeys.length,
-          hasMultipleChoice: multipleChoiceCount > 0,
-          hasTextBased: textBasedCount > 0
-        }
+        questionCount: answerKeys.length,
+        hasMultipleChoice: multipleChoiceCount > 0,
+        hasTextBased: textBasedCount > 0
       };
       
       const detectedQuestionTypes: DetectedQuestionType[] = answerKeys.map(key => ({
@@ -243,23 +234,28 @@ export class FlexibleOcrService extends EnhancedSmartOcrService {
           : 'google_vision_text'
       }));
       
-      const formatAnalysis: ExtendedFormatAnalysis = {
-        primaryFormat: multipleChoiceCount > 0 ? 'mixed_format' : 'text_based',
-        questionTypeDistribution: {
-          multiple_choice: multipleChoiceCount,
-          text_based: textBasedCount
-        },
-        expectedQuestionCount: answerKeys.length,
-        estimatedProcessingTime: answerKeys.length * 500 // ms per question
-      };
-      
       return {
         isMatch: true,
         confidence: 0.98,
         template: template as any,
         detectedQuestionTypes,
-        formatAnalysis: formatAnalysis as any,
-        databaseDriven: true
+        formatAnalysis: {
+          primaryFormat: multipleChoiceCount > 0 ? 'mixed_format' : 'text_based',
+          questionTypeDistribution: {
+            multiple_choice: multipleChoiceCount,
+            text_based: textBasedCount
+          }
+        },
+        recommendedExtractionMethods: ['roboflow_bubbles', 'google_vision_text'],
+        detectedElements: [],
+        alignmentOffset: { x: 0, y: 0 },
+        rotationAngle: 0,
+        databaseDriven: true,
+        questionCount: answerKeys.length,
+        questionTypes: {
+          multiple_choice: multipleChoiceCount,
+          text_based: textBasedCount
+        }
       };
       
     } catch (error) {
@@ -268,24 +264,12 @@ export class FlexibleOcrService extends EnhancedSmartOcrService {
     }
   }
   
-  private static createFallbackTemplate(): FlexibleTemplateMatchResult & { databaseDriven: boolean } {
+  private static createFallbackTemplate(): DatabaseDrivenTemplateMatch {
     const template: DatabaseTemplate = {
       name: 'fallback_mixed',
-      layout: {
-        questionCount: 0,
-        hasMultipleChoice: true,
-        hasTextBased: true
-      }
-    };
-    
-    const formatAnalysis: ExtendedFormatAnalysis = {
-      primaryFormat: 'mixed_format',
-      questionTypeDistribution: {
-        multiple_choice: 0,
-        text_based: 0
-      },
-      expectedQuestionCount: 0,
-      estimatedProcessingTime: 5000
+      questionCount: 0,
+      hasMultipleChoice: true,
+      hasTextBased: true
     };
     
     return {
@@ -293,7 +277,17 @@ export class FlexibleOcrService extends EnhancedSmartOcrService {
       confidence: 0.6,
       template: template as any,
       detectedQuestionTypes: [],
-      formatAnalysis: formatAnalysis as any,
+      formatAnalysis: {
+        primaryFormat: 'mixed_format',
+        questionTypeDistribution: {
+          multiple_choice: 0,
+          text_based: 0
+        }
+      },
+      recommendedExtractionMethods: ['roboflow_bubbles', 'google_vision_text'],
+      detectedElements: [],
+      alignmentOffset: { x: 0, y: 0 },
+      rotationAngle: 0,
       databaseDriven: false
     };
   }
@@ -301,7 +295,7 @@ export class FlexibleOcrService extends EnhancedSmartOcrService {
   // Database-guided preprocessing
   private static async databaseGuidedPreprocessing(
     imageData: string,
-    templateMatch: FlexibleTemplateMatchResult & { databaseDriven: boolean }
+    templateMatch: DatabaseDrivenTemplateMatch
   ): Promise<{ processedImageData: string }> {
     console.log('🔧 Database-guided preprocessing');
     
@@ -315,7 +309,7 @@ export class FlexibleOcrService extends EnhancedSmartOcrService {
   // Process questions using database information
   private static async processQuestionsWithDatabaseInfo(
     imageData: string,
-    templateMatch: FlexibleTemplateMatchResult & { databaseDriven: boolean }
+    templateMatch: DatabaseDrivenTemplateMatch
   ): Promise<QuestionTypeResult[]> {
     console.log('🔧 Processing questions with database guidance');
     
@@ -452,7 +446,7 @@ export class FlexibleOcrService extends EnhancedSmartOcrService {
   // Validate against database expectations
   private static async validateAgainstDatabase(
     results: QuestionTypeResult[],
-    templateMatch: FlexibleTemplateMatchResult & { databaseDriven: boolean },
+    templateMatch: DatabaseDrivenTemplateMatch,
     expectedQuestionCount?: number
   ): Promise<any[]> {
     console.log('🔍 Validating against database expectations');
@@ -461,8 +455,7 @@ export class FlexibleOcrService extends EnhancedSmartOcrService {
     
     if (templateMatch.databaseDriven) {
       // Question count validation
-      const formatAnalysis = templateMatch.formatAnalysis as ExtendedFormatAnalysis;
-      const expectedCount = formatAnalysis.expectedQuestionCount;
+      const expectedCount = templateMatch.questionCount || 0;
       const actualCount = results.length;
       const countMatch = Math.abs(expectedCount - actualCount) <= 1;
       
@@ -502,7 +495,7 @@ export class FlexibleOcrService extends EnhancedSmartOcrService {
   // Calculate database-driven metrics
   private static calculateDatabaseDrivenMetrics(
     results: QuestionTypeResult[],
-    templateMatch: FlexibleTemplateMatchResult & { databaseDriven: boolean },
+    templateMatch: DatabaseDrivenTemplateMatch,
     validationResults: any[]
   ): {
     overallConfidence: number;
@@ -527,8 +520,7 @@ export class FlexibleOcrService extends EnhancedSmartOcrService {
     const databaseBonus = templateMatch.databaseDriven ? 0.1 : 0;
     const enhancedConfidence = Math.min(1.0, (avgConfidence + qualityScore) / 2 + databaseBonus);
     
-    const formatAnalysis = templateMatch.formatAnalysis as ExtendedFormatAnalysis;
-    const estimatedTime = formatAnalysis.estimatedProcessingTime || 5000;
+    const estimatedTime = 5000; // Default processing time
     
     return {
       overallConfidence: enhancedConfidence,
@@ -545,7 +537,7 @@ export class FlexibleOcrService extends EnhancedSmartOcrService {
   private static async processQuestionsFlexibly(
     imageData: string,
     detectedQuestions: DetectedQuestionType[],
-    templateMatch: FlexibleTemplateMatchResult
+    templateMatch: DatabaseDrivenTemplateMatch
   ): Promise<QuestionTypeResult[]> {
     // Fallback to existing flexible processing when database info unavailable
     const results: QuestionTypeResult[] = [];
@@ -611,7 +603,7 @@ export class FlexibleOcrService extends EnhancedSmartOcrService {
   private static async processMultipleChoice(
     imageData: string,
     question: DetectedQuestionType,
-    templateMatch: FlexibleTemplateMatchResult
+    templateMatch: DatabaseDrivenTemplateMatch
   ): Promise<{ extractedAnswer: ExtractedAnswer; processingMethod: string }> {
     const options = ['A', 'B', 'C', 'D', 'E'];
     const selectedOption = Math.random() > 0.1 ? options[Math.floor(Math.random() * options.length)] : null;
@@ -635,7 +627,7 @@ export class FlexibleOcrService extends EnhancedSmartOcrService {
   private static async processShortAnswer(
     imageData: string,
     question: DetectedQuestionType,
-    templateMatch: FlexibleTemplateMatchResult
+    templateMatch: DatabaseDrivenTemplateMatch
   ): Promise<{ extractedAnswer: ExtractedAnswer; processingMethod: string }> {
     await new Promise(resolve => setTimeout(resolve, 500));
     

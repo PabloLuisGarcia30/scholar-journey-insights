@@ -273,7 +273,7 @@ export class EnhancedTestAnalysisService {
 
     results.forEach(result => {
       Object.entries(result.processingMethodsUsed).forEach(([method, count]) => {
-        distribution[method] = (distribution[method] || 0) + (count as number);
+        distribution[method] = (distribution[method] || 0) + Number(count);
       });
     });
 
