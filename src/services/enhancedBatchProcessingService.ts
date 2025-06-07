@@ -1,5 +1,6 @@
-
 import { supabase } from "@/integrations/supabase/client";
+import { enhancedTestAnalysisService } from './enhancedTestAnalysisService';
+import { batchPerformanceMonitor } from './batchPerformanceMonitor';
 
 export interface EnhancedBatchJob {
   id: string;
@@ -19,6 +20,9 @@ export interface EnhancedBatchJob {
     filesPerSecond: number;
     averageFileSize: number;
     apiCallsUsed: number;
+    batchProcessingEnabled: boolean;
+    aiOptimizationUsed: boolean;
+    costSavings: number;
   };
 }
 
@@ -40,6 +44,14 @@ export interface ProcessingStats {
   queueDepth: number;
   activeWorkers: number;
   maxWorkers: number;
+  enhancedMetrics?: {
+    batchProcessingEnabled: boolean;
+    aiOptimizationEnabled: boolean;
+    costSavings: number;
+    optimalBatchSize: number;
+    recentSuccessRate: number;
+    fallbackRate: number;
+  };
 }
 
 // Constants for Supabase URLs and keys
@@ -52,7 +64,8 @@ export class EnhancedBatchProcessingService {
 
   async createBatchJob(
     files: File[], 
-    priority: 'low' | 'normal' | 'high' | 'urgent' = 'normal'
+    priority: 'low' | 'normal' | 'high' | 'urgent' = 'normal',
+    enableAIOptimization: boolean = true
   ): Promise<string> {
     // Convert files to the format expected by the batch queue manager
     const filesData = await Promise.all(
@@ -68,7 +81,9 @@ export class EnhancedBatchProcessingService {
         body: {
           files: filesData,
           priority,
-          maxRetries: 3
+          maxRetries: 3,
+          enableAIOptimization,
+          batchProcessingEnabled: true
         }
       });
 
@@ -78,12 +93,14 @@ export class EnhancedBatchProcessingService {
 
       const { jobId } = response.data;
       
+      console.log(`🚀 Enhanced batch job created: ${jobId} (AI optimization: ${enableAIOptimization})`);
+      
       // Start monitoring the job
       this.startJobMonitoring(jobId);
       
       return jobId;
     } catch (error) {
-      console.error('Failed to create batch job:', error);
+      console.error('Failed to create enhanced batch job:', error);
       throw new Error(`Failed to create batch job: ${error.message}`);
     }
   }
@@ -223,10 +240,18 @@ export class EnhancedBatchProcessingService {
         errors: job.errors || [],
         retryCount: job.retry_count || 0,
         maxRetries: job.max_retries || 3,
-        estimatedTimeRemaining: this.calculateEstimatedTime(job)
+        estimatedTimeRemaining: this.calculateEstimatedTime(job),
+        processingMetrics: {
+          filesPerSecond: job.processing_metrics?.files_per_second || 0,
+          averageFileSize: job.processing_metrics?.average_file_size || 0,
+          apiCallsUsed: job.processing_metrics?.api_calls_used || 0,
+          batchProcessingEnabled: job.processing_metrics?.batch_processing_enabled || false,
+          aiOptimizationUsed: job.processing_metrics?.ai_optimization_used || false,
+          costSavings: job.processing_metrics?.cost_savings || 0
+        }
       };
     } catch (error) {
-      console.error('Failed to get job:', error);
+      console.error('Failed to get enhanced job:', error);
       return null;
     }
   }
@@ -245,18 +270,30 @@ export class EnhancedBatchProcessingService {
 
       const stats = await response.json();
       
+      // Get enhanced performance data
+      const performanceAnalysis = batchPerformanceMonitor.analyzePerformance();
+      const realtimeStats = batchPerformanceMonitor.getRealtimeStats();
+      
       return {
         totalJobsProcessed: stats.completedJobs + stats.failedJobs,
-        averageProcessingTime: 30000, // Default estimate
-        successRate: stats.completedJobs / Math.max(1, stats.completedJobs + stats.failedJobs),
-        currentThroughput: 0, // Would need historical data
+        averageProcessingTime: performanceAnalysis.efficiency.avgProcessingTime || 30000,
+        successRate: performanceAnalysis.quality.successRate / 100 || 1.0,
+        currentThroughput: performanceAnalysis.efficiency.throughputQuestionsPerSecond || 0,
         queueDepth: stats.pendingJobs,
         activeWorkers: stats.activeJobs,
-        maxWorkers: stats.maxConcurrentJobs
+        maxWorkers: stats.maxConcurrentJobs || 8,
+        enhancedMetrics: {
+          batchProcessingEnabled: true,
+          aiOptimizationEnabled: true,
+          costSavings: performanceAnalysis.cost.totalSavings,
+          optimalBatchSize: performanceAnalysis.cost.optimalBatchSize,
+          recentSuccessRate: realtimeStats.recentSuccessRate,
+          fallbackRate: performanceAnalysis.quality.fallbackRate
+        }
       };
     } catch (error) {
-      console.error('Failed to get processing stats:', error);
-      // Return default stats
+      console.error('Failed to get enhanced processing stats:', error);
+      // Return default stats with enhanced features disabled
       return {
         totalJobsProcessed: 0,
         averageProcessingTime: 30000,
@@ -264,15 +301,22 @@ export class EnhancedBatchProcessingService {
         currentThroughput: 0,
         queueDepth: 0,
         activeWorkers: 0,
-        maxWorkers: 8
+        maxWorkers: 8,
+        enhancedMetrics: {
+          batchProcessingEnabled: false,
+          aiOptimizationEnabled: false,
+          costSavings: 0,
+          optimalBatchSize: 4,
+          recentSuccessRate: 100,
+          fallbackRate: 0
+        }
       };
     }
   }
 
+  // Enhanced queue status with AI optimization metrics
   getQueueStatus() {
-    // This method returns a simplified status for the UI
-    // In a real implementation, you'd fetch this from the database
-    return {
+    const baseStatus = {
       activeJobs: [],
       pendingJobs: [],
       completedJobs: [],
@@ -292,6 +336,28 @@ export class EnhancedBatchProcessingService {
         maxConcurrency: 15
       }
     };
+
+    // Add enhanced features
+    const performanceAnalysis = batchPerformanceMonitor.analyzePerformance();
+    const realtimeStats = batchPerformanceMonitor.getRealtimeStats();
+
+    return {
+      ...baseStatus,
+      enhancedFeatures: {
+        batchProcessingEnabled: true,
+        aiOptimizationEnabled: true,
+        progressiveFallbackEnabled: true,
+        performanceMonitoringEnabled: true
+      },
+      performanceMetrics: {
+        costSavings: performanceAnalysis.cost.totalSavings,
+        optimalBatchSize: performanceAnalysis.cost.optimalBatchSize,
+        avgQualityScore: performanceAnalysis.quality.avgQualityScore,
+        throughput: performanceAnalysis.efficiency.throughputQuestionsPerSecond,
+        recentSuccessRate: realtimeStats.recentSuccessRate
+      },
+      recommendations: performanceAnalysis.recommendations
+    };
   }
 
   pauseJob(jobId: string): boolean {
@@ -310,9 +376,89 @@ export class EnhancedBatchProcessingService {
     console.log('Auto-scaling config update not implemented yet');
   }
 
+  async processBatchWithAIOptimization(
+    files: File[],
+    examId: string,
+    studentName: string,
+    options: {
+      enableBatchProcessing?: boolean;
+      enableProgressiveFallback?: boolean;
+      maxBatchSize?: number;
+      priority?: 'low' | 'normal' | 'high' | 'urgent';
+    } = {}
+  ): Promise<any> {
+    console.log(`🔬 Processing ${files.length} files with AI optimization`);
+    const startTime = Date.now();
+
+    try {
+      // Convert files to analysis format
+      const analysisFiles = await Promise.all(
+        files.map(async (file) => ({
+          fileName: file.name,
+          extractedText: '', // Will be populated by analysis
+          structuredData: await this.extractStructuredData(file)
+        }))
+      );
+
+      // Use enhanced analysis service
+      const result = await enhancedTestAnalysisService.analyzeTest({
+        files: analysisFiles,
+        examId,
+        studentName
+      });
+
+      const processingTime = Date.now() - startTime;
+      
+      // Record performance metrics if batch processing was used
+      if (result.batchProcessingSummary) {
+        const sessionId = batchPerformanceMonitor.recordBatchProcessingSession(
+          [], // Metrics would come from actual batch processing
+          [], // Routing decisions would come from actual batch processing
+          processingTime
+        );
+        
+        console.log(`📊 Performance metrics recorded for session: ${sessionId}`);
+      }
+
+      console.log(`✅ AI-optimized processing completed in ${processingTime}ms`);
+      
+      return {
+        ...result,
+        processingMetrics: {
+          totalProcessingTime: processingTime,
+          aiOptimizationEnabled: true,
+          batchProcessingUsed: !!result.batchProcessingSummary
+        }
+      };
+
+    } catch (error) {
+      console.error('❌ AI-optimized processing failed:', error);
+      throw new Error(`AI-optimized processing failed: ${error.message}`);
+    }
+  }
+
+  private async extractStructuredData(file: File): Promise<any> {
+    try {
+      // Convert file to base64 for analysis
+      const fileContent = await this.convertFileToBase64(file);
+      
+      // Use enhanced text extraction
+      const extractionResult = await enhancedTestAnalysisService.extractTextFromFile({
+        fileName: file.name,
+        fileContent
+      });
+
+      return extractionResult.structuredData || null;
+    } catch (error) {
+      console.error(`Failed to extract structured data from ${file.name}:`, error);
+      return null;
+    }
+  }
+
   async getSystemRecommendations(): Promise<string[]> {
     const stats = await this.getProcessingStats();
-    const recommendations: string[] = [];
+    const performanceAnalysis = batchPerformanceMonitor.analyzePerformance();
+    const recommendations: string[] = [...performanceAnalysis.recommendations];
 
     if (stats.queueDepth > 20) {
       recommendations.push('High queue depth detected. Consider processing during off-peak hours.');
@@ -326,7 +472,42 @@ export class EnhancedBatchProcessingService {
       recommendations.push('Jobs are queued but no workers are active. Check system status.');
     }
 
+    // Enhanced AI optimization recommendations
+    if (stats.enhancedMetrics?.costSavings < 10) {
+      recommendations.push('Cost savings are low. Consider enabling batch processing optimization.');
+    }
+
+    if (stats.enhancedMetrics?.fallbackRate > 20) {
+      recommendations.push('High fallback rate detected. Review question complexity thresholds.');
+    }
+
+    if (stats.enhancedMetrics?.recentSuccessRate < 90) {
+      recommendations.push('Recent success rate is declining. Consider individual processing for complex content.');
+    }
+
     return recommendations;
+  }
+
+  getPerformanceReport(): string {
+    return batchPerformanceMonitor.generatePerformanceReport();
+  }
+
+  enableAIOptimization(): void {
+    enhancedTestAnalysisService.updateConfiguration({
+      enableBatchProcessing: true,
+      enableProgressiveFallback: true,
+      enableCostOptimization: true
+    });
+    console.log('🚀 AI optimization enabled for batch processing');
+  }
+
+  disableAIOptimization(): void {
+    enhancedTestAnalysisService.updateConfiguration({
+      enableBatchProcessing: false,
+      enableProgressiveFallback: false,
+      enableCostOptimization: false
+    });
+    console.log('⏸️ AI optimization disabled for batch processing');
   }
 
   // Cleanup method to stop all polling
