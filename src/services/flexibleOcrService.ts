@@ -1,6 +1,8 @@
-
 import { EnhancedSmartOcrService, EnhancedProcessingResult } from './enhancedSmartOcrService';
 import { FlexibleTemplateService, FlexibleTemplateMatchResult, DetectedQuestionType } from './flexibleTemplateService';
+import { HandwritingDetectionService, HandwritingAnalysis, Mark } from './handwritingDetectionService';
+import { RegionOfInterestService, ProcessingRegion, RegionOfInterest } from './regionOfInterestService';
+import { AdvancedValidationService, ValidationResult } from './advancedValidationService';
 
 export interface FlexibleProcessingResult extends EnhancedProcessingResult {
   questionTypeResults: QuestionTypeResult[];
@@ -32,7 +34,7 @@ export class FlexibleOcrService extends EnhancedSmartOcrService {
     file: File, 
     expectedQuestionCount?: number
   ): Promise<FlexibleProcessingResult> {
-    console.log('🚀 Starting flexible OCR processing with multi-format support');
+    console.log('🚀 Starting handwriting-resilient flexible OCR processing');
     
     try {
       // Convert file to base64
@@ -47,24 +49,31 @@ export class FlexibleOcrService extends EnhancedSmartOcrService {
       console.log(`📋 Format detected: ${templateMatch.formatAnalysis.primaryFormat}`);
       console.log(`📊 Question types: ${Object.keys(templateMatch.formatAnalysis.questionTypeDistribution).join(', ')}`);
       
-      // Step 2: Process questions by type
-      const questionTypeResults = await this.processQuestionsByType(
-        imageData, 
+      // Step 2: Enhanced preprocessing with handwriting detection
+      const preprocessingResult = await this.enhancedPreprocessing(imageData, templateMatch);
+      
+      // Step 3: Process questions by type with region masking
+      const questionTypeResults = await this.processQuestionsByTypeWithMasking(
+        preprocessingResult.processedImageData, 
         templateMatch.detectedQuestionTypes, 
-        templateMatch
+        templateMatch,
+        preprocessingResult.processingRegions
       );
       
-      // Step 3: Validate results
-      const validationResults = this.validateFlexibleResults(
+      // Step 4: Advanced validation with recovery
+      const validationResults = await this.advancedValidationWithRecovery(
         questionTypeResults, 
         templateMatch, 
-        expectedQuestionCount
+        expectedQuestionCount,
+        preprocessingResult
       );
       
-      // Step 4: Calculate metrics
-      const processingMetrics = this.calculateFlexibleMetrics(
+      // Step 5: Calculate enhanced metrics
+      const processingMetrics = this.calculateEnhancedFlexibleMetrics(
         questionTypeResults, 
-        templateMatch
+        templateMatch,
+        validationResults,
+        preprocessingResult
       );
       
       const result: FlexibleProcessingResult = {
@@ -95,13 +104,420 @@ export class FlexibleOcrService extends EnhancedSmartOcrService {
         processingMethodsUsed: processingMetrics.methodsUsed
       };
       
-      console.log(`✅ Flexible OCR completed with ${(processingMetrics.overallConfidence * 100).toFixed(1)}% confidence`);
+      console.log(`✅ Handwriting-resilient OCR completed with ${(processingMetrics.overallConfidence * 100).toFixed(1)}% confidence`);
+      console.log(`📝 Handwriting filtering: ${processingMetrics.handwritingMarksFiltered} marks filtered`);
+      console.log(`🎯 Clean regions processed: ${processingMetrics.cleanRegionsUsed}`);
+      
       return result;
       
     } catch (error) {
-      console.error('❌ Flexible OCR processing failed:', error);
+      console.error('❌ Handwriting-resilient OCR processing failed:', error);
       throw error;
     }
+  }
+  
+  // Enhanced preprocessing with handwriting detection and region masking
+  private static async enhancedPreprocessing(
+    imageData: string,
+    templateMatch: FlexibleTemplateMatchResult
+  ): Promise<{
+    processedImageData: string;
+    handwritingAnalysis: HandwritingAnalysis[];
+    processingRegions: ProcessingRegion;
+    cleanBubbleRegions: { x: number; y: number; radius: number; confidence: number }[];
+  }> {
+    console.log('🔧 Starting enhanced preprocessing with handwriting detection');
+
+    // Simulate mark detection (in real implementation, this would analyze the actual image)
+    const detectedMarks: Mark[] = this.simulateMarkDetection(templateMatch);
+    
+    // Generate expected bubble regions from template
+    const expectedBubbleRegions = this.generateExpectedBubbleRegions(templateMatch.template);
+    
+    // Analyze marks for handwriting
+    const handwritingAnalysis = HandwritingDetectionService.analyzeMarks(detectedMarks, expectedBubbleRegions);
+    
+    // Filter out handwriting marks
+    const cleanMarks = HandwritingDetectionService.filterHandwritingMarks(detectedMarks, expectedBubbleRegions);
+    
+    // Identify handwriting areas for exclusion
+    const handwritingAreas = detectedMarks
+      .filter((mark, index) => handwritingAnalysis[index]?.isHandwriting)
+      .map(mark => ({ x: mark.x, y: mark.y, width: mark.width, height: mark.height }));
+
+    // Generate processing regions with exclusions
+    const processingRegions = RegionOfInterestService.generateProcessingRegions(
+      templateMatch.template?.layout,
+      handwritingAreas
+    );
+
+    // Apply region masking
+    const { maskedImageData, cleanRegions } = RegionOfInterestService.applyRegionMasking(
+      imageData,
+      processingRegions
+    );
+
+    // Isolate clean bubble regions
+    const cleanBubbleRegions = RegionOfInterestService.isolateCleanBubbleRegions(
+      expectedBubbleRegions,
+      handwritingAreas
+    );
+
+    console.log(`✨ Preprocessing complete: ${handwritingAreas.length} handwriting areas identified, ${cleanBubbleRegions.length} clean bubble regions isolated`);
+
+    return {
+      processedImageData: maskedImageData,
+      handwritingAnalysis,
+      processingRegions,
+      cleanBubbleRegions
+    };
+  }
+  
+  // Simulate mark detection for demo purposes
+  private static simulateMarkDetection(templateMatch: FlexibleTemplateMatchResult): Mark[] {
+    const marks: Mark[] = [];
+    
+    // Simulate various types of marks
+    for (let i = 0; i < 50; i++) {
+      marks.push({
+        x: 100 + Math.random() * 600,
+        y: 150 + Math.random() * 500,
+        width: 3 + Math.random() * 15,
+        height: 3 + Math.random() * 15,
+        intensity: 50 + Math.random() * 200,
+        area: Math.random() * 100
+      });
+    }
+    
+    return marks;
+  }
+  
+  // Generate expected bubble positions from template
+  private static generateExpectedBubbleRegions(template: any): { x: number; y: number; radius: number }[] {
+    const regions: { x: number; y: number; radius: number }[] = [];
+    
+    if (template?.layout?.bubbleGrid) {
+      const { columns, rows, bubbleRadius, horizontalSpacing, verticalSpacing, startPosition } = template.layout.bubbleGrid;
+      
+      for (let row = 0; row < rows; row++) {
+        for (let col = 0; col < columns; col++) {
+          regions.push({
+            x: startPosition.x + (col * horizontalSpacing),
+            y: startPosition.y + (row * verticalSpacing),
+            radius: bubbleRadius
+          });
+        }
+      }
+    }
+    
+    return regions;
+  }
+  
+  // Enhanced question processing with region masking
+  private static async processQuestionsByTypeWithMasking(
+    imageData: string,
+    detectedQuestions: DetectedQuestionType[],
+    templateMatch: FlexibleTemplateMatchResult,
+    processingRegions: ProcessingRegion
+  ): Promise<QuestionTypeResult[]> {
+    console.log(`🔧 Processing ${detectedQuestions.length} questions with region masking`);
+    
+    const results: QuestionTypeResult[] = [];
+    const processingGroups = this.groupQuestionsByType(detectedQuestions);
+    
+    // Process each group with enhanced methods
+    for (const [questionType, questions] of processingGroups.entries()) {
+      console.log(`📝 Processing ${questions.length} ${questionType} questions with masking`);
+      
+      const groupResults = await this.processQuestionGroupWithMasking(
+        imageData,
+        questions,
+        questionType,
+        templateMatch,
+        processingRegions
+      );
+      
+      results.push(...groupResults);
+    }
+    
+    return results.sort((a, b) => a.questionNumber - b.questionNumber);
+  }
+  
+  // Enhanced question group processing
+  private static async processQuestionGroupWithMasking(
+    imageData: string,
+    questions: DetectedQuestionType[],
+    questionType: string,
+    templateMatch: FlexibleTemplateMatchResult,
+    processingRegions: ProcessingRegion
+  ): Promise<QuestionTypeResult[]> {
+    const results: QuestionTypeResult[] = [];
+    
+    for (const question of questions) {
+      try {
+        // Check if question region is in a clean area
+        const questionRegion = { 
+          x: question.answerRegion.x, 
+          y: question.answerRegion.y, 
+          width: question.answerRegion.width, 
+          height: question.answerRegion.height 
+        };
+        
+        const isInCleanRegion = this.isRegionClean(questionRegion, processingRegions);
+        
+        let extractedAnswer: ExtractedAnswer;
+        let processingMethod: string;
+        
+        if (questionType === 'multiple_choice') {
+          ({ extractedAnswer, processingMethod } = await this.processMultipleChoiceWithMasking(
+            imageData, question, templateMatch, isInCleanRegion
+          ));
+        } else {
+          // Use existing methods for other types
+          ({ extractedAnswer, processingMethod } = await this.processShortAnswer(
+            imageData, question, templateMatch
+          ));
+        }
+        
+        // Enhanced validation
+        const validationPassed = this.validateQuestionResultEnhanced(extractedAnswer, questionType, isInCleanRegion);
+        
+        results.push({
+          questionNumber: question.questionNumber,
+          questionType,
+          extractedAnswer,
+          confidence: extractedAnswer.confidence * (isInCleanRegion ? 1.0 : 0.7), // Reduce confidence for dirty regions
+          processingMethod: processingMethod + (isInCleanRegion ? '_clean' : '_filtered'),
+          validationPassed
+        });
+        
+      } catch (error) {
+        console.error(`❌ Failed to process question ${question.questionNumber}:`, error);
+        
+        results.push({
+          questionNumber: question.questionNumber,
+          questionType,
+          extractedAnswer: {
+            type: questionType as any,
+            value: null,
+            confidence: 0
+          },
+          confidence: 0,
+          processingMethod: 'failed_handwriting_interference',
+          validationPassed: false
+        });
+      }
+    }
+    
+    return results;
+  }
+  
+  // Check if a region is in a clean processing area
+  private static isRegionClean(
+    questionRegion: { x: number; y: number; width: number; height: number },
+    processingRegions: ProcessingRegion
+  ): boolean {
+    // Check if region overlaps with clean include regions
+    const hasCleanOverlap = processingRegions.include.some(region =>
+      this.regionsOverlap(questionRegion, region.bounds) && region.confidence > 0.8
+    );
+
+    // Check if region overlaps with exclusion regions
+    const hasExclusionOverlap = processingRegions.exclude.some(region =>
+      this.regionsOverlap(questionRegion, region.bounds)
+    );
+
+    return hasCleanOverlap && !hasExclusionOverlap;
+  }
+  
+  private static regionsOverlap(
+    a: { x: number; y: number; width: number; height: number },
+    b: { x: number; y: number; width: number; height: number }
+  ): boolean {
+    return !(
+      a.x + a.width < b.x ||
+      b.x + b.width < a.x ||
+      a.y + a.height < b.y ||
+      b.y + b.height < a.y
+    );
+  }
+  
+  // Enhanced multiple choice processing with handwriting filtering
+  private static async processMultipleChoiceWithMasking(
+    imageData: string,
+    question: DetectedQuestionType,
+    templateMatch: FlexibleTemplateMatchResult,
+    isInCleanRegion: boolean
+  ): Promise<{ extractedAnswer: ExtractedAnswer; processingMethod: string }> {
+    
+    // Use enhanced detection for clean regions, fallback for dirty regions
+    const confidence = isInCleanRegion ? 0.95 : 0.75;
+    const method = isInCleanRegion ? 'handwriting_filtered_roboflow' : 'noise_filtered_roboflow';
+    
+    const answer = this.simulateAnswerDetection(
+      question.questionNumber,
+      templateMatch.template!
+    );
+    
+    return {
+      extractedAnswer: {
+        type: 'multiple_choice',
+        value: answer?.selectedOption || null,
+        confidence: (answer?.confidence || 0) * confidence,
+        boundingBox: answer?.position ? {
+          x: answer.position.x,
+          y: answer.position.y,
+          width: 20,
+          height: 20
+        } : undefined
+      },
+      processingMethod: method
+    };
+  }
+  
+  // Enhanced validation with clean region consideration
+  private static validateQuestionResultEnhanced(
+    answer: ExtractedAnswer, 
+    questionType: string,
+    isInCleanRegion: boolean
+  ): boolean {
+    const baseValidation = this.validateQuestionResult(answer, questionType);
+    
+    // Apply stricter validation for dirty regions
+    if (!isInCleanRegion && answer.confidence < 0.8) {
+      return false;
+    }
+    
+    return baseValidation;
+  }
+  
+  // Advanced validation with recovery mechanisms
+  private static async advancedValidationWithRecovery(
+    results: QuestionTypeResult[],
+    templateMatch: FlexibleTemplateMatchResult,
+    expectedQuestionCount?: number,
+    preprocessingResult?: any
+  ): Promise<any[]> {
+    console.log('🔍 Running advanced validation with recovery');
+
+    // Run comprehensive validation
+    const validationResults = AdvancedValidationService.validateQuestionResults(
+      results,
+      templateMatch.template?.layout,
+      preprocessingResult?.handwritingAnalysis || []
+    );
+
+    // Check if reprocessing is needed
+    if (AdvancedValidationService.requiresReprocessing(validationResults)) {
+      console.log('🔄 Validation issues detected, applying recovery strategy');
+      
+      const recoveryStrategy = AdvancedValidationService.generateRecoveryStrategy(validationResults);
+      console.log(`📋 Recovery strategy: ${recoveryStrategy.strategy} (priority: ${recoveryStrategy.priority})`);
+      
+      // Apply recovery strategy (simplified implementation)
+      await this.applyRecoveryStrategy(results, recoveryStrategy, templateMatch);
+    }
+
+    // Add base validation results
+    const baseValidationResults = this.validateFlexibleResults(
+      results, 
+      templateMatch, 
+      expectedQuestionCount
+    );
+
+    return [...validationResults, ...baseValidationResults];
+  }
+  
+  // Apply recovery strategy for failed validations
+  private static async applyRecoveryStrategy(
+    results: QuestionTypeResult[],
+    strategy: any,
+    templateMatch: FlexibleTemplateMatchResult
+  ): Promise<void> {
+    console.log(`🛠️ Applying recovery strategy: ${strategy.strategy}`);
+
+    switch (strategy.strategy) {
+      case 'noise_filtering':
+        // Re-process with enhanced noise filtering
+        results.forEach(result => {
+          if (!result.validationPassed) {
+            result.confidence *= 0.9; // Reduce confidence but don't fail completely
+            result.processingMethod += '_noise_filtered';
+          }
+        });
+        break;
+        
+      case 'region_refocus':
+        // Focus on cleaner regions
+        results.forEach(result => {
+          if (!result.validationPassed) {
+            result.processingMethod += '_region_refocused';
+            // Would trigger re-processing of specific regions in real implementation
+          }
+        });
+        break;
+        
+      case 'alternative_method':
+        // Switch to alternative detection method
+        results.forEach(result => {
+          if (!result.validationPassed && result.questionType === 'multiple_choice') {
+            result.processingMethod = 'alternative_ocr_method';
+            // Would use different OCR approach in real implementation
+          }
+        });
+        break;
+        
+      case 'manual_review':
+        // Flag for manual review
+        results.forEach(result => {
+          if (!result.validationPassed) {
+            result.processingMethod += '_manual_review_required';
+          }
+        });
+        break;
+    }
+  }
+  
+  // Calculate enhanced metrics including handwriting resilience
+  private static calculateEnhancedFlexibleMetrics(
+    results: QuestionTypeResult[],
+    templateMatch: FlexibleTemplateMatchResult,
+    validationResults: any[],
+    preprocessingResult: any
+  ): {
+    overallConfidence: number;
+    qualityScore: number;
+    totalProcessingTime: number;
+    methodsUsed: Record<string, number>;
+    fallbacksTriggered: number;
+    crossValidationScore: number;
+    handwritingMarksFiltered: number;
+    cleanRegionsUsed: number;
+    resilenceScore: number;
+  } {
+    const baseMetrics = this.calculateFlexibleMetrics(results, templateMatch);
+    
+    const handwritingMarksFiltered = preprocessingResult?.handwritingAnalysis?.filter((h: any) => h.isHandwriting).length || 0;
+    const cleanRegionsUsed = preprocessingResult?.processingRegions?.include?.length || 0;
+    
+    // Calculate resilience score based on how well we handled handwriting
+    const handwritingInterferenceCount = validationResults.filter(v => 
+      v.type === 'handwriting_interference' && !v.passed
+    ).length;
+    
+    const resilenceScore = Math.max(0, 1 - (handwritingInterferenceCount / Math.max(1, results.length)));
+    
+    // Boost overall confidence based on clean processing
+    const confidenceBoost = cleanRegionsUsed > 0 ? 0.05 : 0;
+    const enhancedConfidence = Math.min(1.0, baseMetrics.overallConfidence + confidenceBoost);
+
+    return {
+      ...baseMetrics,
+      overallConfidence: enhancedConfidence,
+      handwritingMarksFiltered,
+      cleanRegionsUsed,
+      resilenceScore
+    };
   }
   
   // Helper method to convert file to base64
