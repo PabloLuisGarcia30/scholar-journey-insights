@@ -26,7 +26,7 @@ export interface RoboflowResponse {
 export interface EnhancedAnswer {
   questionNumber: number;
   selectedOption: string;
-  detectionMethod: 'roboflow_bubble' | 'google_ocr' | 'cross_validated';
+  detectionMethod: 'roboflow_bubble' | 'google_ocr' | 'cross_validated' | 'enhanced_bubble' | 'fallback';
   confidence: number;
   bubbleCoordinates?: {
     x: number;
@@ -36,6 +36,16 @@ export interface EnhancedAnswer {
   };
   crossValidated: boolean;
   fallbackUsed?: boolean;
+  // Enhanced bubble detection properties
+  bubbleQuality?: 'empty' | 'light' | 'medium' | 'heavy' | 'overfilled' | 'unknown';
+  reviewFlag?: boolean;
+  qualityAssessment?: {
+    bubbleCount: number;
+    maxBubbleConfidence: number;
+    fillLevelConsistency: number;
+    spatialAlignment: number;
+  };
+  processingNotes?: string[];
 }
 
 export interface EnhancedQuestion {
@@ -63,9 +73,17 @@ export interface ValidationResults {
   questionAnswerAlignment: number;
   bubbleDetectionAccuracy: number;
   textOcrAccuracy: number;
+  qualityAssuranceScore?: number;
   overallReliability: number;
   crossValidationCount: number;
   fallbackUsageCount: number;
+  enhancedMetrics?: {
+    emptyBubbles: number;
+    lightBubbles: number;
+    questionableBubbles: number;
+    highConfidenceAnswers: number;
+    reviewFlaggedAnswers: number;
+  };
 }
 
 export interface StructuredData {
@@ -75,6 +93,12 @@ export interface StructuredData {
     overallConfidence: number;
     roboflowDetections?: number;
     googleOcrBlocks?: number;
+    enhancedFeatures?: {
+      bubbleQualityAnalysis: boolean;
+      crossValidation: boolean;
+      confidenceScoring: boolean;
+      reviewFlags: boolean;
+    };
   };
   pages: Array<{
     pageNumber: number;
@@ -90,7 +114,30 @@ export interface StructuredData {
   }>;
   questions: EnhancedQuestion[];
   answers: EnhancedAnswer[];
+  enhancedBubbleData?: Array<{
+    class: string;
+    confidence: number;
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    quality: {
+      fillLevel: 'empty' | 'light' | 'medium' | 'heavy' | 'overfilled';
+      confidence: number;
+      detectionMethod: string;
+      spatialConsistency: number;
+    };
+    questionContext?: {
+      questionNumber: number;
+      spatialGroup: number;
+    };
+  }>;
   validationResults: ValidationResults;
+  answerPatternAnalysis?: {
+    consistencyScore: number;
+    potentialIssues: string[];
+    reviewRecommendations: string[];
+  };
   metadata: {
     totalPages: number;
     processingNotes: string[];
@@ -130,10 +177,28 @@ export interface HybridGradingSummary {
   local_accuracy: number;
   processing_method: string;
   api_calls_saved: number;
+  enhanced_metrics?: {
+    high_confidence_graded: number;
+    medium_confidence_graded: number;
+    enhanced_threshold_graded: number;
+    quality_flagged: number;
+    bubble_quality_distribution: Record<string, number>;
+  };
+  quality_report?: {
+    overall_quality: string;
+    recommendations: string[];
+    quality_distribution: Record<string, number>;
+  };
 }
 
 export interface EnhancedAnalyzeTestResponse extends AnalyzeTestResponse {
   hybrid_grading_summary?: HybridGradingSummary;
+  enhanced_bubble_analysis?: {
+    total_bubbles_detected: number;
+    quality_distribution: Record<string, number>;
+    review_flagged_count: number;
+    processing_improvements: string[];
+  };
 }
 
 export interface AnalyzeTestResponse {
@@ -200,18 +265,31 @@ export const extractTextFromFile = async (request: ExtractTextRequest): Promise<
 
 export const analyzeTest = async (request: AnalyzeTestRequest): Promise<EnhancedAnalyzeTestResponse> => {
   try {
-    console.log('Calling enhanced analyze-test function with hybrid grading for exam ID:', request.examId);
+    console.log('Calling enhanced analyze-test function with hybrid grading and bubble quality analysis for exam ID:', request.examId);
     
-    // Determine detail level based on structured data presence
+    // Determine detail level based on structured data presence and enhanced features
     const hasStructuredData = request.files.some(file => file.structuredData);
-    const detailLevel = hasStructuredData ? "detailed" : "summary";
+    const hasEnhancedFeatures = request.files.some(file => 
+      file.structuredData?.documentMetadata?.enhancedFeatures?.bubbleQualityAnalysis
+    );
+    
+    const detailLevel = hasEnhancedFeatures ? "enhanced" : hasStructuredData ? "detailed" : "summary";
+    
+    console.log('Analysis detail level:', detailLevel, {
+      hasStructuredData,
+      hasEnhancedFeatures,
+      enhancedBubbleCount: request.files.reduce((count, file) => 
+        count + (file.structuredData?.enhancedBubbleData?.length || 0), 0
+      )
+    });
     
     const result = await withRetry(
       async () => {
         const { data, error } = await supabase.functions.invoke('analyze-test', {
           body: request,
           headers: {
-            'x-detail-level': detailLevel
+            'x-detail-level': detailLevel,
+            'x-enhanced-features': hasEnhancedFeatures ? 'true' : 'false'
           }
         });
 
@@ -225,21 +303,47 @@ export const analyzeTest = async (request: AnalyzeTestRequest): Promise<Enhanced
       {
         maxAttempts: 2,
         baseDelay: 3000,
-        timeoutMs: 90000, // 1.5 minutes for analysis
+        timeoutMs: 120000, // Increased timeout for enhanced analysis
       }
     );
 
     console.log('Enhanced hybrid analyze-test function response:', result);
     
-    // Log hybrid grading performance if available
+    // Log enhanced grading performance if available
     if (result.hybrid_grading_summary) {
       const summary = result.hybrid_grading_summary;
-      console.log(`Hybrid Grading Performance:
+      console.log(`Enhanced Hybrid Grading Performance:
         - Total Questions: ${summary.total_questions}
         - Locally Graded: ${summary.locally_graded} (${Math.round(summary.local_accuracy * 100)}%)
         - AI Graded: ${summary.ai_graded}
         - API Calls Saved: ${summary.api_calls_saved}%
         - Processing Method: ${summary.processing_method}`);
+        
+      if (summary.enhanced_metrics) {
+        console.log(`Enhanced Metrics:
+          - High Confidence: ${summary.enhanced_metrics.high_confidence_graded}
+          - Medium Confidence: ${summary.enhanced_metrics.medium_confidence_graded}  
+          - Enhanced Threshold: ${summary.enhanced_metrics.enhanced_threshold_graded}
+          - Quality Flagged: ${summary.enhanced_metrics.quality_flagged}
+          - Bubble Quality: ${JSON.stringify(summary.enhanced_metrics.bubble_quality_distribution)}`);
+      }
+      
+      if (summary.quality_report) {
+        console.log(`Quality Report:
+          - Overall Quality: ${summary.quality_report.overall_quality}
+          - Recommendations: ${summary.quality_report.recommendations.join(', ')}
+          - Quality Distribution: ${JSON.stringify(summary.quality_report.quality_distribution)}`);
+      }
+    }
+    
+    // Log enhanced bubble analysis if available
+    if (result.enhanced_bubble_analysis) {
+      const bubbleAnalysis = result.enhanced_bubble_analysis;
+      console.log(`Enhanced Bubble Analysis:
+        - Total Bubbles: ${bubbleAnalysis.total_bubbles_detected}
+        - Review Flagged: ${bubbleAnalysis.review_flagged_count}
+        - Quality Distribution: ${JSON.stringify(bubbleAnalysis.quality_distribution)}
+        - Processing Improvements: ${bubbleAnalysis.processing_improvements.join(', ')}`);
     }
     
     return result;
@@ -254,11 +358,20 @@ export const analyzeTest = async (request: AnalyzeTestRequest): Promise<Enhanced
   }
 };
 
-// Export circuit breakers for monitoring
-export const getServiceHealthStatus = () => {
+// Enhanced service health monitoring
+export const getEnhancedServiceHealthStatus = () => {
   return {
     googleVision: googleVisionCircuitBreaker.getState(),
     roboflow: roboflowCircuitBreaker.getState(),
     openai: openaiCircuitBreaker.getState(),
+    enhancedFeatures: {
+      bubbleQualityAnalysis: true,
+      crossValidation: true,
+      confidenceScoring: true,
+      reviewFlags: true
+    }
   };
 };
+
+// Export legacy function for backwards compatibility
+export const getServiceHealthStatus = getEnhancedServiceHealthStatus;

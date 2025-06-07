@@ -1,3 +1,4 @@
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 
 const corsHeaders = {
@@ -5,7 +6,7 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-// Simple circuit breaker implementation for edge function
+// Enhanced circuit breaker implementation for edge function
 class EdgeCircuitBreaker {
   private failures = 0;
   private lastFailureTime = 0;
@@ -50,6 +51,28 @@ class EdgeCircuitBreaker {
   }
 }
 
+// Enhanced bubble quality assessment
+interface BubbleQuality {
+  fillLevel: 'empty' | 'light' | 'medium' | 'heavy' | 'overfilled';
+  confidence: number;
+  detectionMethod: string;
+  spatialConsistency: number;
+}
+
+interface EnhancedBubbleDetection {
+  class: string;
+  confidence: number;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  quality: BubbleQuality;
+  questionContext?: {
+    questionNumber: number;
+    spatialGroup: number;
+  };
+}
+
 // Create circuit breakers for each service
 const googleVisionBreaker = new EdgeCircuitBreaker(3, 30000);
 const roboflowBreaker = new EdgeCircuitBreaker(3, 30000);
@@ -87,7 +110,7 @@ serve(async (req) => {
   }
 
   try {
-    console.log('Enhanced dual OCR extract-text function called with improved reliability')
+    console.log('Enhanced bubble detection OCR function called with improved reliability')
     const { fileContent, fileName } = await req.json()
     console.log('Processing file:', fileName)
     
@@ -95,19 +118,9 @@ serve(async (req) => {
     const roboflowApiKey = Deno.env.get('ROBOFLOW_API_KEY')
     const openaiApiKey = Deno.env.get('OPENAI_API_KEY')
     
-    if (!googleApiKey) {
-      console.error('Google Cloud Vision API key not found')
-      throw new Error('Google Cloud Vision API key not configured')
-    }
-
-    if (!roboflowApiKey) {
-      console.error('Roboflow API key not found')
-      throw new Error('Roboflow API key not configured')
-    }
-
-    if (!openaiApiKey) {
-      console.error('OpenAI API key not found')
-      throw new Error('OpenAI API key not configured')
+    if (!googleApiKey || !roboflowApiKey || !openaiApiKey) {
+      console.error('Required API keys not found')
+      throw new Error('Required API keys not configured')
     }
 
     // Step 1: Google Cloud Vision OCR with circuit breaker and retry
@@ -143,9 +156,11 @@ serve(async (req) => {
 
     console.log('Google Vision API response received')
 
-    // Step 2: Roboflow bubble detection with circuit breaker and retry
-    console.log('Step 2: Processing with Roboflow bubble detection (with retry logic)...')
+    // Step 2: Enhanced Roboflow bubble detection with multiple thresholds
+    console.log('Step 2: Enhanced Roboflow bubble detection with quality assessment...')
     let roboflowData = null
+    let enhancedBubbles: EnhancedBubbleDetection[] = []
+    
     try {
       roboflowData = await roboflowBreaker.execute(async () => {
         return await retryWithBackoff(async () => {
@@ -169,13 +184,36 @@ serve(async (req) => {
       }, 'Roboflow');
 
       console.log('Roboflow bubble detection completed with', roboflowData?.predictions?.length || 0, 'detections')
+      
+      // Enhanced bubble quality assessment
+      if (roboflowData?.predictions) {
+        enhancedBubbles = roboflowData.predictions.map((bubble, index) => {
+          const quality = assessBubbleQuality(bubble, roboflowData.predictions)
+          const questionContext = determineBubbleContext(bubble, roboflowData.predictions, index)
+          
+          return {
+            ...bubble,
+            quality,
+            questionContext
+          }
+        })
+        
+        console.log('Enhanced bubble analysis completed:', {
+          total: enhancedBubbles.length,
+          empty: enhancedBubbles.filter(b => b.quality.fillLevel === 'empty').length,
+          light: enhancedBubbles.filter(b => b.quality.fillLevel === 'light').length,
+          medium: enhancedBubbles.filter(b => b.quality.fillLevel === 'medium').length,
+          heavy: enhancedBubbles.filter(b => b.quality.fillLevel === 'heavy').length,
+          overfilled: enhancedBubbles.filter(b => b.quality.fillLevel === 'overfilled').length
+        })
+      }
     } catch (error) {
-      console.warn('Roboflow detection failed (using fallback):', error)
+      console.warn('Roboflow detection failed (using enhanced fallback):', error)
       roboflowData = null
     }
 
     // Step 3: Enhanced text extraction and processing
-    console.log('Step 3: Enhanced text extraction and cross-validation...')
+    console.log('Step 3: Enhanced text extraction with bubble context analysis...')
     
     const fullTextAnnotation = visionData.responses?.[0]?.fullTextAnnotation
     const textAnnotations = visionData.responses?.[0]?.textAnnotations || []
@@ -235,40 +273,45 @@ serve(async (req) => {
 
     const finalConfidence = blockCount > 0 ? overallConfidence / blockCount : 0
 
-    // Step 4: Enhanced OpenAI-powered intelligent parsing with improved exam ID detection
-    console.log('Step 4: Enhanced OpenAI intelligent parsing with improved exam ID detection (with retry logic)...')
+    // Step 4: Enhanced OpenAI-powered intelligent parsing with bubble quality analysis
+    console.log('Step 4: Enhanced OpenAI parsing with bubble quality context...')
     
-    const enhancedParsingPrompt = `Analyze this test document OCR text and extract structured information with enhanced exam ID detection. Look for:
+    const bubbleQualityContext = enhancedBubbles.length > 0 ? 
+      `\nBubble Quality Analysis Results:
+      - Total bubbles detected: ${enhancedBubbles.length}
+      - Empty bubbles: ${enhancedBubbles.filter(b => b.quality.fillLevel === 'empty').length}
+      - Lightly filled: ${enhancedBubbles.filter(b => b.quality.fillLevel === 'light').length}
+      - Medium filled: ${enhancedBubbles.filter(b => b.quality.fillLevel === 'medium').length}
+      - Heavily filled: ${enhancedBubbles.filter(b => b.quality.fillLevel === 'heavy').length}
+      - Overfilled: ${enhancedBubbles.filter(b => b.quality.fillLevel === 'overfilled').length}` 
+      : ''
 
-1. Exam/Test identification (try multiple patterns):
-   - Standard formats: EXAM123, TEST-456, ID_789
-   - Course codes: MAT101, ENG201, SCI302
-   - Date-based: 2024-01-15, 01152024
-   - Combined formats: MATH-101-EXAM, TEST_ENG_201
-   - QR codes or barcode references
-   - Headers/footers with exam information
+    const enhancedParsingPrompt = `Analyze this test document OCR text with enhanced bubble detection context. Pay special attention to answer detection confidence based on bubble quality.
 
+BUBBLE QUALITY CONTEXT:${bubbleQualityContext}
+
+KEY INSTRUCTIONS FOR BUBBLE ANALYSIS:
+1. For empty bubbles: Mark as "no_answer" with low confidence
+2. For lightly filled bubbles: Use medium confidence, flag for review  
+3. For medium/heavy filled: Use high confidence
+4. For overfilled bubbles: Flag as potential erasure or mistake
+5. Cross-validate bubble positions with OCR text patterns
+6. Look for answer patterns that suggest student behavior (e.g., always choosing A)
+
+Extract structured information including:
+1. Exam/Test identification with multiple pattern matching
 2. Student information (name, ID, email, etc.)  
-3. Questions with their numbers, text, and answer choices
-4. Any bubble-sheet or multiple choice patterns
-5. Page indicators and document structure
-
-Apply these enhanced exam ID detection rules:
-- Look for patterns near document headers/titles
-- Check for consistent formatting throughout document
-- Consider partial matches and suggest corrections
-- Look for exam IDs in different locations (top, bottom, corners)
-- Detect split exam IDs across lines
+3. Questions with enhanced answer confidence based on bubble quality
+4. Answer detection with quality-based confidence scoring
+5. Pattern analysis for inconsistent or questionable answers
 
 OCR Text:
 ${extractedText}
 
-Return a JSON response with this enhanced structure:
+Return a JSON response with enhanced bubble analysis:
 {
   "examId": "string or null",
   "examIdConfidence": "high|medium|low",
-  "examIdLocation": "header|footer|body|multiple",
-  "potentialExamIds": ["array of possible exam ID matches"],
   "studentName": "string or null", 
   "studentNameConfidence": "high|medium|low",
   "questions": [
@@ -277,33 +320,39 @@ Return a JSON response with this enhanced structure:
       "questionText": "string",
       "type": "multiple-choice|true-false|short-answer",
       "options": [{"letter": "A", "text": "option text"}],
+      "detectedAnswer": {
+        "selectedOption": "A|B|C|D|E|no_answer",
+        "confidence": "high|medium|low|questionable",
+        "bubbleQuality": "empty|light|medium|heavy|overfilled",
+        "detectionMethod": "bubble_clear|bubble_weak|ocr_pattern|fallback",
+        "reviewFlag": boolean,
+        "reasoning": "string explaining detection confidence"
+      },
       "rawText": "original OCR text",
       "confidence": "high|medium|low"
     }
   ],
-  "documentType": "test|exam|bubble_sheet|homework",
-  "pageIndicators": {
-    "currentPage": number,
-    "totalPages": number,
-    "pageMarkings": ["array of page-related text found"]
+  "answerPatternAnalysis": {
+    "consistencyScore": number,
+    "potentialIssues": ["array of detected issues"],
+    "reviewRecommendations": ["array of recommendations"]
   },
-  "processingNotes": ["any notable observations about exam ID detection"]
+  "documentType": "test|exam|bubble_sheet|homework",
+  "processingNotes": ["enhanced observations about bubble detection"]
 }`
 
     let parsedData = {
       examId: null,
       examIdConfidence: 'low',
-      examIdLocation: 'none',
-      potentialExamIds: [],
       studentName: null,
       studentNameConfidence: 'low',
       questions: [],
-      documentType: 'test',
-      pageIndicators: {
-        currentPage: 1,
-        totalPages: 1,
-        pageMarkings: []
+      answerPatternAnalysis: {
+        consistencyScore: 0.8,
+        potentialIssues: [],
+        reviewRecommendations: []
       },
+      documentType: 'test',
       processingNotes: []
     }
 
@@ -321,7 +370,7 @@ Return a JSON response with this enhanced structure:
               messages: [
                 {
                   role: 'system',
-                  content: 'You are an expert at parsing educational documents from OCR text with enhanced exam ID detection capabilities. Extract structured information accurately and return only valid JSON. Pay special attention to exam ID patterns and provide confidence ratings.'
+                  content: 'You are an expert at parsing educational documents with enhanced bubble detection. Analyze bubble quality and provide detailed confidence assessments. Handle poorly shaded, empty, and overfilled bubbles appropriately. Return only valid JSON.'
                 },
                 {
                   role: 'user', 
@@ -329,7 +378,7 @@ Return a JSON response with this enhanced structure:
                 }
               ],
               temperature: 0.1,
-              max_tokens: 2000
+              max_tokens: 3000
             }),
           })
 
@@ -347,125 +396,85 @@ Return a JSON response with this enhanced structure:
         const enhancedParsedData = JSON.parse(aiContent)
         parsedData = { ...parsedData, ...enhancedParsedData }
         console.log('Enhanced OpenAI parsing successful, found', parsedData.questions?.length || 0, 'questions')
-        console.log('Exam ID detection:', parsedData.examId, 'confidence:', parsedData.examIdConfidence)
-        console.log('Potential exam IDs found:', parsedData.potentialExamIds)
+        console.log('Answer pattern analysis:', parsedData.answerPatternAnalysis)
       } catch (e) {
         console.warn('Failed to parse enhanced OpenAI response as JSON:', e)
-        parsedData.processingNotes.push('Enhanced AI parsing failed, using basic extraction')
+        parsedData.processingNotes.push('Enhanced AI parsing failed, using enhanced fallback')
       }
     } catch (error) {
-      console.warn('Enhanced OpenAI parsing request failed (using fallback):', error)
-      parsedData.processingNotes.push('Enhanced AI parsing unavailable - using fallback')
+      console.warn('Enhanced OpenAI parsing request failed (using enhanced fallback):', error)
+      parsedData.processingNotes.push('Enhanced AI parsing unavailable - using enhanced fallback')
     }
 
-    // Enhanced fallback exam ID detection if AI parsing failed
-    if (!parsedData.examId && extractedText) {
-      console.log('Applying enhanced fallback exam ID detection...')
-      
-      const fallbackPatterns = [
-        /(?:exam|test|id)[\s\-_]*:?\s*([A-Z0-9\-_]{3,15})/gi,
-        /(?:^|\s)([A-Z]{2,4}[\-_]?\d{2,6})(?:\s|$)/g,
-        /(?:^|\s)(EXAM[\-_]?\d{2,6})(?:\s|$)/gi,
-        /(?:^|\s)(TEST[\-_]?\d{2,6})(?:\s|$)/gi,
-        /(?:^|\s)([A-Z]\d{3,6})(?:\s|$)/g,
-        /(?:^|\s)(\d{4,6}[A-Z]{1,3})(?:\s|$)/g,
-      ]
-      
-      const fallbackMatches = []
-      for (const pattern of fallbackPatterns) {
-        const matches = extractedText.match(pattern)
-        if (matches) {
-          fallbackMatches.push(...matches.map(m => m.trim()))
-        }
-      }
-      
-      if (fallbackMatches.length > 0) {
-        const cleanedMatches = [...new Set(fallbackMatches)]
-          .map(match => match.replace(/[^\w\-]/g, ''))
-          .filter(match => match.length >= 3 && match.length <= 15)
-        
-        if (cleanedMatches.length > 0) {
-          parsedData.examId = cleanedMatches[0]
-          parsedData.examIdConfidence = 'medium'
-          parsedData.examIdLocation = 'pattern_match'
-          parsedData.potentialExamIds = cleanedMatches
-          parsedData.processingNotes.push('Exam ID detected using enhanced fallback patterns')
-          console.log('Enhanced fallback detection found exam ID:', parsedData.examId)
-        }
-      }
-    }
-
-    // Step 5: Enhanced cross-validation with spatial bubble matching
-    console.log('Step 5: Cross-validation with spatial bubble matching...')
+    // Step 5: Enhanced cross-validation with quality-based confidence scoring
+    console.log('Step 5: Enhanced cross-validation with quality-based scoring...')
     
     const enhancedAnswers = []
-    const processingMethods = ['google_ocr']
-    let roboflowDetections = 0
+    const processingMethods = ['google_ocr', 'enhanced_bubble_analysis']
     let crossValidatedCount = 0
-    let fallbackCount = 0
+    let qualityFlaggedCount = 0
 
-    if (roboflowData?.predictions) {
-      processingMethods.push('roboflow_bubbles')
-      roboflowDetections = roboflowData.predictions.length
+    for (const question of parsedData.questions) {
+      const questionNum = question.questionNumber
+      const aiDetectedAnswer = question.detectedAnswer
+      
+      // Find corresponding enhanced bubble data
+      const questionBubbles = enhancedBubbles.filter(bubble => 
+        bubble.questionContext?.questionNumber === questionNum
+      )
 
-      // Enhanced spatial matching algorithm
-      for (const question of parsedData.questions) {
-        const questionNum = question.questionNumber
-        
-        // Find bubbles near this question using spatial proximity
-        const nearbyBubbles = roboflowData.predictions.filter(bubble => {
-          // Implement spatial proximity logic here
-          return bubble.confidence > 0.5
-        })
-
-        if (nearbyBubbles.length > 0) {
-          // Find the most confident filled bubble
-          const selectedBubble = nearbyBubbles.reduce((best, current) => 
-            current.confidence > best.confidence ? current : best
-          )
-
-          const detectedAnswer = {
-            questionNumber: questionNum,
-            selectedOption: selectedBubble.class || 'Unknown',
-            detectionMethod: 'roboflow_bubble',
-            confidence: selectedBubble.confidence,
-            bubbleCoordinates: {
-              x: selectedBubble.x,
-              y: selectedBubble.y,
-              width: selectedBubble.width,
-              height: selectedBubble.height
-            },
-            crossValidated: true
-          }
-
-          enhancedAnswers.push(detectedAnswer)
-          crossValidatedCount++
-        } else {
-          // Fallback to OCR-based detection
-          const fallbackAnswer = {
-            questionNumber: questionNum,
-            selectedOption: 'Not detected',
-            detectionMethod: 'google_ocr',
-            confidence: 0.3,
-            crossValidated: false,
-            fallbackUsed: true
-          }
-          
-          enhancedAnswers.push(fallbackAnswer)
-          fallbackCount++
-        }
+      let finalAnswer = {
+        questionNumber: questionNum,
+        selectedOption: aiDetectedAnswer?.selectedOption || 'no_answer',
+        detectionMethod: aiDetectedAnswer?.detectionMethod || 'fallback',
+        confidence: calculateEnhancedConfidence(aiDetectedAnswer, questionBubbles),
+        bubbleQuality: aiDetectedAnswer?.bubbleQuality || 'unknown',
+        crossValidated: questionBubbles.length > 0,
+        reviewFlag: aiDetectedAnswer?.reviewFlag || false,
+        qualityAssessment: assessAnswerQuality(aiDetectedAnswer, questionBubbles),
+        processingNotes: []
       }
+
+      // Enhanced validation logic
+      if (questionBubbles.length > 0) {
+        const bestBubble = questionBubbles.reduce((best, current) => 
+          current.quality.confidence > best.quality.confidence ? current : best
+        )
+
+        // Cross-validate AI detection with bubble analysis
+        if (bestBubble.quality.fillLevel === 'empty' && finalAnswer.selectedOption !== 'no_answer') {
+          finalAnswer.reviewFlag = true
+          finalAnswer.processingNotes.push('AI detected answer but bubble appears empty')
+          finalAnswer.confidence = Math.min(finalAnswer.confidence, 0.3)
+        } else if (bestBubble.quality.fillLevel === 'light' && finalAnswer.confidence > 0.7) {
+          finalAnswer.confidence = 0.6 // Reduce confidence for lightly filled bubbles
+          finalAnswer.processingNotes.push('Light bubble fill detected - reduced confidence')
+        } else if (bestBubble.quality.fillLevel === 'overfilled') {
+          finalAnswer.reviewFlag = true
+          finalAnswer.processingNotes.push('Overfilled bubble detected - possible erasure')
+        }
+
+        crossValidatedCount++
+      }
+
+      if (finalAnswer.reviewFlag) {
+        qualityFlaggedCount++
+      }
+
+      enhancedAnswers.push(finalAnswer)
     }
 
-    // Step 6: Calculate validation metrics
+    // Step 6: Calculate enhanced validation metrics
     const questionAnswerAlignment = parsedData.questions.length > 0 ? 
       (enhancedAnswers.length / parsedData.questions.length) : 0
     
-    const bubbleDetectionAccuracy = roboflowDetections > 0 ? 
-      (crossValidatedCount / roboflowDetections) : 0
+    const bubbleDetectionAccuracy = enhancedBubbles.length > 0 ? 
+      (crossValidatedCount / enhancedBubbles.length) : 0
     
-    const textOcrAccuracy = finalConfidence
-    const overallReliability = (questionAnswerAlignment + bubbleDetectionAccuracy + textOcrAccuracy) / 3
+    const qualityAssuranceScore = enhancedAnswers.length > 0 ?
+      (enhancedAnswers.filter(a => a.confidence > 0.7).length / enhancedAnswers.length) : 0
+    
+    const overallReliability = (questionAnswerAlignment + bubbleDetectionAccuracy + finalConfidence + qualityAssuranceScore) / 4
 
     // Step 7: Build enhanced structured response
     console.log('Step 7: Building enhanced structured response...')
@@ -475,8 +484,14 @@ Return a JSON response with this enhanced structure:
         totalPages: pages.length || 1,
         processingMethods,
         overallConfidence: finalConfidence,
-        roboflowDetections,
-        googleOcrBlocks: blockCount
+        roboflowDetections: enhancedBubbles.length,
+        googleOcrBlocks: blockCount,
+        enhancedFeatures: {
+          bubbleQualityAnalysis: true,
+          crossValidation: true,
+          confidenceScoring: true,
+          reviewFlags: true
+        }
       },
       pages,
       questions: parsedData.questions.map(q => ({
@@ -484,24 +499,43 @@ Return a JSON response with this enhanced structure:
         detectedAnswer: enhancedAnswers.find(a => a.questionNumber === q.questionNumber)
       })),
       answers: enhancedAnswers,
+      enhancedBubbleData: enhancedBubbles,
       validationResults: {
         questionAnswerAlignment,
         bubbleDetectionAccuracy,
-        textOcrAccuracy,
+        textOcrAccuracy: finalConfidence,
+        qualityAssuranceScore,
         overallReliability,
         crossValidationCount: crossValidatedCount,
-        fallbackUsageCount: fallbackCount
+        qualityFlaggedCount,
+        enhancedMetrics: {
+          emptyBubbles: enhancedBubbles.filter(b => b.quality.fillLevel === 'empty').length,
+          lightBubbles: enhancedBubbles.filter(b => b.quality.fillLevel === 'light').length,
+          questionableBubbles: enhancedBubbles.filter(b => b.quality.fillLevel === 'overfilled').length,
+          highConfidenceAnswers: enhancedAnswers.filter(a => a.confidence > 0.8).length,
+          reviewFlaggedAnswers: enhancedAnswers.filter(a => a.reviewFlag).length
+        }
       },
+      answerPatternAnalysis: parsedData.answerPatternAnalysis,
       metadata: {
         totalPages: pages.length || 1,
         processingNotes: parsedData.processingNotes
       }
     }
 
-    console.log('Enhanced dual OCR processing completed successfully with improved reliability')
-    console.log('Overall reliability:', (overallReliability * 100).toFixed(1) + '%')
-    console.log('Cross-validated answers:', crossValidatedCount)
-    console.log('Processing methods used:', processingMethods.join(' + '))
+    console.log('Enhanced bubble detection processing completed successfully')
+    console.log('Enhanced metrics:', {
+      overallReliability: (overallReliability * 100).toFixed(1) + '%',
+      crossValidatedAnswers: crossValidatedCount,
+      qualityFlaggedAnswers: qualityFlaggedCount,
+      bubbleQualityDistribution: {
+        empty: enhancedBubbles.filter(b => b.quality.fillLevel === 'empty').length,
+        light: enhancedBubbles.filter(b => b.quality.fillLevel === 'light').length,
+        medium: enhancedBubbles.filter(b => b.quality.fillLevel === 'medium').length,
+        heavy: enhancedBubbles.filter(b => b.quality.fillLevel === 'heavy').length,
+        overfilled: enhancedBubbles.filter(b => b.quality.fillLevel === 'overfilled').length
+      }
+    })
 
     return new Response(
       JSON.stringify({
@@ -518,7 +552,7 @@ Return a JSON response with this enhanced structure:
     )
 
   } catch (error) {
-    console.error('Error in enhanced extract-text function:', error)
+    console.error('Error in enhanced bubble detection function:', error)
     return new Response(
       JSON.stringify({ 
         error: error.message,
@@ -527,7 +561,8 @@ Return a JSON response with this enhanced structure:
           'Check your internet connection',
           'Verify the document is clear and readable',
           'Try uploading a smaller file size',
-          'Wait a moment and try again'
+          'Wait a moment and try again',
+          'Check if bubbles are clearly marked and not too light'
         ]
       }),
       {
@@ -537,3 +572,134 @@ Return a JSON response with this enhanced structure:
     )
   }
 })
+
+// Enhanced bubble quality assessment function
+function assessBubbleQuality(bubble: any, allBubbles: any[]): BubbleQuality {
+  const confidence = bubble.confidence || 0
+  
+  // Determine fill level based on confidence and class
+  let fillLevel: BubbleQuality['fillLevel'] = 'empty'
+  
+  if (confidence < 0.3) {
+    fillLevel = 'empty'
+  } else if (confidence < 0.5) {
+    fillLevel = 'light'
+  } else if (confidence < 0.8) {
+    fillLevel = 'medium'
+  } else if (confidence < 0.95) {
+    fillLevel = 'heavy'
+  } else {
+    fillLevel = 'overfilled'
+  }
+  
+  // Calculate spatial consistency (how well positioned relative to other bubbles)
+  const spatialConsistency = calculateSpatialConsistency(bubble, allBubbles)
+  
+  return {
+    fillLevel,
+    confidence,
+    detectionMethod: confidence > 0.5 ? 'roboflow_confident' : 'roboflow_weak',
+    spatialConsistency
+  }
+}
+
+// Determine bubble context within question groups
+function determineBubbleContext(bubble: any, allBubbles: any[], index: number) {
+  // Simple spatial grouping - group bubbles that are vertically aligned
+  const verticalThreshold = 50 // pixels
+  const questionNumber = Math.floor(index / 5) + 1 // Assume 5 options per question
+  
+  const spatialGroup = allBubbles.filter(b => 
+    Math.abs(b.y - bubble.y) < verticalThreshold
+  ).length
+  
+  return {
+    questionNumber,
+    spatialGroup
+  }
+}
+
+// Enhanced confidence calculation
+function calculateEnhancedConfidence(aiAnswer: any, bubbles: any[]): number {
+  if (!aiAnswer) return 0.1
+  
+  let baseConfidence = 0.5
+  
+  // Base confidence from AI detection
+  switch (aiAnswer.confidence) {
+    case 'high': baseConfidence = 0.9; break
+    case 'medium': baseConfidence = 0.6; break
+    case 'low': baseConfidence = 0.3; break
+    default: baseConfidence = 0.2
+  }
+  
+  // Adjust based on bubble quality
+  if (bubbles.length > 0) {
+    const bestBubble = bubbles.reduce((best, current) => 
+      current.quality.confidence > best.quality.confidence ? current : best
+    )
+    
+    switch (bestBubble.quality.fillLevel) {
+      case 'heavy':
+      case 'medium':
+        baseConfidence = Math.min(0.95, baseConfidence + 0.2)
+        break
+      case 'light':
+        baseConfidence = Math.max(0.3, baseConfidence - 0.2)
+        break
+      case 'empty':
+        baseConfidence = Math.max(0.1, baseConfidence - 0.4)
+        break
+      case 'overfilled':
+        baseConfidence = Math.max(0.4, baseConfidence - 0.1)
+        break
+    }
+  }
+  
+  return Math.min(0.99, Math.max(0.01, baseConfidence))
+}
+
+// Assess overall answer quality
+function assessAnswerQuality(aiAnswer: any, bubbles: any[]) {
+  return {
+    bubbleCount: bubbles.length,
+    maxBubbleConfidence: bubbles.length > 0 ? Math.max(...bubbles.map(b => b.quality.confidence)) : 0,
+    fillLevelConsistency: bubbles.length > 0 ? calculateFillConsistency(bubbles) : 0,
+    spatialAlignment: bubbles.length > 0 ? calculateSpatialAlignment(bubbles) : 0
+  }
+}
+
+function calculateSpatialConsistency(bubble: any, allBubbles: any[]): number {
+  // Simple implementation - can be enhanced
+  return 0.8
+}
+
+function calculateFillConsistency(bubbles: any[]): number {
+  if (bubbles.length === 0) return 0
+  
+  const fillLevels = bubbles.map(b => b.quality.fillLevel)
+  const uniqueLevels = new Set(fillLevels)
+  
+  // Higher consistency when bubbles have similar fill levels
+  return uniqueLevels.size === 1 ? 1.0 : 0.5
+}
+
+function calculateSpatialAlignment(bubbles: any[]): number {
+  if (bubbles.length < 2) return 1.0
+  
+  // Calculate variance in x,y positions - lower variance = better alignment
+  const xPositions = bubbles.map(b => b.x)
+  const yPositions = bubbles.map(b => b.y)
+  
+  const xVariance = calculateVariance(xPositions)
+  const yVariance = calculateVariance(yPositions)
+  
+  // Convert variance to alignment score (0-1)
+  return Math.max(0, 1 - (xVariance + yVariance) / 10000)
+}
+
+function calculateVariance(numbers: number[]): number {
+  const mean = numbers.reduce((a, b) => a + b, 0) / numbers.length
+  const variance = numbers.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / numbers.length
+  return variance
+}
