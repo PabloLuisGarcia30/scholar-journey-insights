@@ -6,12 +6,35 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-detail-level',
 }
 
-// Import shared AI optimization logic to eliminate code duplication
-// This is a direct copy of the shared module since Edge Functions can't import from src/
-class SharedQuestionComplexityAnalyzer {
-  private config: any;
+// Shared AI optimization configuration for Edge Functions
+interface AIOptimizationConfig {
+  simpleThreshold: number;
+  complexThreshold: number;
+  fallbackConfidenceThreshold: number;
+  gpt4oMiniCost: number;
+  gpt41Cost: number;
+  enableAdaptiveThresholds: boolean;
+  validationMode: boolean;
+}
 
-  constructor(config: any = { simpleThreshold: 25, fallbackConfidenceThreshold: 70 }) {
+// Create configuration from environment variables
+function createConfigFromEnvironment(): AIOptimizationConfig {
+  return {
+    simpleThreshold: parseInt(Deno.env.get('AI_SIMPLE_THRESHOLD') || '25'),
+    complexThreshold: parseInt(Deno.env.get('AI_COMPLEX_THRESHOLD') || '60'),
+    fallbackConfidenceThreshold: parseInt(Deno.env.get('AI_FALLBACK_THRESHOLD') || '70'),
+    gpt4oMiniCost: parseFloat(Deno.env.get('GPT4O_MINI_COST') || '0.00015'),
+    gpt41Cost: parseFloat(Deno.env.get('GPT41_COST') || '0.003'),
+    enableAdaptiveThresholds: Deno.env.get('AI_ADAPTIVE_THRESHOLDS') === 'true',
+    validationMode: Deno.env.get('AI_VALIDATION_MODE') === 'true'
+  };
+}
+
+// Shared complexity analyzer for Edge Functions
+class EdgeComplexityAnalyzer {
+  private config: AIOptimizationConfig;
+
+  constructor(config: AIOptimizationConfig) {
     this.config = config;
   }
 
@@ -145,78 +168,18 @@ class SharedQuestionComplexityAnalyzer {
   }
 }
 
-// Simplified Fallback Logic - much cleaner decision tree
-class SimplifiedFallbackAnalyzer {
-  private config: any;
+// Configurable AI Model Router for Edge Functions
+class EdgeAIModelRouter {
+  private analyzer: EdgeComplexityAnalyzer;
+  private config: AIOptimizationConfig;
 
-  constructor(config: any = { fallbackConfidenceThreshold: 70 }) {
+  constructor(config: AIOptimizationConfig) {
     this.config = config;
-  }
-
-  shouldFallbackToGPT41(gpt4oMiniResult: any, originalComplexity: any): {
-    shouldFallback: boolean;
-    reason: string;
-    confidence: number;
-  } {
-    // Clear failure cases (high confidence fallback)
-    if (!gpt4oMiniResult) {
-      return { shouldFallback: true, reason: 'No result returned', confidence: 100 };
-    }
-
-    if (gpt4oMiniResult.error) {
-      return { shouldFallback: true, reason: 'Error in GPT-4o-mini response', confidence: 100 };
-    }
-
-    // Missing critical data (high confidence fallback)
-    const hasCompleteResponse = gpt4oMiniResult.total_points_earned !== undefined && 
-                               gpt4oMiniResult.overall_score !== undefined;
-    
-    if (!hasCompleteResponse) {
-      return { shouldFallback: true, reason: 'Incomplete response data', confidence: 90 };
-    }
-
-    // Quality-based fallback decisions
-    const resultConfidence = gpt4oMiniResult.confidence || 0;
-    const isHighComplexity = originalComplexity.complexityScore > 30;
-    
-    if (resultConfidence < this.config.fallbackConfidenceThreshold && isHighComplexity) {
-      return { 
-        shouldFallback: true, 
-        reason: `Low confidence (${resultConfidence}) on complex question`, 
-        confidence: 75 
-      };
-    }
-
-    // No fallback needed
-    return { shouldFallback: false, reason: 'Response quality acceptable', confidence: 80 };
-  }
-}
-
-// Configurable AI Model Router using environment variables
-class ConfigurableAIModelRouter {
-  private analyzer: SharedQuestionComplexityAnalyzer;
-  private fallbackAnalyzer: SimplifiedFallbackAnalyzer;
-  private config: any;
-
-  constructor() {
-    // Create configuration from environment variables (Drawback #2 solution)
-    this.config = {
-      simpleThreshold: parseInt(Deno.env.get('AI_SIMPLE_THRESHOLD') || '25'),
-      complexThreshold: parseInt(Deno.env.get('AI_COMPLEX_THRESHOLD') || '60'),
-      fallbackConfidenceThreshold: parseInt(Deno.env.get('AI_FALLBACK_THRESHOLD') || '70'),
-      gpt4oMiniCost: parseFloat(Deno.env.get('GPT4O_MINI_COST') || '0.00015'),
-      gpt41Cost: parseFloat(Deno.env.get('GPT41_COST') || '0.003'),
-      validationMode: Deno.env.get('AI_VALIDATION_MODE') === 'true'
-    };
-
-    console.log('🔧 AI Router Configuration:', this.config);
-    
-    this.analyzer = new SharedQuestionComplexityAnalyzer(this.config);
-    this.fallbackAnalyzer = new SimplifiedFallbackAnalyzer(this.config);
+    this.analyzer = new EdgeComplexityAnalyzer(config);
   }
 
   routeQuestionsForAI(questions: any[], answerKeys: any[]) {
-    console.log('🎯 Configurable AI Model Router: Analyzing', questions.length, 'questions');
+    console.log('🎯 Edge AI Model Router: Analyzing', questions.length, 'questions');
     console.log('📊 Using configurable threshold:', this.config.simpleThreshold);
     
     const routingDecisions = questions.map(question => {
@@ -224,15 +187,17 @@ class ConfigurableAIModelRouter {
       if (!answerKey) return null;
       
       const analysis = this.analyzer.analyzeQuestion(question, answerKey);
-      const estimatedTokens = this.estimateTokens(question);
+      const estimatedCost = analysis.recommendedModel === 'gpt-4o-mini' 
+        ? this.config.gpt4oMiniCost 
+        : this.config.gpt41Cost;
       
       return {
         questionNumber: question.questionNumber,
         selectedModel: analysis.recommendedModel,
         complexityAnalysis: analysis,
-        estimatedTokens,
-        question: question,
-        answerKey: answerKey
+        fallbackAvailable: analysis.recommendedModel === 'gpt-4o-mini',
+        estimatedCost,
+        reasoning: analysis.reasoning.join('; ')
       };
     }).filter(Boolean);
 
@@ -244,24 +209,24 @@ class ConfigurableAIModelRouter {
     return { routingDecisions, distribution };
   }
 
-  // Simplified fallback decision (Drawback #3 solution)
   shouldFallbackToGPT41(gpt4oMiniResult: any, originalComplexity: any): boolean {
-    const result = this.fallbackAnalyzer.shouldFallbackToGPT41(gpt4oMiniResult, originalComplexity);
-    
-    if (result.shouldFallback) {
-      console.log(`⚠️ Simplified Fallback: ${result.reason} (confidence: ${result.confidence}%)`);
-    }
-    
-    return result.shouldFallback;
-  }
+    if (!gpt4oMiniResult) return true;
+    if (gpt4oMiniResult.error) return true;
 
-  private estimateTokens(question: any): number {
-    const baseTokens = 150;
-    const questionText = question.questionText || '';
-    const questionTokens = Math.max(10, questionText.length / 4);
-    const answerTokens = 10;
+    const hasCompleteResponse = gpt4oMiniResult.total_points_earned !== undefined && 
+                               gpt4oMiniResult.overall_score !== undefined;
     
-    return Math.round(baseTokens + questionTokens + answerTokens);
+    if (!hasCompleteResponse) return true;
+
+    const resultConfidence = gpt4oMiniResult.confidence || 0;
+    const isHighComplexity = originalComplexity.complexityScore > 30;
+    
+    if (resultConfidence < this.config.fallbackConfidenceThreshold && isHighComplexity) {
+      console.log(`⚠️ Fallback triggered: Low confidence (${resultConfidence}) on complex question`);
+      return true;
+    }
+
+    return false;
   }
 
   private calculateDistribution(decisions: any[]) {
@@ -375,14 +340,6 @@ class ScoreValidationService {
       capped
     };
   }
-
-  static logValidationResults(validation: any, context: string) {
-    if (validation.capped) {
-      console.log(`${context}: Score validation applied - Final: ${validation.earned}/${validation.possible}`);
-    } else {
-      console.log(`${context}: Score validation passed - Final: ${validation.earned}/${validation.possible}`);
-    }
-  }
 }
 
 // Skill Identification Service
@@ -390,7 +347,6 @@ class SkillIdentificationService {
   static async ensureSkillsIdentified(supabase: any, examId: string): Promise<boolean> {
     console.log('Phase 1: Ensuring AI skill identification is completed for exam:', examId);
     
-    // Check if skill mappings already exist
     const { data: existingMappings } = await supabase
       .from('exam_skill_mappings')
       .select('id')
@@ -404,7 +360,6 @@ class SkillIdentificationService {
 
     console.log('No existing skill mappings found. Triggering AI skill identification...');
     
-    // Trigger skill identification
     try {
       const { data, error } = await supabase.functions.invoke('analyze-exam-skills', {
         body: { examId }
@@ -820,8 +775,9 @@ async function processQuestionsWithOptimizedAI(
 
   console.log('\n=== CONFIGURABLE AI MODEL OPTIMIZATION ===');
   
-  // Use configurable router (solves Drawback #2)
-  const configurableRouter = new ConfigurableAIModelRouter();
+  // Use configurable router with environment-based configuration
+  const config = createConfigFromEnvironment();
+  const configurableRouter = new EdgeAIModelRouter(config);
   const { routingDecisions, distribution } = configurableRouter.routeQuestionsForAI(aiRequiredQuestions, answerKeys);
   
   const gpt4oMiniQuestions = routingDecisions.filter(d => d.selectedModel === 'gpt-4o-mini');
@@ -843,7 +799,7 @@ async function processQuestionsWithOptimizedAI(
       isDetailed
     );
     
-    // Check for fallbacks with simplified logic (solves Drawback #3)
+    // Check for fallbacks with simplified logic
     for (let i = 0; i < gpt4oMiniResults.length; i++) {
       const result = gpt4oMiniResults[i];
       const originalDecision = gpt4oMiniQuestions[i];
@@ -949,8 +905,8 @@ IDENTIFIED CONTENT SKILLS: ${contentSkillsText}
 IDENTIFIED SUBJECT SKILLS: ${subjectSkillsText}
 Use ONLY the skills that were previously identified for this exam.`);
 
-  const questions = questionDecisions.map(d => d.question);
-  const relevantAnswerKeys = questionDecisions.map(d => d.answerKey);
+  const questions = questionDecisions.map(d => d.question || d);
+  const relevantAnswerKeys = questionDecisions.map(d => d.answerKey || d);
 
   const aiAnswerKeys = relevantAnswerKeys.map(ak => 
     `Q${ak.question_number}:${ak.correct_answer} [${ak.points} pts]`
@@ -1155,7 +1111,7 @@ async function handleRequest(req: Request): Promise<Response> {
     const totalPointsPossible = validation.possible;
     const overallScore = totalPointsPossible > 0 ? (totalPointsEarned / totalPointsPossible) * 100 : 0;
 
-    ScoreValidationService.logValidationResults(validation, 'Final Score Calculation');
+    console.log(`Score validation: ${validation.capped ? 'applied' : 'passed'}`);
 
     const allContentSkillScores = [...localContentSkillScores, ...aiContentSkillScores];
     const allSubjectSkillScores = [...localSubjectSkillScores, ...aiSubjectSkillScores];
