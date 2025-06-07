@@ -7,39 +7,366 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-detail-level',
 }
 
-// Local grading service embedded in edge function
+// Enhanced Local Grading Service implementation for edge function
 class LocalGradingService {
+  private static readonly HIGH_CONFIDENCE_THRESHOLD = 0.85;
+  private static readonly MEDIUM_CONFIDENCE_THRESHOLD = 0.6;
+  private static readonly ENHANCED_CONFIDENCE_THRESHOLD = 0.4;
+
   static classifyQuestion(question: any, answerKey: any) {
+    let confidence = 0;
+    let isEasyMCQ = false;
+    let detectionMethod = 'none';
+    let shouldUseLocal = false;
+    let questionAnalysis = null;
+
+    // Check if it's a multiple choice question (A, B, C, D)
     const isMCQ = answerKey.question_type?.toLowerCase().includes('multiple') || 
                   answerKey.options || 
-                  /^[A-E]$/i.test(answerKey.correct_answer);
+                  /^[A-D]$/i.test(answerKey.correct_answer);
 
-    if (!isMCQ || !question.detectedAnswer) {
-      return { shouldUseLocal: false, confidence: 0, reason: 'Not MCQ or no detection' };
+    if (!isMCQ) {
+      return {
+        questionNumber: question.questionNumber,
+        isEasyMCQ: false,
+        confidence: 0,
+        detectionMethod: 'not_mcq',
+        shouldUseLocalGrading: false,
+        fallbackReason: 'Not a multiple choice question'
+      };
     }
 
-    const confidence = question.detectedAnswer.confidence || 0;
-    const isRoboflow = question.detectedAnswer.detectionMethod?.includes('roboflow');
-    const isCrossValidated = question.detectedAnswer.crossValidated;
+    // Enhanced question-based detection analysis
+    if (question.detectedAnswer) {
+      confidence = question.detectedAnswer.confidence || 0;
+      detectionMethod = question.detectedAnswer.detectionMethod || 'unknown';
+      const hasMultipleMarks = question.detectedAnswer.multipleMarksDetected || false;
+      const reviewRequired = question.detectedAnswer.reviewFlag || false;
+      const bubbleQuality = question.detectedAnswer.bubbleQuality || 'unknown';
+      const selectedAnswer = question.detectedAnswer.selectedOption || 'no_answer';
+      
+      questionAnalysis = {
+        hasMultipleMarks,
+        reviewRequired,
+        bubbleQuality,
+        selectedAnswer
+      };
+      
+      // Enhanced classification logic for question-based detection
+      if (confidence >= this.HIGH_CONFIDENCE_THRESHOLD && 
+          !reviewRequired && 
+          !hasMultipleMarks &&
+          selectedAnswer !== 'no_answer' &&
+          /^[A-D]$/i.test(selectedAnswer) &&
+          (bubbleQuality === 'heavy' || bubbleQuality === 'medium')) {
+        isEasyMCQ = true;
+        shouldUseLocal = true;
+      }
+      // Medium confidence with quality checks
+      else if (confidence >= this.MEDIUM_CONFIDENCE_THRESHOLD && 
+               !reviewRequired && 
+               !hasMultipleMarks &&
+               selectedAnswer !== 'no_answer' &&
+               /^[A-D]$/i.test(selectedAnswer) &&
+               question.detectedAnswer.crossValidated &&
+               bubbleQuality !== 'empty') {
+        isEasyMCQ = true;
+        shouldUseLocal = true;
+      }
+      // Enhanced threshold for borderline cases
+      else if (confidence >= this.ENHANCED_CONFIDENCE_THRESHOLD &&
+               selectedAnswer !== 'no_answer' &&
+               /^[A-D]$/i.test(selectedAnswer) &&
+               bubbleQuality === 'light' &&
+               question.detectedAnswer.crossValidated &&
+               !hasMultipleMarks &&
+               !reviewRequired) {
+        isEasyMCQ = true;
+        shouldUseLocal = true;
+      }
+    }
 
-    const shouldUseLocal = (confidence >= 0.9 && isRoboflow) || 
-                          (confidence >= 0.7 && isCrossValidated);
+    return {
+      questionNumber: question.questionNumber,
+      isEasyMCQ,
+      confidence,
+      detectionMethod,
+      shouldUseLocalGrading: shouldUseLocal,
+      questionAnalysis,
+      fallbackReason: shouldUseLocal ? undefined : this.getFallbackReason(confidence, question.detectedAnswer)
+    };
+  }
 
-    return { shouldUseLocal, confidence, reason: shouldUseLocal ? 'High confidence MCQ' : 'Low confidence' };
+  private static getFallbackReason(confidence: number, detectedAnswer: any): string {
+    if (!detectedAnswer) return 'No answer detection data';
+    
+    const reasons = [];
+    
+    if (confidence < this.ENHANCED_CONFIDENCE_THRESHOLD) {
+      reasons.push('Low confidence detection');
+    }
+    
+    if (detectedAnswer.reviewFlag) {
+      reasons.push('Flagged for manual review');
+    }
+    
+    if (detectedAnswer.multipleMarksDetected) {
+      reasons.push('Multiple marks detected');
+    }
+    
+    if (detectedAnswer.selectedOption === 'no_answer') {
+      reasons.push('No clear answer selected');
+    }
+    
+    if (!/^[A-D]$/i.test(detectedAnswer.selectedOption || '')) {
+      reasons.push('Invalid answer option (not A-D)');
+    }
+    
+    if (detectedAnswer.bubbleQuality === 'empty') {
+      reasons.push('Empty or unclear bubble');
+    }
+    
+    if (detectedAnswer.bubbleQuality === 'overfilled') {
+      reasons.push('Overfilled bubble detected');
+    }
+    
+    if (!detectedAnswer.crossValidated) {
+      reasons.push('No cross-validation available');
+    }
+    
+    return reasons.length > 0 ? reasons.join(', ') : 'Quality threshold not met';
   }
 
   static gradeQuestion(question: any, answerKey: any) {
+    const classification = this.classifyQuestion(question, answerKey);
+    
+    if (!classification.shouldUseLocalGrading) {
+      return {
+        questionNumber: question.questionNumber,
+        isCorrect: false,
+        pointsEarned: 0,
+        pointsPossible: answerKey.points || 1,
+        confidence: 0,
+        gradingMethod: 'requires_ai',
+        reasoning: classification.fallbackReason,
+        qualityFlags: classification.questionAnalysis ? {
+          hasMultipleMarks: classification.questionAnalysis.hasMultipleMarks,
+          reviewRequired: classification.questionAnalysis.reviewRequired,
+          bubbleQuality: classification.questionAnalysis.bubbleQuality,
+          confidenceAdjusted: false
+        } : undefined
+      };
+    }
+
     const studentAnswer = question.detectedAnswer?.selectedOption?.toUpperCase() || '';
     const correctAnswer = answerKey.correct_answer?.toUpperCase() || '';
     const isCorrect = studentAnswer === correctAnswer;
     const pointsPossible = answerKey.points || 1;
+    const pointsEarned = isCorrect ? pointsPossible : 0;
+
+    // Determine grading method based on confidence and detection method
+    let gradingMethod = 'local_question_based';
+    if (classification.confidence >= this.HIGH_CONFIDENCE_THRESHOLD) {
+      gradingMethod = 'local_confident';
+    } else if (classification.confidence >= this.ENHANCED_CONFIDENCE_THRESHOLD) {
+      gradingMethod = 'local_enhanced';
+    }
+
+    // Enhanced quality flags for question-based grading
+    const qualityFlags = classification.questionAnalysis ? {
+      hasMultipleMarks: classification.questionAnalysis.hasMultipleMarks,
+      reviewRequired: classification.questionAnalysis.reviewRequired,
+      bubbleQuality: classification.questionAnalysis.bubbleQuality,
+      confidenceAdjusted: classification.confidence < this.MEDIUM_CONFIDENCE_THRESHOLD
+    } : undefined;
 
     return {
       questionNumber: question.questionNumber,
       isCorrect,
-      pointsEarned: isCorrect ? pointsPossible : 0,
+      pointsEarned,
       pointsPossible,
-      confidence: question.detectedAnswer?.confidence || 0
+      confidence: classification.confidence,
+      gradingMethod,
+      reasoning: this.generateQuestionBasedReasoning(studentAnswer, correctAnswer, question.detectedAnswer),
+      qualityFlags
+    };
+  }
+
+  private static generateQuestionBasedReasoning(studentAnswer: string, correctAnswer: string, detectedAnswer: any): string {
+    let reasoning = `Question-based local grading: Student selected ${studentAnswer || 'no answer'}, correct answer is ${correctAnswer}`;
+    
+    if (detectedAnswer) {
+      reasoning += ` (Detection: ${detectedAnswer.detectionMethod || 'unknown'})`;
+      
+      if (detectedAnswer.bubbleQuality) {
+        reasoning += ` [Bubble: ${detectedAnswer.bubbleQuality}]`;
+      }
+      
+      if (detectedAnswer.multipleMarksDetected) {
+        reasoning += ' [MULTIPLE MARKS DETECTED]';
+      }
+      
+      if (detectedAnswer.reviewFlag) {
+        reasoning += ' [FLAGGED FOR REVIEW]';
+      }
+      
+      if (detectedAnswer.processingNotes && detectedAnswer.processingNotes.length > 0) {
+        reasoning += ` Notes: ${detectedAnswer.processingNotes.join(', ')}`;
+      }
+    }
+    
+    return reasoning;
+  }
+
+  static processQuestions(questions: any[], answerKeys: any[]) {
+    const localResults = [];
+    const aiRequiredQuestions = [];
+    let locallyGradedCount = 0;
+    
+    // Enhanced metrics tracking for question-based grading
+    let questionBasedCount = 0;
+    let highConfidenceCount = 0;
+    let mediumConfidenceCount = 0;
+    let enhancedThresholdCount = 0;
+    let multipleMarksCount = 0;
+    let reviewFlaggedCount = 0;
+    const bubbleQualityDist = {};
+
+    for (const question of questions) {
+      const answerKey = answerKeys.find(ak => ak.question_number === question.questionNumber);
+      
+      if (!answerKey) {
+        aiRequiredQuestions.push(question);
+        continue;
+      }
+
+      const result = this.gradeQuestion(question, answerKey);
+      
+      if (result.gradingMethod === 'requires_ai') {
+        aiRequiredQuestions.push(question);
+      } else {
+        localResults.push(result);
+        locallyGradedCount++;
+        
+        // Track enhanced metrics
+        if (result.gradingMethod === 'local_question_based') {
+          questionBasedCount++;
+        } else if (result.gradingMethod === 'local_confident') {
+          highConfidenceCount++;
+        } else if (result.gradingMethod === 'local_enhanced') {
+          enhancedThresholdCount++;
+        }
+        
+        if (result.qualityFlags?.hasMultipleMarks) {
+          multipleMarksCount++;
+        }
+        
+        if (result.qualityFlags?.reviewRequired) {
+          reviewFlaggedCount++;
+        }
+        
+        if (result.qualityFlags?.bubbleQuality) {
+          const quality = result.qualityFlags.bubbleQuality;
+          bubbleQualityDist[quality] = (bubbleQualityDist[quality] || 0) + 1;
+        }
+      }
+    }
+
+    return {
+      localResults,
+      aiRequiredQuestions,
+      summary: {
+        totalQuestions: questions.length,
+        locallyGraded: locallyGradedCount,
+        requiresAI: aiRequiredQuestions.length,
+        localAccuracy: locallyGradedCount / questions.length,
+        enhancedMetrics: {
+          questionBasedGraded: questionBasedCount,
+          highConfidenceGraded: highConfidenceCount,
+          mediumConfidenceGraded: mediumConfidenceCount,
+          enhancedThresholdGraded: enhancedThresholdCount,
+          multipleMarksDetected: multipleMarksCount,
+          reviewFlagged: reviewFlaggedCount,
+          bubbleQualityDistribution: bubbleQualityDist
+        }
+      }
+    };
+  }
+
+  static generateLocalFeedback(results: any[]): string {
+    const correct = results.filter(r => r.isCorrect).length;
+    const total = results.length;
+    const percentage = Math.round((correct / total) * 100);
+    
+    const multipleMarks = results.filter(r => r.qualityFlags?.hasMultipleMarks).length;
+    const reviewFlagged = results.filter(r => r.qualityFlags?.reviewRequired).length;
+    const questionBased = results.filter(r => r.gradingMethod === 'local_question_based').length;
+    
+    let feedback = `Question-based automated grading completed for ${total} multiple choice questions. Score: ${correct}/${total} (${percentage}%)`;
+    
+    if (questionBased > 0) {
+      feedback += `. ${questionBased} questions graded using enhanced question-based analysis`;
+    }
+    
+    if (multipleMarks > 0) {
+      feedback += `. ${multipleMarks} questions had multiple marks detected`;
+    }
+    
+    if (reviewFlagged > 0) {
+      feedback += `. ${reviewFlagged} questions flagged for review due to quality concerns`;
+    }
+    
+    return feedback;
+  }
+
+  static generateQualityReport(results: any[]) {
+    const qualityDist = {};
+    const recommendations = [];
+    
+    results.forEach(result => {
+      if (result.qualityFlags?.bubbleQuality) {
+        const quality = result.qualityFlags.bubbleQuality;
+        qualityDist[quality] = (qualityDist[quality] || 0) + 1;
+      }
+    });
+    
+    const totalWithQuality = Object.values(qualityDist).reduce((a, b) => a + b, 0);
+    const lightBubbles = qualityDist['light'] || 0;
+    const emptyBubbles = qualityDist['empty'] || 0;
+    const overfilledBubbles = qualityDist['overfilled'] || 0;
+    const multipleMarks = results.filter(r => r.qualityFlags?.hasMultipleMarks).length;
+    
+    let overallQuality = 'excellent';
+    
+    if (multipleMarks > totalWithQuality * 0.1) {
+      overallQuality = 'needs_improvement';
+      recommendations.push('Multiple marks detected frequently - review bubble sheet instructions');
+    }
+    
+    if ((lightBubbles + emptyBubbles + overfilledBubbles) / totalWithQuality > 0.3) {
+      overallQuality = 'needs_improvement';
+      recommendations.push('Consider instructing students to fill bubbles more completely');
+    } else if ((lightBubbles + emptyBubbles + overfilledBubbles) / totalWithQuality > 0.15) {
+      if (overallQuality === 'excellent') overallQuality = 'good';
+      recommendations.push('Some bubbles could be filled more clearly');
+    }
+    
+    if (emptyBubbles > 0) {
+      recommendations.push(`${emptyBubbles} questions appear to have no answer selected`);
+    }
+    
+    if (overfilledBubbles > 0) {
+      recommendations.push(`${overfilledBubbles} questions show potential erasure marks or overfilling`);
+    }
+    
+    if (multipleMarks > 0) {
+      recommendations.push(`${multipleMarks} questions had multiple bubbles marked - may indicate erasures or mistakes`);
+    }
+    
+    return {
+      overallQuality,
+      recommendations,
+      qualityDistribution: qualityDist
     };
   }
 }
@@ -50,7 +377,7 @@ serve(async (req) => {
   }
 
   try {
-    console.log('Enhanced analyze-test function called with hybrid grading system')
+    console.log('Enhanced analyze-test function called with full LocalGradingService')
     
     // Read detail level and request data
     const detailLevel = req.headers.get("x-detail-level") || "summary";
@@ -93,7 +420,7 @@ serve(async (req) => {
     const contentSkillsText = contentSkills.map(skill => `${skill.id}:${skill.skill_name}`).join(', ');
     const subjectSkillsText = subjectSkills.map(skill => `${skill.id}:${skill.skill_name}`).join(', ');
 
-    console.log('Step 2: Processing questions with hybrid grading system')
+    console.log('Step 2: Processing questions with enhanced LocalGradingService')
     
     // Extract all questions from files
     const allQuestions = [];
@@ -106,34 +433,18 @@ serve(async (req) => {
       }
     }
 
-    console.log('Found', allQuestions.length, 'questions for hybrid processing')
+    console.log('Found', allQuestions.length, 'questions for enhanced processing')
 
-    // Hybrid grading: classify and process questions
-    const localResults = [];
-    const aiRequiredQuestions = [];
-    let locallyGradedCount = 0;
+    // Use full LocalGradingService for enhanced processing
+    const processingResult = LocalGradingService.processQuestions(allQuestions, answerKeys);
+    const { localResults, aiRequiredQuestions, summary } = processingResult;
+    
+    console.log(`Enhanced processing: ${summary.locallyGraded} local, ${summary.requiresAI} require AI`)
+    console.log('Enhanced metrics:', summary.enhancedMetrics)
 
-    for (const question of allQuestions) {
-      const answerKey = answerKeys.find(ak => ak.question_number === question.questionNumber);
-      
-      if (!answerKey) {
-        aiRequiredQuestions.push(question);
-        continue;
-      }
-
-      const classification = LocalGradingService.classifyQuestion(question, answerKey);
-      
-      if (classification.shouldUseLocal) {
-        const result = LocalGradingService.gradeQuestion(question, answerKey);
-        localResults.push(result);
-        locallyGradedCount++;
-        console.log(`Q${question.questionNumber}: Local grading (${classification.confidence.toFixed(2)} confidence)`);
-      } else {
-        aiRequiredQuestions.push(question);
-      }
-    }
-
-    console.log(`Hybrid processing: ${locallyGradedCount} local, ${aiRequiredQuestions.length} require AI`)
+    // Generate quality report
+    const qualityReport = LocalGradingService.generateQualityReport(localResults);
+    console.log('Quality report:', qualityReport)
 
     // Calculate local grading results
     const localPointsEarned = localResults.reduce((sum, r) => sum + r.pointsEarned, 0);
@@ -176,7 +487,7 @@ ${aiAnswerKeys}
 STUDENT ANSWERS:
 ${aiStudentAnswers}
 
-Note: ${locallyGradedCount} questions already graded locally with ${localPointsEarned}/${localPointsPossible} points.`;
+Note: ${summary.locallyGraded} questions already graded locally with ${localPointsEarned}/${localPointsPossible} points.`;
 
       const maxTokens = isDetailed ? 1500 : 500;
 
@@ -222,20 +533,17 @@ Note: ${locallyGradedCount} questions already graded locally with ${localPointsE
       }
     }
 
-    console.log('Step 4: Merging hybrid grading results')
+    console.log('Step 4: Merging enhanced grading results')
     
     // Merge local and AI results
     const totalPointsEarned = localPointsEarned + aiPointsEarned;
     const totalPointsPossible = localPointsPossible + aiPointsPossible;
     const overallScore = totalPointsPossible > 0 ? (totalPointsEarned / totalPointsPossible) * 100 : 0;
 
-    // Generate hybrid feedback
-    const localFeedback = localResults.length > 0 
-      ? `Automatically graded ${localResults.length} multiple choice questions with high confidence. `
-      : '';
-    
+    // Generate enhanced feedback with quality insights
+    const localFeedback = LocalGradingService.generateLocalFeedback(localResults);
     const aiFeedback = aiAnalysis?.feedback || '';
-    const combinedFeedback = localFeedback + aiFeedback;
+    const combinedFeedback = localFeedback + (aiFeedback ? ' ' + aiFeedback : '');
 
     const finalAnalysis = {
       overall_score: Math.round(overallScore * 100) / 100,
@@ -243,20 +551,34 @@ Note: ${locallyGradedCount} questions already graded locally with ${localPointsE
       total_points_possible: totalPointsPossible,
       grade: `${Math.round(overallScore)}%`,
       feedback: combinedFeedback,
-      detailed_analysis: aiAnalysis?.detailed_analysis || `Hybrid grading: ${localResults.length} local + ${aiRequiredQuestions.length} AI`,
+      detailed_analysis: aiAnalysis?.detailed_analysis || `Enhanced grading: ${localResults.length} local + ${aiRequiredQuestions.length} AI`,
       content_skill_scores: aiAnalysis?.content_skill_scores || [],
       subject_skill_scores: aiAnalysis?.subject_skill_scores || [],
-      hybrid_grading_summary: {
+      question_based_grading_summary: {
         total_questions: allQuestions.length,
-        locally_graded: localResults.length,
-        ai_graded: aiRequiredQuestions.length,
-        local_accuracy: localResults.length / allQuestions.length,
+        locally_graded: summary.locallyGraded,
+        ai_graded: summary.requiresAI,
+        local_accuracy: summary.localAccuracy,
         processing_method: hasStructuredData ? "enhanced_dual_ocr" : "standard_ocr",
-        api_calls_saved: localResults.length > 0 ? Math.round((localResults.length / allQuestions.length) * 100) : 0
+        api_calls_saved: summary.locallyGraded > 0 ? Math.round((summary.locallyGraded / allQuestions.length) * 100) : 0,
+        enhanced_metrics: summary.enhancedMetrics,
+        quality_report: qualityReport
+      },
+      enhanced_question_analysis: {
+        total_questions_processed: allQuestions.length,
+        questions_with_clear_answers: summary.locallyGraded,
+        questions_with_multiple_marks: summary.enhancedMetrics.multipleMarksDetected,
+        questions_needing_review: summary.enhancedMetrics.reviewFlagged,
+        processing_improvements: [
+          `${summary.enhancedMetrics.questionBasedGraded} questions processed with question-based analysis`,
+          `${summary.enhancedMetrics.highConfidenceGraded} high-confidence detections`,
+          `${Math.round(summary.localAccuracy * 100)}% questions graded locally`,
+          `Quality assessment: ${qualityReport.overallQuality}`
+        ]
       }
     };
 
-    console.log('Step 5: Saving results to database')
+    console.log('Step 5: Saving enhanced results to database')
     
     // Upsert student profile
     const { data: studentProfile } = await supabase
@@ -267,7 +589,7 @@ Note: ${locallyGradedCount} questions already graded locally with ${localPointsE
       .select()
       .single();
 
-    // Insert test result with hybrid grading metadata
+    // Insert test result with enhanced grading metadata
     const { data: testResult } = await supabase
       .from('test_results')
       .insert({
@@ -279,7 +601,8 @@ Note: ${locallyGradedCount} questions already graded locally with ${localPointsE
         total_points_possible: finalAnalysis.total_points_possible,
         ai_feedback: finalAnalysis.feedback,
         detailed_analysis: JSON.stringify({
-          hybrid_summary: finalAnalysis.hybrid_grading_summary,
+          question_based_grading_summary: finalAnalysis.question_based_grading_summary,
+          enhanced_question_analysis: finalAnalysis.enhanced_question_analysis,
           detailed_analysis: finalAnalysis.detailed_analysis
         })
       })
@@ -311,8 +634,9 @@ Note: ${locallyGradedCount} questions already graded locally with ${localPointsE
       );
     }
 
-    console.log('Enhanced hybrid test analysis completed successfully')
-    console.log(`Performance: ${finalAnalysis.hybrid_grading_summary.api_calls_saved}% API calls saved`)
+    console.log('Enhanced test analysis completed successfully')
+    console.log(`Performance: ${finalAnalysis.question_based_grading_summary.api_calls_saved}% API calls saved`)
+    console.log(`Quality: ${qualityReport.overallQuality} with ${qualityReport.recommendations.length} recommendations`)
 
     return new Response(
       JSON.stringify({
