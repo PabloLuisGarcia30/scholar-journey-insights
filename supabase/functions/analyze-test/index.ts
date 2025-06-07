@@ -6,24 +6,29 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-detail-level',
 }
 
-// AI Model Router and Complexity Analyzer (embedded for edge function)
-class QuestionComplexityAnalyzer {
-  private static readonly SIMPLE_THRESHOLD = 25;
+// Import shared AI optimization logic to eliminate code duplication
+// This is a direct copy of the shared module since Edge Functions can't import from src/
+class SharedQuestionComplexityAnalyzer {
+  private config: any;
 
-  static analyzeQuestion(question: any, answerKey: any) {
+  constructor(config: any = { simpleThreshold: 25, fallbackConfidenceThreshold: 70 }) {
+    this.config = config;
+  }
+
+  analyzeQuestion(question: any, answerKey: any) {
     const factors = this.extractComplexityFactors(question, answerKey);
     const complexityScore = this.calculateComplexityScore(factors);
     
     return {
       complexityScore,
-      recommendedModel: complexityScore <= this.SIMPLE_THRESHOLD ? 'gpt-4o-mini' : 'gpt-4.1-2025-04-14',
+      recommendedModel: complexityScore <= this.config.simpleThreshold ? 'gpt-4o-mini' : 'gpt-4.1-2025-04-14',
       factors,
       reasoning: this.generateReasoning(factors, complexityScore),
       confidenceInDecision: this.calculateDecisionConfidence(factors, complexityScore)
     };
   }
 
-  private static extractComplexityFactors(question: any, answerKey: any) {
+  private extractComplexityFactors(question: any, answerKey: any) {
     const detectedAnswer = question.detectedAnswer || {};
     
     return {
@@ -38,7 +43,7 @@ class QuestionComplexityAnalyzer {
     };
   }
 
-  private static determineQuestionType(answerKey: any): string {
+  private determineQuestionType(answerKey: any): string {
     if (!answerKey) return 'unknown';
     
     const questionType = answerKey.question_type?.toLowerCase() || '';
@@ -55,7 +60,7 @@ class QuestionComplexityAnalyzer {
     }
   }
 
-  private static calculateAnswerClarity(detectedAnswer: any): number {
+  private calculateAnswerClarity(detectedAnswer: any): number {
     if (!detectedAnswer) return 0;
     
     let clarity = 0;
@@ -74,7 +79,7 @@ class QuestionComplexityAnalyzer {
     return Math.max(0, Math.min(100, clarity));
   }
 
-  private static calculateComplexityScore(factors: any): number {
+  private calculateComplexityScore(factors: any): number {
     let score = 0;
     
     score += (100 - factors.ocrConfidence) * 0.3;
@@ -98,7 +103,7 @@ class QuestionComplexityAnalyzer {
     return Math.max(0, Math.min(100, score));
   }
 
-  private static calculateDecisionConfidence(factors: any, complexityScore: number): number {
+  private calculateDecisionConfidence(factors: any, complexityScore: number): number {
     let confidence = 80;
     
     if (complexityScore <= 20 || complexityScore >= 80) confidence += 15;
@@ -111,10 +116,10 @@ class QuestionComplexityAnalyzer {
     return Math.max(50, Math.min(100, confidence));
   }
 
-  private static generateReasoning(factors: any, complexityScore: number): string[] {
+  private generateReasoning(factors: any, complexityScore: number): string[] {
     const reasoning = [];
     
-    if (complexityScore <= 25) {
+    if (complexityScore <= this.config.simpleThreshold) {
       reasoning.push(`Low complexity (${complexityScore}) - suitable for GPT-4o-mini`);
     } else {
       reasoning.push(`High complexity (${complexityScore}) - requires GPT-4.1`);
@@ -140,19 +145,85 @@ class QuestionComplexityAnalyzer {
   }
 }
 
-class AIModelRouter {
-  private static readonly GPT_4O_MINI_COST = 0.00015;
-  private static readonly GPT_41_COST = 0.003;
-  private static readonly FALLBACK_CONFIDENCE_THRESHOLD = 70;
+// Simplified Fallback Logic - much cleaner decision tree
+class SimplifiedFallbackAnalyzer {
+  private config: any;
 
-  static routeQuestionsForAI(questions: any[], answerKeys: any[]) {
-    console.log('🎯 AI Model Router: Analyzing', questions.length, 'questions for optimal model routing');
+  constructor(config: any = { fallbackConfidenceThreshold: 70 }) {
+    this.config = config;
+  }
+
+  shouldFallbackToGPT41(gpt4oMiniResult: any, originalComplexity: any): {
+    shouldFallback: boolean;
+    reason: string;
+    confidence: number;
+  } {
+    // Clear failure cases (high confidence fallback)
+    if (!gpt4oMiniResult) {
+      return { shouldFallback: true, reason: 'No result returned', confidence: 100 };
+    }
+
+    if (gpt4oMiniResult.error) {
+      return { shouldFallback: true, reason: 'Error in GPT-4o-mini response', confidence: 100 };
+    }
+
+    // Missing critical data (high confidence fallback)
+    const hasCompleteResponse = gpt4oMiniResult.total_points_earned !== undefined && 
+                               gpt4oMiniResult.overall_score !== undefined;
+    
+    if (!hasCompleteResponse) {
+      return { shouldFallback: true, reason: 'Incomplete response data', confidence: 90 };
+    }
+
+    // Quality-based fallback decisions
+    const resultConfidence = gpt4oMiniResult.confidence || 0;
+    const isHighComplexity = originalComplexity.complexityScore > 30;
+    
+    if (resultConfidence < this.config.fallbackConfidenceThreshold && isHighComplexity) {
+      return { 
+        shouldFallback: true, 
+        reason: `Low confidence (${resultConfidence}) on complex question`, 
+        confidence: 75 
+      };
+    }
+
+    // No fallback needed
+    return { shouldFallback: false, reason: 'Response quality acceptable', confidence: 80 };
+  }
+}
+
+// Configurable AI Model Router using environment variables
+class ConfigurableAIModelRouter {
+  private analyzer: SharedQuestionComplexityAnalyzer;
+  private fallbackAnalyzer: SimplifiedFallbackAnalyzer;
+  private config: any;
+
+  constructor() {
+    // Create configuration from environment variables (Drawback #2 solution)
+    this.config = {
+      simpleThreshold: parseInt(Deno.env.get('AI_SIMPLE_THRESHOLD') || '25'),
+      complexThreshold: parseInt(Deno.env.get('AI_COMPLEX_THRESHOLD') || '60'),
+      fallbackConfidenceThreshold: parseInt(Deno.env.get('AI_FALLBACK_THRESHOLD') || '70'),
+      gpt4oMiniCost: parseFloat(Deno.env.get('GPT4O_MINI_COST') || '0.00015'),
+      gpt41Cost: parseFloat(Deno.env.get('GPT41_COST') || '0.003'),
+      validationMode: Deno.env.get('AI_VALIDATION_MODE') === 'true'
+    };
+
+    console.log('🔧 AI Router Configuration:', this.config);
+    
+    this.analyzer = new SharedQuestionComplexityAnalyzer(this.config);
+    this.fallbackAnalyzer = new SimplifiedFallbackAnalyzer(this.config);
+  }
+
+  routeQuestionsForAI(questions: any[], answerKeys: any[]) {
+    console.log('🎯 Configurable AI Model Router: Analyzing', questions.length, 'questions');
+    console.log('📊 Using configurable threshold:', this.config.simpleThreshold);
     
     const routingDecisions = questions.map(question => {
       const answerKey = answerKeys.find(ak => ak.question_number === question.questionNumber);
       if (!answerKey) return null;
       
-      const analysis = QuestionComplexityAnalyzer.analyzeQuestion(question, answerKey);
+      const analysis = this.analyzer.analyzeQuestion(question, answerKey);
       const estimatedTokens = this.estimateTokens(question);
       
       return {
@@ -173,7 +244,18 @@ class AIModelRouter {
     return { routingDecisions, distribution };
   }
 
-  private static estimateTokens(question: any): number {
+  // Simplified fallback decision (Drawback #3 solution)
+  shouldFallbackToGPT41(gpt4oMiniResult: any, originalComplexity: any): boolean {
+    const result = this.fallbackAnalyzer.shouldFallbackToGPT41(gpt4oMiniResult, originalComplexity);
+    
+    if (result.shouldFallback) {
+      console.log(`⚠️ Simplified Fallback: ${result.reason} (confidence: ${result.confidence}%)`);
+    }
+    
+    return result.shouldFallback;
+  }
+
+  private estimateTokens(question: any): number {
     const baseTokens = 150;
     const questionText = question.questionText || '';
     const questionTokens = Math.max(10, questionText.length / 4);
@@ -182,13 +264,13 @@ class AIModelRouter {
     return Math.round(baseTokens + questionTokens + answerTokens);
   }
 
-  private static calculateDistribution(decisions: any[]) {
+  private calculateDistribution(decisions: any[]) {
     const gpt4oMini = decisions.filter(d => d.selectedModel === 'gpt-4o-mini').length;
     const gpt41 = decisions.filter(d => d.selectedModel === 'gpt-4.1-2025-04-14').length;
     const total = decisions.length;
 
-    const totalCostWithGPT41 = total * this.GPT_41_COST;
-    const estimatedActualCost = gpt4oMini * this.GPT_4O_MINI_COST + gpt41 * this.GPT_41_COST;
+    const totalCostWithGPT41 = total * this.config.gpt41Cost;
+    const estimatedActualCost = gpt4oMini * this.config.gpt4oMiniCost + gpt41 * this.config.gpt41Cost;
     const savings = total > 0 ? ((totalCostWithGPT41 - estimatedActualCost) / totalCostWithGPT41) * 100 : 0;
 
     return {
@@ -197,20 +279,6 @@ class AIModelRouter {
       totalQuestions: total,
       estimatedCostSavings: Math.max(0, savings)
     };
-  }
-
-  static shouldFallbackToGPT41(gpt4oMiniResult: any, originalComplexity: any): boolean {
-    if (!gpt4oMiniResult) return true;
-    
-    const resultConfidence = gpt4oMiniResult.confidence || 0;
-    const hasErrors = gpt4oMiniResult.error || false;
-    const isIncomplete = !gpt4oMiniResult.total_points_earned && !gpt4oMiniResult.overall_score;
-    
-    if (hasErrors) return true;
-    if (isIncomplete) return true;
-    if (resultConfidence < this.FALLBACK_CONFIDENCE_THRESHOLD && originalComplexity.complexityScore > 30) return true;
-    
-    return false;
   }
 }
 
@@ -730,7 +798,7 @@ async function parseRequestData(req: Request) {
   return { ...body, detailLevel };
 }
 
-// Enhanced AI processing with model routing
+// Enhanced AI processing with configurable model routing
 async function processQuestionsWithOptimizedAI(
   aiRequiredQuestions: any[], 
   answerKeys: any[], 
@@ -750,10 +818,11 @@ async function processQuestionsWithOptimizedAI(
     };
   }
 
-  console.log('\n=== AI MODEL OPTIMIZATION: ROUTING QUESTIONS ===');
+  console.log('\n=== CONFIGURABLE AI MODEL OPTIMIZATION ===');
   
-  // Route questions to optimal AI models
-  const { routingDecisions, distribution } = AIModelRouter.routeQuestionsForAI(aiRequiredQuestions, answerKeys);
+  // Use configurable router (solves Drawback #2)
+  const configurableRouter = new ConfigurableAIModelRouter();
+  const { routingDecisions, distribution } = configurableRouter.routeQuestionsForAI(aiRequiredQuestions, answerKeys);
   
   const gpt4oMiniQuestions = routingDecisions.filter(d => d.selectedModel === 'gpt-4o-mini');
   const gpt41Questions = routingDecisions.filter(d => d.selectedModel === 'gpt-4.1-2025-04-14');
@@ -774,13 +843,13 @@ async function processQuestionsWithOptimizedAI(
       isDetailed
     );
     
-    // Check for fallbacks needed
+    // Check for fallbacks with simplified logic (solves Drawback #3)
     for (let i = 0; i < gpt4oMiniResults.length; i++) {
       const result = gpt4oMiniResults[i];
       const originalDecision = gpt4oMiniQuestions[i];
       
-      if (AIModelRouter.shouldFallbackToGPT41(result, originalDecision.complexityAnalysis)) {
-        console.log(`⚠️ Fallback needed for question ${originalDecision.questionNumber}: GPT-4o-mini → GPT-4.1`);
+      if (configurableRouter.shouldFallbackToGPT41(result, originalDecision.complexityAnalysis)) {
+        console.log(`⚠️ Simplified Fallback for question ${originalDecision.questionNumber}: GPT-4o-mini → GPT-4.1`);
         
         // Retry with GPT-4.1
         const fallbackResults = await processQuestionsWithModel(
@@ -827,10 +896,10 @@ async function processQuestionsWithOptimizedAI(
     totalQuestions: aiRequiredQuestions.length
   };
   
-  console.log(`✅ AI Model Optimization Complete:`);
+  console.log(`✅ Configurable AI Model Optimization Complete:`);
   console.log(`   - GPT-4o-mini: ${modelUsageStats.gpt4oMiniUsed} questions`);
   console.log(`   - GPT-4.1: ${modelUsageStats.gpt41Used} questions`);
-  console.log(`   - Fallbacks: ${fallbackCount}`);
+  console.log(`   - Simplified Fallbacks: ${fallbackCount}`);
   console.log(`   - Cost savings: ${distribution.estimatedCostSavings.toFixed(1)}%`);
   
   return {
