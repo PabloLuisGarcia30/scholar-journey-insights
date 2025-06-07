@@ -1,10 +1,8 @@
 
-import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { PracticeTestGenerator } from "@/components/PracticeTestGenerator";
 import { Zap, BookOpen } from "lucide-react";
 
 interface StudentContentSkillsProps {
@@ -28,28 +26,8 @@ export function StudentContentSkills({
   classContentSkills,
   onGeneratePracticeTest
 }: StudentContentSkillsProps) {
-  const [showPracticeGenerator, setShowPracticeGenerator] = useState(false);
-  const [selectedSkill, setSelectedSkill] = useState<string | null>(null);
-
   // Filter skills for "Super Exercise" (all skills below 80%)
   const skillsForSuperExercise = comprehensiveSkillData.filter(skill => skill.score < 80);
-
-  if (showPracticeGenerator) {
-    return (
-      <PracticeTestGenerator
-        studentName="Student"
-        className={classData ? `${classData.subject} ${classData.grade}` : 'Unknown Class'}
-        skillName={selectedSkill}
-        grade={classData?.grade}
-        subject={classData?.subject}
-        classId={classData?.id}
-        onBack={() => {
-          setShowPracticeGenerator(false);
-          setSelectedSkill(null);
-        }}
-      />
-    );
-  }
 
   const isLoading = contentSkillsLoading || classContentSkillsLoading;
 
@@ -160,7 +138,11 @@ export function StudentContentSkills({
                 </div>
                 <div className="space-y-4">
                   {skills.map((skill: any) => (
-                    <div key={skill.id || skill.skill_name} className="group p-4 rounded-lg border border-slate-200 bg-white hover:shadow-md transition-all duration-200">
+                    <div 
+                      key={skill.id || skill.skill_name} 
+                      className="group p-4 rounded-lg border border-slate-200 bg-white hover:shadow-md transition-all duration-200 cursor-pointer"
+                      onClick={() => onGeneratePracticeTest(skill.skill_name)}
+                    >
                       <div className="flex items-center justify-between mb-3">
                         <h4 className="font-medium text-slate-900 group-hover:text-slate-700 transition-colors">
                           {skill.skill_name}
@@ -172,7 +154,10 @@ export function StudentContentSkills({
                           <Button 
                             variant="outline" 
                             size="sm"
-                            onClick={() => onGeneratePracticeTest(skill.skill_name)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onGeneratePracticeTest(skill.skill_name);
+                            }}
                             className="text-xs font-medium border-slate-300 hover:bg-slate-50 hover:border-slate-400 transition-all duration-200"
                           >
                             <BookOpen className="h-3 w-3 mr-2" />

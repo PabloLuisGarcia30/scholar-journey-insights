@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PracticeTestGenerator } from "./PracticeTestGenerator";
@@ -70,14 +71,15 @@ export function StudentProfile({ studentId, classId, className, onBack }: Studen
     setSelectedSkill(null);
   };
 
-  if (showPracticeTest && className) {
+  if (showPracticeTest) {
     return (
       <PracticeTestGenerator
         studentName={student?.name || ''}
-        className={className}
+        className={className || classData?.name || `${classData?.subject} ${classData?.grade}` || 'Unknown Class'}
         skillName={selectedSkill}
-        grade={classData?.grade}
-        subject={classData?.subject}
+        grade={classData?.grade || 'Grade 10'}
+        subject={classData?.subject || 'Math'}
+        classId={classData?.id || classId}
         onBack={handleBackFromPracticeTest}
       />
     );
