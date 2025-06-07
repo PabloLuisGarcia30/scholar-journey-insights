@@ -184,6 +184,13 @@ export interface QuestionBasedGradingSummary {
     review_flagged: number;
     bubble_quality_distribution: Record<string, number>;
   };
+  ai_model_optimization?: {
+    gpt4o_mini_used: number;
+    gpt41_used: number;
+    fallbacks_triggered: number;
+    cost_savings_percentage: number;
+    total_ai_questions: number;
+  };
   quality_report?: {
     overall_quality: string;
     recommendations: string[];
@@ -205,6 +212,13 @@ export interface EnhancedAnalyzeTestResponse extends AnalyzeTestResponse {
       final_earned: number;
       final_possible: number;
       exam_total_points?: number;
+    };
+    ai_model_optimization_summary?: {
+      model_routing_enabled: boolean;
+      questions_routed_to_gpt4o_mini: number;
+      questions_routed_to_gpt41: number;
+      fallback_rate: number;
+      estimated_cost_savings: string;
     };
     processing_improvements: string[];
   };
@@ -274,7 +288,7 @@ export const extractTextFromFile = async (request: ExtractTextRequest): Promise<
 
 export const analyzeTest = async (request: AnalyzeTestRequest): Promise<EnhancedAnalyzeTestResponse> => {
   try {
-    console.log('Calling enhanced analyze-test function with skill mapping and score validation for exam ID:', request.examId);
+    console.log('Calling enhanced analyze-test function with AI model optimization for exam ID:', request.examId);
     
     // Determine detail level based on structured data presence and question-based features
     const hasStructuredData = request.files.some(file => file.structuredData);
@@ -300,7 +314,8 @@ export const analyzeTest = async (request: AnalyzeTestRequest): Promise<Enhanced
             'x-detail-level': detailLevel,
             'x-question-based-features': hasQuestionBasedFeatures ? 'true' : 'false',
             'x-skill-mapping-enabled': 'true',
-            'x-score-validation-enabled': 'true'
+            'x-score-validation-enabled': 'true',
+            'x-ai-model-optimization': 'true'
           }
         });
 
@@ -314,16 +329,16 @@ export const analyzeTest = async (request: AnalyzeTestRequest): Promise<Enhanced
       {
         maxAttempts: 2,
         baseDelay: 3000,
-        timeoutMs: 150000, // Increased timeout for skill analysis
+        timeoutMs: 150000, // Increased timeout for AI model optimization
       }
     );
 
-    console.log('Enhanced analyze-test function with score validation response:', result);
+    console.log('Enhanced analyze-test function with AI model optimization response:', result);
     
-    // Log enhanced performance metrics
+    // Log enhanced performance metrics including AI model optimization
     if (result.question_based_grading_summary) {
       const summary = result.question_based_grading_summary;
-      console.log(`Enhanced Question-Based Grading with Score Validation Performance:
+      console.log(`Enhanced Question-Based Grading with AI Model Optimization Performance:
         - Total Questions: ${summary.total_questions}
         - Locally Graded: ${summary.locally_graded} (${Math.round(summary.local_accuracy * 100)}%)
         - AI Graded: ${summary.ai_graded}
@@ -331,6 +346,16 @@ export const analyzeTest = async (request: AnalyzeTestRequest): Promise<Enhanced
         - Skill Mapping Available: ${summary.skill_mapping_available}
         - Score Validation Applied: ${summary.score_validation_applied}
         - Processing Method: ${summary.processing_method}`);
+        
+      if (summary.ai_model_optimization) {
+        const aiOpt = summary.ai_model_optimization;
+        console.log(`AI Model Optimization Results:
+          - GPT-4o-mini Used: ${aiOpt.gpt4o_mini_used} questions
+          - GPT-4.1 Used: ${aiOpt.gpt41_used} questions  
+          - Fallbacks Triggered: ${aiOpt.fallbacks_triggered}
+          - Cost Savings: ${aiOpt.cost_savings_percentage.toFixed(1)}%
+          - Total AI Questions: ${aiOpt.total_ai_questions}`);
+      }
         
       if (summary.enhanced_metrics) {
         console.log(`Enhanced Metrics:
@@ -341,14 +366,24 @@ export const analyzeTest = async (request: AnalyzeTestRequest): Promise<Enhanced
       }
     }
     
-    // Log skill mapping and validation results
+    // Log AI model optimization and validation results
     if (result.enhanced_question_analysis) {
       const questionAnalysis = result.enhanced_question_analysis;
-      console.log(`Enhanced Question Analysis with Score Validation:
+      console.log(`Enhanced Question Analysis with AI Model Optimization:
         - Total Questions: ${questionAnalysis.total_questions_processed}
         - Clear Answers: ${questionAnalysis.questions_with_clear_answers}
         - With Skill Mapping: ${questionAnalysis.questions_with_skill_mapping || 0}
         - Local Skill Scores: ${questionAnalysis.local_skill_scores_calculated || 0}`);
+        
+      if (questionAnalysis.ai_model_optimization_summary) {
+        const aiOptSummary = questionAnalysis.ai_model_optimization_summary;
+        console.log(`AI Model Optimization Summary:
+          - Model Routing Enabled: ${aiOptSummary.model_routing_enabled}
+          - GPT-4o-mini Questions: ${aiOptSummary.questions_routed_to_gpt4o_mini}
+          - GPT-4.1 Questions: ${aiOptSummary.questions_routed_to_gpt41}
+          - Fallback Rate: ${aiOptSummary.fallback_rate.toFixed(1)}%
+          - Cost Savings: ${aiOptSummary.estimated_cost_savings}`);
+      }
         
       if (questionAnalysis.score_validation_summary) {
         const validation = questionAnalysis.score_validation_summary;
@@ -363,7 +398,7 @@ export const analyzeTest = async (request: AnalyzeTestRequest): Promise<Enhanced
     
     return result;
   } catch (error) {
-    console.error('Error calling enhanced analyze-test function with validation:', error);
+    console.error('Error calling enhanced analyze-test function with AI model optimization:', error);
     
     if (error instanceof RetryableError) {
       throw new Error(`Failed to analyze test after multiple attempts: ${error.message}`);
@@ -432,7 +467,7 @@ export const getExamSkillMappingStatus = async (examId: string) => {
   }
 };
 
-// Enhanced service health monitoring with score validation
+// Enhanced service health monitoring with AI model optimization
 export const getEnhancedServiceHealthStatus = () => {
   return {
     googleVision: googleVisionCircuitBreaker.getState(),
@@ -446,7 +481,10 @@ export const getEnhancedServiceHealthStatus = () => {
       skillMapping: true,
       oneTimeSkillAnalysis: true,
       scoreValidation: true,
-      mathematicalConsistency: true
+      mathematicalConsistency: true,
+      aiModelOptimization: true,
+      costOptimization: true,
+      intelligentModelRouting: true
     }
   };
 };

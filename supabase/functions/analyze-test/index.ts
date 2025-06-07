@@ -1,10 +1,217 @@
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-detail-level',
+}
+
+// AI Model Router and Complexity Analyzer (embedded for edge function)
+class QuestionComplexityAnalyzer {
+  private static readonly SIMPLE_THRESHOLD = 25;
+
+  static analyzeQuestion(question: any, answerKey: any) {
+    const factors = this.extractComplexityFactors(question, answerKey);
+    const complexityScore = this.calculateComplexityScore(factors);
+    
+    return {
+      complexityScore,
+      recommendedModel: complexityScore <= this.SIMPLE_THRESHOLD ? 'gpt-4o-mini' : 'gpt-4.1-2025-04-14',
+      factors,
+      reasoning: this.generateReasoning(factors, complexityScore),
+      confidenceInDecision: this.calculateDecisionConfidence(factors, complexityScore)
+    };
+  }
+
+  private static extractComplexityFactors(question: any, answerKey: any) {
+    const detectedAnswer = question.detectedAnswer || {};
+    
+    return {
+      ocrConfidence: detectedAnswer.confidence || 0,
+      bubbleQuality: detectedAnswer.bubbleQuality || 'unknown',
+      hasMultipleMarks: detectedAnswer.multipleMarksDetected || false,
+      hasReviewFlags: detectedAnswer.reviewFlag || false,
+      isCrossValidated: detectedAnswer.crossValidated || false,
+      questionType: this.determineQuestionType(answerKey),
+      answerClarity: this.calculateAnswerClarity(detectedAnswer),
+      selectedAnswer: detectedAnswer.selectedOption || 'no_answer'
+    };
+  }
+
+  private static determineQuestionType(answerKey: any): string {
+    if (!answerKey) return 'unknown';
+    
+    const questionType = answerKey.question_type?.toLowerCase() || '';
+    const hasOptions = answerKey.options || /^[A-D]$/i.test(answerKey.correct_answer);
+    
+    if (questionType.includes('multiple') || hasOptions) {
+      return 'mcq';
+    } else if (questionType.includes('essay') || questionType.includes('written')) {
+      return 'essay';
+    } else if (questionType.includes('math') || questionType.includes('calculation')) {
+      return 'math';
+    } else {
+      return 'mcq';
+    }
+  }
+
+  private static calculateAnswerClarity(detectedAnswer: any): number {
+    if (!detectedAnswer) return 0;
+    
+    let clarity = 0;
+    
+    clarity += (detectedAnswer.confidence || 0) * 0.6;
+    
+    const bubbleQuality = detectedAnswer.bubbleQuality;
+    if (bubbleQuality === 'heavy') clarity += 25;
+    else if (bubbleQuality === 'medium') clarity += 15;
+    else if (bubbleQuality === 'light') clarity += 5;
+    else if (bubbleQuality === 'empty' || bubbleQuality === 'overfilled') clarity -= 20;
+    
+    if (detectedAnswer.crossValidated) clarity += 10;
+    if (/^[A-D]$/i.test(detectedAnswer.selectedOption)) clarity += 5;
+    
+    return Math.max(0, Math.min(100, clarity));
+  }
+
+  private static calculateComplexityScore(factors: any): number {
+    let score = 0;
+    
+    score += (100 - factors.ocrConfidence) * 0.3;
+    score += (100 - factors.answerClarity) * 0.25;
+    
+    if (factors.hasMultipleMarks) score += 30;
+    if (factors.hasReviewFlags) score += 25;
+    if (!factors.isCrossValidated) score += 15;
+    
+    const bubbleQuality = factors.bubbleQuality;
+    if (bubbleQuality === 'empty' || bubbleQuality === 'overfilled') score += 20;
+    else if (bubbleQuality === 'unknown') score += 10;
+    
+    if (factors.questionType === 'essay') score += 40;
+    else if (factors.questionType === 'math') score += 25;
+    else if (factors.questionType === 'unknown') score += 15;
+    
+    if (factors.selectedAnswer === 'no_answer') score += 20;
+    else if (!/^[A-D]$/i.test(factors.selectedAnswer)) score += 15;
+    
+    return Math.max(0, Math.min(100, score));
+  }
+
+  private static calculateDecisionConfidence(factors: any, complexityScore: number): number {
+    let confidence = 80;
+    
+    if (complexityScore <= 20 || complexityScore >= 80) confidence += 15;
+    else if (complexityScore >= 40 && complexityScore <= 60) confidence -= 20;
+    
+    if (factors.isCrossValidated && factors.ocrConfidence > 85) confidence += 10;
+    if (factors.hasMultipleMarks || factors.hasReviewFlags) confidence += 10;
+    if (factors.bubbleQuality === 'heavy' || factors.bubbleQuality === 'medium') confidence += 5;
+    
+    return Math.max(50, Math.min(100, confidence));
+  }
+
+  private static generateReasoning(factors: any, complexityScore: number): string[] {
+    const reasoning = [];
+    
+    if (complexityScore <= 25) {
+      reasoning.push(`Low complexity (${complexityScore}) - suitable for GPT-4o-mini`);
+    } else {
+      reasoning.push(`High complexity (${complexityScore}) - requires GPT-4.1`);
+    }
+    
+    if (factors.ocrConfidence > 85) {
+      reasoning.push('High OCR confidence suggests clear detection');
+    } else if (factors.ocrConfidence < 60) {
+      reasoning.push('Low OCR confidence indicates detection issues');
+    }
+    
+    if (factors.hasMultipleMarks) reasoning.push('Multiple marks detected');
+    if (factors.hasReviewFlags) reasoning.push('Flagged for review');
+    if (!factors.isCrossValidated) reasoning.push('No cross-validation');
+    
+    if (factors.bubbleQuality === 'heavy' || factors.bubbleQuality === 'medium') {
+      reasoning.push('Good bubble quality');
+    } else if (factors.bubbleQuality === 'empty' || factors.bubbleQuality === 'overfilled') {
+      reasoning.push('Poor bubble quality');
+    }
+    
+    return reasoning;
+  }
+}
+
+class AIModelRouter {
+  private static readonly GPT_4O_MINI_COST = 0.00015;
+  private static readonly GPT_41_COST = 0.003;
+  private static readonly FALLBACK_CONFIDENCE_THRESHOLD = 70;
+
+  static routeQuestionsForAI(questions: any[], answerKeys: any[]) {
+    console.log('🎯 AI Model Router: Analyzing', questions.length, 'questions for optimal model routing');
+    
+    const routingDecisions = questions.map(question => {
+      const answerKey = answerKeys.find(ak => ak.question_number === question.questionNumber);
+      if (!answerKey) return null;
+      
+      const analysis = QuestionComplexityAnalyzer.analyzeQuestion(question, answerKey);
+      const estimatedTokens = this.estimateTokens(question);
+      
+      return {
+        questionNumber: question.questionNumber,
+        selectedModel: analysis.recommendedModel,
+        complexityAnalysis: analysis,
+        estimatedTokens,
+        question: question,
+        answerKey: answerKey
+      };
+    }).filter(Boolean);
+
+    const distribution = this.calculateDistribution(routingDecisions);
+    
+    console.log(`📊 Model Distribution: ${distribution.gpt4oMini} questions → GPT-4o-mini, ${distribution.gpt41} questions → GPT-4.1`);
+    console.log(`💰 Estimated cost savings: ${distribution.estimatedCostSavings.toFixed(1)}%`);
+
+    return { routingDecisions, distribution };
+  }
+
+  private static estimateTokens(question: any): number {
+    const baseTokens = 150;
+    const questionText = question.questionText || '';
+    const questionTokens = Math.max(10, questionText.length / 4);
+    const answerTokens = 10;
+    
+    return Math.round(baseTokens + questionTokens + answerTokens);
+  }
+
+  private static calculateDistribution(decisions: any[]) {
+    const gpt4oMini = decisions.filter(d => d.selectedModel === 'gpt-4o-mini').length;
+    const gpt41 = decisions.filter(d => d.selectedModel === 'gpt-4.1-2025-04-14').length;
+    const total = decisions.length;
+
+    const totalCostWithGPT41 = total * this.GPT_41_COST;
+    const estimatedActualCost = gpt4oMini * this.GPT_4O_MINI_COST + gpt41 * this.GPT_41_COST;
+    const savings = total > 0 ? ((totalCostWithGPT41 - estimatedActualCost) / totalCostWithGPT41) * 100 : 0;
+
+    return {
+      gpt4oMini,
+      gpt41,
+      totalQuestions: total,
+      estimatedCostSavings: Math.max(0, savings)
+    };
+  }
+
+  static shouldFallbackToGPT41(gpt4oMiniResult: any, originalComplexity: any): boolean {
+    if (!gpt4oMiniResult) return true;
+    
+    const resultConfidence = gpt4oMiniResult.confidence || 0;
+    const hasErrors = gpt4oMiniResult.error || false;
+    const isIncomplete = !gpt4oMiniResult.total_points_earned && !gpt4oMiniResult.overall_score;
+    
+    if (hasErrors) return true;
+    if (isIncomplete) return true;
+    if (resultConfidence < this.FALLBACK_CONFIDENCE_THRESHOLD && originalComplexity.complexityScore > 30) return true;
+    
+    return false;
+  }
 }
 
 // Score Validation Service
@@ -523,16 +730,255 @@ async function parseRequestData(req: Request) {
   return { ...body, detailLevel };
 }
 
+// Enhanced AI processing with model routing
+async function processQuestionsWithOptimizedAI(
+  aiRequiredQuestions: any[], 
+  answerKeys: any[], 
+  identifiedSkills: any,
+  examData: any,
+  openaiApiKey: string,
+  isDetailed: boolean
+) {
+  if (aiRequiredQuestions.length === 0) {
+    return {
+      aiAnalysis: null,
+      aiPointsEarned: 0,
+      aiPointsPossible: 0,
+      aiContentSkillScores: [],
+      aiSubjectSkillScores: [],
+      modelUsageStats: { gpt4oMiniUsed: 0, gpt41Used: 0, fallbacksTriggered: 0, costSavings: 0 }
+    };
+  }
+
+  console.log('\n=== AI MODEL OPTIMIZATION: ROUTING QUESTIONS ===');
+  
+  // Route questions to optimal AI models
+  const { routingDecisions, distribution } = AIModelRouter.routeQuestionsForAI(aiRequiredQuestions, answerKeys);
+  
+  const gpt4oMiniQuestions = routingDecisions.filter(d => d.selectedModel === 'gpt-4o-mini');
+  const gpt41Questions = routingDecisions.filter(d => d.selectedModel === 'gpt-4.1-2025-04-14');
+  
+  let allAIResults = [];
+  let fallbackCount = 0;
+  
+  // Process GPT-4o-mini questions
+  if (gpt4oMiniQuestions.length > 0) {
+    console.log(`🔄 Processing ${gpt4oMiniQuestions.length} questions with GPT-4o-mini`);
+    
+    const gpt4oMiniResults = await processQuestionsWithModel(
+      gpt4oMiniQuestions, 
+      identifiedSkills, 
+      examData, 
+      openaiApiKey, 
+      'gpt-4o-mini',
+      isDetailed
+    );
+    
+    // Check for fallbacks needed
+    for (let i = 0; i < gpt4oMiniResults.length; i++) {
+      const result = gpt4oMiniResults[i];
+      const originalDecision = gpt4oMiniQuestions[i];
+      
+      if (AIModelRouter.shouldFallbackToGPT41(result, originalDecision.complexityAnalysis)) {
+        console.log(`⚠️ Fallback needed for question ${originalDecision.questionNumber}: GPT-4o-mini → GPT-4.1`);
+        
+        // Retry with GPT-4.1
+        const fallbackResults = await processQuestionsWithModel(
+          [originalDecision], 
+          identifiedSkills, 
+          examData, 
+          openaiApiKey, 
+          'gpt-4.1-2025-04-14',
+          isDetailed
+        );
+        
+        allAIResults.push(fallbackResults[0]);
+        fallbackCount++;
+      } else {
+        allAIResults.push(result);
+      }
+    }
+  }
+  
+  // Process GPT-4.1 questions
+  if (gpt41Questions.length > 0) {
+    console.log(`🔄 Processing ${gpt41Questions.length} questions with GPT-4.1`);
+    
+    const gpt41Results = await processQuestionsWithModel(
+      gpt41Questions, 
+      identifiedSkills, 
+      examData, 
+      openaiApiKey, 
+      'gpt-4.1-2025-04-14',
+      isDetailed
+    );
+    
+    allAIResults.push(...gpt41Results);
+  }
+  
+  // Combine all AI results
+  const combinedAIAnalysis = combineAIResults(allAIResults);
+  
+  const modelUsageStats = {
+    gpt4oMiniUsed: gpt4oMiniQuestions.length - fallbackCount,
+    gpt41Used: gpt41Questions.length + fallbackCount,
+    fallbacksTriggered: fallbackCount,
+    costSavings: distribution.estimatedCostSavings,
+    totalQuestions: aiRequiredQuestions.length
+  };
+  
+  console.log(`✅ AI Model Optimization Complete:`);
+  console.log(`   - GPT-4o-mini: ${modelUsageStats.gpt4oMiniUsed} questions`);
+  console.log(`   - GPT-4.1: ${modelUsageStats.gpt41Used} questions`);
+  console.log(`   - Fallbacks: ${fallbackCount}`);
+  console.log(`   - Cost savings: ${distribution.estimatedCostSavings.toFixed(1)}%`);
+  
+  return {
+    aiAnalysis: combinedAIAnalysis,
+    aiPointsEarned: combinedAIAnalysis?.total_points_earned || 0,
+    aiPointsPossible: combinedAIAnalysis?.total_points_possible || aiRequiredQuestions.length,
+    aiContentSkillScores: combinedAIAnalysis?.content_skill_scores || [],
+    aiSubjectSkillScores: combinedAIAnalysis?.subject_skill_scores || [],
+    modelUsageStats
+  };
+}
+
+async function processQuestionsWithModel(
+  questionDecisions: any[],
+  identifiedSkills: any,
+  examData: any,
+  openaiApiKey: string,
+  model: string,
+  isDetailed: boolean
+) {
+  if (questionDecisions.length === 0) return [];
+  
+  // Build skill mapping text from identified skills
+  const allIdentifiedSkills = Object.values(identifiedSkills).flat();
+  const contentSkillsText = allIdentifiedSkills
+    .filter((skill: any) => skill.skill_type === 'content')
+    .map((skill: any) => `${skill.skill_id}:${skill.skill_name}`)
+    .join(', ');
+  const subjectSkillsText = allIdentifiedSkills
+    .filter((skill: any) => skill.skill_type === 'subject')
+    .map((skill: any) => `${skill.skill_id}:${skill.skill_name}`)
+    .join(', ');
+
+  // Adjust system prompt based on model capability
+  const systemPrompt = model === 'gpt-4o-mini' 
+    ? `You are an AI grader optimized for clear, straightforward questions. Grade efficiently and map to IDENTIFIED skill IDs. Return concise JSON.
+IDENTIFIED CONTENT SKILLS: ${contentSkillsText}
+IDENTIFIED SUBJECT SKILLS: ${subjectSkillsText}
+Focus on accuracy and efficiency for clear-cut answers.`
+    : (isDetailed
+      ? `You are an advanced AI test grader. Analyze complex responses, grade thoroughly, map to IDENTIFIED skill IDs, and return detailed JSON.
+IDENTIFIED CONTENT SKILLS: ${contentSkillsText}
+IDENTIFIED SUBJECT SKILLS: ${subjectSkillsText}
+Use ONLY the skills that were previously identified for this exam.`
+      : `You are an AI grader for complex questions. Grade carefully and map answers to IDENTIFIED skill IDs. Return JSON summary.
+IDENTIFIED CONTENT SKILLS: ${contentSkillsText}  
+IDENTIFIED SUBJECT SKILLS: ${subjectSkillsText}
+Use ONLY the skills that were previously identified for this exam.`);
+
+  const questions = questionDecisions.map(d => d.question);
+  const relevantAnswerKeys = questionDecisions.map(d => d.answerKey);
+
+  const aiAnswerKeys = relevantAnswerKeys.map(ak => 
+    `Q${ak.question_number}:${ak.correct_answer} [${ak.points} pts]`
+  ).join('\n');
+
+  const aiStudentAnswers = questions.map(q => 
+    `Q${q.questionNumber}:${q.detectedAnswer ? q.detectedAnswer.selectedOption : "No answer"}`
+  ).join('\n');
+
+  const modelNote = model === 'gpt-4o-mini' ? ' (Optimized routing - clear questions)' : ' (Complex questions)';
+  const userPrompt = `GRADE: ${examData.title} (${examData.exam_id})${modelNote}
+AI QUESTIONS:
+${aiAnswerKeys}
+
+STUDENT ANSWERS:
+${aiStudentAnswers}`;
+
+  const maxTokens = model === 'gpt-4o-mini' ? 800 : (isDetailed ? 1500 : 500);
+
+  const aiPayload = {
+    model: model,
+    messages: [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: userPrompt }
+    ],
+    max_tokens: maxTokens,
+    temperature: model === 'gpt-4o-mini' ? 0.1 : 0.05
+  };
+
+  const aiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${openaiApiKey}`
+    },
+    body: JSON.stringify(aiPayload)
+  });
+
+  if (!aiResponse.ok) {
+    throw new Error(`${model} API error: ${aiResponse.statusText}`);
+  }
+
+  const result = await aiResponse.json();
+  const analysisText = result.choices[0]?.message?.content || "{}";
+  
+  try {
+    const rawAiAnalysis = JSON.parse(analysisText);
+    return [rawAiAnalysis]; // Return as array for consistency
+  } catch (parseError) {
+    console.error(`Failed to parse ${model} analysis:`, parseError);
+    return [{
+      overall_score: 0,
+      grade: `${model} parsing failed`,
+      feedback: "Unable to parse AI results",
+      content_skill_scores: [],
+      subject_skill_scores: [],
+      total_points_earned: 0,
+      total_points_possible: questions.length,
+      error: true
+    }];
+  }
+}
+
+function combineAIResults(results: any[]) {
+  if (results.length === 0) return null;
+  if (results.length === 1) return results[0];
+  
+  // Combine multiple AI results
+  const totalPointsEarned = results.reduce((sum, r) => sum + (r.total_points_earned || 0), 0);
+  const totalPointsPossible = results.reduce((sum, r) => sum + (r.total_points_possible || 0), 0);
+  const allContentSkills = results.flatMap(r => r.content_skill_scores || []);
+  const allSubjectSkills = results.flatMap(r => r.subject_skill_scores || []);
+  
+  const overallScore = totalPointsPossible > 0 ? (totalPointsEarned / totalPointsPossible) * 100 : 0;
+  
+  return {
+    overall_score: overallScore,
+    total_points_earned: totalPointsEarned,
+    total_points_possible: totalPointsPossible,
+    grade: `${Math.round(overallScore)}%`,
+    feedback: `AI model optimization: processed with mixed GPT-4o-mini and GPT-4.1 models for cost efficiency`,
+    detailed_analysis: `Combined analysis from ${results.length} model calls with intelligent routing`,
+    content_skill_scores: allContentSkills,
+    subject_skill_scores: allSubjectSkills
+  };
+}
+
 // Handler
 async function handleRequest(req: Request): Promise<Response> {
   try {
-    console.log('=== HYBRID TEST ANALYSIS WITH AI SKILL IDENTIFICATION FIRST ===');
+    console.log('=== HYBRID TEST ANALYSIS WITH AI MODEL OPTIMIZATION ===');
     
     const { files, examId, studentName, studentEmail, detailLevel } = await parseRequestData(req);
     const { openaiApiKey, supabase } = validateEnv();
     const isDetailed = detailLevel === 'detailed';
 
-    console.log('Starting hybrid analysis for exam:', examId);
+    console.log('Starting optimized hybrid analysis for exam:', examId);
 
     // PHASE 1: ENSURE AI SKILL IDENTIFICATION IS COMPLETED FIRST
     console.log('\n=== PHASE 1: AI SKILL IDENTIFICATION ===');
@@ -601,108 +1047,26 @@ async function handleRequest(req: Request): Promise<Response> {
     
     console.log(`Local grading score: ${localPointsEarned}/${localPointsPossible} points`);
     
-    // PHASE 3: AI GRADING FOR COMPLEX QUESTIONS
-    console.log('\n=== PHASE 3: AI GRADING FOR COMPLEX QUESTIONS ===');
+    // PHASE 3: OPTIMIZED AI GRADING FOR COMPLEX QUESTIONS
+    console.log('\n=== PHASE 3: OPTIMIZED AI GRADING WITH MODEL ROUTING ===');
     
-    let aiAnalysis = null;
-    let aiPointsEarned = 0;
-    let aiPointsPossible = 0;
-    let aiContentSkillScores = [];
-    let aiSubjectSkillScores = [];
+    const {
+      aiAnalysis,
+      aiPointsEarned,
+      aiPointsPossible,
+      aiContentSkillScores,
+      aiSubjectSkillScores,
+      modelUsageStats
+    } = await processQuestionsWithOptimizedAI(
+      aiRequiredQuestions,
+      answerKeys,
+      identifiedSkills,
+      examData,
+      openaiApiKey,
+      isDetailed
+    );
 
-    if (aiRequiredQuestions.length > 0) {
-      console.log('Processing', aiRequiredQuestions.length, 'questions with AI');
-      
-      // Build skill mapping text from identified skills
-      const allIdentifiedSkills = Object.values(identifiedSkills).flat();
-      const contentSkillsText = allIdentifiedSkills
-        .filter(skill => skill.skill_type === 'content')
-        .map(skill => `${skill.skill_id}:${skill.skill_name}`)
-        .join(', ');
-      const subjectSkillsText = allIdentifiedSkills
-        .filter(skill => skill.skill_type === 'subject')
-        .map(skill => `${skill.skill_id}:${skill.skill_name}`)
-        .join(', ');
-
-      const systemPrompt = isDetailed
-        ? `You are an advanced AI test grader. Analyze responses, grade, map to IDENTIFIED skill IDs, and return detailed JSON.
-IDENTIFIED CONTENT SKILLS: ${contentSkillsText}
-IDENTIFIED SUBJECT SKILLS: ${subjectSkillsText}
-Use ONLY the skills that were previously identified for this exam.`
-        : `You are an AI grader. Grade and map answers to IDENTIFIED skill IDs. Return JSON summary.
-IDENTIFIED CONTENT SKILLS: ${contentSkillsText}  
-IDENTIFIED SUBJECT SKILLS: ${subjectSkillsText}
-Use ONLY the skills that were previously identified for this exam.`;
-
-      const aiAnswerKeys = aiRequiredQuestions.map(q => {
-        const ak = answerKeys.find(ak => ak.question_number === q.questionNumber);
-        return ak ? `Q${ak.question_number}:${ak.correct_answer} [${ak.points} pts]` : '';
-      }).filter(Boolean).join('\n');
-
-      const aiStudentAnswers = aiRequiredQuestions.map(q => 
-        `Q${q.questionNumber}:${q.detectedAnswer ? q.detectedAnswer.selectedOption : "No answer"}`
-      ).join('\n');
-
-      const userPrompt = `GRADE: ${examData.title} (${examId})
-AI QUESTIONS ONLY (Skills already identified by AI):
-${aiAnswerKeys}
-
-STUDENT ANSWERS:
-${aiStudentAnswers}
-
-Note: ${summary.locallyGraded} questions already graded locally using AI-identified skills.`;
-
-      const maxTokens = isDetailed ? 1500 : 500;
-
-      const aiPayload = {
-        model: "gpt-4.1-2025-04-14",
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userPrompt }
-        ],
-        max_tokens: maxTokens,
-        temperature: 0.05
-      };
-
-      const aiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${openaiApiKey}`
-        },
-        body: JSON.stringify(aiPayload)
-      });
-
-      if (!aiResponse.ok) {
-        throw new Error(`OpenAI API error: ${aiResponse.statusText}`);
-      }
-
-      const result = await aiResponse.json();
-      const analysisText = result.choices[0]?.message?.content || "{}";
-      
-      try {
-        const rawAiAnalysis = JSON.parse(analysisText);
-        
-        aiAnalysis = ScoreValidationService.validateAIResponse(rawAiAnalysis, aiRequiredQuestions.length);
-        aiPointsEarned = aiAnalysis.total_points_earned || 0;
-        aiPointsPossible = aiAnalysis.total_points_possible || aiRequiredQuestions.length;
-        aiContentSkillScores = aiAnalysis.content_skill_scores || [];
-        aiSubjectSkillScores = aiAnalysis.subject_skill_scores || [];
-        
-        console.log(`✓ Phase 3 Complete: AI grading validated: ${aiPointsEarned}/${aiPointsPossible} points`);
-      } catch (parseError) {
-        console.error('Failed to parse AI analysis:', parseError);
-        aiAnalysis = {
-          overall_score: 0,
-          grade: "AI parsing failed",
-          feedback: "Unable to parse AI results",
-          content_skill_scores: [],
-          subject_skill_scores: []
-        };
-      }
-    } else {
-      console.log('✓ Phase 3 Complete: No questions required AI grading');
-    }
+    console.log(`✓ Phase 3 Complete: AI model optimization - ${modelUsageStats.costSavings.toFixed(1)}% cost savings`);
 
     // PHASE 4: SCORE VALIDATION AND FINAL RESULTS
     console.log('\n=== PHASE 4: SCORE VALIDATION AND FINAL RESULTS ===');
@@ -747,12 +1111,11 @@ Note: ${summary.locallyGraded} questions already graded locally using AI-identif
       question_based_grading_summary: {
         total_questions: allQuestions.length,
         locally_graded: summary.locallyGraded,
-        ai_graded: summary.requiresAI,
+        requiresAI: summary.requiresAI,
         local_accuracy: summary.localAccuracy,
         processing_method: hasStructuredData ? "hybrid_ai_skills_first_dual_ocr" : "hybrid_ai_skills_first_standard",
         api_calls_saved: summary.locallyGraded > 0 ? Math.round((summary.locallyGraded / allQuestions.length) * 100) : 0,
         skill_mapping_available: true,
-        score_validation_applied: validation.capped,
         enhanced_metrics: summary.enhancedMetrics
       },
       enhanced_question_analysis: {
@@ -832,8 +1195,9 @@ Note: ${summary.locallyGraded} questions already graded locally using AI-identif
     console.log('\n=== HYBRID ANALYSIS COMPLETE ===');
     console.log(`✓ AI Skills Identified: ${Object.keys(identifiedSkills).length} questions`);
     console.log(`✓ Local Grading: ${summary.locallyGraded} questions`); 
-    console.log(`✓ AI Grading: ${aiRequiredQuestions.length} questions`);
-    console.log(`✓ Performance: ${finalAnalysis.question_based_grading_summary.api_calls_saved}% API calls saved`);
+    console.log(`✓ AI Model Optimization: ${modelUsageStats.gpt4oMiniUsed} mini + ${modelUsageStats.gpt41Used} standard`);
+    console.log(`✓ Cost Optimization: ${modelUsageStats.costSavings.toFixed(1)}% savings with ${modelUsageStats.fallbacksTriggered} fallbacks`);
+    console.log(`✓ Performance: ${finalAnalysis.question_based_grading_summary.api_calls_saved}% API calls saved overall`);
     console.log(`✓ Score validation: ${validation.capped ? 'applied' : 'passed'}`);
     console.log(`✓ Final validated score: ${totalPointsEarned}/${totalPointsPossible} (${Math.round(overallScore)}%)`);
 
@@ -850,7 +1214,7 @@ Note: ${summary.locallyGraded} questions already graded locally using AI-identif
     );
 
   } catch (error) {
-    console.error('Error in hybrid analyze-test function:', error);
+    console.error('Error in optimized hybrid analyze-test function:', error);
     return new Response(
       JSON.stringify({ 
         error: error.message,
