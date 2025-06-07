@@ -74,9 +74,9 @@ export default function StudentUpload() {
       const extractionResults = await Promise.all(extractionPromises);
       setExtractedResults(extractionResults);
 
-      // Check for detected Student IDs
+      // Check for detected Student IDs - access from top level, not structuredData
       const detectedIds = extractionResults
-        .map(result => result.structuredData?.detectedStudentId)
+        .map(result => result.studentId)
         .filter(Boolean);
       
       if (detectedIds.length > 0) {
@@ -273,10 +273,10 @@ export default function StudentUpload() {
             <p className="text-gray-600 mt-2">
               Your test has been successfully analyzed.
             </p>
-            {/* Show detected Student ID if available */}
-            {extractedResults.some(r => r.structuredData?.detectedStudentId) && (
+            {/* Show detected Student ID if available - access from top level */}
+            {extractedResults.some(r => r.studentId) && (
               <p className="text-sm text-blue-600 mt-1">
-                Student ID detected: {extractedResults.find(r => r.structuredData?.detectedStudentId)?.structuredData?.detectedStudentId}
+                Student ID detected: {extractedResults.find(r => r.studentId)?.studentId}
               </p>
             )}
           </div>
