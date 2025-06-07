@@ -449,18 +449,18 @@ const UploadTest = () => {
           });
 
           // Continue with rest of existing analysis logic...
-          // Step 3: Analyze all files with enhanced data
+          // Step 3: Analyze all files with enhanced hybrid grading
           updateProcessingStep('analyzing', { 
             status: 'active', 
             progress: 0,
-            description: 'Starting AI analysis with enhanced OCR data...'
+            description: 'Starting hybrid AI analysis with local grading optimization...'
           });
 
           const allFileResults = await Promise.all(
             optimizedFiles.map(async (fileData, index) => {
               updateProcessingStep('analyzing', { 
                 progress: ((index + 1) / optimizedFiles.length) * 50,
-                description: `Analyzing file ${index + 1} of ${optimizedFiles.length}...`
+                description: `Analyzing file ${index + 1} of ${optimizedFiles.length} with hybrid grading...`
               });
               
               try {
@@ -488,7 +488,7 @@ const UploadTest = () => {
 
           updateProcessingStep('analyzing', { 
             progress: 75,
-            description: 'Running final AI analysis...'
+            description: 'Running hybrid grading analysis (local + AI)...'
           });
 
           const finalStudentName = detectedStudentName || manualStudentName.trim();
@@ -513,6 +513,11 @@ const UploadTest = () => {
           setAnalysisResult(analysisResult);
           setCurrentStep('complete');
           
+          // Update hybrid grading stats if available
+          if (analysisResult.hybrid_grading_summary) {
+            scalabilityMonitor.updateHybridGradingStats(analysisResult.hybrid_grading_summary);
+          }
+
           // Define OCR metadata from analysis result
           const ocrMetadata = {
             reliability: analysisResult.dual_ocr_summary?.overall_reliability || 0,
@@ -538,18 +543,21 @@ const UploadTest = () => {
             );
           }
           
-          // Update final step
+          // Update final step with hybrid grading info
+          const hybridSummary = analysisResult.hybrid_grading_summary;
           const analysisMetadata = {
             confidence: analysisResult.dual_ocr_summary?.overall_reliability || 0,
             detections: analysisResult.dual_ocr_summary?.high_confidence_detections || 0,
-            reliability: analysisResult.dual_ocr_summary?.overall_reliability || 0
+            reliability: analysisResult.dual_ocr_summary?.overall_reliability || 0,
+            localGradingRate: hybridSummary?.local_accuracy || 0,
+            apiCallsSaved: hybridSummary?.api_calls_saved || 0
           };
 
           updateProcessingStep('analyzing', { 
             status: 'completed',
             progress: 100,
             metadata: analysisMetadata,
-            description: 'Enhanced AI analysis completed successfully'
+            description: `Hybrid analysis completed: ${hybridSummary?.locally_graded || 0} local + ${hybridSummary?.ai_graded || 0} AI graded`
           });
 
           // Record smart OCR performance metrics
@@ -822,6 +830,48 @@ const UploadTest = () => {
                       </div>
                     </div>
                   )}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {/* Hybrid Grading Performance Display */}
+        {analysisResult?.hybrid_grading_summary && (
+          <div className="mb-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <CheckCircle className="h-5 w-5 text-green-600" />
+                  Hybrid Grading Performance
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="text-center p-3 bg-green-50 rounded-lg">
+                    <div className="text-2xl font-bold text-green-700">
+                      {analysisResult.hybrid_grading_summary.locally_graded}
+                    </div>
+                    <div className="text-sm text-green-600">Local Graded</div>
+                  </div>
+                  <div className="text-center p-3 bg-blue-50 rounded-lg">
+                    <div className="text-2xl font-bold text-blue-700">
+                      {analysisResult.hybrid_grading_summary.ai_graded}
+                    </div>
+                    <div className="text-sm text-blue-600">AI Graded</div>
+                  </div>
+                  <div className="text-center p-3 bg-purple-50 rounded-lg">
+                    <div className="text-2xl font-bold text-purple-700">
+                      {analysisResult.hybrid_grading_summary.api_calls_saved}%
+                    </div>
+                    <div className="text-sm text-purple-600">API Calls Saved</div>
+                  </div>
+                  <div className="text-center p-3 bg-orange-50 rounded-lg">
+                    <div className="text-2xl font-bold text-orange-700">
+                      {Math.round(analysisResult.hybrid_grading_summary.local_accuracy * 100)}%
+                    </div>
+                    <div className="text-sm text-orange-600">Local Accuracy</div>
+                  </div>
                 </div>
               </CardContent>
             </Card>

@@ -47,10 +47,25 @@ export interface ScalabilityStats {
   recommendations: string[];
 }
 
+export interface HybridGradingMetrics {
+  totalTests: number;
+  localGradingRate: number;
+  apiCallsSaved: number;
+  averageProcessingTime: number;
+  costSavings: number;
+}
+
 class ScalabilityMonitoringService {
   private metricsBuffer: SystemMetrics[] = [];
   private alerts: PerformanceAlert[] = [];
   private lastMetricsUpdate = 0;
+  private hybridGradingStats: HybridGradingMetrics = {
+    totalTests: 0,
+    localGradingRate: 0,
+    apiCallsSaved: 0,
+    averageProcessingTime: 0,
+    costSavings: 0
+  };
   private thresholds = {
     maxQueueDepth: 100,
     maxResponseTime: 30000, // 30 seconds
@@ -230,6 +245,28 @@ class ScalabilityMonitoringService {
     });
   }
 
+  updateHybridGradingStats(summary: any) {
+    if (!summary) return;
+
+    this.hybridGradingStats.totalTests++;
+    this.hybridGradingStats.localGradingRate = 
+      (this.hybridGradingStats.localGradingRate * (this.hybridGradingStats.totalTests - 1) + 
+       summary.local_accuracy) / this.hybridGradingStats.totalTests;
+    
+    this.hybridGradingStats.apiCallsSaved = 
+      (this.hybridGradingStats.apiCallsSaved * (this.hybridGradingStats.totalTests - 1) + 
+       summary.api_calls_saved) / this.hybridGradingStats.totalTests;
+
+    // Estimate cost savings (assume $0.002 per API call saved)
+    this.hybridGradingStats.costSavings += summary.api_calls_saved * 0.002;
+
+    console.log('Updated hybrid grading stats:', this.hybridGradingStats);
+  }
+
+  getHybridGradingStats(): HybridGradingMetrics {
+    return { ...this.hybridGradingStats };
+  }
+
   async getScalabilityStats(): Promise<ScalabilityStats> {
     const latestMetrics = this.metricsBuffer[this.metricsBuffer.length - 1];
     
@@ -258,12 +295,13 @@ class ScalabilityMonitoringService {
     const utilizationPercent = (latestMetrics.activeUsers / this.thresholds.maxConcurrentUsers) * 100;
     const successRate = 1 - latestMetrics.errorRate;
     
-    // Calculate costs based on API usage
-    const dailyApiCost = (latestMetrics.apiUsage.openai * 0.002) + 
+    // Calculate costs with hybrid grading savings
+    const baseApiCost = (latestMetrics.apiUsage.openai * 0.002) + 
                         (latestMetrics.apiUsage.roboflow * 0.001) + 
                         (latestMetrics.apiUsage.googleVision * 0.0015);
     
-    const costPerStudent = latestMetrics.activeUsers > 0 ? dailyApiCost / latestMetrics.activeUsers : 0;
+    const adjustedCost = baseApiCost * (1 - this.hybridGradingStats.localGradingRate);
+    const costPerStudent = latestMetrics.activeUsers > 0 ? adjustedCost / latestMetrics.activeUsers : 0;
 
     return {
       currentCapacity: {
@@ -277,9 +315,9 @@ class ScalabilityMonitoringService {
         queueWaitTime: Math.round(latestMetrics.queueDepth * 30) // Estimate 30s per job
       },
       costs: {
-        dailyCost: Math.round(dailyApiCost * 100) / 100,
+        dailyCost: Math.round(adjustedCost * 100) / 100,
         costPerStudent: Math.round(costPerStudent * 100) / 100,
-        projectedMonthlyCost: Math.round(dailyApiCost * 30 * 100) / 100
+        projectedMonthlyCost: Math.round(adjustedCost * 30 * 100) / 100
       },
       recommendations: this.generateRecommendations(latestMetrics, utilizationPercent)
     };
@@ -307,6 +345,13 @@ class ScalabilityMonitoringService {
 
     if (metrics.resourceUtilization.cpu > 0.7) {
       recommendations.push('CPU usage is high - consider load balancing');
+    }
+
+    // Add hybrid grading recommendations
+    if (this.hybridGradingStats.localGradingRate < 0.5) {
+      recommendations.push('Local grading rate is low - check OCR confidence thresholds');
+    } else if (this.hybridGradingStats.localGradingRate > 0.8) {
+      recommendations.push(`Excellent local grading performance (${Math.round(this.hybridGradingStats.localGradingRate * 100)}% local)`);
     }
 
     if (recommendations.length === 0) {

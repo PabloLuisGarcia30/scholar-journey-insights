@@ -123,6 +123,19 @@ export interface SkillScore {
   points_possible: number;
 }
 
+export interface HybridGradingSummary {
+  total_questions: number;
+  locally_graded: number;
+  ai_graded: number;
+  local_accuracy: number;
+  processing_method: string;
+  api_calls_saved: number;
+}
+
+export interface EnhancedAnalyzeTestResponse extends AnalyzeTestResponse {
+  hybrid_grading_summary?: HybridGradingSummary;
+}
+
 export interface AnalyzeTestResponse {
   overall_score: number;
   total_points_earned: number;
@@ -185,14 +198,21 @@ export const extractTextFromFile = async (request: ExtractTextRequest): Promise<
   }
 };
 
-export const analyzeTest = async (request: AnalyzeTestRequest): Promise<AnalyzeTestResponse> => {
+export const analyzeTest = async (request: AnalyzeTestRequest): Promise<EnhancedAnalyzeTestResponse> => {
   try {
-    console.log('Calling analyze-test function with enhanced structured data and retry logic for exam ID:', request.examId);
+    console.log('Calling enhanced analyze-test function with hybrid grading for exam ID:', request.examId);
+    
+    // Determine detail level based on structured data presence
+    const hasStructuredData = request.files.some(file => file.structuredData);
+    const detailLevel = hasStructuredData ? "detailed" : "summary";
     
     const result = await withRetry(
       async () => {
         const { data, error } = await supabase.functions.invoke('analyze-test', {
-          body: request
+          body: request,
+          headers: {
+            'x-detail-level': detailLevel
+          }
         });
 
         if (error) {
@@ -209,7 +229,19 @@ export const analyzeTest = async (request: AnalyzeTestRequest): Promise<AnalyzeT
       }
     );
 
-    console.log('Enhanced analyze-test function response:', result);
+    console.log('Enhanced hybrid analyze-test function response:', result);
+    
+    // Log hybrid grading performance if available
+    if (result.hybrid_grading_summary) {
+      const summary = result.hybrid_grading_summary;
+      console.log(`Hybrid Grading Performance:
+        - Total Questions: ${summary.total_questions}
+        - Locally Graded: ${summary.locally_graded} (${Math.round(summary.local_accuracy * 100)}%)
+        - AI Graded: ${summary.ai_graded}
+        - API Calls Saved: ${summary.api_calls_saved}%
+        - Processing Method: ${summary.processing_method}`);
+    }
+    
     return result;
   } catch (error) {
     console.error('Error calling enhanced analyze-test function:', error);
