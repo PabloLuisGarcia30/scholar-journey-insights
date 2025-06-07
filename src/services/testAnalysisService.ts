@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { withRetry, CircuitBreaker, RetryableError } from "./retryService";
 
@@ -37,7 +36,6 @@ export interface EnhancedAnswer {
   };
   crossValidated: boolean;
   fallbackUsed?: boolean;
-  // Enhanced question-based detection properties
   bubbleQuality?: 'empty' | 'light' | 'medium' | 'heavy' | 'overfilled' | 'unknown';
   reviewFlag?: boolean;
   multipleMarksDetected?: boolean;
@@ -175,6 +173,7 @@ export interface QuestionBasedGradingSummary {
   local_accuracy: number;
   processing_method: string;
   api_calls_saved: number;
+  skill_mapping_available?: boolean;
   enhanced_metrics?: {
     question_based_graded: number;
     high_confidence_graded: number;
@@ -198,6 +197,8 @@ export interface EnhancedAnalyzeTestResponse extends AnalyzeTestResponse {
     questions_with_clear_answers: number;
     questions_with_multiple_marks: number;
     questions_needing_review: number;
+    questions_with_skill_mapping?: number;
+    local_skill_scores_calculated?: number;
     processing_improvements: string[];
   };
 }
@@ -247,7 +248,7 @@ export const extractTextFromFile = async (request: ExtractTextRequest): Promise<
       {
         maxAttempts: 3,
         baseDelay: 2000,
-        timeoutMs: 120000, // 2 minutes for OCR processing
+        timeoutMs: 120000,
       }
     );
 
@@ -266,7 +267,7 @@ export const extractTextFromFile = async (request: ExtractTextRequest): Promise<
 
 export const analyzeTest = async (request: AnalyzeTestRequest): Promise<EnhancedAnalyzeTestResponse> => {
   try {
-    console.log('Calling enhanced question-based analyze-test function for exam ID:', request.examId);
+    console.log('Calling enhanced analyze-test function with skill mapping for exam ID:', request.examId);
     
     // Determine detail level based on structured data presence and question-based features
     const hasStructuredData = request.files.some(file => file.structuredData);
@@ -274,7 +275,7 @@ export const analyzeTest = async (request: AnalyzeTestRequest): Promise<Enhanced
       file.structuredData?.documentMetadata?.enhancedFeatures?.questionBasedGrouping
     );
     
-    const detailLevel = hasQuestionBasedFeatures ? "question_based" : hasStructuredData ? "detailed" : "summary";
+    const detailLevel = hasQuestionBasedFeatures ? "question_based_skills" : hasStructuredData ? "detailed_skills" : "summary_skills";
     
     console.log('Analysis detail level:', detailLevel, {
       hasStructuredData,
@@ -290,7 +291,8 @@ export const analyzeTest = async (request: AnalyzeTestRequest): Promise<Enhanced
           body: request,
           headers: {
             'x-detail-level': detailLevel,
-            'x-question-based-features': hasQuestionBasedFeatures ? 'true' : 'false'
+            'x-question-based-features': hasQuestionBasedFeatures ? 'true' : 'false',
+            'x-skill-mapping-enabled': 'true'
           }
         });
 
@@ -304,55 +306,46 @@ export const analyzeTest = async (request: AnalyzeTestRequest): Promise<Enhanced
       {
         maxAttempts: 2,
         baseDelay: 3000,
-        timeoutMs: 120000, // Increased timeout for enhanced analysis
+        timeoutMs: 150000, // Increased timeout for skill analysis
       }
     );
 
-    console.log('Enhanced question-based analyze-test function response:', result);
+    console.log('Enhanced analyze-test function with skill mapping response:', result);
     
-    // Log question-based grading performance if available
+    // Log enhanced performance metrics
     if (result.question_based_grading_summary) {
       const summary = result.question_based_grading_summary;
-      console.log(`Question-Based Grading Performance:
+      console.log(`Enhanced Question-Based Grading with Skills Performance:
         - Total Questions: ${summary.total_questions}
         - Locally Graded: ${summary.locally_graded} (${Math.round(summary.local_accuracy * 100)}%)
         - AI Graded: ${summary.ai_graded}
         - API Calls Saved: ${summary.api_calls_saved}%
+        - Skill Mapping Available: ${summary.skill_mapping_available}
         - Processing Method: ${summary.processing_method}`);
         
       if (summary.enhanced_metrics) {
-        console.log(`Enhanced Question-Based Metrics:
+        console.log(`Enhanced Metrics:
           - Question-Based Graded: ${summary.enhanced_metrics.question_based_graded}
           - High Confidence: ${summary.enhanced_metrics.high_confidence_graded}
-          - Medium Confidence: ${summary.enhanced_metrics.medium_confidence_graded}  
-          - Enhanced Threshold: ${summary.enhanced_metrics.enhanced_threshold_graded}
           - Multiple Marks Detected: ${summary.enhanced_metrics.multiple_marks_detected}
-          - Review Flagged: ${summary.enhanced_metrics.review_flagged}
-          - Bubble Quality: ${JSON.stringify(summary.enhanced_metrics.bubble_quality_distribution)}`);
-      }
-      
-      if (summary.quality_report) {
-        console.log(`Quality Report:
-          - Overall Quality: ${summary.quality_report.overall_quality}
-          - Recommendations: ${summary.quality_report.recommendations.join(', ')}
-          - Quality Distribution: ${JSON.stringify(summary.quality_report.quality_distribution)}`);
+          - Review Flagged: ${summary.enhanced_metrics.review_flagged}`);
       }
     }
     
-    // Log enhanced question analysis if available
+    // Log skill mapping results
     if (result.enhanced_question_analysis) {
       const questionAnalysis = result.enhanced_question_analysis;
-      console.log(`Enhanced Question Analysis:
+      console.log(`Enhanced Question Analysis with Skills:
         - Total Questions: ${questionAnalysis.total_questions_processed}
         - Clear Answers: ${questionAnalysis.questions_with_clear_answers}
-        - Multiple Marks: ${questionAnalysis.questions_with_multiple_marks}
-        - Needing Review: ${questionAnalysis.questions_needing_review}
+        - With Skill Mapping: ${questionAnalysis.questions_with_skill_mapping || 0}
+        - Local Skill Scores: ${questionAnalysis.local_skill_scores_calculated || 0}
         - Processing Improvements: ${questionAnalysis.processing_improvements.join(', ')}`);
     }
     
     return result;
   } catch (error) {
-    console.error('Error calling enhanced analyze-test function:', error);
+    console.error('Error calling enhanced analyze-test function with skills:', error);
     
     if (error instanceof RetryableError) {
       throw new Error(`Failed to analyze test after multiple attempts: ${error.message}`);
@@ -362,7 +355,66 @@ export const analyzeTest = async (request: AnalyzeTestRequest): Promise<Enhanced
   }
 };
 
-// Enhanced service health monitoring
+// New function to trigger skill analysis for an exam
+export const analyzeExamSkills = async (examId: string) => {
+  try {
+    console.log('Triggering skill analysis for exam:', examId);
+    
+    const { data, error } = await supabase.functions.invoke('analyze-exam-skills', {
+      body: { examId }
+    });
+
+    if (error) {
+      console.error('Error triggering skill analysis:', error);
+      throw new Error(`Failed to analyze exam skills: ${error.message}`);
+    }
+
+    console.log('Skill analysis result:', data);
+    return data;
+  } catch (error) {
+    console.error('Error in analyzeExamSkills:', error);
+    throw new Error('Failed to analyze exam skills. Please try again.');
+  }
+};
+
+// Check if skill mappings exist for an exam
+export const checkExamSkillMappings = async (examId: string): Promise<boolean> => {
+  try {
+    const { data } = await supabase
+      .from('exam_skill_analysis')
+      .select('analysis_status')
+      .eq('exam_id', examId)
+      .maybeSingle();
+
+    return data?.analysis_status === 'completed';
+  } catch (error) {
+    console.error('Error checking skill mappings:', error);
+    return false;
+  }
+};
+
+// Get skill mapping status for an exam
+export const getExamSkillMappingStatus = async (examId: string) => {
+  try {
+    const { data, error } = await supabase
+      .from('exam_skill_analysis')
+      .select('*')
+      .eq('exam_id', examId)
+      .maybeSingle();
+
+    if (error) {
+      console.error('Error fetching skill mapping status:', error);
+      return null;
+    }
+
+    return data;
+  } catch (error) {
+    console.error('Error in getExamSkillMappingStatus:', error);
+    return null;
+  }
+};
+
+// Enhanced service health monitoring with skill mapping
 export const getEnhancedServiceHealthStatus = () => {
   return {
     googleVision: googleVisionCircuitBreaker.getState(),
@@ -372,7 +424,9 @@ export const getEnhancedServiceHealthStatus = () => {
       questionBasedGrouping: true,
       singleAnswerPerQuestion: true,
       multipleMarkDetection: true,
-      reviewFlags: true
+      reviewFlags: true,
+      skillMapping: true,
+      oneTimeSkillAnalysis: true
     }
   };
 };

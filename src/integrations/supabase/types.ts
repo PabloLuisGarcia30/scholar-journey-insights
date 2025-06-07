@@ -268,6 +268,96 @@ export type Database = {
         }
         Relationships: []
       }
+      exam_skill_analysis: {
+        Row: {
+          ai_analysis_data: Json | null
+          analysis_completed_at: string | null
+          analysis_started_at: string | null
+          analysis_status: string
+          analysis_version: number
+          content_skills_found: number
+          created_at: string
+          error_message: string | null
+          exam_id: string
+          id: string
+          mapped_questions: number
+          subject_skills_found: number
+          total_questions: number
+          updated_at: string
+        }
+        Insert: {
+          ai_analysis_data?: Json | null
+          analysis_completed_at?: string | null
+          analysis_started_at?: string | null
+          analysis_status?: string
+          analysis_version?: number
+          content_skills_found?: number
+          created_at?: string
+          error_message?: string | null
+          exam_id: string
+          id?: string
+          mapped_questions?: number
+          subject_skills_found?: number
+          total_questions?: number
+          updated_at?: string
+        }
+        Update: {
+          ai_analysis_data?: Json | null
+          analysis_completed_at?: string | null
+          analysis_started_at?: string | null
+          analysis_status?: string
+          analysis_version?: number
+          content_skills_found?: number
+          created_at?: string
+          error_message?: string | null
+          exam_id?: string
+          id?: string
+          mapped_questions?: number
+          subject_skills_found?: number
+          total_questions?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      exam_skill_mappings: {
+        Row: {
+          confidence: number
+          created_at: string
+          exam_id: string
+          id: string
+          question_number: number
+          skill_id: string
+          skill_name: string
+          skill_type: string
+          skill_weight: number
+          updated_at: string
+        }
+        Insert: {
+          confidence?: number
+          created_at?: string
+          exam_id: string
+          id?: string
+          question_number: number
+          skill_id: string
+          skill_name: string
+          skill_type: string
+          skill_weight?: number
+          updated_at?: string
+        }
+        Update: {
+          confidence?: number
+          created_at?: string
+          exam_id?: string
+          id?: string
+          question_number?: number
+          skill_id?: string
+          skill_name?: string
+          skill_type?: string
+          skill_weight?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       exams: {
         Row: {
           class_id: string | null
