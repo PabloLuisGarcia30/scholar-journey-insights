@@ -174,6 +174,7 @@ export interface QuestionBasedGradingSummary {
   processing_method: string;
   api_calls_saved: number;
   skill_mapping_available?: boolean;
+  score_validation_applied?: boolean;
   enhanced_metrics?: {
     question_based_graded: number;
     high_confidence_graded: number;
@@ -199,6 +200,12 @@ export interface EnhancedAnalyzeTestResponse extends AnalyzeTestResponse {
     questions_needing_review: number;
     questions_with_skill_mapping?: number;
     local_skill_scores_calculated?: number;
+    score_validation_summary?: {
+      validation_applied: boolean;
+      final_earned: number;
+      final_possible: number;
+      exam_total_points?: number;
+    };
     processing_improvements: string[];
   };
 }
@@ -267,7 +274,7 @@ export const extractTextFromFile = async (request: ExtractTextRequest): Promise<
 
 export const analyzeTest = async (request: AnalyzeTestRequest): Promise<EnhancedAnalyzeTestResponse> => {
   try {
-    console.log('Calling enhanced analyze-test function with skill mapping for exam ID:', request.examId);
+    console.log('Calling enhanced analyze-test function with skill mapping and score validation for exam ID:', request.examId);
     
     // Determine detail level based on structured data presence and question-based features
     const hasStructuredData = request.files.some(file => file.structuredData);
@@ -292,7 +299,8 @@ export const analyzeTest = async (request: AnalyzeTestRequest): Promise<Enhanced
           headers: {
             'x-detail-level': detailLevel,
             'x-question-based-features': hasQuestionBasedFeatures ? 'true' : 'false',
-            'x-skill-mapping-enabled': 'true'
+            'x-skill-mapping-enabled': 'true',
+            'x-score-validation-enabled': 'true'
           }
         });
 
@@ -310,17 +318,18 @@ export const analyzeTest = async (request: AnalyzeTestRequest): Promise<Enhanced
       }
     );
 
-    console.log('Enhanced analyze-test function with skill mapping response:', result);
+    console.log('Enhanced analyze-test function with score validation response:', result);
     
     // Log enhanced performance metrics
     if (result.question_based_grading_summary) {
       const summary = result.question_based_grading_summary;
-      console.log(`Enhanced Question-Based Grading with Skills Performance:
+      console.log(`Enhanced Question-Based Grading with Score Validation Performance:
         - Total Questions: ${summary.total_questions}
         - Locally Graded: ${summary.locally_graded} (${Math.round(summary.local_accuracy * 100)}%)
         - AI Graded: ${summary.ai_graded}
         - API Calls Saved: ${summary.api_calls_saved}%
         - Skill Mapping Available: ${summary.skill_mapping_available}
+        - Score Validation Applied: ${summary.score_validation_applied}
         - Processing Method: ${summary.processing_method}`);
         
       if (summary.enhanced_metrics) {
@@ -332,20 +341,29 @@ export const analyzeTest = async (request: AnalyzeTestRequest): Promise<Enhanced
       }
     }
     
-    // Log skill mapping results
+    // Log skill mapping and validation results
     if (result.enhanced_question_analysis) {
       const questionAnalysis = result.enhanced_question_analysis;
-      console.log(`Enhanced Question Analysis with Skills:
+      console.log(`Enhanced Question Analysis with Score Validation:
         - Total Questions: ${questionAnalysis.total_questions_processed}
         - Clear Answers: ${questionAnalysis.questions_with_clear_answers}
         - With Skill Mapping: ${questionAnalysis.questions_with_skill_mapping || 0}
-        - Local Skill Scores: ${questionAnalysis.local_skill_scores_calculated || 0}
-        - Processing Improvements: ${questionAnalysis.processing_improvements.join(', ')}`);
+        - Local Skill Scores: ${questionAnalysis.local_skill_scores_calculated || 0}`);
+        
+      if (questionAnalysis.score_validation_summary) {
+        const validation = questionAnalysis.score_validation_summary;
+        console.log(`Score Validation Summary:
+          - Validation Applied: ${validation.validation_applied}
+          - Final Score: ${validation.final_earned}/${validation.final_possible}
+          - Exam Total Points: ${validation.exam_total_points || 'Not specified'}`);
+      }
+      
+      console.log(`Processing Improvements: ${questionAnalysis.processing_improvements.join(', ')}`);
     }
     
     return result;
   } catch (error) {
-    console.error('Error calling enhanced analyze-test function with skills:', error);
+    console.error('Error calling enhanced analyze-test function with validation:', error);
     
     if (error instanceof RetryableError) {
       throw new Error(`Failed to analyze test after multiple attempts: ${error.message}`);
@@ -414,7 +432,7 @@ export const getExamSkillMappingStatus = async (examId: string) => {
   }
 };
 
-// Enhanced service health monitoring with skill mapping
+// Enhanced service health monitoring with score validation
 export const getEnhancedServiceHealthStatus = () => {
   return {
     googleVision: googleVisionCircuitBreaker.getState(),
@@ -426,7 +444,9 @@ export const getEnhancedServiceHealthStatus = () => {
       multipleMarkDetection: true,
       reviewFlags: true,
       skillMapping: true,
-      oneTimeSkillAnalysis: true
+      oneTimeSkillAnalysis: true,
+      scoreValidation: true,
+      mathematicalConsistency: true
     }
   };
 };

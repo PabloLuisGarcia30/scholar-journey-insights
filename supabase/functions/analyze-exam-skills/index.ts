@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
@@ -13,7 +12,7 @@ serve(async (req) => {
   }
 
   try {
-    console.log('One-time exam skill analysis function called');
+    console.log('One-time exam skill analysis function called with score validation');
     
     const { examId } = await req.json();
     
@@ -177,38 +176,54 @@ Provide complete skill mapping for all questions.`;
       throw new Error('AI returned invalid skill mapping format');
     }
 
-    console.log('Step 4: Storing skill mappings in database');
+    console.log('Step 4: Storing skill mappings with validation in database');
 
-    // Store skill mappings
+    // Store skill mappings with validation
     const mappingInserts = [];
     let contentSkillsFound = 0;
     let subjectSkillsFound = 0;
     
     for (const mapping of skillMappings.mappings || []) {
-      // Insert content skill mappings
+      // Insert content skill mappings with weight validation
       for (const contentSkill of mapping.content_skills || []) {
+        // Validate skill weight (cap at 2.0)
+        const validatedWeight = Math.min(Math.max(contentSkill.weight || 1.0, 0), 2.0);
+        const validatedConfidence = Math.min(Math.max(contentSkill.confidence || 1.0, 0), 1.0);
+        
+        if (validatedWeight !== (contentSkill.weight || 1.0)) {
+          console.warn(`Content skill weight adjusted from ${contentSkill.weight} to ${validatedWeight} for Q${mapping.question_number}`);
+        }
+        
         mappingInserts.push({
           exam_id: examId,
           question_number: mapping.question_number,
           skill_type: 'content',
           skill_id: contentSkill.skill_id,
           skill_name: contentSkill.skill_name,
-          skill_weight: contentSkill.weight || 1.0,
-          confidence: contentSkill.confidence || 1.0
+          skill_weight: validatedWeight,
+          confidence: validatedConfidence
         });
         contentSkillsFound++;
       }
       
-      // Insert subject skill mappings
+      // Insert subject skill mappings with weight validation
       for (const subjectSkill of mapping.subject_skills || []) {
+        // Validate skill weight (cap at 2.0)
+        const validatedWeight = Math.min(Math.max(subjectSkill.weight || 1.0, 0), 2.0);
+        const validatedConfidence = Math.min(Math.max(subjectSkill.confidence || 1.0, 0), 1.0);
+        
+        if (validatedWeight !== (subjectSkill.weight || 1.0)) {
+          console.warn(`Subject skill weight adjusted from ${subjectSkill.weight} to ${validatedWeight} for Q${mapping.question_number}`);
+        }
+        
         mappingInserts.push({
           exam_id: examId,
           question_number: mapping.question_number,
           skill_type: 'subject',
           skill_id: subjectSkill.skill_id,
           skill_name: subjectSkill.skill_name,
-          skill_weight: subjectSkill.weight || 1.0,
-          confidence: subjectSkill.confidence || 1.0
+          skill_weight: validatedWeight,
+          confidence: validatedConfidence
         });
         subjectSkillsFound++;
       }
@@ -239,7 +254,7 @@ Provide complete skill mapping for all questions.`;
       })
       .eq('id', analysisRecord.id);
 
-    console.log('Skill analysis completed successfully');
+    console.log('Skill analysis with validation completed successfully');
     console.log(`Mapped ${skillMappings.mappings?.length || 0} questions with ${contentSkillsFound} content skills and ${subjectSkillsFound} subject skills`);
 
     return new Response(
@@ -250,6 +265,7 @@ Provide complete skill mapping for all questions.`;
         mapped_questions: skillMappings.mappings?.length || 0,
         content_skills_found: contentSkillsFound,
         subject_skills_found: subjectSkillsFound,
+        validation_applied: true,
         skill_mappings: skillMappings
       }),
       {

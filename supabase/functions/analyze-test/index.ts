@@ -6,6 +6,113 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-detail-level',
 }
 
+// Score Validation Service
+class ScoreValidationService {
+  static validateQuestionScore(pointsEarned: number, pointsPossible: number, questionNumber: number): number {
+    if (pointsEarned < 0) {
+      console.warn(`Question ${questionNumber}: Negative points earned (${pointsEarned}), setting to 0`);
+      return 0;
+    }
+    if (pointsEarned > pointsPossible) {
+      console.warn(`Question ${questionNumber}: Points earned (${pointsEarned}) exceeds possible (${pointsPossible}), capping to ${pointsPossible}`);
+      return pointsPossible;
+    }
+    return pointsEarned;
+  }
+
+  static validateSkillWeight(weight: number): number {
+    const MAX_SKILL_WEIGHT = 2.0;
+    if (weight < 0) return 0;
+    if (weight > MAX_SKILL_WEIGHT) {
+      console.warn(`Skill weight ${weight} exceeds maximum ${MAX_SKILL_WEIGHT}, capping`);
+      return MAX_SKILL_WEIGHT;
+    }
+    return weight;
+  }
+
+  static validateAIResponse(aiAnalysis: any, expectedQuestions: number): any {
+    if (!aiAnalysis) {
+      console.warn('AI analysis is null/undefined, using fallback');
+      return { total_points_earned: 0, total_points_possible: expectedQuestions };
+    }
+
+    // Validate points earned
+    let pointsEarned = aiAnalysis.total_points_earned || 0;
+    let pointsPossible = aiAnalysis.total_points_possible || expectedQuestions;
+
+    if (pointsEarned < 0) {
+      console.warn(`AI returned negative points earned (${pointsEarned}), setting to 0`);
+      pointsEarned = 0;
+    }
+
+    if (pointsEarned > pointsPossible) {
+      console.warn(`AI points earned (${pointsEarned}) exceeds possible (${pointsPossible}), capping`);
+      pointsEarned = pointsPossible;
+    }
+
+    return {
+      ...aiAnalysis,
+      total_points_earned: pointsEarned,
+      total_points_possible: pointsPossible
+    };
+  }
+
+  static validateFinalScore(totalEarned: number, totalPossible: number, examTotalPoints?: number): { earned: number, possible: number, capped: boolean } {
+    let capped = false;
+    let validatedEarned = totalEarned;
+    let validatedPossible = totalPossible;
+
+    // Ensure non-negative values
+    if (validatedEarned < 0) {
+      console.warn(`Total earned is negative (${validatedEarned}), setting to 0`);
+      validatedEarned = 0;
+      capped = true;
+    }
+
+    if (validatedPossible <= 0) {
+      console.warn(`Total possible is non-positive (${validatedPossible}), setting to 1`);
+      validatedPossible = 1;
+      capped = true;
+    }
+
+    // Validate against earned <= possible
+    if (validatedEarned > validatedPossible) {
+      console.warn(`Total earned (${validatedEarned}) exceeds possible (${validatedPossible}), capping`);
+      validatedEarned = validatedPossible;
+      capped = true;
+    }
+
+    // Validate against exam total if provided
+    if (examTotalPoints && validatedPossible > examTotalPoints) {
+      console.warn(`Calculated total possible (${validatedPossible}) exceeds exam total (${examTotalPoints}), adjusting`);
+      const ratio = examTotalPoints / validatedPossible;
+      validatedPossible = examTotalPoints;
+      validatedEarned = Math.min(validatedEarned * ratio, examTotalPoints);
+      capped = true;
+    }
+
+    if (examTotalPoints && validatedEarned > examTotalPoints) {
+      console.warn(`Total earned (${validatedEarned}) exceeds exam total (${examTotalPoints}), capping`);
+      validatedEarned = examTotalPoints;
+      capped = true;
+    }
+
+    return {
+      earned: Math.round(validatedEarned * 100) / 100, // Round to 2 decimal places
+      possible: Math.round(validatedPossible * 100) / 100,
+      capped
+    };
+  }
+
+  static logValidationResults(validation: any, context: string) {
+    if (validation.capped) {
+      console.log(`${context}: Score validation applied - Final: ${validation.earned}/${validation.possible}`);
+    } else {
+      console.log(`${context}: Score validation passed - Final: ${validation.earned}/${validation.possible}`);
+    }
+  }
+}
+
 // Enhanced Local Grading Service with Skill Mapping
 class EnhancedLocalGradingService {
   private static readonly HIGH_CONFIDENCE_THRESHOLD = 0.85;
@@ -230,7 +337,10 @@ class EnhancedLocalGradingService {
     const correctAnswer = answerKey.correct_answer?.toUpperCase() || '';
     const isCorrect = studentAnswer === correctAnswer;
     const pointsPossible = answerKey.points || 1;
-    const pointsEarned = isCorrect ? pointsPossible : 0;
+    let pointsEarned = isCorrect ? pointsPossible : 0;
+
+    // Validate question score
+    pointsEarned = ScoreValidationService.validateQuestionScore(pointsEarned, pointsPossible, question.questionNumber);
 
     let gradingMethod = 'local_with_skills';
     if (classification.confidence >= this.HIGH_CONFIDENCE_THRESHOLD) {
@@ -268,6 +378,9 @@ class EnhancedLocalGradingService {
         const skillKey = skillMapping.skill_name;
         const skillType = skillMapping.skill_type;
         
+        // Validate skill weight
+        const validatedWeight = ScoreValidationService.validateSkillWeight(skillMapping.skill_weight);
+        
         const skillScores = skillType === 'content' ? contentSkillScores : subjectSkillScores;
         
         if (!skillScores[skillKey]) {
@@ -279,20 +392,26 @@ class EnhancedLocalGradingService {
           };
         }
 
-        const weightedPoints = result.pointsPossible * skillMapping.skill_weight;
-        const weightedEarned = result.pointsEarned * skillMapping.skill_weight;
+        const weightedPoints = result.pointsPossible * validatedWeight;
+        const weightedEarned = result.pointsEarned * validatedWeight;
 
         skillScores[skillKey].points_possible += weightedPoints;
         skillScores[skillKey].points_earned += weightedEarned;
       }
     }
 
-    // Calculate final scores
+    // Calculate final scores and validate
     Object.values(contentSkillScores).forEach((skill: any) => {
+      const validation = ScoreValidationService.validateFinalScore(skill.points_earned, skill.points_possible);
+      skill.points_earned = validation.earned;
+      skill.points_possible = validation.possible;
       skill.score = skill.points_possible > 0 ? (skill.points_earned / skill.points_possible) * 100 : 0;
     });
     
     Object.values(subjectSkillScores).forEach((skill: any) => {
+      const validation = ScoreValidationService.validateFinalScore(skill.points_earned, skill.points_possible);
+      skill.points_earned = validation.earned;
+      skill.points_possible = validation.possible;
       skill.score = skill.points_possible > 0 ? (skill.points_earned / skill.points_possible) * 100 : 0;
     });
 
@@ -454,7 +573,7 @@ serve(async (req) => {
   }
 
   try {
-    console.log('Enhanced analyze-test function called with skill mapping support')
+    console.log('Enhanced analyze-test function called with comprehensive score validation')
     
     const detailLevel = req.headers.get("x-detail-level") || "summary";
     const isDetailed = detailLevel === "detailed";
@@ -489,8 +608,9 @@ serve(async (req) => {
     const subjectSkills = (subjectSkillsRes.data || []).map(item => item.subject_skills).filter(Boolean);
 
     console.log('Found exam:', examData.title, 'with', answerKeys.length, 'answer keys')
+    console.log('Exam total points:', examData.total_points)
 
-    console.log('Step 2: Processing questions with enhanced skill mapping')
+    console.log('Step 2: Processing questions with enhanced skill mapping and validation')
     
     const allQuestions = [];
     let hasStructuredData = false;
@@ -514,9 +634,11 @@ serve(async (req) => {
     console.log(`Enhanced processing: ${summary.locallyGraded} local, ${summary.requiresAI} require AI`)
     console.log('Skill mapping available:', summary.skillMappingAvailable)
 
-    // Calculate local grading results
+    // Calculate local grading results with validation
     const localPointsEarned = localResults.reduce((sum, r) => sum + r.pointsEarned, 0);
     const localPointsPossible = localResults.reduce((sum, r) => sum + r.pointsPossible, 0);
+    
+    console.log(`Local grading: ${localPointsEarned}/${localPointsPossible} points`)
     
     let aiAnalysis = null;
     let aiPointsEarned = 0;
@@ -589,11 +711,16 @@ Note: ${summary.locallyGraded} questions already graded locally with skill mappi
       const analysisText = result.choices[0]?.message?.content || "{}";
       
       try {
-        aiAnalysis = JSON.parse(analysisText);
+        const rawAiAnalysis = JSON.parse(analysisText);
+        
+        // Validate AI response
+        aiAnalysis = ScoreValidationService.validateAIResponse(rawAiAnalysis, aiRequiredQuestions.length);
         aiPointsEarned = aiAnalysis.total_points_earned || 0;
         aiPointsPossible = aiAnalysis.total_points_possible || aiRequiredQuestions.length;
         aiContentSkillScores = aiAnalysis.content_skill_scores || [];
         aiSubjectSkillScores = aiAnalysis.subject_skill_scores || [];
+        
+        console.log(`AI grading validated: ${aiPointsEarned}/${aiPointsPossible} points`)
       } catch (parseError) {
         console.error('Failed to parse AI analysis:', parseError);
         aiAnalysis = {
@@ -606,20 +733,39 @@ Note: ${summary.locallyGraded} questions already graded locally with skill mappi
       }
     }
 
-    console.log('Step 4: Merging enhanced grading results with skill scores')
+    console.log('Step 4: Combining results with comprehensive score validation')
     
-    // Merge local and AI results
-    const totalPointsEarned = localPointsEarned + aiPointsEarned;
-    const totalPointsPossible = localPointsPossible + aiPointsPossible;
+    // Combine and validate total results
+    const rawTotalEarned = localPointsEarned + aiPointsEarned;
+    const rawTotalPossible = localPointsPossible + aiPointsPossible;
+    
+    console.log(`Raw totals before validation: ${rawTotalEarned}/${rawTotalPossible}`)
+    
+    // Apply comprehensive validation
+    const validation = ScoreValidationService.validateFinalScore(
+      rawTotalEarned, 
+      rawTotalPossible, 
+      examData.total_points
+    );
+    
+    const totalPointsEarned = validation.earned;
+    const totalPointsPossible = validation.possible;
     const overallScore = totalPointsPossible > 0 ? (totalPointsEarned / totalPointsPossible) * 100 : 0;
 
-    // Combine skill scores
+    ScoreValidationService.logValidationResults(validation, 'Final Score Calculation');
+
+    // Combine skill scores (already validated in calculateSkillScores)
     const allContentSkillScores = [...localContentSkillScores, ...aiContentSkillScores];
     const allSubjectSkillScores = [...localSubjectSkillScores, ...aiSubjectSkillScores];
 
     const localFeedback = `Enhanced local grading with skill mapping completed for ${localResults.length} questions.`;
     const aiFeedback = aiAnalysis?.feedback || '';
-    const combinedFeedback = localFeedback + (aiFeedback ? ' ' + aiFeedback : '');
+    let combinedFeedback = localFeedback + (aiFeedback ? ' ' + aiFeedback : '');
+    
+    // Add validation notice if scores were capped
+    if (validation.capped) {
+      combinedFeedback += ' Note: Scores were adjusted to ensure mathematical consistency.';
+    }
 
     const finalAnalysis = {
       overall_score: Math.round(overallScore * 100) / 100,
@@ -638,6 +784,7 @@ Note: ${summary.locallyGraded} questions already graded locally with skill mappi
         processing_method: hasStructuredData ? "enhanced_dual_ocr_with_skills" : "standard_ocr_with_skills",
         api_calls_saved: summary.locallyGraded > 0 ? Math.round((summary.locallyGraded / allQuestions.length) * 100) : 0,
         skill_mapping_available: summary.skillMappingAvailable,
+        score_validation_applied: validation.capped,
         enhanced_metrics: summary.enhancedMetrics
       },
       enhanced_question_analysis: {
@@ -645,15 +792,22 @@ Note: ${summary.locallyGraded} questions already graded locally with skill mappi
         questions_with_clear_answers: summary.locallyGraded,
         questions_with_skill_mapping: summary.skillMappingAvailable ? summary.locallyGraded : 0,
         local_skill_scores_calculated: localContentSkillScores.length + localSubjectSkillScores.length,
+        score_validation_summary: {
+          validation_applied: validation.capped,
+          final_earned: totalPointsEarned,
+          final_possible: totalPointsPossible,
+          exam_total_points: examData.total_points
+        },
         processing_improvements: [
           `${summary.locallyGraded} questions processed with local grading and skill mapping`,
           `${Math.round(summary.localAccuracy * 100)}% questions graded locally`,
-          `Skill mapping ${summary.skillMappingAvailable ? 'available' : 'not available'} for this exam`
+          `Skill mapping ${summary.skillMappingAvailable ? 'available' : 'not available'} for this exam`,
+          `Score validation ${validation.capped ? 'applied' : 'passed'} - ensuring mathematical consistency`
         ]
       }
     };
 
-    console.log('Step 5: Saving enhanced results with skill scores to database')
+    console.log('Step 5: Saving validated results to database')
     
     // Upsert student profile
     const { data: studentProfile } = await supabase
@@ -709,9 +863,10 @@ Note: ${summary.locallyGraded} questions already graded locally with skill mappi
       );
     }
 
-    console.log('Enhanced test analysis with skill mapping completed successfully')
+    console.log('Enhanced test analysis with validated skill mapping completed successfully')
     console.log(`Performance: ${finalAnalysis.question_based_grading_summary.api_calls_saved}% API calls saved`)
-    console.log(`Skill mapping: ${summary.skillMappingAvailable ? 'enabled' : 'not available'}`)
+    console.log(`Score validation: ${validation.capped ? 'applied' : 'passed'}`)
+    console.log(`Final validated score: ${totalPointsEarned}/${totalPointsPossible} (${Math.round(overallScore)}%)`)
 
     return new Response(
       JSON.stringify({

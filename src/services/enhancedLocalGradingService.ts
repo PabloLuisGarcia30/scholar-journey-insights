@@ -35,6 +35,78 @@ export interface EnhancedLocalGradingResult {
   qualityFlags?: any;
 }
 
+// Score Validation Service
+class ScoreValidationService {
+  static validateQuestionScore(pointsEarned: number, pointsPossible: number, questionNumber: number): number {
+    if (pointsEarned < 0) {
+      console.warn(`Question ${questionNumber}: Negative points earned (${pointsEarned}), setting to 0`);
+      return 0;
+    }
+    if (pointsEarned > pointsPossible) {
+      console.warn(`Question ${questionNumber}: Points earned (${pointsEarned}) exceeds possible (${pointsPossible}), capping to ${pointsPossible}`);
+      return pointsPossible;
+    }
+    return pointsEarned;
+  }
+
+  static validateSkillWeight(weight: number): number {
+    const MAX_SKILL_WEIGHT = 2.0;
+    if (weight < 0) return 0;
+    if (weight > MAX_SKILL_WEIGHT) {
+      console.warn(`Skill weight ${weight} exceeds maximum ${MAX_SKILL_WEIGHT}, capping`);
+      return MAX_SKILL_WEIGHT;
+    }
+    return weight;
+  }
+
+  static validateFinalScore(totalEarned: number, totalPossible: number, examTotalPoints?: number): { earned: number, possible: number, capped: boolean } {
+    let capped = false;
+    let validatedEarned = totalEarned;
+    let validatedPossible = totalPossible;
+
+    // Ensure non-negative values
+    if (validatedEarned < 0) {
+      console.warn(`Total earned is negative (${validatedEarned}), setting to 0`);
+      validatedEarned = 0;
+      capped = true;
+    }
+
+    if (validatedPossible <= 0) {
+      console.warn(`Total possible is non-positive (${validatedPossible}), setting to 1`);
+      validatedPossible = 1;
+      capped = true;
+    }
+
+    // Validate against earned <= possible
+    if (validatedEarned > validatedPossible) {
+      console.warn(`Total earned (${validatedEarned}) exceeds possible (${validatedPossible}), capping`);
+      validatedEarned = validatedPossible;
+      capped = true;
+    }
+
+    // Validate against exam total if provided
+    if (examTotalPoints && validatedPossible > examTotalPoints) {
+      console.warn(`Calculated total possible (${validatedPossible}) exceeds exam total (${examTotalPoints}), adjusting`);
+      const ratio = examTotalPoints / validatedPossible;
+      validatedPossible = examTotalPoints;
+      validatedEarned = Math.min(validatedEarned * ratio, examTotalPoints);
+      capped = true;
+    }
+
+    if (examTotalPoints && validatedEarned > examTotalPoints) {
+      console.warn(`Total earned (${validatedEarned}) exceeds exam total (${examTotalPoints}), capping`);
+      validatedEarned = examTotalPoints;
+      capped = true;
+    }
+
+    return {
+      earned: Math.round(validatedEarned * 100) / 100,
+      possible: Math.round(validatedPossible * 100) / 100,
+      capped
+    };
+  }
+}
+
 export class EnhancedLocalGradingService {
   private static readonly HIGH_CONFIDENCE_THRESHOLD = 0.85;
   private static readonly MEDIUM_CONFIDENCE_THRESHOLD = 0.6;
@@ -263,7 +335,10 @@ export class EnhancedLocalGradingService {
     const correctAnswer = answerKey.correct_answer?.toUpperCase() || '';
     const isCorrect = studentAnswer === correctAnswer;
     const pointsPossible = answerKey.points || 1;
-    const pointsEarned = isCorrect ? pointsPossible : 0;
+    let pointsEarned = isCorrect ? pointsPossible : 0;
+
+    // Validate question score
+    pointsEarned = ScoreValidationService.validateQuestionScore(pointsEarned, pointsPossible, question.questionNumber);
 
     // Determine grading method based on confidence and detection method
     let gradingMethod = 'local_question_based_with_skills';
@@ -341,8 +416,11 @@ export class EnhancedLocalGradingService {
           };
         }
 
-        const weightedPoints = result.pointsPossible * skillMapping.skill_weight;
-        const weightedEarned = result.pointsEarned * skillMapping.skill_weight;
+        // Validate skill weight before applying
+        const validatedWeight = ScoreValidationService.validateSkillWeight(skillMapping.skill_weight);
+        
+        const weightedPoints = result.pointsPossible * validatedWeight;
+        const weightedEarned = result.pointsEarned * validatedWeight;
 
         skillScores[skillKey].points_possible += weightedPoints;
         skillScores[skillKey].points_earned += weightedEarned;
@@ -354,15 +432,21 @@ export class EnhancedLocalGradingService {
       }
     }
 
-    // Calculate final scores
-    return Object.values(skillScores).map(skill => ({
-      ...skill,
-      score: skill.points_possible > 0 ? (skill.points_earned / skill.points_possible) * 100 : 0
-    }));
+    // Calculate final scores with validation
+    return Object.values(skillScores).map(skill => {
+      const validation = ScoreValidationService.validateFinalScore(skill.points_earned, skill.points_possible);
+      
+      return {
+        ...skill,
+        points_earned: validation.earned,
+        points_possible: validation.possible,
+        score: validation.possible > 0 ? (validation.earned / validation.possible) * 100 : 0
+      };
+    });
   }
 
   static async processQuestionsWithSkills(questions: any[], answerKeys: any[], examId: string) {
-    console.log('Processing questions with enhanced local grading and skill mapping');
+    console.log('Processing questions with enhanced local grading and score validation');
     
     // Ensure skill mappings exist
     const hasSkillMappings = await this.ensureSkillMappingsExist(examId);
@@ -428,8 +512,18 @@ export class EnhancedLocalGradingService {
       }
     }
 
-    // Calculate skill scores from local results
+    // Calculate skill scores from local results (includes validation)
     const localSkillScores = this.calculateSkillScores(localResults);
+
+    // Validate total local scores
+    const localTotalEarned = localResults.reduce((sum, r) => sum + r.pointsEarned, 0);
+    const localTotalPossible = localResults.reduce((sum, r) => sum + r.pointsPossible, 0);
+    
+    const localValidation = ScoreValidationService.validateFinalScore(localTotalEarned, localTotalPossible);
+    
+    if (localValidation.capped) {
+      console.warn('Local grading scores were adjusted for validation');
+    }
 
     return {
       localResults,
@@ -441,6 +535,7 @@ export class EnhancedLocalGradingService {
         requiresAI: aiRequiredQuestions.length,
         localAccuracy: locallyGradedCount / questions.length,
         skillMappingAvailable: true,
+        scoreValidationApplied: localValidation.capped,
         enhancedMetrics: {
           questionBasedGraded: questionBasedCount,
           highConfidenceGraded: highConfidenceCount,
