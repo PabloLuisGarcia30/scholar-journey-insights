@@ -1,10 +1,296 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
+
+// Database-driven template recognition using stored answer keys
+async function recognizeTemplateFromDatabase(examId: string) {
+  console.log('🔍 Querying database for exam format:', examId);
+  
+  const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+  const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+  const supabase = createClient(supabaseUrl, supabaseKey);
+  
+  try {
+    // Query answer keys to get question types for this exam
+    const { data: answerKeys, error } = await supabase
+      .from('answer_keys')
+      .select('question_number, question_type, correct_answer, options')
+      .eq('exam_id', examId)
+      .order('question_number');
+    
+    if (error) {
+      console.warn('⚠️ Database query failed:', error);
+      return null;
+    }
+    
+    if (!answerKeys || answerKeys.length === 0) {
+      console.log('📝 No answer keys found for exam:', examId);
+      return null;
+    }
+    
+    // Analyze question types to determine detection strategy
+    const questionTypes = answerKeys.map(key => key.question_type);
+    const multipleChoiceCount = questionTypes.filter(type => 
+      type === 'multiple_choice' || type === 'true_false'
+    ).length;
+    const textBasedCount = questionTypes.filter(type => 
+      type === 'short_answer' || type === 'essay'
+    ).length;
+    
+    console.log(`📊 Found ${answerKeys.length} questions: ${multipleChoiceCount} MC/TF, ${textBasedCount} text-based`);
+    
+    return {
+      isMatch: true,
+      confidence: 0.98, // High confidence since we have database info
+      template: 'database_driven',
+      examId,
+      questionCount: answerKeys.length,
+      questionTypes: {
+        multiple_choice: multipleChoiceCount,
+        text_based: textBasedCount
+      },
+      questionMap: answerKeys.reduce((map, key) => {
+        map[key.question_number] = {
+          type: key.question_type,
+          correctAnswer: key.correct_answer,
+          options: key.options
+        };
+        return map;
+      }, {} as Record<number, any>),
+      detectedFormat: multipleChoiceCount > 0 ? 'mixed_format' : 'text_based',
+      needsBubbleDetection: multipleChoiceCount > 0,
+      needsTextExtraction: true,
+      preprocessing: {
+        rotationCorrection: true,
+        contrastEnhancement: 1.2,
+        bubbleEnhancement: multipleChoiceCount > 0,
+        gridAlignment: multipleChoiceCount > 0,
+        textEnhancement: textBasedCount > 0
+      }
+    };
+    
+  } catch (error) {
+    console.error('❌ Database query error:', error);
+    return null;
+  }
+}
+
+// Fallback template recognition for documents without exam_id
+async function fallbackTemplateRecognition(imageData: string, fileName: string) {
+  console.log('🔍 Using fallback template recognition for:', fileName);
+  
+  // Conservative approach - assume mixed format and try both detection methods
+  return {
+    isMatch: false,
+    confidence: 0.6,
+    template: 'fallback_mixed',
+    detectedFormat: 'mixed_format',
+    needsBubbleDetection: true,
+    needsTextExtraction: true,
+    questionTypes: {
+      multiple_choice: 0, // Unknown
+      text_based: 0 // Unknown
+    },
+    preprocessing: {
+      rotationCorrection: true,
+      contrastEnhancement: 1.2,
+      bubbleEnhancement: true,
+      gridAlignment: true,
+      textEnhancement: true
+    }
+  };
+}
+
+// Enhanced OCR extraction with database-driven strategy
+async function extractTextWithDatabaseStrategy(imageData: string, apiKey: string, templateConfig: any) {
+  console.log('🎯 Using database-driven OCR strategy');
+  
+  const visionApiUrl = `https://vision.googleapis.com/v1/images:annotate?key=${apiKey}`;
+  
+  const requestBody = {
+    requests: [{
+      image: { content: imageData },
+      features: [{ type: 'DOCUMENT_TEXT_DETECTION' }],
+      imageContext: { 
+        languageHints: ['en']
+      }
+    }]
+  };
+
+  const response = await fetch(visionApiUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(requestBody)
+  });
+
+  if (!response.ok) {
+    throw new Error(`Vision API error: ${response.statusText}`);
+  }
+
+  const result = await response.json();
+  const fullTextAnnotation = result.responses[0]?.fullTextAnnotation;
+  
+  if (!fullTextAnnotation) {
+    return { extractedText: '', confidence: 0 };
+  }
+
+  const extractedText = fullTextAnnotation.text || '';
+  
+  // Enhanced confidence based on database match
+  let confidence = 0.9;
+  if (templateConfig.isMatch) {
+    confidence = 0.98; // Very high confidence with database info
+  }
+
+  return { extractedText, confidence };
+}
+
+// Database-driven question detection
+async function detectQuestionsWithDatabaseInfo(imageData: string, apiKey: string, templateConfig: any) {
+  console.log('🎯 Using database-driven question detection');
+  
+  const questionGroups: any[] = [];
+  
+  // Only use Roboflow if we know we have multiple choice questions
+  if (!templateConfig.needsBubbleDetection) {
+    console.log('📝 No bubble detection needed based on database info');
+    return [];
+  }
+  
+  try {
+    const roboflowUrl = "https://detect.roboflow.com/test-answer-sheet/2";
+    const confidence = 0.3; // Use consistent confidence threshold
+    
+    const response = await fetch(`${roboflowUrl}?api_key=${apiKey}&confidence=${confidence}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: imageData
+    });
+
+    if (!response.ok) {
+      throw new Error(`Roboflow API error: ${response.status}`);
+    }
+
+    const result = await response.json();
+    return processDatabaseDrivenDetections(result.predictions || [], templateConfig);
+  } catch (error) {
+    console.warn('⚠️ Database-driven Roboflow detection failed:', error);
+    return [];
+  }
+}
+
+function processDatabaseDrivenDetections(predictions: any[], templateConfig: any) {
+  console.log(`📊 Processing ${predictions.length} detections with database guidance`);
+  
+  const questionGroups: any[] = [];
+  const groupedByQuestion = new Map();
+
+  predictions.forEach(prediction => {
+    const questionNumber = extractFlexibleQuestionNumber(prediction, templateConfig);
+    
+    // Validate against database expectations
+    const expectedQuestion = templateConfig.questionMap?.[questionNumber];
+    if (expectedQuestion && (expectedQuestion.type === 'short_answer' || expectedQuestion.type === 'essay')) {
+      console.warn(`⚠️ Bubble detected for text-based question ${questionNumber}`);
+      return; // Skip this detection
+    }
+    
+    if (!groupedByQuestion.has(questionNumber)) {
+      groupedByQuestion.set(questionNumber, {
+        questionNumber,
+        detections: []
+      });
+    }
+    groupedByQuestion.get(questionNumber).detections.push(prediction);
+  });
+
+  groupedByQuestion.forEach((group, questionNumber) => {
+    const selectedAnswer = findSelectedAnswerWithFlexibleTemplate(group.detections, templateConfig);
+    const expectedQuestion = templateConfig.questionMap?.[questionNumber];
+    
+    // Enhanced confidence based on database alignment
+    let confidence = selectedAnswer ? selectedAnswer.confidence : 0;
+    if (expectedQuestion && (expectedQuestion.type === 'multiple_choice' || expectedQuestion.type === 'true_false')) {
+      confidence = Math.min(0.98, confidence + 0.1); // Boost confidence for expected MC questions
+    }
+    
+    questionGroups.push({
+      questionNumber,
+      selectedAnswer,
+      confidence,
+      detectionCount: group.detections.length,
+      databaseEnhanced: !!expectedQuestion,
+      expectedType: expectedQuestion?.type || 'unknown',
+      questionType: expectedQuestion?.type || 'multiple_choice'
+    });
+  });
+
+  return questionGroups.sort((a, b) => a.questionNumber - b.questionNumber);
+}
+
+// Enhanced text-based question extraction with database validation
+function extractDatabaseGuidedQuestionsFromOCR(text: string, templateConfig: any) {
+  const questions = [];
+  const lines = text.split('\n');
+  
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+    const questionMatch = line.match(/^(\d+)[\.\)\s]/);
+    
+    if (questionMatch) {
+      const questionNumber = parseInt(questionMatch[1]);
+      const questionText = line.substring(questionMatch[0].length).trim();
+      
+      // Use database info to determine question type
+      const expectedQuestion = templateConfig.questionMap?.[questionNumber];
+      let questionType = expectedQuestion?.type || 'multiple_choice';
+      let selectedAnswer = null;
+      
+      // Look for answers based on expected question type
+      if (questionType === 'multiple_choice' || questionType === 'true_false') {
+        for (let j = i + 1; j < Math.min(i + 10, lines.length); j++) {
+          const answerMatch = lines[j].match(/(?:Answer|Selected):\s*([A-E])/i);
+          if (answerMatch) {
+            selectedAnswer = {
+              optionLetter: answerMatch[1].toUpperCase(),
+              confidence: 0.8
+            };
+            break;
+          }
+        }
+      } else {
+        // Look for text answers for short_answer/essay
+        for (let j = i + 1; j < Math.min(i + 5, lines.length); j++) {
+          const textAnswer = lines[j].trim();
+          if (textAnswer.length > 0 && !textAnswer.match(/^\d+[\.\)]/)) {
+            selectedAnswer = {
+              textAnswer,
+              confidence: 0.7
+            };
+            break;
+          }
+        }
+      }
+      
+      questions.push({
+        questionNumber,
+        questionText: questionText || `Question ${questionNumber}`,
+        questionType,
+        selectedAnswer,
+        confidence: selectedAnswer ? selectedAnswer.confidence : 0,
+        databaseEnhanced: !!expectedQuestion,
+        expectedAnswer: expectedQuestion?.correctAnswer
+      });
+    }
+  }
+  
+  return questions;
+}
 
 // Optimized flexible template recognition 
 async function recognizeFlexibleTemplate(imageData: string, fileName: string) {
@@ -439,7 +725,7 @@ function isValidStudentId(id: string): boolean {
   return true;
 }
 
-// Main serve function with simplified OCR processing
+// Main serve function with database-driven OCR processing
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -447,7 +733,7 @@ serve(async (req) => {
 
   try {
     const { fileName, fileContent } = await req.json();
-    console.log(`🔍 Processing file with simplified OCR pipeline: ${fileName}`);
+    console.log(`🔍 Processing file with database-driven OCR pipeline: ${fileName}`);
 
     const visionApiKey = Deno.env.get('GOOGLE_CLOUD_VISION_API_KEY');
     const roboflowApiKey = Deno.env.get('ROBOFLOW_API_KEY');
@@ -456,38 +742,44 @@ serve(async (req) => {
       throw new Error('Google Cloud Vision API key not configured');
     }
 
-    // Step 1: Flexible Template Recognition
-    const templateConfig = await recognizeFlexibleTemplate(fileContent, fileName);
-    console.log(`📋 Flexible template recognition: ${templateConfig.detectedFormat} format (${(templateConfig.confidence * 100).toFixed(1)}%)`);
-    console.log(`📊 Question types detected: ${templateConfig.questionTypes.join(', ')}`);
+    // Step 1: Extract basic text to get exam ID
+    const ocrResult = await extractTextWithDatabaseStrategy(fileContent, visionApiKey, { isMatch: false });
+    console.log(`📝 Initial OCR extracted ${ocrResult.extractedText.length} characters`);
 
-    // Step 2: Simplified OCR text extraction
-    const ocrResult = await extractTextWithFlexibleVision(fileContent, visionApiKey, templateConfig);
-    console.log(`📝 Simplified OCR extracted ${ocrResult.extractedText.length} characters (confidence: ${(ocrResult.confidence * 100).toFixed(1)}%)`);
-
-    // Step 3: Enhanced student ID detection
-    const studentIdResult = detectStudentId(ocrResult.extractedText, fileName);
-    console.log(`🆔 Student ID detection:`, studentIdResult);
-
-    // Step 4: Flexible question detection based on format
-    let questionGroups = [];
-    if (roboflowApiKey && templateConfig.detectedFormat !== 'text_based') {
-      try {
-        questionGroups = await detectQuestionsWithFlexibleRoboflow(fileContent, roboflowApiKey, templateConfig);
-        console.log(`❓ Flexible detection: ${questionGroups.length} question groups (format: ${templateConfig.detectedFormat})`);
-      } catch (error) {
-        console.warn('⚠️ Flexible Roboflow failed, using OCR fallback:', error.message);
-        questionGroups = extractFlexibleQuestionsFromOCR(ocrResult.extractedText, templateConfig);
-      }
-    } else {
-      questionGroups = extractFlexibleQuestionsFromOCR(ocrResult.extractedText, templateConfig);
-    }
-
-    // Step 5: Exam ID detection
+    // Step 2: Detect exam ID
     const examId = detectExamId(ocrResult.extractedText, fileName);
     console.log(`🆔 Detected exam ID: ${examId}`);
 
-    // Step 6: Build enhanced structured data with flexible format information
+    // Step 3: Database-driven template recognition
+    let templateConfig = await recognizeTemplateFromDatabase(examId);
+    
+    if (!templateConfig) {
+      console.log('📋 No database info found, using fallback recognition');
+      templateConfig = await fallbackTemplateRecognition(fileContent, fileName);
+    } else {
+      console.log(`📋 Database-driven format: ${templateConfig.detectedFormat} (${templateConfig.questionCount} questions)`);
+      console.log(`📊 Question breakdown: ${JSON.stringify(templateConfig.questionTypes)}`);
+    }
+
+    // Step 4: Enhanced student ID detection
+    const studentIdResult = detectStudentId(ocrResult.extractedText, fileName);
+    console.log(`🆔 Student ID detection:`, studentIdResult);
+
+    // Step 5: Database-guided question detection
+    let questionGroups = [];
+    if (roboflowApiKey && templateConfig.needsBubbleDetection) {
+      try {
+        questionGroups = await detectQuestionsWithDatabaseInfo(fileContent, roboflowApiKey, templateConfig);
+        console.log(`❓ Database-guided detection: ${questionGroups.length} question groups`);
+      } catch (error) {
+        console.warn('⚠️ Database-guided Roboflow failed, using OCR fallback:', error.message);
+        questionGroups = extractDatabaseGuidedQuestionsFromOCR(ocrResult.extractedText, templateConfig);
+      }
+    } else if (templateConfig.needsTextExtraction) {
+      questionGroups = extractDatabaseGuidedQuestionsFromOCR(ocrResult.extractedText, templateConfig);
+    }
+
+    // Step 6: Build enhanced structured data with database validation
     const structuredData = {
       examId,
       detectedStudentId: studentIdResult.detectedId,
@@ -500,36 +792,44 @@ serve(async (req) => {
         questionType: group.questionType || 'multiple_choice',
         detectedAnswer: group.selectedAnswer || null,
         confidence: group.confidence || 0,
-        templateEnhanced: group.templateEnhanced || false
+        databaseEnhanced: group.databaseEnhanced || false,
+        expectedType: group.expectedType || 'unknown'
       })),
       templateRecognition: {
         isMatch: templateConfig.isMatch,
         confidence: templateConfig.confidence,
         template: templateConfig.template,
         detectedFormat: templateConfig.detectedFormat,
-        questionTypes: templateConfig.questionTypes,
+        databaseDriven: templateConfig.isMatch,
+        questionCount: templateConfig.questionCount || 0,
         enhancementsApplied: templateConfig.isMatch
       },
       metadata: {
         totalQuestions: questionGroups.length,
+        expectedQuestions: templateConfig.questionCount || 0,
         ocrConfidence: ocrResult.confidence,
         hasStudentId: !!studentIdResult.detectedId,
         processingTimestamp: new Date().toISOString(),
-        simplifiedOcrProcessing: true,
-        questionTypeDistribution: templateConfig.questionTypes.reduce((dist: any, type: string) => {
-          dist[type] = questionGroups.filter((q: any) => q.questionType === type).length;
-          return dist;
-        }, {}),
+        databaseDrivenProcessing: templateConfig.isMatch,
+        questionValidation: {
+          expectedCount: templateConfig.questionCount || 0,
+          detectedCount: questionGroups.length,
+          countMatch: Math.abs((templateConfig.questionCount || 0) - questionGroups.length) <= 1
+        },
+        bubbleDetectionUsed: templateConfig.needsBubbleDetection,
+        textExtractionUsed: templateConfig.needsTextExtraction,
         averageQuestionConfidence: questionGroups.length > 0 ? 
           questionGroups.reduce((sum: number, q: any) => sum + (q.confidence || 0), 0) / questionGroups.length : 0
       }
     };
 
-    // Calculate enhanced confidence score
+    // Calculate enhanced confidence score based on database alignment
     const enhancedConfidence = templateConfig.isMatch ? 
-      Math.min(0.98, ocrResult.confidence + 0.05) : ocrResult.confidence;
+      Math.min(0.98, ocrResult.confidence + 0.08) : ocrResult.confidence;
 
-    console.log(`✅ Simplified OCR processing completed successfully (enhanced confidence: ${(enhancedConfidence * 100).toFixed(1)}%)`);
+    console.log(`✅ Database-driven OCR processing completed successfully (enhanced confidence: ${(enhancedConfidence * 100).toFixed(1)}%)`);
+    console.log(`📊 Database alignment: ${templateConfig.isMatch ? 'YES' : 'NO'}`);
+    console.log(`🎯 Question count validation: Expected ${templateConfig.questionCount || 0}, Found ${questionGroups.length}`);
 
     return new Response(
       JSON.stringify({
@@ -542,7 +842,7 @@ serve(async (req) => {
         structuredData,
         confidence: enhancedConfidence,
         templateEnhanced: templateConfig.isMatch,
-        simplifiedOcrEnabled: true,
+        databaseDriven: templateConfig.isMatch,
         detectedFormat: templateConfig.detectedFormat
       }),
       {
@@ -552,7 +852,7 @@ serve(async (req) => {
     );
 
   } catch (error) {
-    console.error('❌ Simplified OCR processing failed:', error);
+    console.error('❌ Database-driven OCR processing failed:', error);
     return new Response(
       JSON.stringify({
         success: false,
@@ -563,7 +863,7 @@ serve(async (req) => {
         studentId: null,
         structuredData: null,
         templateEnhanced: false,
-        simplifiedOcrEnabled: false
+        databaseDriven: false
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },

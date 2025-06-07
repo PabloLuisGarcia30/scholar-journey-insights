@@ -3,21 +3,30 @@ import { FlexibleTemplateService, FlexibleTemplateMatchResult, DetectedQuestionT
 import { HandwritingDetectionService, HandwritingAnalysis, Mark } from './handwritingDetectionService';
 import { RegionOfInterestService, ProcessingRegion, RegionOfInterest } from './regionOfInterestService';
 import { AdvancedValidationService, ValidationResult } from './advancedValidationService';
+import { supabase } from '@/integrations/supabase/client';
 
-export interface FlexibleProcessingResult extends EnhancedProcessingResult {
+export interface DatabaseDrivenProcessingResult extends EnhancedProcessingResult {
   questionTypeResults: QuestionTypeResult[];
   formatAnalysis: any;
   overallAccuracy: number;
   processingMethodsUsed: Record<string, number>;
+  databaseDriven: boolean;
+  questionValidation: {
+    expectedCount: number;
+    detectedCount: number;
+    countMatch: boolean;
+  };
 }
 
 export interface QuestionTypeResult {
   questionNumber: number;
   questionType: string;
+  expectedType?: string;
   extractedAnswer: ExtractedAnswer;
   confidence: number;
   processingMethod: string;
   validationPassed: boolean;
+  databaseEnhanced: boolean;
 }
 
 export interface ExtractedAnswer {
@@ -30,53 +39,54 @@ export interface ExtractedAnswer {
 
 export class FlexibleOcrService extends EnhancedSmartOcrService {
   
-  static async processWithFlexibleTemplate(
+  static async processWithDatabaseTemplate(
     file: File, 
     expectedQuestionCount?: number
-  ): Promise<FlexibleProcessingResult> {
-    console.log('🚀 Starting handwriting-resilient flexible OCR processing');
+  ): Promise<DatabaseDrivenProcessingResult> {
+    console.log('🚀 Starting database-driven OCR processing');
     
     try {
       // Convert file to base64
       const imageData = await this.convertFileToBase64(file);
       
-      // Step 1: Flexible template recognition
-      const templateMatch = await FlexibleTemplateService.recognizeFlexibleTemplate(
-        imageData, 
-        file.name
-      );
+      // Step 1: Extract exam ID from filename or initial OCR
+      const examId = await this.extractExamIdFromFile(file, imageData);
+      console.log(`🆔 Extracted exam ID: ${examId}`);
       
-      console.log(`📋 Format detected: ${templateMatch.formatAnalysis.primaryFormat}`);
-      console.log(`📊 Question types: ${Object.keys(templateMatch.formatAnalysis.questionTypeDistribution).join(', ')}`);
+      // Step 2: Database-driven template recognition
+      const templateMatch = await this.recognizeTemplateFromDatabase(examId);
       
-      // Step 2: Enhanced preprocessing with handwriting detection
-      const preprocessingResult = await this.enhancedPreprocessing(imageData, templateMatch);
+      if (templateMatch.databaseDriven) {
+        console.log(`📋 Database format: ${templateMatch.formatAnalysis.primaryFormat}`);
+        console.log(`📊 Question types: ${Object.keys(templateMatch.formatAnalysis.questionTypeDistribution).join(', ')}`);
+      } else {
+        console.log('📋 Using fallback detection - no database info available');
+      }
       
-      // Step 3: Process questions by type with region masking
-      const questionTypeResults = await this.processQuestionsByTypeWithMasking(
+      // Step 3: Database-guided preprocessing
+      const preprocessingResult = await this.databaseGuidedPreprocessing(imageData, templateMatch);
+      
+      // Step 4: Process questions using database information
+      const questionTypeResults = await this.processQuestionsWithDatabaseInfo(
         preprocessingResult.processedImageData, 
-        templateMatch.detectedQuestionTypes, 
-        templateMatch,
-        preprocessingResult.processingRegions
+        templateMatch
       );
       
-      // Step 4: Advanced validation with recovery
-      const validationResults = await this.advancedValidationWithRecovery(
+      // Step 5: Validate against database expectations
+      const validationResults = await this.validateAgainstDatabase(
         questionTypeResults, 
         templateMatch, 
-        expectedQuestionCount,
-        preprocessingResult
+        expectedQuestionCount
       );
       
-      // Step 5: Calculate enhanced metrics
-      const processingMetrics = this.calculateEnhancedFlexibleMetrics(
+      // Step 6: Calculate enhanced metrics
+      const processingMetrics = this.calculateDatabaseDrivenMetrics(
         questionTypeResults, 
         templateMatch,
-        validationResults,
-        preprocessingResult
+        validationResults
       );
       
-      const result: FlexibleProcessingResult = {
+      const result: DatabaseDrivenProcessingResult = {
         extractedText: this.aggregateExtractedText(questionTypeResults),
         confidence: processingMetrics.overallConfidence,
         templateMatch,
@@ -101,611 +111,268 @@ export class FlexibleOcrService extends EnhancedSmartOcrService {
         questionTypeResults,
         formatAnalysis: templateMatch.formatAnalysis,
         overallAccuracy: processingMetrics.overallConfidence,
-        processingMethodsUsed: processingMetrics.methodsUsed
+        processingMethodsUsed: processingMetrics.methodsUsed,
+        databaseDriven: templateMatch.databaseDriven,
+        questionValidation: {
+          expectedCount: templateMatch.formatAnalysis.expectedQuestionCount || 0,
+          detectedCount: questionTypeResults.length,
+          countMatch: Math.abs((templateMatch.formatAnalysis.expectedQuestionCount || 0) - questionTypeResults.length) <= 1
+        }
       };
       
-      console.log(`✅ Handwriting-resilient OCR completed with ${(processingMetrics.overallConfidence * 100).toFixed(1)}% confidence`);
-      console.log(`📝 Handwriting filtering: ${processingMetrics.handwritingMarksFiltered} marks filtered`);
-      console.log(`🎯 Clean regions processed: ${processingMetrics.cleanRegionsUsed}`);
+      console.log(`✅ Database-driven OCR completed with ${(processingMetrics.overallConfidence * 100).toFixed(1)}% confidence`);
+      console.log(`📊 Database enhanced: ${templateMatch.databaseDriven ? 'YES' : 'NO'}`);
+      console.log(`🎯 Question validation: ${result.questionValidation.countMatch ? 'PASS' : 'WARN'}`);
       
       return result;
       
     } catch (error) {
-      console.error('❌ Handwriting-resilient OCR processing failed:', error);
+      console.error('❌ Database-driven OCR processing failed:', error);
       throw error;
     }
   }
   
-  // Enhanced preprocessing with handwriting detection and region masking
-  private static async enhancedPreprocessing(
-    imageData: string,
-    templateMatch: FlexibleTemplateMatchResult
-  ): Promise<{
-    processedImageData: string;
-    handwritingAnalysis: HandwritingAnalysis[];
-    processingRegions: ProcessingRegion;
-    cleanBubbleRegions: { x: number; y: number; radius: number; confidence: number }[];
-  }> {
-    console.log('🔧 Starting enhanced preprocessing with handwriting detection');
-
-    // Simulate mark detection (in real implementation, this would analyze the actual image)
-    const detectedMarks: Mark[] = this.simulateMarkDetection(templateMatch);
+  // Extract exam ID from file for database lookup
+  private static async extractExamIdFromFile(file: File, imageData: string): Promise<string> {
+    // Try filename first
+    const fileNameMatch = file.name.match(/([A-Z0-9\-_]{3,})/i);
+    if (fileNameMatch) {
+      return fileNameMatch[1];
+    }
     
-    // Generate expected bubble regions from template
-    const expectedBubbleRegions = this.generateExpectedBubbleRegions(templateMatch.template);
-    
-    // Analyze marks for handwriting
-    const handwritingAnalysis = HandwritingDetectionService.analyzeMarks(detectedMarks, expectedBubbleRegions);
-    
-    // Filter out handwriting marks
-    const cleanMarks = HandwritingDetectionService.filterHandwritingMarks(detectedMarks, expectedBubbleRegions);
-    
-    // Identify handwriting areas for exclusion
-    const handwritingAreas = detectedMarks
-      .filter((mark, index) => handwritingAnalysis[index]?.isHandwriting)
-      .map(mark => ({ x: mark.x, y: mark.y, width: mark.width, height: mark.height }));
-
-    // Generate processing regions with exclusions
-    const processingRegions = RegionOfInterestService.generateProcessingRegions(
-      templateMatch.template?.layout,
-      handwritingAreas
-    );
-
-    // Apply region masking
-    const { maskedImageData, cleanRegions } = RegionOfInterestService.applyRegionMasking(
-      imageData,
-      processingRegions
-    );
-
-    // Isolate clean bubble regions
-    const cleanBubbleRegions = RegionOfInterestService.isolateCleanBubbleRegions(
-      expectedBubbleRegions,
-      handwritingAreas
-    );
-
-    console.log(`✨ Preprocessing complete: ${handwritingAreas.length} handwriting areas identified, ${cleanBubbleRegions.length} clean bubble regions isolated`);
-
+    // TODO: Could add basic OCR to extract exam ID from image header
+    // For now, generate a fallback ID
+    return `EXAM_${Date.now().toString().slice(-6)}`;
+  }
+  
+  // Database-driven template recognition
+  private static async recognizeTemplateFromDatabase(examId: string): Promise<FlexibleTemplateMatchResult & { databaseDriven: boolean }> {
+    try {
+      console.log('🔍 Querying database for exam format:', examId);
+      
+      // Query answer keys to get question types for this exam
+      const { data: answerKeys, error } = await supabase
+        .from('answer_keys')
+        .select('question_number, question_type, correct_answer, options')
+        .eq('exam_id', examId)
+        .order('question_number');
+      
+      if (error || !answerKeys || answerKeys.length === 0) {
+        console.log('📝 No answer keys found, using fallback detection');
+        return this.createFallbackTemplate();
+      }
+      
+      // Analyze question types to determine detection strategy
+      const questionTypes = answerKeys.map(key => key.question_type);
+      const multipleChoiceCount = questionTypes.filter(type => 
+        type === 'multiple_choice' || type === 'true_false'
+      ).length;
+      const textBasedCount = questionTypes.filter(type => 
+        type === 'short_answer' || type === 'essay'
+      ).length;
+      
+      console.log(`📊 Found ${answerKeys.length} questions: ${multipleChoiceCount} MC/TF, ${textBasedCount} text-based`);
+      
+      const questionMap = answerKeys.reduce((map, key) => {
+        map[key.question_number] = {
+          type: key.question_type,
+          correctAnswer: key.correct_answer,
+          options: key.options
+        };
+        return map;
+      }, {} as Record<number, any>);
+      
+      return {
+        isMatch: true,
+        confidence: 0.98,
+        template: {
+          name: 'database_driven',
+          examId,
+          questionMap,
+          layout: {
+            questionCount: answerKeys.length,
+            hasMultipleChoice: multipleChoiceCount > 0,
+            hasTextBased: textBasedCount > 0
+          }
+        },
+        detectedQuestionTypes: answerKeys.map(key => ({
+          questionNumber: key.question_number,
+          detectedType: key.question_type,
+          confidence: 0.98,
+          answerRegion: { x: 0, y: 0, width: 100, height: 20 }
+        })),
+        formatAnalysis: {
+          primaryFormat: multipleChoiceCount > 0 ? 'mixed_format' : 'text_based',
+          questionTypeDistribution: {
+            multiple_choice: multipleChoiceCount,
+            text_based: textBasedCount
+          },
+          expectedQuestionCount: answerKeys.length,
+          estimatedProcessingTime: answerKeys.length * 500 // ms per question
+        },
+        databaseDriven: true
+      };
+      
+    } catch (error) {
+      console.error('❌ Database query error:', error);
+      return this.createFallbackTemplate();
+    }
+  }
+  
+  private static createFallbackTemplate(): FlexibleTemplateMatchResult & { databaseDriven: boolean } {
     return {
-      processedImageData: maskedImageData,
-      handwritingAnalysis,
-      processingRegions,
-      cleanBubbleRegions
+      isMatch: false,
+      confidence: 0.6,
+      template: {
+        name: 'fallback_mixed',
+        layout: {
+          questionCount: 0,
+          hasMultipleChoice: true,
+          hasTextBased: true
+        }
+      },
+      detectedQuestionTypes: [],
+      formatAnalysis: {
+        primaryFormat: 'mixed_format',
+        questionTypeDistribution: {
+          multiple_choice: 0,
+          text_based: 0
+        },
+        expectedQuestionCount: 0,
+        estimatedProcessingTime: 5000
+      },
+      databaseDriven: false
     };
   }
   
-  // Simulate mark detection for demo purposes
-  private static simulateMarkDetection(templateMatch: FlexibleTemplateMatchResult): Mark[] {
-    const marks: Mark[] = [];
-    
-    // Simulate various types of marks
-    for (let i = 0; i < 50; i++) {
-      marks.push({
-        x: 100 + Math.random() * 600,
-        y: 150 + Math.random() * 500,
-        width: 3 + Math.random() * 15,
-        height: 3 + Math.random() * 15,
-        intensity: 50 + Math.random() * 200,
-        area: Math.random() * 100
-      });
-    }
-    
-    return marks;
-  }
-  
-  // Generate expected bubble positions from template
-  private static generateExpectedBubbleRegions(template: any): { x: number; y: number; radius: number }[] {
-    const regions: { x: number; y: number; radius: number }[] = [];
-    
-    if (template?.layout?.bubbleGrid) {
-      const { columns, rows, bubbleRadius, horizontalSpacing, verticalSpacing, startPosition } = template.layout.bubbleGrid;
-      
-      for (let row = 0; row < rows; row++) {
-        for (let col = 0; col < columns; col++) {
-          regions.push({
-            x: startPosition.x + (col * horizontalSpacing),
-            y: startPosition.y + (row * verticalSpacing),
-            radius: bubbleRadius
-          });
-        }
-      }
-    }
-    
-    return regions;
-  }
-  
-  // Enhanced question processing with region masking
-  private static async processQuestionsByTypeWithMasking(
+  // Database-guided preprocessing
+  private static async databaseGuidedPreprocessing(
     imageData: string,
-    detectedQuestions: DetectedQuestionType[],
-    templateMatch: FlexibleTemplateMatchResult,
-    processingRegions: ProcessingRegion
+    templateMatch: FlexibleTemplateMatchResult & { databaseDriven: boolean }
+  ): Promise<{ processedImageData: string }> {
+    console.log('🔧 Database-guided preprocessing');
+    
+    // For database-driven processing, we can skip complex preprocessing
+    // since we know exactly what to look for
+    return {
+      processedImageData: imageData
+    };
+  }
+  
+  // Process questions using database information
+  private static async processQuestionsWithDatabaseInfo(
+    imageData: string,
+    templateMatch: FlexibleTemplateMatchResult & { databaseDriven: boolean }
   ): Promise<QuestionTypeResult[]> {
-    console.log(`🔧 Processing ${detectedQuestions.length} questions with region masking`);
+    console.log('🔧 Processing questions with database guidance');
     
     const results: QuestionTypeResult[] = [];
-    const processingGroups = this.groupQuestionsByType(detectedQuestions);
     
-    // Process each group with enhanced methods
-    for (const [questionType, questions] of processingGroups.entries()) {
-      console.log(`📝 Processing ${questions.length} ${questionType} questions with masking`);
-      
-      const groupResults = await this.processQuestionGroupWithMasking(
-        imageData,
-        questions,
-        questionType,
-        templateMatch,
-        processingRegions
-      );
-      
-      results.push(...groupResults);
+    if (!templateMatch.databaseDriven) {
+      // Fallback to existing flexible processing
+      return this.processQuestionsFlexibly(imageData, templateMatch.detectedQuestionTypes, templateMatch);
     }
     
-    return results.sort((a, b) => a.questionNumber - b.questionNumber);
-  }
-  
-  // Enhanced question group processing
-  private static async processQuestionGroupWithMasking(
-    imageData: string,
-    questions: DetectedQuestionType[],
-    questionType: string,
-    templateMatch: FlexibleTemplateMatchResult,
-    processingRegions: ProcessingRegion
-  ): Promise<QuestionTypeResult[]> {
-    const results: QuestionTypeResult[] = [];
+    // Use database information to guide processing
+    const questionMap = templateMatch.template?.questionMap || {};
     
-    for (const question of questions) {
+    for (const [questionNumberStr, questionInfo] of Object.entries(questionMap)) {
+      const questionNumber = parseInt(questionNumberStr);
+      
       try {
-        // Check if question region is in a clean area
-        const questionRegion = { 
-          x: question.answerRegion.x, 
-          y: question.answerRegion.y, 
-          width: question.answerRegion.width, 
-          height: question.answerRegion.height 
-        };
-        
-        const isInCleanRegion = this.isRegionClean(questionRegion, processingRegions);
-        
         let extractedAnswer: ExtractedAnswer;
         let processingMethod: string;
         
-        if (questionType === 'multiple_choice') {
-          ({ extractedAnswer, processingMethod } = await this.processMultipleChoiceWithMasking(
-            imageData, question, templateMatch, isInCleanRegion
+        if (questionInfo.type === 'multiple_choice' || questionInfo.type === 'true_false') {
+          // Use bubble detection for MC questions
+          ({ extractedAnswer, processingMethod } = await this.processMultipleChoiceWithDatabase(
+            imageData, questionNumber, questionInfo
           ));
         } else {
-          // Use existing methods for other types
-          ({ extractedAnswer, processingMethod } = await this.processShortAnswer(
-            imageData, question, templateMatch
+          // Use text extraction for text-based questions
+          ({ extractedAnswer, processingMethod } = await this.processTextBasedWithDatabase(
+            imageData, questionNumber, questionInfo
           ));
         }
         
-        // Enhanced validation
-        const validationPassed = this.validateQuestionResultEnhanced(extractedAnswer, questionType, isInCleanRegion);
+        const validationPassed = this.validateQuestionResult(extractedAnswer, questionInfo.type);
         
         results.push({
-          questionNumber: question.questionNumber,
-          questionType,
+          questionNumber,
+          questionType: questionInfo.type,
+          expectedType: questionInfo.type,
           extractedAnswer,
-          confidence: extractedAnswer.confidence * (isInCleanRegion ? 1.0 : 0.7), // Reduce confidence for dirty regions
-          processingMethod: processingMethod + (isInCleanRegion ? '_clean' : '_filtered'),
-          validationPassed
+          confidence: extractedAnswer.confidence,
+          processingMethod: processingMethod + '_db_guided',
+          validationPassed,
+          databaseEnhanced: true
         });
         
       } catch (error) {
-        console.error(`❌ Failed to process question ${question.questionNumber}:`, error);
+        console.error(`❌ Failed to process question ${questionNumber}:`, error);
         
         results.push({
-          questionNumber: question.questionNumber,
-          questionType,
+          questionNumber,
+          questionType: questionInfo.type,
+          expectedType: questionInfo.type,
           extractedAnswer: {
-            type: questionType as any,
+            type: questionInfo.type as any,
             value: null,
             confidence: 0
           },
           confidence: 0,
-          processingMethod: 'failed_handwriting_interference',
-          validationPassed: false
+          processingMethod: 'failed_db_guided',
+          validationPassed: false,
+          databaseEnhanced: true
         });
       }
-    }
-    
-    return results;
-  }
-  
-  // Check if a region is in a clean processing area
-  private static isRegionClean(
-    questionRegion: { x: number; y: number; width: number; height: number },
-    processingRegions: ProcessingRegion
-  ): boolean {
-    // Check if region overlaps with clean include regions
-    const hasCleanOverlap = processingRegions.include.some(region =>
-      this.regionsOverlap(questionRegion, region.bounds) && region.confidence > 0.8
-    );
-
-    // Check if region overlaps with exclusion regions
-    const hasExclusionOverlap = processingRegions.exclude.some(region =>
-      this.regionsOverlap(questionRegion, region.bounds)
-    );
-
-    return hasCleanOverlap && !hasExclusionOverlap;
-  }
-  
-  private static regionsOverlap(
-    a: { x: number; y: number; width: number; height: number },
-    b: { x: number; y: number; width: number; height: number }
-  ): boolean {
-    return !(
-      a.x + a.width < b.x ||
-      b.x + b.width < a.x ||
-      a.y + a.height < b.y ||
-      b.y + b.height < a.y
-    );
-  }
-  
-  // Enhanced multiple choice processing with handwriting filtering
-  private static async processMultipleChoiceWithMasking(
-    imageData: string,
-    question: DetectedQuestionType,
-    templateMatch: FlexibleTemplateMatchResult,
-    isInCleanRegion: boolean
-  ): Promise<{ extractedAnswer: ExtractedAnswer; processingMethod: string }> {
-    
-    // Use enhanced detection for clean regions, fallback for dirty regions
-    const confidence = isInCleanRegion ? 0.95 : 0.75;
-    const method = isInCleanRegion ? 'handwriting_filtered_roboflow' : 'noise_filtered_roboflow';
-    
-    const answer = this.simulateAnswerDetection(
-      question.questionNumber,
-      templateMatch.template!
-    );
-    
-    return {
-      extractedAnswer: {
-        type: 'multiple_choice',
-        value: answer?.selectedOption || null,
-        confidence: (answer?.confidence || 0) * confidence,
-        boundingBox: answer?.position ? {
-          x: answer.position.x,
-          y: answer.position.y,
-          width: 20,
-          height: 20
-        } : undefined
-      },
-      processingMethod: method
-    };
-  }
-  
-  // Enhanced validation with clean region consideration
-  private static validateQuestionResultEnhanced(
-    answer: ExtractedAnswer, 
-    questionType: string,
-    isInCleanRegion: boolean
-  ): boolean {
-    const baseValidation = this.validateQuestionResult(answer, questionType);
-    
-    // Apply stricter validation for dirty regions
-    if (!isInCleanRegion && answer.confidence < 0.8) {
-      return false;
-    }
-    
-    return baseValidation;
-  }
-  
-  // Advanced validation with recovery mechanisms
-  private static async advancedValidationWithRecovery(
-    results: QuestionTypeResult[],
-    templateMatch: FlexibleTemplateMatchResult,
-    expectedQuestionCount?: number,
-    preprocessingResult?: any
-  ): Promise<any[]> {
-    console.log('🔍 Running advanced validation with recovery');
-
-    // Run comprehensive validation
-    const validationResults = AdvancedValidationService.validateQuestionResults(
-      results,
-      templateMatch.template?.layout,
-      preprocessingResult?.handwritingAnalysis || []
-    );
-
-    // Check if reprocessing is needed
-    if (AdvancedValidationService.requiresReprocessing(validationResults)) {
-      console.log('🔄 Validation issues detected, applying recovery strategy');
-      
-      const recoveryStrategy = AdvancedValidationService.generateRecoveryStrategy(validationResults);
-      console.log(`📋 Recovery strategy: ${recoveryStrategy.strategy} (priority: ${recoveryStrategy.priority})`);
-      
-      // Apply recovery strategy (simplified implementation)
-      await this.applyRecoveryStrategy(results, recoveryStrategy, templateMatch);
-    }
-
-    // Add base validation results
-    const baseValidationResults = this.validateFlexibleResults(
-      results, 
-      templateMatch, 
-      expectedQuestionCount
-    );
-
-    return [...validationResults, ...baseValidationResults];
-  }
-  
-  // Apply recovery strategy for failed validations
-  private static async applyRecoveryStrategy(
-    results: QuestionTypeResult[],
-    strategy: any,
-    templateMatch: FlexibleTemplateMatchResult
-  ): Promise<void> {
-    console.log(`🛠️ Applying recovery strategy: ${strategy.strategy}`);
-
-    switch (strategy.strategy) {
-      case 'noise_filtering':
-        // Re-process with enhanced noise filtering
-        results.forEach(result => {
-          if (!result.validationPassed) {
-            result.confidence *= 0.9; // Reduce confidence but don't fail completely
-            result.processingMethod += '_noise_filtered';
-          }
-        });
-        break;
-        
-      case 'region_refocus':
-        // Focus on cleaner regions
-        results.forEach(result => {
-          if (!result.validationPassed) {
-            result.processingMethod += '_region_refocused';
-            // Would trigger re-processing of specific regions in real implementation
-          }
-        });
-        break;
-        
-      case 'alternative_method':
-        // Switch to alternative detection method
-        results.forEach(result => {
-          if (!result.validationPassed && result.questionType === 'multiple_choice') {
-            result.processingMethod = 'alternative_ocr_method';
-            // Would use different OCR approach in real implementation
-          }
-        });
-        break;
-        
-      case 'manual_review':
-        // Flag for manual review
-        results.forEach(result => {
-          if (!result.validationPassed) {
-            result.processingMethod += '_manual_review_required';
-          }
-        });
-        break;
-    }
-  }
-  
-  // Calculate enhanced metrics including handwriting resilience
-  private static calculateEnhancedFlexibleMetrics(
-    results: QuestionTypeResult[],
-    templateMatch: FlexibleTemplateMatchResult,
-    validationResults: any[],
-    preprocessingResult: any
-  ): {
-    overallConfidence: number;
-    qualityScore: number;
-    totalProcessingTime: number;
-    methodsUsed: Record<string, number>;
-    fallbacksTriggered: number;
-    crossValidationScore: number;
-    handwritingMarksFiltered: number;
-    cleanRegionsUsed: number;
-    resilenceScore: number;
-  } {
-    const baseMetrics = this.calculateFlexibleMetrics(results, templateMatch);
-    
-    const handwritingMarksFiltered = preprocessingResult?.handwritingAnalysis?.filter((h: any) => h.isHandwriting).length || 0;
-    const cleanRegionsUsed = preprocessingResult?.processingRegions?.include?.length || 0;
-    
-    // Calculate resilience score based on how well we handled handwriting
-    const handwritingInterferenceCount = validationResults.filter(v => 
-      v.type === 'handwriting_interference' && !v.passed
-    ).length;
-    
-    const resilenceScore = Math.max(0, 1 - (handwritingInterferenceCount / Math.max(1, results.length)));
-    
-    // Boost overall confidence based on clean processing
-    const confidenceBoost = cleanRegionsUsed > 0 ? 0.05 : 0;
-    const enhancedConfidence = Math.min(1.0, baseMetrics.overallConfidence + confidenceBoost);
-
-    return {
-      ...baseMetrics,
-      overallConfidence: enhancedConfidence,
-      handwritingMarksFiltered,
-      cleanRegionsUsed,
-      resilenceScore
-    };
-  }
-  
-  // Helper method to convert file to base64
-  private static async convertFileToBase64(file: File): Promise<string> {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => {
-        const result = reader.result as string;
-        resolve(result.split(',')[1]); // Remove data:image/... prefix
-      };
-      reader.onerror = reject;
-      reader.readAsDataURL(file);
-    });
-  }
-  
-  private static async processQuestionsByType(
-    imageData: string,
-    detectedQuestions: DetectedQuestionType[],
-    templateMatch: FlexibleTemplateMatchResult
-  ): Promise<QuestionTypeResult[]> {
-    console.log(`🔧 Processing ${detectedQuestions.length} questions by type`);
-    
-    const results: QuestionTypeResult[] = [];
-    const processingGroups = this.groupQuestionsByType(detectedQuestions);
-    
-    // Process each group with its optimal method
-    for (const [questionType, questions] of processingGroups.entries()) {
-      console.log(`📝 Processing ${questions.length} ${questionType} questions`);
-      
-      const groupResults = await this.processQuestionGroup(
-        imageData,
-        questions,
-        questionType,
-        templateMatch
-      );
-      
-      results.push(...groupResults);
     }
     
     return results.sort((a, b) => a.questionNumber - b.questionNumber);
   }
   
-  private static groupQuestionsByType(
-    questions: DetectedQuestionType[]
-  ): Map<string, DetectedQuestionType[]> {
-    const groups = new Map<string, DetectedQuestionType[]>();
-    
-    questions.forEach(question => {
-      const type = question.detectedType;
-      if (!groups.has(type)) {
-        groups.set(type, []);
-      }
-      groups.get(type)!.push(question);
-    });
-    
-    return groups;
-  }
-  
-  private static async processQuestionGroup(
+  // Process multiple choice questions with database guidance
+  private static async processMultipleChoiceWithDatabase(
     imageData: string,
-    questions: DetectedQuestionType[],
-    questionType: string,
-    templateMatch: FlexibleTemplateMatchResult
-  ): Promise<QuestionTypeResult[]> {
-    const results: QuestionTypeResult[] = [];
-    
-    for (const question of questions) {
-      try {
-        let extractedAnswer: ExtractedAnswer;
-        let processingMethod: string;
-        
-        switch (questionType) {
-          case 'multiple_choice':
-            ({ extractedAnswer, processingMethod } = await this.processMultipleChoice(
-              imageData, question, templateMatch
-            ));
-            break;
-            
-          case 'short_answer':
-            ({ extractedAnswer, processingMethod } = await this.processShortAnswer(
-              imageData, question, templateMatch
-            ));
-            break;
-            
-          case 'essay':
-            ({ extractedAnswer, processingMethod } = await this.processEssay(
-              imageData, question, templateMatch
-            ));
-            break;
-            
-          default:
-            ({ extractedAnswer, processingMethod } = await this.processMultipleChoice(
-              imageData, question, templateMatch
-            ));
-        }
-        
-        const validationPassed = this.validateQuestionResult(extractedAnswer, questionType);
-        
-        results.push({
-          questionNumber: question.questionNumber,
-          questionType,
-          extractedAnswer,
-          confidence: extractedAnswer.confidence,
-          processingMethod,
-          validationPassed
-        });
-        
-      } catch (error) {
-        console.error(`❌ Failed to process question ${question.questionNumber}:`, error);
-        
-        // Add error result
-        results.push({
-          questionNumber: question.questionNumber,
-          questionType,
-          extractedAnswer: {
-            type: questionType as any,
-            value: null,
-            confidence: 0
-          },
-          confidence: 0,
-          processingMethod: 'failed',
-          validationPassed: false
-        });
-      }
-    }
-    
-    return results;
-  }
-  
-  private static async processMultipleChoice(
-    imageData: string,
-    question: DetectedQuestionType,
-    templateMatch: FlexibleTemplateMatchResult
+    questionNumber: number,
+    questionInfo: any
   ): Promise<{ extractedAnswer: ExtractedAnswer; processingMethod: string }> {
-    // Use simulation for template answer detection
-    const answer = this.simulateAnswerDetection(
-      question.questionNumber,
-      templateMatch.template!
-    );
     
-    return {
-      extractedAnswer: {
-        type: 'multiple_choice',
-        value: answer?.selectedOption || null,
-        confidence: answer?.confidence || 0,
-        boundingBox: answer?.position ? {
-          x: answer.position.x,
-          y: answer.position.y,
-          width: 20,
-          height: 20
-        } : undefined
-      },
-      processingMethod: 'roboflow_bubbles'
-    };
-  }
-  
-  // Simulate template-aware answer detection
-  private static simulateAnswerDetection(questionNumber: number, template: any): any {
+    // Simulate bubble detection with high confidence due to database guidance
     const options = ['A', 'B', 'C', 'D', 'E'];
     const selectedOption = Math.random() > 0.1 ? options[Math.floor(Math.random() * options.length)] : null;
     
-    if (!selectedOption) return null;
-    
     return {
-      questionNumber,
-      selectedOption,
-      confidence: 0.95 + Math.random() * 0.04,
-      position: { x: 500 + (options.indexOf(selectedOption) * 25), y: 150 + (questionNumber * 20) },
-      validationPassed: true,
-      detectionMethod: 'template_aware_roboflow'
+      extractedAnswer: {
+        type: 'multiple_choice',
+        value: selectedOption,
+        confidence: selectedOption ? 0.95 : 0,
+        boundingBox: selectedOption ? {
+          x: 500 + (options.indexOf(selectedOption) * 25),
+          y: 150 + (questionNumber * 20),
+          width: 20,
+          height: 20
+        } : undefined
+      },
+      processingMethod: 'database_guided_roboflow'
     };
   }
   
-  private static async processShortAnswer(
+  // Process text-based questions with database guidance
+  private static async processTextBasedWithDatabase(
     imageData: string,
-    question: DetectedQuestionType,
-    templateMatch: FlexibleTemplateMatchResult
+    questionNumber: number,
+    questionInfo: any
   ): Promise<{ extractedAnswer: ExtractedAnswer; processingMethod: string }> {
-    // Simulate text extraction for short answers
-    await new Promise(resolve => setTimeout(resolve, 500));
+    
+    await new Promise(resolve => setTimeout(resolve, 300));
     
     const mockAnswers = [
-      'The answer is B',
-      'Photosynthesis',
+      'The answer is photosynthesis',
       '42',
-      'Paris',
+      'Paris, France',
       'H2O',
-      null // Sometimes no answer
+      null
     ];
     
     const answer = Math.random() > 0.2 ? 
@@ -714,110 +381,74 @@ export class FlexibleOcrService extends EnhancedSmartOcrService {
     
     return {
       extractedAnswer: {
-        type: 'text',
+        type: questionInfo.type === 'essay' ? 'essay' : 'text',
         value: answer,
-        confidence: answer ? 0.85 + Math.random() * 0.1 : 0,
-        boundingBox: question.answerRegion
+        confidence: answer ? 0.90 : 0,
+        boundingBox: {
+          x: 100,
+          y: 150 + (questionNumber * 30),
+          width: 400,
+          height: 25
+        }
       },
-      processingMethod: 'google_vision_text'
+      processingMethod: 'database_guided_vision'
     };
   }
   
-  private static async processEssay(
-    imageData: string,
-    question: DetectedQuestionType,
-    templateMatch: FlexibleTemplateMatchResult
-  ): Promise<{ extractedAnswer: ExtractedAnswer; processingMethod: string }> {
-    // Simulate essay text extraction
-    await new Promise(resolve => setTimeout(resolve, 800));
-    
-    const mockEssays = [
-      'This essay discusses the importance of renewable energy sources in combating climate change. Solar and wind power offer sustainable alternatives to fossil fuels...',
-      'The American Revolution was a pivotal moment in history that established democratic principles and influenced global politics for centuries to come...',
-      'Photosynthesis is the process by which plants convert sunlight into chemical energy, playing a crucial role in the Earth\'s ecosystem...',
-      null // Sometimes no essay answer
-    ];
-    
-    const essay = Math.random() > 0.3 ? 
-      mockEssays[Math.floor(Math.random() * (mockEssays.length - 1))] : 
-      null;
-    
-    return {
-      extractedAnswer: {
-        type: 'essay',
-        value: essay,
-        confidence: essay ? 0.75 + Math.random() * 0.15 : 0,
-        boundingBox: question.answerRegion
-      },
-      processingMethod: 'google_vision_text'
-    };
-  }
-  
-  private static validateQuestionResult(
-    answer: ExtractedAnswer, 
-    questionType: string
-  ): boolean {
-    if (!answer.value) return false;
-    
-    switch (questionType) {
-      case 'multiple_choice':
-        return /^[A-E]$/.test(answer.value);
-      case 'short_answer':
-        return answer.value.length >= 1 && answer.value.length <= 100;
-      case 'essay':
-        return answer.value.length >= 10 && answer.value.length <= 1000;
-      default:
-        return true;
-    }
-  }
-  
-  private static validateFlexibleResults(
+  // Validate against database expectations
+  private static async validateAgainstDatabase(
     results: QuestionTypeResult[],
-    templateMatch: FlexibleTemplateMatchResult,
+    templateMatch: FlexibleTemplateMatchResult & { databaseDriven: boolean },
     expectedQuestionCount?: number
-  ): any[] {
+  ): Promise<any[]> {
+    console.log('🔍 Validating against database expectations');
+
     const validationResults = [];
     
-    // Question count validation
-    if (expectedQuestionCount) {
-      const countMatch = Math.abs(results.length - expectedQuestionCount) <= 2;
+    if (templateMatch.databaseDriven) {
+      // Question count validation
+      const expectedCount = templateMatch.formatAnalysis.expectedQuestionCount;
+      const actualCount = results.length;
+      const countMatch = Math.abs(expectedCount - actualCount) <= 1;
+      
       validationResults.push({
-        type: 'question_count',
+        type: 'question_count_db',
         passed: countMatch,
-        confidence: countMatch ? 0.95 : 0.5,
-        details: `Expected ${expectedQuestionCount}, found ${results.length}`
+        confidence: countMatch ? 0.98 : 0.5,
+        details: `Expected ${expectedCount}, found ${actualCount} (database-driven)`
+      });
+      
+      // Question type validation
+      const typeMatches = results.filter(r => r.questionType === r.expectedType).length;
+      const typeMatchRate = typeMatches / Math.max(1, results.length);
+      
+      validationResults.push({
+        type: 'question_type_alignment',
+        passed: typeMatchRate > 0.9,
+        confidence: typeMatchRate,
+        details: `${typeMatches}/${results.length} questions matched expected types`
+      });
+      
+      // Answer format validation
+      const validAnswers = results.filter(r => r.validationPassed).length;
+      const answerQuality = validAnswers / Math.max(1, results.length);
+      
+      validationResults.push({
+        type: 'answer_format_db',
+        passed: answerQuality > 0.8,
+        confidence: answerQuality,
+        details: `${validAnswers}/${results.length} answers passed format validation`
       });
     }
-    
-    // Format validation
-    const formatTypes = [...new Set(results.map(r => r.questionType))];
-    const expectedTypes = Object.keys(templateMatch.formatAnalysis.questionTypeDistribution);
-    const formatMatch = formatTypes.every(type => expectedTypes.includes(type));
-    
-    validationResults.push({
-      type: 'format_validation',
-      passed: formatMatch,
-      confidence: formatMatch ? 0.9 : 0.6,
-      details: `Detected types: ${formatTypes.join(', ')}`
-    });
-    
-    // Answer quality validation
-    const validAnswers = results.filter(r => r.validationPassed).length;
-    const answerQuality = validAnswers / Math.max(1, results.length);
-    
-    validationResults.push({
-      type: 'answer_quality',
-      passed: answerQuality > 0.7,
-      confidence: answerQuality,
-      details: `${validAnswers}/${results.length} answers passed validation`
-    });
     
     return validationResults;
   }
   
-  private static calculateFlexibleMetrics(
+  // Calculate database-driven metrics
+  private static calculateDatabaseDrivenMetrics(
     results: QuestionTypeResult[],
-    templateMatch: FlexibleTemplateMatchResult
+    templateMatch: FlexibleTemplateMatchResult & { databaseDriven: boolean },
+    validationResults: any[]
   ): {
     overallConfidence: number;
     qualityScore: number;
@@ -837,27 +468,178 @@ export class FlexibleOcrService extends EnhancedSmartOcrService {
       methodsUsed[r.processingMethod] = (methodsUsed[r.processingMethod] || 0) + 1;
     });
     
-    const estimatedTime = templateMatch.formatAnalysis.estimatedProcessingTime;
+    // Boost confidence for database-driven processing
+    const databaseBonus = templateMatch.databaseDriven ? 0.1 : 0;
+    const enhancedConfidence = Math.min(1.0, (avgConfidence + qualityScore) / 2 + databaseBonus);
+    
+    const estimatedTime = templateMatch.formatAnalysis.estimatedProcessingTime || 5000;
     
     return {
-      overallConfidence: (avgConfidence + qualityScore) / 2,
+      overallConfidence: enhancedConfidence,
       qualityScore,
       totalProcessingTime: estimatedTime,
       methodsUsed,
-      fallbacksTriggered: results.filter(r => r.processingMethod === 'failed').length,
-      crossValidationScore: 0.9
+      fallbacksTriggered: results.filter(r => r.processingMethod.includes('failed')).length,
+      crossValidationScore: templateMatch.databaseDriven ? 0.95 : 0.8
     };
   }
   
+  // ... keep existing code (helper methods from parent class)
+  
+  private static async processQuestionsFlexibly(
+    imageData: string,
+    detectedQuestions: DetectedQuestionType[],
+    templateMatch: FlexibleTemplateMatchResult
+  ): Promise<QuestionTypeResult[]> {
+    // Fallback to existing flexible processing when database info unavailable
+    const results: QuestionTypeResult[] = [];
+    
+    for (const question of detectedQuestions) {
+      try {
+        let extractedAnswer: ExtractedAnswer;
+        let processingMethod: string;
+        
+        switch (question.detectedType) {
+          case 'multiple_choice':
+            ({ extractedAnswer, processingMethod } = await this.processMultipleChoice(
+              imageData, question, templateMatch
+            ));
+            break;
+            
+          case 'short_answer':
+            ({ extractedAnswer, processingMethod } = await this.processShortAnswer(
+              imageData, question, templateMatch
+            ));
+            break;
+            
+          default:
+            ({ extractedAnswer, processingMethod } = await this.processMultipleChoice(
+              imageData, question, templateMatch
+            ));
+        }
+        
+        const validationPassed = this.validateQuestionResult(extractedAnswer, question.detectedType);
+        
+        results.push({
+          questionNumber: question.questionNumber,
+          questionType: question.detectedType,
+          extractedAnswer,
+          confidence: extractedAnswer.confidence,
+          processingMethod,
+          validationPassed,
+          databaseEnhanced: false
+        });
+        
+      } catch (error) {
+        console.error(`❌ Failed to process question ${question.questionNumber}:`, error);
+        
+        results.push({
+          questionNumber: question.questionNumber,
+          questionType: question.detectedType,
+          extractedAnswer: {
+            type: question.detectedType as any,
+            value: null,
+            confidence: 0
+          },
+          confidence: 0,
+          processingMethod: 'failed',
+          validationPassed: false,
+          databaseEnhanced: false
+        });
+      }
+    }
+    
+    return results;
+  }
+  
+  private static async processMultipleChoice(
+    imageData: string,
+    question: DetectedQuestionType,
+    templateMatch: FlexibleTemplateMatchResult
+  ): Promise<{ extractedAnswer: ExtractedAnswer; processingMethod: string }> {
+    const options = ['A', 'B', 'C', 'D', 'E'];
+    const selectedOption = Math.random() > 0.1 ? options[Math.floor(Math.random() * options.length)] : null;
+    
+    return {
+      extractedAnswer: {
+        type: 'multiple_choice',
+        value: selectedOption,
+        confidence: selectedOption ? 0.85 : 0,
+        boundingBox: selectedOption ? {
+          x: 500 + (options.indexOf(selectedOption) * 25),
+          y: 150 + (question.questionNumber * 20),
+          width: 20,
+          height: 20
+        } : undefined
+      },
+      processingMethod: 'fallback_roboflow'
+    };
+  }
+  
+  private static async processShortAnswer(
+    imageData: string,
+    question: DetectedQuestionType,
+    templateMatch: FlexibleTemplateMatchResult
+  ): Promise<{ extractedAnswer: ExtractedAnswer; processingMethod: string }> {
+    await new Promise(resolve => setTimeout(resolve, 500));
+    
+    const mockAnswers = ['The answer is B', 'Photosynthesis', '42', null];
+    const answer = Math.random() > 0.2 ? 
+      mockAnswers[Math.floor(Math.random() * (mockAnswers.length - 1))] : null;
+    
+    return {
+      extractedAnswer: {
+        type: 'text',
+        value: answer,
+        confidence: answer ? 0.80 : 0,
+        boundingBox: question.answerRegion
+      },
+      processingMethod: 'fallback_vision'
+    };
+  }
+  
+  private static validateQuestionResult(answer: ExtractedAnswer, questionType: string): boolean {
+    if (!answer.value) return false;
+    
+    switch (questionType) {
+      case 'multiple_choice':
+      case 'true_false':
+        return /^[A-E]$/.test(answer.value);
+      case 'short_answer':
+        return answer.value.length >= 1 && answer.value.length <= 100;
+      case 'essay':
+        return answer.value.length >= 10 && answer.value.length <= 1000;
+      default:
+        return true;
+    }
+  }
+  
   private static aggregateExtractedText(results: QuestionTypeResult[]): string {
-    let text = 'Flexible Test Format Detected\n\n';
+    let text = 'Database-Driven Test Format Detected\n\n';
     
     results.forEach(result => {
-      text += `Question ${result.questionNumber} (${result.questionType}): `;
+      text += `Question ${result.questionNumber} (${result.questionType}`;
+      if (result.expectedType && result.expectedType !== result.questionType) {
+        text += `, expected: ${result.expectedType}`;
+      }
+      text += `): `;
       text += result.extractedAnswer.value || 'No answer detected';
       text += '\n';
     });
     
     return text;
+  }
+  
+  // Helper method to convert file to base64
+  private static async convertFileToBase64(file: File): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const result = reader.result as string;
+        resolve(result.split(',')[1]); // Remove data:image/... prefix
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
   }
 }
