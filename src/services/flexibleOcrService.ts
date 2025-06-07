@@ -1,3 +1,4 @@
+
 import { EnhancedSmartOcrService, EnhancedProcessingResult } from './enhancedSmartOcrService';
 import { FlexibleTemplateService, FlexibleTemplateMatchResult, DetectedQuestionType } from './flexibleTemplateService';
 import { HandwritingDetectionService, RegionOfInterest, NoiseFilterConfig } from './handwritingDetectionService';
@@ -9,7 +10,6 @@ export interface FlexibleProcessingResult extends EnhancedProcessingResult {
   overallAccuracy: number;
   processingMethodsUsed: Record<string, number>;
   handwritingAnalysis: HandwritingAnalysisResult;
-  validationResults: ValidationResult[];
   recoveryAttempts: number;
 }
 
@@ -42,7 +42,7 @@ export interface HandwritingAnalysisResult {
 }
 
 export interface ValidationResult {
-  type: string;
+  type: 'answer_position' | 'question_count' | 'required_elements' | 'cross_validation' | 'handwriting_interference' | 'pattern_validation';
   passed: boolean;
   confidence: number;
   details: string;
