@@ -36,7 +36,6 @@ class ScoreValidationService {
       return { total_points_earned: 0, total_points_possible: expectedQuestions };
     }
 
-    // Validate points earned
     let pointsEarned = aiAnalysis.total_points_earned || 0;
     let pointsPossible = aiAnalysis.total_points_possible || expectedQuestions;
 
@@ -62,7 +61,6 @@ class ScoreValidationService {
     let validatedEarned = totalEarned;
     let validatedPossible = totalPossible;
 
-    // Ensure non-negative values
     if (validatedEarned < 0) {
       console.warn(`Total earned is negative (${validatedEarned}), setting to 0`);
       validatedEarned = 0;
@@ -75,14 +73,12 @@ class ScoreValidationService {
       capped = true;
     }
 
-    // Validate against earned <= possible
     if (validatedEarned > validatedPossible) {
       console.warn(`Total earned (${validatedEarned}) exceeds possible (${validatedPossible}), capping`);
       validatedEarned = validatedPossible;
       capped = true;
     }
 
-    // Validate against exam total if provided
     if (examTotalPoints && validatedPossible > examTotalPoints) {
       console.warn(`Calculated total possible (${validatedPossible}) exceeds exam total (${examTotalPoints}), adjusting`);
       const ratio = examTotalPoints / validatedPossible;
@@ -98,7 +94,7 @@ class ScoreValidationService {
     }
 
     return {
-      earned: Math.round(validatedEarned * 100) / 100, // Round to 2 decimal places
+      earned: Math.round(validatedEarned * 100) / 100,
       possible: Math.round(validatedPossible * 100) / 100,
       capped
     };
@@ -113,13 +109,12 @@ class ScoreValidationService {
   }
 }
 
-// Enhanced Local Grading Service with Skill Mapping
+// Enhanced Local Grading Service
 class EnhancedLocalGradingService {
   private static readonly HIGH_CONFIDENCE_THRESHOLD = 0.85;
   private static readonly MEDIUM_CONFIDENCE_THRESHOLD = 0.6;
   private static readonly ENHANCED_CONFIDENCE_THRESHOLD = 0.4;
 
-  // Check if skill mappings exist for an exam
   static async checkSkillMappingsExist(supabase: any, examId: string): Promise<boolean> {
     const { data: analysis } = await supabase
       .from('exam_skill_analysis')
@@ -130,7 +125,6 @@ class EnhancedLocalGradingService {
     return analysis?.analysis_status === 'completed';
   }
 
-  // Trigger skill analysis if needed
   static async ensureSkillMappingsExist(supabase: any, examId: string): Promise<boolean> {
     const exists = await this.checkSkillMappingsExist(supabase, examId);
     
@@ -158,7 +152,6 @@ class EnhancedLocalGradingService {
     return true;
   }
 
-  // Fetch skill mappings for an exam
   static async getExamSkillMappings(supabase: any, examId: string): Promise<any> {
     console.log('Fetching skill mappings for exam:', examId);
     
@@ -339,7 +332,6 @@ class EnhancedLocalGradingService {
     const pointsPossible = answerKey.points || 1;
     let pointsEarned = isCorrect ? pointsPossible : 0;
 
-    // Validate question score
     pointsEarned = ScoreValidationService.validateQuestionScore(pointsEarned, pointsPossible, question.questionNumber);
 
     let gradingMethod = 'local_with_skills';
@@ -378,7 +370,6 @@ class EnhancedLocalGradingService {
         const skillKey = skillMapping.skill_name;
         const skillType = skillMapping.skill_type;
         
-        // Validate skill weight
         const validatedWeight = ScoreValidationService.validateSkillWeight(skillMapping.skill_weight);
         
         const skillScores = skillType === 'content' ? contentSkillScores : subjectSkillScores;
@@ -400,7 +391,6 @@ class EnhancedLocalGradingService {
       }
     }
 
-    // Calculate final scores and validate
     Object.values(contentSkillScores).forEach((skill: any) => {
       const validation = ScoreValidationService.validateFinalScore(skill.points_earned, skill.points_possible);
       skill.points_earned = validation.earned;
@@ -424,14 +414,12 @@ class EnhancedLocalGradingService {
   static async processQuestionsWithSkills(supabase: any, questions: any[], answerKeys: any[], examId: string) {
     console.log('Processing questions with enhanced local grading and skill mapping');
     
-    // Ensure skill mappings exist
     const hasSkillMappings = await this.ensureSkillMappingsExist(supabase, examId);
     if (!hasSkillMappings) {
       console.warn('Skill mappings not available, falling back to basic processing');
       return this.processQuestionsBasic(questions, answerKeys);
     }
 
-    // Get skill mappings
     const skillMappings = await this.getExamSkillMappings(supabase, examId);
     
     const localResults = [];
@@ -482,7 +470,6 @@ class EnhancedLocalGradingService {
       }
     }
 
-    // Calculate skill scores from local results
     const { contentSkillScores, subjectSkillScores } = this.calculateSkillScores(localResults);
 
     return {
@@ -567,29 +554,38 @@ class EnhancedLocalGradingService {
   }
 }
 
-serve(async (req) => {
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
+// Utils
+function validateEnv() {
+  const openaiApiKey = Deno.env.get('OPENAI_API_KEY');
+  const supabaseUrl = Deno.env.get('SUPABASE_URL');
+  const supabaseKey = Deno.env.get('SUPABASE_ANON_KEY');
+  
+  if (!openaiApiKey || !supabaseUrl || !supabaseKey) {
+    throw new Error('Missing required API keys');
   }
 
+  return {
+    openaiApiKey,
+    supabase: createClient(supabaseUrl, supabaseKey)
+  };
+}
+
+async function parseRequestData(req: Request) {
+  const detailLevel = req.headers.get("x-detail-level") || "summary";
+  const body = await req.json();
+  return { ...body, detailLevel };
+}
+
+// Handler
+async function handleRequest(req: Request): Promise<Response> {
   try {
-    console.log('Enhanced analyze-test function called with comprehensive score validation')
+    console.log('Enhanced analyze-test function called with comprehensive score validation');
     
-    const detailLevel = req.headers.get("x-detail-level") || "summary";
-    const isDetailed = detailLevel === "detailed";
-    const { files, examId, studentName, studentEmail } = await req.json();
-    
-    const openaiApiKey = Deno.env.get('OPENAI_API_KEY');
-    const supabaseUrl = Deno.env.get('SUPABASE_URL');
-    const supabaseKey = Deno.env.get('SUPABASE_ANON_KEY');
-    
-    if (!openaiApiKey || !supabaseUrl || !supabaseKey) {
-      throw new Error('Missing required API keys');
-    }
+    const { files, examId, studentName, studentEmail, detailLevel } = await parseRequestData(req);
+    const { openaiApiKey, supabase } = validateEnv();
+    const isDetailed = detailLevel === 'detailed';
 
-    const supabase = createClient(supabaseUrl, supabaseKey);
-
-    console.log('Step 1: Fetching exam data and checking skill mappings for:', examId)
+    console.log('Step 1: Fetching exam data and checking skill mappings for:', examId);
     
     const [examRes, answerKeysRes, contentSkillsRes, subjectSkillsRes] = await Promise.all([
       supabase.from('exams').select('*, classes:active_classes(*)').eq('exam_id', examId).maybeSingle(),
@@ -607,10 +603,10 @@ serve(async (req) => {
     const contentSkills = (contentSkillsRes.data || []).map(item => item.content_skills).filter(Boolean);
     const subjectSkills = (subjectSkillsRes.data || []).map(item => item.subject_skills).filter(Boolean);
 
-    console.log('Found exam:', examData.title, 'with', answerKeys.length, 'answer keys')
-    console.log('Exam total points:', examData.total_points)
+    console.log('Found exam:', examData.title, 'with', answerKeys.length, 'answer keys');
+    console.log('Exam total points:', examData.total_points);
 
-    console.log('Step 2: Processing questions with enhanced skill mapping and validation')
+    console.log('Step 2: Processing questions with enhanced skill mapping and validation');
     
     const allQuestions = [];
     let hasStructuredData = false;
@@ -622,23 +618,21 @@ serve(async (req) => {
       }
     }
 
-    console.log('Found', allQuestions.length, 'questions for enhanced processing')
+    console.log('Found', allQuestions.length, 'questions for enhanced processing');
 
-    // Use enhanced local grading with skill mapping
     const processingResult = await EnhancedLocalGradingService.processQuestionsWithSkills(
       supabase, allQuestions, answerKeys, examId
     );
     
     const { localResults, aiRequiredQuestions, localContentSkillScores, localSubjectSkillScores, summary } = processingResult;
     
-    console.log(`Enhanced processing: ${summary.locallyGraded} local, ${summary.requiresAI} require AI`)
-    console.log('Skill mapping available:', summary.skillMappingAvailable)
+    console.log(`Enhanced processing: ${summary.locallyGraded} local, ${summary.requiresAI} require AI`);
+    console.log('Skill mapping available:', summary.skillMappingAvailable);
 
-    // Calculate local grading results with validation
     const localPointsEarned = localResults.reduce((sum, r) => sum + r.pointsEarned, 0);
     const localPointsPossible = localResults.reduce((sum, r) => sum + r.pointsPossible, 0);
     
-    console.log(`Local grading: ${localPointsEarned}/${localPointsPossible} points`)
+    console.log(`Local grading: ${localPointsEarned}/${localPointsPossible} points`);
     
     let aiAnalysis = null;
     let aiPointsEarned = 0;
@@ -646,11 +640,9 @@ serve(async (req) => {
     let aiContentSkillScores = [];
     let aiSubjectSkillScores = [];
 
-    // Only call AI if needed for questions that couldn't be locally graded
     if (aiRequiredQuestions.length > 0) {
-      console.log('Step 3: Processing', aiRequiredQuestions.length, 'questions with AI for complex analysis')
+      console.log('Step 3: Processing', aiRequiredQuestions.length, 'questions with AI for complex analysis');
       
-      // Compact skill lists for AI
       const contentSkillsText = contentSkills.map(skill => `${skill.id}:${skill.skill_name}`).join(', ');
       const subjectSkillsText = subjectSkills.map(skill => `${skill.id}:${skill.skill_name}`).join(', ');
 
@@ -713,14 +705,13 @@ Note: ${summary.locallyGraded} questions already graded locally with skill mappi
       try {
         const rawAiAnalysis = JSON.parse(analysisText);
         
-        // Validate AI response
         aiAnalysis = ScoreValidationService.validateAIResponse(rawAiAnalysis, aiRequiredQuestions.length);
         aiPointsEarned = aiAnalysis.total_points_earned || 0;
         aiPointsPossible = aiAnalysis.total_points_possible || aiRequiredQuestions.length;
         aiContentSkillScores = aiAnalysis.content_skill_scores || [];
         aiSubjectSkillScores = aiAnalysis.subject_skill_scores || [];
         
-        console.log(`AI grading validated: ${aiPointsEarned}/${aiPointsPossible} points`)
+        console.log(`AI grading validated: ${aiPointsEarned}/${aiPointsPossible} points`);
       } catch (parseError) {
         console.error('Failed to parse AI analysis:', parseError);
         aiAnalysis = {
@@ -733,15 +724,13 @@ Note: ${summary.locallyGraded} questions already graded locally with skill mappi
       }
     }
 
-    console.log('Step 4: Combining results with comprehensive score validation')
+    console.log('Step 4: Combining results with comprehensive score validation');
     
-    // Combine and validate total results
     const rawTotalEarned = localPointsEarned + aiPointsEarned;
     const rawTotalPossible = localPointsPossible + aiPointsPossible;
     
-    console.log(`Raw totals before validation: ${rawTotalEarned}/${rawTotalPossible}`)
+    console.log(`Raw totals before validation: ${rawTotalEarned}/${rawTotalPossible}`);
     
-    // Apply comprehensive validation
     const validation = ScoreValidationService.validateFinalScore(
       rawTotalEarned, 
       rawTotalPossible, 
@@ -754,7 +743,6 @@ Note: ${summary.locallyGraded} questions already graded locally with skill mappi
 
     ScoreValidationService.logValidationResults(validation, 'Final Score Calculation');
 
-    // Combine skill scores (already validated in calculateSkillScores)
     const allContentSkillScores = [...localContentSkillScores, ...aiContentSkillScores];
     const allSubjectSkillScores = [...localSubjectSkillScores, ...aiSubjectSkillScores];
 
@@ -762,7 +750,6 @@ Note: ${summary.locallyGraded} questions already graded locally with skill mappi
     const aiFeedback = aiAnalysis?.feedback || '';
     let combinedFeedback = localFeedback + (aiFeedback ? ' ' + aiFeedback : '');
     
-    // Add validation notice if scores were capped
     if (validation.capped) {
       combinedFeedback += ' Note: Scores were adjusted to ensure mathematical consistency.';
     }
@@ -807,9 +794,8 @@ Note: ${summary.locallyGraded} questions already graded locally with skill mappi
       }
     };
 
-    console.log('Step 5: Saving validated results to database')
+    console.log('Step 5: Saving validated results to database');
     
-    // Upsert student profile
     const { data: studentProfile } = await supabase
       .from('student_profiles')
       .upsert([{ student_name: studentName, email: studentEmail }], { 
@@ -818,7 +804,6 @@ Note: ${summary.locallyGraded} questions already graded locally with skill mappi
       .select()
       .single();
 
-    // Insert test result
     const { data: testResult } = await supabase
       .from('test_results')
       .insert({
@@ -838,7 +823,6 @@ Note: ${summary.locallyGraded} questions already graded locally with skill mappi
       .select()
       .single();
 
-    // Insert skill scores
     if (finalAnalysis.content_skill_scores && finalAnalysis.content_skill_scores.length > 0) {
       await supabase.from('content_skill_scores').insert(
         finalAnalysis.content_skill_scores.map(skill => ({
@@ -863,10 +847,10 @@ Note: ${summary.locallyGraded} questions already graded locally with skill mappi
       );
     }
 
-    console.log('Enhanced test analysis with validated skill mapping completed successfully')
-    console.log(`Performance: ${finalAnalysis.question_based_grading_summary.api_calls_saved}% API calls saved`)
-    console.log(`Score validation: ${validation.capped ? 'applied' : 'passed'}`)
-    console.log(`Final validated score: ${totalPointsEarned}/${totalPointsPossible} (${Math.round(overallScore)}%)`)
+    console.log('Enhanced test analysis with validated skill mapping completed successfully');
+    console.log(`Performance: ${finalAnalysis.question_based_grading_summary.api_calls_saved}% API calls saved`);
+    console.log(`Score validation: ${validation.capped ? 'applied' : 'passed'}`);
+    console.log(`Final validated score: ${totalPointsEarned}/${totalPointsPossible} (${Math.round(overallScore)}%)`);
 
     return new Response(
       JSON.stringify({
@@ -893,4 +877,13 @@ Note: ${summary.locallyGraded} questions already graded locally with skill mappi
       },
     );
   }
-})
+}
+
+// Main serve function
+serve(async (req) => {
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', { headers: corsHeaders });
+  }
+  
+  return await handleRequest(req);
+});
