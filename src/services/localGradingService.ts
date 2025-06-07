@@ -42,10 +42,10 @@ export class LocalGradingService {
     let shouldUseLocal = false;
     let questionAnalysis = null;
 
-    // Check if it's a multiple choice question
+    // Check if it's a multiple choice question (A, B, C, D)
     const isMCQ = answerKey.question_type?.toLowerCase().includes('multiple') || 
                   answerKey.options || 
-                  /^[A-E]$/i.test(answerKey.correct_answer);
+                  /^[A-D]$/i.test(answerKey.correct_answer);
 
     if (!isMCQ) {
       return {
@@ -79,6 +79,7 @@ export class LocalGradingService {
           !reviewRequired && 
           !hasMultipleMarks &&
           selectedAnswer !== 'no_answer' &&
+          /^[A-D]$/i.test(selectedAnswer) &&
           (bubbleQuality === 'heavy' || bubbleQuality === 'medium')) {
         isEasyMCQ = true;
         shouldUseLocal = true;
@@ -88,6 +89,7 @@ export class LocalGradingService {
                !reviewRequired && 
                !hasMultipleMarks &&
                selectedAnswer !== 'no_answer' &&
+               /^[A-D]$/i.test(selectedAnswer) &&
                question.detectedAnswer.crossValidated &&
                bubbleQuality !== 'empty') {
         isEasyMCQ = true;
@@ -96,6 +98,7 @@ export class LocalGradingService {
       // Enhanced threshold for borderline cases (question-based is more reliable)
       else if (confidence >= this.ENHANCED_CONFIDENCE_THRESHOLD &&
                selectedAnswer !== 'no_answer' &&
+               /^[A-D]$/i.test(selectedAnswer) &&
                bubbleQuality === 'light' &&
                question.detectedAnswer.crossValidated &&
                !hasMultipleMarks &&
@@ -135,6 +138,10 @@ export class LocalGradingService {
     
     if (detectedAnswer.selectedOption === 'no_answer') {
       reasons.push('No clear answer selected');
+    }
+    
+    if (!/^[A-D]$/i.test(detectedAnswer.selectedOption || '')) {
+      reasons.push('Invalid answer option (not A-D)');
     }
     
     if (detectedAnswer.bubbleQuality === 'empty') {

@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 
 const corsHeaders = {
@@ -310,7 +309,7 @@ serve(async (req) => {
 
     const enhancedParsingPrompt = `Analyze this test document with enhanced question-based bubble detection. 
 
-CRITICAL INSTRUCTION: Each question has multiple choice options (A, B, C, D, E). Students fill ONE bubble per question. Empty bubbles are NORMAL for non-selected options and should NOT be considered wrong answers.
+CRITICAL INSTRUCTION: Each question has multiple choice options (A, B, C, D). Students fill ONE bubble per question. Empty bubbles are NORMAL for non-selected options and should NOT be considered wrong answers.
 
 QUESTION-BASED BUBBLE ANALYSIS:
 ${questionGroupContext.map(q => 
@@ -344,7 +343,7 @@ Return JSON with question-based answer detection:
       "type": "multiple-choice",
       "options": [{"letter": "A", "text": "option text"}],
       "detectedAnswer": {
-        "selectedOption": "A|B|C|D|E|no_answer",
+        "selectedOption": "A|B|C|D|no_answer",
         "confidence": number (0-1),
         "bubbleQuality": "empty|light|medium|heavy|overfilled",
         "detectionMethod": "question_based_selection",
@@ -631,7 +630,7 @@ function groupBubblesByQuestion(bubbles: EnhancedBubbleDetection[]): QuestionGro
   
   const questionGroups: QuestionGroup[] = []
   const verticalTolerance = 40 // Pixels tolerance for same question row
-  const optionLetters = ['A', 'B', 'C', 'D', 'E']
+  const optionLetters = ['A', 'B', 'C', 'D'] // Updated to only A-D
   
   let currentQuestionNumber = 1
   let currentRowY = sortedBubbles[0]?.y || 0
@@ -675,7 +674,7 @@ function processQuestionRow(bubbles: EnhancedBubbleDetection[], questionNumber: 
   // Sort bubbles horizontally within the row
   const sortedBubbles = bubbles.sort((a, b) => a.x - b.x)
   
-  // Assign option letters based on horizontal position
+  // Assign option letters based on horizontal position (A, B, C, D)
   sortedBubbles.forEach((bubble, index) => {
     bubble.questionContext = {
       questionNumber,
