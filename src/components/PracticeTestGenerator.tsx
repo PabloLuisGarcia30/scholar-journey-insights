@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -57,6 +56,9 @@ export function PracticeTestGenerator({
   const handlePrint = () => {
     if (!testData) return;
 
+    // Get student ID from active students or generate one for practice tests
+    const practiceStudentId = `PRAC-${Date.now().toString().slice(-6)}`;
+
     // Convert PracticeTestData to the format expected by printService
     const printableTestData = {
       examId: `PRACTICE-${Date.now()}`,
@@ -72,7 +74,8 @@ export function PracticeTestGenerator({
         correctAnswer: undefined, // Don't include answers in printed version
         points: q.points
       })),
-      studentName: studentName
+      studentName: studentName,
+      studentId: practiceStudentId // Include Student ID for practice tests
     };
 
     printTest(printableTestData);
@@ -87,7 +90,10 @@ export function PracticeTestGenerator({
     const margin = 20;
     let yPosition = margin;
     
-    // Header styling with larger, bold title
+    // Generate practice Student ID
+    const practiceStudentId = `PRAC-${Date.now().toString().slice(-6)}`;
+    
+    // Header styling with Student ID
     pdf.setFontSize(18);
     pdf.setFont(undefined, 'bold');
     pdf.setTextColor(0, 0, 0);
@@ -95,10 +101,10 @@ export function PracticeTestGenerator({
     
     yPosition += 15;
     
-    // Student info section with better spacing
+    // Student info section with Student ID
     pdf.setFontSize(11);
     pdf.setFont(undefined, 'normal');
-    pdf.text(`Student: ${studentName} | Class: ${className}`, margin, yPosition);
+    pdf.text(`Student: ${studentName} | ID: ${practiceStudentId} | Class: ${className}`, margin, yPosition);
     
     if (skillName) {
       yPosition += 8;
@@ -205,16 +211,20 @@ export function PracticeTestGenerator({
       yPosition += 15;
     });
     
-    // Footer on each page
+    // Footer on each page with Student ID
     const pageCount = pdf.getNumberOfPages();
     for (let i = 1; i <= pageCount; i++) {
       pdf.setPage(i);
       pdf.setFontSize(8);
       pdf.setTextColor(120, 120, 120);
       pdf.text(`Page ${i} of ${pageCount}`, pageWidth - margin - 25, pageHeight - 15);
+      
+      // Add student info with ID to footer
+      pdf.setFont(undefined, 'bold');
+      pdf.text(`${studentName} (ID: ${practiceStudentId})`, margin, pageHeight - 15);
     }
     
-    const fileName = `${testData.title.replace(/\s+/g, '_')}_Practice_Exercises.pdf`;
+    const fileName = `${testData.title.replace(/\s+/g, '_')}_${studentName.replace(/\s+/g, '_')}_${practiceStudentId}.pdf`;
     pdf.save(fileName);
     toast.success('Practice exercises PDF generated successfully!');
   };

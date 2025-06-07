@@ -17,6 +17,7 @@ export interface TestData {
   timeLimit: number;
   questions: Question[];
   studentName?: string;
+  studentId?: string; // Add studentId field
 }
 
 export const generateTestPDF = (testData: TestData) => {
@@ -35,12 +36,28 @@ export const generateTestPDF = (testData: TestData) => {
     pdf.setFillColor(30, 58, 138); // bg-blue-900
     pdf.rect(margin, margin - 5, pageWidth - 2 * margin, 25, 'F');
     
-    // Title and student name
+    // Title and student info with Student ID
     pdf.setFontSize(16);
     pdf.setFont(undefined, 'bold');
     pdf.setTextColor(255, 255, 255);
     
-    if (testData.studentName) {
+    if (testData.studentName && testData.studentId) {
+      // Student name and ID on left
+      pdf.setFontSize(14);
+      pdf.text(`${testData.studentName}`, margin + 5, margin + 6);
+      pdf.setFontSize(12);
+      pdf.text(`ID: ${testData.studentId}`, margin + 5, margin + 14);
+      
+      // Title in center
+      pdf.setFontSize(16);
+      const titleWidth = pdf.getTextWidth(testData.title);
+      pdf.text(testData.title, (pageWidth - titleWidth) / 2, margin + 8);
+      
+      // Exam ID on right
+      pdf.setFontSize(12);
+      const examIdText = `Exam: ${testData.examId}`;
+      pdf.text(examIdText, pageWidth - margin - pdf.getTextWidth(examIdText) - 5, margin + 8);
+    } else if (testData.studentName) {
       // Student name on left
       pdf.text(`${testData.studentName}`, margin + 5, margin + 8);
       
@@ -81,16 +98,16 @@ export const generateTestPDF = (testData: TestData) => {
   if (!testData.studentName) {
     pdf.setDrawColor(0, 0, 0);
     pdf.setLineWidth(0.5);
-    pdf.rect(margin, yPosition, pageWidth - 2 * margin, 20, 'S');
+    pdf.rect(margin, yPosition, pageWidth - 2 * margin, 25, 'S');
     
     pdf.setFontSize(11);
-    pdf.text('Name: ____________________', margin + 5, yPosition + 10);
+    pdf.text('Name: ____________________', margin + 5, yPosition + 8);
     
     pdf.setFont(undefined, 'normal');
-    pdf.text('ID: ____________________', margin + 120, yPosition + 10);
-    pdf.text('Date: ____________________', margin + 220, yPosition + 10);
+    pdf.text('Student ID: ____________________', margin + 5, yPosition + 18);
+    pdf.text('Date: ____________________', margin + 220, yPosition + 8);
     
-    yPosition += 30;
+    yPosition += 35;
   }
   
   // Questions
@@ -249,23 +266,33 @@ export const generateTestPDF = (testData: TestData) => {
     yPosition += 15;
   });
   
-  // Footer on each page
+  // Footer on each page with Student ID
   const pageCount = pdf.getNumberOfPages();
   for (let i = 1; i <= pageCount; i++) {
     pdf.setPage(i);
     pdf.setFontSize(8);
     pdf.setTextColor(120, 120, 120);
     pdf.text(`${i}/${pageCount}`, pageWidth - margin - 15, pageHeight - 15);
-    pdf.text('about:blank', margin, pageHeight - 15);
     
-    // Add student name to footer if present
-    if (testData.studentName) {
+    // Add student info to footer
+    if (testData.studentName && testData.studentId) {
+      pdf.setFont(undefined, 'bold');
+      pdf.text(`${testData.studentName} (ID: ${testData.studentId})`, margin, pageHeight - 15);
+    } else if (testData.studentName) {
       pdf.setFont(undefined, 'bold');
       pdf.text(`Student: ${testData.studentName}`, margin, pageHeight - 15);
     }
+    
+    // Add exam ID to footer
+    pdf.setFont(undefined, 'normal');
+    const examFooterText = `${testData.title} - ${testData.examId}`;
+    const footerWidth = pdf.getTextWidth(examFooterText);
+    pdf.text(examFooterText, (pageWidth - footerWidth) / 2, pageHeight - 15);
   }
   
-  const fileName = testData.studentName 
+  const fileName = testData.studentName && testData.studentId
+    ? `${testData.title.replace(/\s+/g, '_')}_${testData.studentName.replace(/\s+/g, '_')}_${testData.studentId}.pdf`
+    : testData.studentName 
     ? `${testData.title.replace(/\s+/g, '_')}_${testData.studentName.replace(/\s+/g, '_')}.pdf`
     : `${testData.title.replace(/\s+/g, '_')}.pdf`;
   
@@ -476,7 +503,21 @@ export const generateConsolidatedTestPDF = (testData: TestData, studentNames: st
     pdf.setFontSize(8);
     pdf.setTextColor(120, 120, 120);
     pdf.text(`${i}/${pageCount}`, pageWidth - margin - 15, pageHeight - 15);
-    pdf.text('about:blank', margin, pageHeight - 15);
+    
+    // Add student info to footer
+    if (testData.studentName && testData.studentId) {
+      pdf.setFont(undefined, 'bold');
+      pdf.text(`${testData.studentName} (ID: ${testData.studentId})`, margin, pageHeight - 15);
+    } else if (testData.studentName) {
+      pdf.setFont(undefined, 'bold');
+      pdf.text(`Student: ${testData.studentName}`, margin, pageHeight - 15);
+    }
+    
+    // Add exam ID to footer
+    pdf.setFont(undefined, 'normal');
+    const examFooterText = `${testData.title} - ${testData.examId}`;
+    const footerWidth = pdf.getTextWidth(examFooterText);
+    pdf.text(examFooterText, (pageWidth - footerWidth) / 2, pageHeight - 15);
   }
   
   const fileName = `${testData.title.replace(/\s+/g, '_')}_All_Students.pdf`;

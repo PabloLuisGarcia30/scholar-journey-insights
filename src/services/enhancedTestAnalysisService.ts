@@ -1,9 +1,7 @@
 
 import { 
-  ExtractTextRequest, 
   ExtractTextResponse, 
-  AnalyzeTestRequest, 
-  EnhancedAnalyzeTestResponse,
+  AnalyzeTestResponse,
   extractTextFromFile,
   analyzeTest
 } from './testAnalysisService';
@@ -11,6 +9,23 @@ import { BatchProcessingOptimizer, BatchGroup, BatchProcessingResult } from './b
 import { BatchAwareModelRouter, BatchRoutingDecision } from './batchAwareModelRouter';
 import { ProgressiveFallbackHandler, FallbackResult } from './progressiveFallbackHandler';
 import { QuestionComplexityAnalyzer } from './questionComplexityAnalyzer';
+
+// Define the request interfaces locally since they're not exported
+export interface ExtractTextRequest {
+  fileContent: string;
+  fileName: string;
+}
+
+export interface AnalyzeTestRequest {
+  files: Array<{
+    fileName: string;
+    extractedText: string;
+    structuredData: any;
+  }>;
+  examId: string;
+  studentName: string;
+  studentEmail?: string;
+}
 
 export interface EnhancedAnalysisConfig {
   enableBatchProcessing: boolean;
@@ -22,7 +37,7 @@ export interface EnhancedAnalysisConfig {
 }
 
 // Extend the base response type to include batch processing summary
-export interface BatchAnalysisResult extends EnhancedAnalyzeTestResponse {
+export interface BatchAnalysisResult extends AnalyzeTestResponse {
   batchProcessingSummary?: {
     totalBatches: number;
     batchDistribution: Record<string, number>;

@@ -1,12 +1,35 @@
+
 import { Question, TestData } from '@/utils/pdfGenerator';
 
 export interface StudentTestData extends TestData {
   studentName: string;
+  studentId?: string; // Add studentId field
 }
 
 export const generateTestHTML = (testData: TestData | StudentTestData): string => {
   const isStudentSpecific = 'studentName' in testData;
   const totalPoints = testData.questions.reduce((sum, q) => sum + q.points, 0);
+  
+  // Enhanced student identification display
+  const getStudentDisplay = () => {
+    if (isStudentSpecific && testData.studentId) {
+      return `${testData.studentName} (ID: ${testData.studentId})`;
+    } else if (isStudentSpecific) {
+      return testData.studentName;
+    } else {
+      return 'Student Name: _______________';
+    }
+  };
+
+  const getStudentInfoLine = () => {
+    if (isStudentSpecific && testData.studentId) {
+      return `${testData.studentName} | ID: ${testData.studentId}`;
+    } else if (isStudentSpecific) {
+      return testData.studentName;
+    } else {
+      return 'Student Name: _______________';
+    }
+  };
 
   return `
     <!DOCTYPE html>
@@ -254,19 +277,19 @@ export const generateTestHTML = (testData: TestData | StudentTestData): string =
       <div class="print-preview">
         <div class="page-header">
           <div class="header-left">
-            ${isStudentSpecific ? testData.studentName : 'Student Name: _______________'}
+            ${getStudentInfoLine()}
           </div>
           <div class="header-center">${testData.title}</div>
-          <div class="header-right">ID: ${testData.examId}</div>
+          <div class="header-right">Exam: ${testData.examId}</div>
         </div>
         
         <div class="page-content">
           <div class="header-section">
             <div class="header-left">
-              ${isStudentSpecific ? testData.studentName : 'Student Name: _______________'}
+              ${getStudentDisplay()}
             </div>
             <div class="header-center">${testData.title}</div>
-            <div class="header-right">ID: ${testData.examId}</div>
+            <div class="header-right">Exam: ${testData.examId}</div>
           </div>
           
           <div style="font-size: 9pt; margin-bottom: 8pt;">
@@ -277,7 +300,7 @@ export const generateTestHTML = (testData: TestData | StudentTestData): string =
             <div class="student-info">
               <div style="font-size: 9pt;">
                 Name: <span class="info-line"></span>
-                <span style="margin-left: 20pt;">ID: <span class="info-line"></span></span>
+                <span style="margin-left: 20pt;">Student ID: <span class="info-line"></span></span>
                 <span style="margin-left: 20pt;">Date: <span class="info-line"></span></span>
               </div>
             </div>
@@ -287,7 +310,8 @@ export const generateTestHTML = (testData: TestData | StudentTestData): string =
         </div>
         
         <div class="page-footer">
-          ${isStudentSpecific ? `Student: ${testData.studentName} | ` : ''}${testData.title} - ${testData.examId}
+          ${isStudentSpecific && testData.studentId ? `${testData.studentName} (ID: ${testData.studentId}) | ` : 
+            isStudentSpecific ? `Student: ${testData.studentName} | ` : ''}${testData.title} - ${testData.examId}
         </div>
       </div>
     </body>

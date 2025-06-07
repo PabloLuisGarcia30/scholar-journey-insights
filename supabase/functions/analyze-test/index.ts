@@ -14,7 +14,7 @@ serve(async (req) => {
 
   try {
     const { files, examId, studentName, studentEmail } = await req.json();
-    console.log(`🔬 Analyzing test with Student ID detection for exam: ${examId}`);
+    console.log(`🔬 Analyzing test with Student ID grouping for exam: ${examId}`);
 
     const openaiApiKey = Deno.env.get('OPENAI_API_KEY');
     if (!openaiApiKey) {
@@ -26,9 +26,9 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
     const supabase = createClient(supabaseUrl!, supabaseKey!);
 
-    // Group files by student ID and exam ID for batch processing
-    const studentGroups = groupFilesByStudentAndExam(files);
-    console.log(`📊 Created ${studentGroups.size} student-exam groups`);
+    // Group files by Student ID and Exam ID for batch processing
+    const studentGroups = groupFilesByStudentIdAndExam(files);
+    console.log(`📊 Created ${studentGroups.size} Student ID-Exam groups`);
 
     const allResults = [];
     const batchMetrics = {
@@ -40,10 +40,10 @@ serve(async (req) => {
       processingStartTime: Date.now()
     };
 
-    // Process each student-exam group
+    // Process each Student ID-Exam group
     for (const [groupKey, groupFiles] of studentGroups) {
       const [detectedStudentId, detectedExam] = groupKey.split('|');
-      console.log(`🎯 Processing group: ${detectedStudentId} - ${detectedExam}`);
+      console.log(`🎯 Processing group: Student ID ${detectedStudentId} - Exam ${detectedExam}`);
       
       if (detectedStudentId !== 'Unknown_Student') {
         batchMetrics.studentIdsDetected++;
@@ -56,8 +56,8 @@ serve(async (req) => {
         continue;
       }
 
-      // Enhanced batch processing with student ID context
-      const batchResults = await processBatchWithStudentContext(
+      // Enhanced batch processing with Student ID context
+      const batchResults = await processBatchWithStudentIdContext(
         groupQuestions,
         detectedStudentId,
         detectedExam,
@@ -72,7 +72,7 @@ serve(async (req) => {
     }
 
     // Perform Answer Key Validation with Student ID
-    console.log('🔍 Starting answer key validation with Student ID detection...');
+    console.log('🔍 Starting answer key validation with Student ID grouping...');
     const primaryStudentId = extractStudentIdFromResults(allResults);
     const answerKeyValidation = await validateWithAnswerKey(supabase, allResults, examId, primaryStudentId);
 
@@ -111,12 +111,12 @@ serve(async (req) => {
         studentIdDetectionRate,
         aiOptimizationEnabled: true,
         batchProcessingUsed: batchMetrics.batchProcessingUsed,
-        studentGroupingUsed: studentGroups.size > 1,
+        studentIdGroupingUsed: studentGroups.size > 1,
         answerKeyValidationEnabled: true
       }
     };
 
-    console.log(`✅ Analysis complete with Student ID detection: ${allResults.length} questions, ${overallScore}% overall score`);
+    console.log(`✅ Analysis complete with Student ID grouping: ${allResults.length} questions, ${overallScore}% overall score`);
     console.log(`🆔 Student ID detection rate: ${studentIdDetectionRate}%`);
     console.log(`📋 Answer key validation: ${answerKeyValidation.status.toUpperCase()}`);
     
@@ -249,12 +249,14 @@ function generateValidationMessage(status: string, actual: number, expected: num
   }
 }
 
-function groupFilesByStudentAndExam(files: any[]): Map<string, any[]> {
+function groupFilesByStudentIdAndExam(files: any[]): Map<string, any[]> {
   const groups = new Map<string, any[]>();
   
   for (const file of files) {
-    // Use Student ID instead of name for grouping
-    const detectedStudentId = file.structuredData?.detectedStudentId || 'Unknown_Student';
+    // Use Student ID as primary grouping key instead of student name
+    const detectedStudentId = file.structuredData?.detectedStudentId || 
+                              file.structuredData?.studentId || 
+                              'Unknown_Student';
     const detectedExam = file.structuredData?.examId || 'Unknown_Exam';
     const groupKey = `${detectedStudentId}|${detectedExam}`;
     
@@ -265,7 +267,7 @@ function groupFilesByStudentAndExam(files: any[]): Map<string, any[]> {
     groups.get(groupKey)!.push(file);
   }
   
-  console.log(`📋 Student-Exam groups created:`, Array.from(groups.keys()));
+  console.log(`📋 Student ID-Exam groups created:`, Array.from(groups.keys()));
   return groups;
 }
 
@@ -306,13 +308,13 @@ function extractQuestionsFromFiles(files: any[]): any[] {
   return allQuestions.sort((a, b) => a.questionNumber - b.questionNumber);
 }
 
-async function processBatchWithStudentContext(
+async function processBatchWithStudentIdContext(
   questions: any[],
   studentId: string,
   examId: string,
   apiKey: string
 ): Promise<any[]> {
-  console.log(`🔄 Processing batch: ${questions.length} questions for student ID: ${studentId}`);
+  console.log(`🔄 Processing batch: ${questions.length} questions for Student ID: ${studentId}`);
   
   const BATCH_SIZE = 5;
   const batches = [];
@@ -325,8 +327,8 @@ async function processBatchWithStudentContext(
   
   for (const batch of batches) {
     try {
-      // Create context-aware prompt with student ID and exam information
-      const prompt = createBatchPromptWithContext(batch, studentId, examId);
+      // Create context-aware prompt with Student ID and exam information
+      const prompt = createBatchPromptWithStudentIdContext(batch, studentId, examId);
       
       // Try GPT-4o-mini first for cost efficiency
       let batchResults = await callOpenAI('gpt-4o-mini', prompt, apiKey);
@@ -340,7 +342,7 @@ async function processBatchWithStudentContext(
           console.log(`🔄 Retrying question ${question.questionNumber} with GPT-4.1`);
           
           // Fallback to GPT-4.1 for individual question
-          const retryPrompt = createIndividualPromptWithContext(question, studentId, examId);
+          const retryPrompt = createIndividualPromptWithStudentIdContext(question, studentId, examId);
           const fallbackResults = await callOpenAI('gpt-4.1-2025-04-14', retryPrompt, apiKey);
           
           results.push(fallbackResults[0] || {
@@ -383,7 +385,7 @@ async function processBatchWithStudentContext(
   return results;
 }
 
-function createBatchPromptWithContext(questions: any[], studentId: string, examId: string): string {
+function createBatchPromptWithStudentIdContext(questions: any[], studentId: string, examId: string): string {
   const context = `
 Grading test for Student ID: ${studentId}
 Exam ID: ${examId}
@@ -404,7 +406,7 @@ Return ONLY a valid JSON array, no additional text.`;
   return context;
 }
 
-function createIndividualPromptWithContext(question: any, studentId: string, examId: string): string {
+function createIndividualPromptWithStudentIdContext(question: any, studentId: string, examId: string): string {
   return `
 Grading individual question for Student ID: ${studentId}
 Exam ID: ${examId}
