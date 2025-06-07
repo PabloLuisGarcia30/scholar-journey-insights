@@ -42,9 +42,13 @@ export interface ProcessingStats {
   maxWorkers: number;
 }
 
+// Constants for Supabase URLs and keys
+const SUPABASE_URL = "https://irnkilorodqvhizmujtq.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlybmtpbG9yb2Rxdmhpem11anRxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDkwMjM2OTUsImV4cCI6MjA2NDU5OTY5NX0.9wRY7Qj1NTEWukOF902PhpPoR_iASywfAqkTQP6ySOw";
+
 export class EnhancedBatchProcessingService {
   private jobListeners: Map<string, (job: EnhancedBatchJob) => void> = new Map();
-  private pollingIntervals: Map<string, number> = new Map();
+  private pollingIntervals: Map<string, NodeJS.Timeout> = new Map();
 
   async createBatchJob(
     files: File[], 
@@ -102,9 +106,9 @@ export class EnhancedBatchProcessingService {
     const monitor = async () => {
       try {
         // Get job status from the queue manager
-        const response = await fetch(`${supabase.supabaseUrl}/functions/v1/batch-queue-manager/status?jobId=${jobId}`, {
+        const response = await fetch(`${SUPABASE_URL}/functions/v1/batch-queue-manager/status?jobId=${jobId}`, {
           headers: {
-            'Authorization': `Bearer ${supabase.supabaseKey}`
+            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
           }
         });
 
@@ -196,9 +200,9 @@ export class EnhancedBatchProcessingService {
 
   async getJob(jobId: string): Promise<EnhancedBatchJob | null> {
     try {
-      const response = await fetch(`${supabase.supabaseUrl}/functions/v1/batch-queue-manager/status?jobId=${jobId}`, {
+      const response = await fetch(`${SUPABASE_URL}/functions/v1/batch-queue-manager/status?jobId=${jobId}`, {
         headers: {
-          'Authorization': `Bearer ${supabase.supabaseKey}`
+          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
         }
       });
 
@@ -229,9 +233,9 @@ export class EnhancedBatchProcessingService {
 
   async getProcessingStats(): Promise<ProcessingStats> {
     try {
-      const response = await fetch(`${supabase.supabaseUrl}/functions/v1/batch-queue-manager/queue-stats`, {
+      const response = await fetch(`${SUPABASE_URL}/functions/v1/batch-queue-manager/queue-stats`, {
         headers: {
-          'Authorization': `Bearer ${supabase.supabaseKey}`
+          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
         }
       });
 
