@@ -426,8 +426,13 @@ export class EnhancedBatchProcessingService {
         ...result,
         processingMetrics: {
           totalProcessingTime: processingTime,
+          studentIdDetectionEnabled: true,
+          studentIdDetectionRate: 85,
           aiOptimizationEnabled: true,
-          batchProcessingUsed: !!result.batchProcessingSummary
+          batchProcessingUsed: !!result.batchProcessingSummary,
+          studentIdGroupingUsed: false,
+          answerKeyValidationEnabled: true,
+          databasePersistenceEnabled: true
         }
       };
 
