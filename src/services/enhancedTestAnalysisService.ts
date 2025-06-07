@@ -1,4 +1,3 @@
-
 import { 
   ExtractTextRequest, 
   ExtractTextResponse, 
@@ -21,6 +20,7 @@ export interface EnhancedAnalysisConfig {
   validationMode: boolean;
 }
 
+// Extend the base response type to include batch processing summary
 export interface BatchAnalysisResult extends EnhancedAnalyzeTestResponse {
   batchProcessingSummary?: {
     totalBatches: number;
@@ -86,7 +86,8 @@ export class EnhancedTestAnalysisService {
       
       if (questions.length === 0) {
         console.log('📝 No questions found, falling back to standard analysis');
-        return await analyzeTest(request) as BatchAnalysisResult;
+        const baseResponse = await analyzeTest(request);
+        return baseResponse as BatchAnalysisResult;
       }
 
       console.log(`📊 Found ${questions.length} questions for enhanced processing`);
@@ -117,7 +118,8 @@ export class EnhancedTestAnalysisService {
 
     } catch (error) {
       console.error('❌ Enhanced analysis failed, falling back to standard analysis:', error);
-      return await analyzeTest(request) as BatchAnalysisResult;
+      const baseResponse = await analyzeTest(request);
+      return baseResponse as BatchAnalysisResult;
     }
   }
 
@@ -327,11 +329,12 @@ export class EnhancedTestAnalysisService {
     return extractTextFromFile(request);
   }
 
-  async analyzeTest(request: AnalyzeTestRequest): Promise<EnhancedAnalyzeTestResponse> {
+  async analyzeTest(request: AnalyzeTestRequest): Promise<BatchAnalysisResult> {
     if (this.config.enableBatchProcessing) {
       return this.analyzeTestWithBatchProcessing(request);
     } else {
-      return analyzeTest(request);
+      const baseResponse = await analyzeTest(request);
+      return baseResponse as BatchAnalysisResult;
     }
   }
 

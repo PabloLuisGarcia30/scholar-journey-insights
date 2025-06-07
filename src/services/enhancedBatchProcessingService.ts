@@ -1,5 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
-import { enhancedTestAnalysisService } from './enhancedTestAnalysisService';
+import { enhancedTestAnalysisService, BatchAnalysisResult } from './enhancedTestAnalysisService';
 import { batchPerformanceMonitor } from './batchPerformanceMonitor';
 
 export interface EnhancedBatchJob {
@@ -386,7 +386,7 @@ export class EnhancedBatchProcessingService {
       maxBatchSize?: number;
       priority?: 'low' | 'normal' | 'high' | 'urgent';
     } = {}
-  ): Promise<any> {
+  ): Promise<BatchAnalysisResult> {
     console.log(`🔬 Processing ${files.length} files with AI optimization`);
     const startTime = Date.now();
 

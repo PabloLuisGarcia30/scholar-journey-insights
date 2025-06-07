@@ -1,4 +1,3 @@
-
 import { ComplexityAnalysis } from './shared/aiOptimizationShared';
 import { BatchProcessingResult } from './batchProcessingOptimizer';
 
@@ -22,7 +21,7 @@ export interface FallbackResult {
   success: boolean;
   results: any[];
   fallbacksUsed: string[];
-  finalStrategy: string;
+  finalStrategy: 'retry_batch' | 'split_batch' | 'individual_processing' | 'escalate_model' | 'emergency_fallback' | 'failed';
   qualityImprovement: number;
   costImpact: number;
 }
@@ -149,7 +148,7 @@ export class ProgressiveFallbackHandler {
     const startTime = Date.now();
     const fallbacksUsed: string[] = [decision.action];
     let results: any[] = [];
-    let finalStrategy = decision.action;
+    let finalStrategy: FallbackResult['finalStrategy'] = decision.action;
     let costMultiplier = 1;
 
     try {
@@ -162,19 +161,19 @@ export class ProgressiveFallbackHandler {
           const splitResult = await this.splitAndProcessBatch(questions, complexityAnalyses, processFunction);
           results = splitResult.results;
           fallbacksUsed.push(...splitResult.strategiesUsed);
-          finalStrategy = 'split_processing';
+          finalStrategy = 'split_batch';
           costMultiplier = 1.2;
           break;
 
         case 'individual_processing':
           results = await this.processIndividualQuestions(questions, processFunction);
-          finalStrategy = 'individual_gpt41';
+          finalStrategy = 'individual_processing';
           costMultiplier = 2.0;
           break;
 
         case 'escalate_model':
           results = await processFunction(questions, 'gpt-4.1-2025-04-14', { enhanced: true });
-          finalStrategy = 'escalated_gpt41';
+          finalStrategy = 'escalate_model';
           costMultiplier = 1.8;
           break;
       }
