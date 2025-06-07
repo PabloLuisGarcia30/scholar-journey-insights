@@ -1,5 +1,5 @@
 
-import { BookOpen, ChartBar, GraduationCap, Calendar, Users, Upload, TestTube } from "lucide-react";
+import { BookOpen, ChartBar, GraduationCap, Calendar, Users, Upload, TestTube, Link } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -12,7 +12,7 @@ import {
   SidebarTrigger,
   useSidebar,
 } from "@/components/ui/sidebar";
-import { Link } from "react-router-dom";
+import { Link as RouterLink } from "react-router-dom";
 
 interface DashboardSidebarProps {
   activeView: 'dashboard' | 'search' | 'classes' | 'analytics';
@@ -29,6 +29,7 @@ const navigationItems = [
 const externalLinks = [
   { title: 'Upload Test', href: '/upload-test', icon: Upload },
   { title: 'Test Creator', href: '/test-creator', icon: TestTube },
+  { title: 'Create an Online Test or Quiz', href: '/create-quiz-link', icon: Link },
 ];
 
 export function DashboardSidebar({ activeView, onViewChange }: DashboardSidebarProps) {
@@ -74,10 +75,10 @@ export function DashboardSidebar({ activeView, onViewChange }: DashboardSidebarP
               {externalLinks.map((link) => (
                 <SidebarMenuItem key={link.title}>
                   <SidebarMenuButton asChild className="w-full hover:bg-gray-100">
-                    <Link to={link.href}>
+                    <RouterLink to={link.href}>
                       <link.icon className="mr-2 h-4 w-4" />
                       {!isCollapsed && <span>{link.title}</span>}
-                    </Link>
+                    </RouterLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
