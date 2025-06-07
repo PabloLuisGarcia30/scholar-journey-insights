@@ -87,6 +87,23 @@ export const generateTestHTML = (testData: TestData | StudentTestData): string =
             color: white;
             padding: 8pt;
             margin-bottom: 12pt;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+          }
+          
+          .header-left {
+            font-weight: bold;
+            font-size: 12pt;
+          }
+          
+          .header-center {
+            font-size: 14pt;
+            font-weight: bold;
+          }
+          
+          .header-right {
+            font-size: 10pt;
           }
           
           .student-info {
@@ -101,6 +118,35 @@ export const generateTestHTML = (testData: TestData | StudentTestData): string =
             margin-right: 20pt;
             border-bottom: 1px solid #000;
             min-width: 80pt;
+          }
+          
+          .page-header {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            background: #1e3a8a;
+            color: white;
+            padding: 8pt;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 1000;
+          }
+          
+          .page-content {
+            margin-top: 40pt;
+          }
+          
+          .page-footer {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            font-size: 8pt;
+            color: #666;
+            padding: 4pt;
+            text-align: center;
           }
         }
         
@@ -169,6 +215,23 @@ export const generateTestHTML = (testData: TestData | StudentTestData): string =
             color: white;
             padding: 12px;
             margin-bottom: 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+          }
+          
+          .header-left {
+            font-weight: bold;
+            font-size: 14px;
+          }
+          
+          .header-center {
+            font-size: 16px;
+            font-weight: bold;
+          }
+          
+          .header-right {
+            font-size: 12px;
           }
           
           .student-info {
@@ -189,29 +252,43 @@ export const generateTestHTML = (testData: TestData | StudentTestData): string =
     </head>
     <body>
       <div class="print-preview">
-        <div class="header-section">
-          <div style="display: flex; justify-content: space-between; align-items: center;">
-            <h1 style="margin: 0; font-size: 14pt;">${testData.title}</h1>
-            <span style="font-size: 10pt;">ID: ${testData.examId}</span>
+        <div class="page-header">
+          <div class="header-left">
+            ${isStudentSpecific ? testData.studentName : 'Student Name: _______________'}
           </div>
+          <div class="header-center">${testData.title}</div>
+          <div class="header-right">ID: ${testData.examId}</div>
         </div>
         
-        <div style="font-size: 9pt; margin-bottom: 8pt;">
-          Class: ${testData.className} | Time: ${testData.timeLimit} min | Points: ${totalPoints}
-        </div>
-        
-        <div class="student-info">
-          <div style="font-size: 9pt;">
-            ${isStudentSpecific 
-              ? `<strong>Name: ${testData.studentName}</strong>` 
-              : 'Name: <span class="info-line"></span>'
-            }
-            <span style="margin-left: 20pt;">ID: <span class="info-line"></span></span>
-            <span style="margin-left: 20pt;">Date: <span class="info-line"></span></span>
+        <div class="page-content">
+          <div class="header-section">
+            <div class="header-left">
+              ${isStudentSpecific ? testData.studentName : 'Student Name: _______________'}
+            </div>
+            <div class="header-center">${testData.title}</div>
+            <div class="header-right">ID: ${testData.examId}</div>
           </div>
+          
+          <div style="font-size: 9pt; margin-bottom: 8pt;">
+            Class: ${testData.className} | Time: ${testData.timeLimit} min | Points: ${totalPoints}
+          </div>
+          
+          ${!isStudentSpecific ? `
+            <div class="student-info">
+              <div style="font-size: 9pt;">
+                Name: <span class="info-line"></span>
+                <span style="margin-left: 20pt;">ID: <span class="info-line"></span></span>
+                <span style="margin-left: 20pt;">Date: <span class="info-line"></span></span>
+              </div>
+            </div>
+          ` : ''}
+          
+          ${testData.questions.map((question, index) => generateQuestionHTML(question, index)).join('')}
         </div>
         
-        ${testData.questions.map((question, index) => generateQuestionHTML(question, index)).join('')}
+        <div class="page-footer">
+          ${isStudentSpecific ? `Student: ${testData.studentName} | ` : ''}${testData.title} - ${testData.examId}
+        </div>
       </div>
     </body>
     </html>
@@ -290,8 +367,6 @@ const generateQuestionHTML = (question: Question, index: number): string => {
 };
 
 export const generateConsolidatedTestHTML = (testData: TestData, studentNames: string[]): string => {
-  const totalPoints = testData.questions.reduce((sum, q) => sum + q.points, 0);
-  
   const studentsHTML = studentNames.map((studentName, studentIndex) => {
     const studentTestData: StudentTestData = {
       ...testData,

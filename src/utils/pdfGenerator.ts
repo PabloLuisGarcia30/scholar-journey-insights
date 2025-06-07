@@ -1,4 +1,3 @@
-
 import jsPDF from 'jspdf';
 
 export interface Question {
@@ -30,20 +29,45 @@ export const generateTestPDF = (testData: TestData) => {
   // Calculate total points
   const totalPoints = testData.questions.reduce((sum, q) => sum + q.points, 0);
   
-  // Header - Title centered, larger
-  pdf.setFontSize(18);
-  pdf.setFont(undefined, 'bold');
-  pdf.setTextColor(0, 0, 0);
-  const titleWidth = pdf.getTextWidth(testData.title);
-  pdf.text(testData.title, (pageWidth - titleWidth) / 2, yPosition + 5);
+  // Function to add header to any page
+  const addPageHeader = (isFirstPage = false) => {
+    // Header background
+    pdf.setFillColor(30, 58, 138); // bg-blue-900
+    pdf.rect(margin, margin - 5, pageWidth - 2 * margin, 25, 'F');
+    
+    // Title and student name
+    pdf.setFontSize(16);
+    pdf.setFont(undefined, 'bold');
+    pdf.setTextColor(255, 255, 255);
+    
+    if (testData.studentName) {
+      // Student name on left
+      pdf.text(`${testData.studentName}`, margin + 5, margin + 8);
+      
+      // Title in center
+      const titleWidth = pdf.getTextWidth(testData.title);
+      pdf.text(testData.title, (pageWidth - titleWidth) / 2, margin + 8);
+      
+      // Exam ID on right
+      pdf.setFontSize(12);
+      const examIdText = `ID: ${testData.examId}`;
+      pdf.text(examIdText, pageWidth - margin - pdf.getTextWidth(examIdText) - 5, margin + 8);
+    } else {
+      // Title centered, larger
+      const titleWidth = pdf.getTextWidth(testData.title);
+      pdf.text(testData.title, (pageWidth - titleWidth) / 2, margin + 8);
+      
+      // Exam ID on the right
+      pdf.setFontSize(12);
+      const examIdText = `ID: ${testData.examId}`;
+      pdf.text(examIdText, pageWidth - margin - pdf.getTextWidth(examIdText) - 5, margin + 8);
+    }
+    
+    return margin + 30; // Return new Y position after header
+  };
   
-  // Exam ID on the right, smaller and lighter
-  pdf.setFontSize(12);
-  pdf.setFont(undefined, 'normal');
-  pdf.setTextColor(120, 120, 120);
-  pdf.text(`ID: ${testData.examId}`, pageWidth - margin - pdf.getTextWidth(`ID: ${testData.examId}`), yPosition + 5);
-  
-  yPosition += 20;
+  // Add header to first page
+  yPosition = addPageHeader(true);
   
   // Class info line - smaller font
   pdf.setFontSize(11);
@@ -53,24 +77,21 @@ export const generateTestPDF = (testData: TestData) => {
   
   yPosition += 15;
   
-  // Student info section with border
-  pdf.setDrawColor(0, 0, 0);
-  pdf.setLineWidth(0.5);
-  pdf.rect(margin, yPosition, pageWidth - 2 * margin, 20, 'S');
-  
-  pdf.setFontSize(11);
-  if (testData.studentName) {
-    pdf.setFont(undefined, 'bold');
-    pdf.text(`Name: ${testData.studentName}`, margin + 5, yPosition + 10);
-  } else {
+  // Student info section with border (only on first page if no studentName provided)
+  if (!testData.studentName) {
+    pdf.setDrawColor(0, 0, 0);
+    pdf.setLineWidth(0.5);
+    pdf.rect(margin, yPosition, pageWidth - 2 * margin, 20, 'S');
+    
+    pdf.setFontSize(11);
     pdf.text('Name: ____________________', margin + 5, yPosition + 10);
+    
+    pdf.setFont(undefined, 'normal');
+    pdf.text('ID: ____________________', margin + 120, yPosition + 10);
+    pdf.text('Date: ____________________', margin + 220, yPosition + 10);
+    
+    yPosition += 30;
   }
-  
-  pdf.setFont(undefined, 'normal');
-  pdf.text('ID: ____________________', margin + 120, yPosition + 10);
-  pdf.text('Date: ____________________', margin + 220, yPosition + 10);
-  
-  yPosition += 30;
   
   // Questions
   testData.questions.forEach((question, index) => {
@@ -80,7 +101,7 @@ export const generateTestPDF = (testData: TestData) => {
                            question.type === 'essay' ? 140 : 90;
     if (yPosition + estimatedHeight > pageHeight - 40) {
       pdf.addPage();
-      yPosition = margin;
+      yPosition = addPageHeader(false); // Add header to new page
     }
     
     // Question number and info in a bordered box
@@ -236,6 +257,12 @@ export const generateTestPDF = (testData: TestData) => {
     pdf.setTextColor(120, 120, 120);
     pdf.text(`${i}/${pageCount}`, pageWidth - margin - 15, pageHeight - 15);
     pdf.text('about:blank', margin, pageHeight - 15);
+    
+    // Add student name to footer if present
+    if (testData.studentName) {
+      pdf.setFont(undefined, 'bold');
+      pdf.text(`Student: ${testData.studentName}`, margin, pageHeight - 15);
+    }
   }
   
   const fileName = testData.studentName 
@@ -263,29 +290,37 @@ export const generateConsolidatedTestPDF = (testData: TestData, studentNames: st
   // Calculate total points
   const totalPoints = testData.questions.reduce((sum, q) => sum + q.points, 0);
   
+  // Function to add header to any page with student name
+  const addPageHeader = (studentName: string) => {
+    // Header background
+    pdf.setFillColor(30, 58, 138);
+    pdf.rect(margin, margin - 5, pageWidth - 2 * margin, 25, 'F');
+    
+    // Student name on left, title center, exam ID right
+    pdf.setFontSize(16);
+    pdf.setFont(undefined, 'bold');
+    pdf.setTextColor(255, 255, 255);
+    
+    pdf.text(`${studentName}`, margin + 5, margin + 8);
+    
+    const titleWidth = pdf.getTextWidth(testData.title);
+    pdf.text(testData.title, (pageWidth - titleWidth) / 2, margin + 8);
+    
+    pdf.setFontSize(12);
+    const examIdText = `ID: ${testData.examId}`;
+    pdf.text(examIdText, pageWidth - margin - pdf.getTextWidth(examIdText) - 5, margin + 8);
+    
+    return margin + 30;
+  };
+  
   studentNames.forEach((studentName, studentIndex) => {
     if (studentIndex > 0) {
       pdf.addPage();
     }
     
-    let yPosition = margin;
+    let yPosition = addPageHeader(studentName);
     
-    // Header - Title centered, larger
-    pdf.setFontSize(18);
-    pdf.setFont(undefined, 'bold');
-    pdf.setTextColor(0, 0, 0);
-    const titleWidth = pdf.getTextWidth(testData.title);
-    pdf.text(testData.title, (pageWidth - titleWidth) / 2, yPosition + 5);
-    
-    // Exam ID on the right, smaller and lighter
-    pdf.setFontSize(12);
-    pdf.setFont(undefined, 'normal');
-    pdf.setTextColor(120, 120, 120);
-    pdf.text(`ID: ${testData.examId}`, pageWidth - margin - pdf.getTextWidth(`ID: ${testData.examId}`), yPosition + 5);
-    
-    yPosition += 20;
-    
-    // Class info line - smaller font
+    // Class info line
     pdf.setFontSize(11);
     pdf.setTextColor(0, 0, 0);
     pdf.setFont(undefined, 'normal');
@@ -293,44 +328,26 @@ export const generateConsolidatedTestPDF = (testData: TestData, studentNames: st
     
     yPosition += 15;
     
-    // Student info section with border
-    pdf.setDrawColor(0, 0, 0);
-    pdf.setLineWidth(0.5);
-    pdf.rect(margin, yPosition, pageWidth - 2 * margin, 20, 'S');
-    
-    pdf.setFontSize(11);
-    pdf.setFont(undefined, 'bold');
-    pdf.text(`Name: ${studentName}`, margin + 5, yPosition + 10);
-    
-    pdf.setFont(undefined, 'normal');
-    pdf.text('ID: ____________________', margin + 120, yPosition + 10);
-    pdf.text('Date: ____________________', margin + 220, yPosition + 10);
-    
-    yPosition += 30;
-    
-    // Questions (same as individual PDF)
+    // Questions (same as individual PDF but with header on each new page)
     testData.questions.forEach((question, index) => {
-      // Check if we need a new page
       const estimatedHeight = question.type === 'multiple-choice' ? 120 : 
                              question.type === 'true-false' ? 100 :
                              question.type === 'essay' ? 140 : 90;
       if (yPosition + estimatedHeight > pageHeight - 40) {
         pdf.addPage();
-        yPosition = margin;
+        yPosition = addPageHeader(studentName);
       }
       
-      // Question number and info in a bordered box
+      // Question content (same as before)
       pdf.setDrawColor(0, 0, 0);
       pdf.setLineWidth(0.5);
       pdf.rect(margin, yPosition, pageWidth - 2 * margin, 15, 'S');
       
-      // Question number
       pdf.setFontSize(12);
       pdf.setFont(undefined, 'bold');
       pdf.setTextColor(0, 0, 0);
       pdf.text(`${index + 1}.`, margin + 5, yPosition + 10);
       
-      // Question type in center
       const typeText = `[${question.type.replace('-', ' ').toUpperCase()}]`;
       pdf.setFontSize(10);
       pdf.setFont(undefined, 'normal');
@@ -338,7 +355,6 @@ export const generateConsolidatedTestPDF = (testData: TestData, studentNames: st
       const typeWidth = pdf.getTextWidth(typeText);
       pdf.text(typeText, (pageWidth - typeWidth) / 2, yPosition + 10);
       
-      // Points on the right
       pdf.setFontSize(11);
       pdf.setTextColor(220, 38, 38);
       pdf.setFont(undefined, 'bold');
@@ -347,7 +363,6 @@ export const generateConsolidatedTestPDF = (testData: TestData, studentNames: st
       
       yPosition += 20;
       
-      // Question text
       pdf.setFontSize(11);
       pdf.setFont(undefined, 'normal');
       pdf.setTextColor(0, 0, 0);
@@ -355,12 +370,10 @@ export const generateConsolidatedTestPDF = (testData: TestData, studentNames: st
       pdf.text(questionLines, margin + 5, yPosition);
       yPosition += questionLines.length * 6 + 10;
       
-      // Answer options
+      // Handle answer sections for each question type
       if (question.type === 'multiple-choice' && question.options) {
         question.options.forEach((option, optionIndex) => {
           const optionLetter = String.fromCharCode(65 + optionIndex);
-          
-          // Draw empty circle
           const circleX = margin + 15;
           const circleY = yPosition - 2;
           const circleRadius = 3;
@@ -369,7 +382,6 @@ export const generateConsolidatedTestPDF = (testData: TestData, studentNames: st
           pdf.setLineWidth(0.8);
           pdf.circle(circleX, circleY, circleRadius, 'S');
           
-          // Option letter and text
           pdf.setFontSize(11);
           pdf.setFont(undefined, 'bold');
           pdf.text(`${optionLetter}.`, circleX + 8, yPosition);
@@ -380,7 +392,6 @@ export const generateConsolidatedTestPDF = (testData: TestData, studentNames: st
           yPosition += Math.max(10, optionLines.length * 6);
         });
         
-        // Answer box
         yPosition += 8;
         pdf.setFontSize(11);
         pdf.setTextColor(220, 38, 38);
@@ -390,10 +401,8 @@ export const generateConsolidatedTestPDF = (testData: TestData, studentNames: st
         pdf.setDrawColor(0, 0, 0);
         pdf.setLineWidth(0.8);
         pdf.rect(margin + 55, yPosition - 8, 20, 12, 'S');
-        
         yPosition += 15;
       } else if (question.type === 'true-false') {
-        // True option
         const circleX = margin + 15;
         let circleY = yPosition - 2;
         const circleRadius = 3;
@@ -409,7 +418,6 @@ export const generateConsolidatedTestPDF = (testData: TestData, studentNames: st
         pdf.text('True', circleX + 18, yPosition);
         yPosition += 12;
         
-        // False option
         circleY = yPosition - 2;
         pdf.circle(circleX, circleY, circleRadius, 'S');
         pdf.setFont(undefined, 'bold');
@@ -418,7 +426,6 @@ export const generateConsolidatedTestPDF = (testData: TestData, studentNames: st
         pdf.text('False', circleX + 18, yPosition);
         yPosition += 12;
         
-        // Answer box
         yPosition += 8;
         pdf.setFontSize(11);
         pdf.setTextColor(220, 38, 38);
@@ -428,7 +435,6 @@ export const generateConsolidatedTestPDF = (testData: TestData, studentNames: st
         pdf.setDrawColor(0, 0, 0);
         pdf.setLineWidth(0.8);
         pdf.rect(margin + 55, yPosition - 8, 20, 12, 'S');
-        
         yPosition += 15;
       } else if (question.type === 'short-answer') {
         pdf.setFontSize(10);
@@ -436,7 +442,6 @@ export const generateConsolidatedTestPDF = (testData: TestData, studentNames: st
         pdf.text('Answer:', margin + 10, yPosition);
         yPosition += 10;
         
-        // Answer lines
         pdf.setDrawColor(150, 150, 150);
         pdf.setLineWidth(0.3);
         for (let i = 0; i < 2; i++) {
@@ -450,7 +455,6 @@ export const generateConsolidatedTestPDF = (testData: TestData, studentNames: st
         pdf.text('Answer:', margin + 10, yPosition);
         yPosition += 10;
         
-        // Multiple answer lines
         pdf.setDrawColor(150, 150, 150);
         pdf.setLineWidth(0.3);
         for (let i = 0; i < 4; i++) {
@@ -465,7 +469,7 @@ export const generateConsolidatedTestPDF = (testData: TestData, studentNames: st
     });
   });
   
-  // Footer on each page
+  // Footer on each page with student name
   const pageCount = pdf.getNumberOfPages();
   for (let i = 1; i <= pageCount; i++) {
     pdf.setPage(i);
