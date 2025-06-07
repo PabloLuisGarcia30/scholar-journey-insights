@@ -1,8 +1,13 @@
-
-import { EnhancedSmartOcrService, EnhancedProcessingResult } from './enhancedSmartOcrService';
+import { EnhancedSmartOcrService, EnhancedProcessingResult, ValidationResult as BaseValidationResult } from './enhancedSmartOcrService';
 import { FlexibleTemplateService, FlexibleTemplateMatchResult, DetectedQuestionType } from './flexibleTemplateService';
 import { HandwritingDetectionService, RegionOfInterest, NoiseFilterConfig } from './handwritingDetectionService';
 import { AdvancedValidationService, ImpossibilityDetectionResult, AnswerPatternAnalysis, ValidationRecoveryConfig } from './advancedValidationService';
+
+export interface FlexibleValidationResult extends BaseValidationResult {
+  type: 'answer_position' | 'question_count' | 'required_elements' | 'cross_validation' | 'handwriting_interference' | 'pattern_validation';
+  impossibilities: ImpossibilityDetectionResult[];
+  patternAnalysis: AnswerPatternAnalysis;
+}
 
 export interface FlexibleProcessingResult extends EnhancedProcessingResult {
   questionTypeResults: QuestionTypeResult[];
@@ -11,6 +16,7 @@ export interface FlexibleProcessingResult extends EnhancedProcessingResult {
   processingMethodsUsed: Record<string, number>;
   handwritingAnalysis: HandwritingAnalysisResult;
   recoveryAttempts: number;
+  validationResults: FlexibleValidationResult[];
 }
 
 export interface QuestionTypeResult {
@@ -438,10 +444,10 @@ export class FlexibleOcrService extends EnhancedSmartOcrService {
     templateMatch: FlexibleTemplateMatchResult,
     expectedQuestionCount?: number,
     imageData?: string
-  ): Promise<ValidationResult[]> {
+  ): Promise<FlexibleValidationResult[]> {
     console.log('🔍 Performing advanced validation with impossibility detection');
     
-    const validationResults: ValidationResult[] = [];
+    const validationResults: FlexibleValidationResult[] = [];
     
     // Detect impossibilities
     const answers = results.map(r => ({
@@ -508,7 +514,7 @@ export class FlexibleOcrService extends EnhancedSmartOcrService {
   
   private static async applyRecoveryProcessing(
     results: QuestionTypeResult[],
-    validationResults: ValidationResult[],
+    validationResults: FlexibleValidationResult[],
     imageData: string,
     templateMatch: FlexibleTemplateMatchResult
   ): Promise<{ finalResults: QuestionTypeResult[]; recoveryAttempts: number }> {
