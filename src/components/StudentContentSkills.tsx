@@ -1,11 +1,11 @@
 
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PracticeTestGenerator } from "@/components/PracticeTestGenerator";
 import { Zap, BookOpen } from "lucide-react";
+import { getScoreColor } from "@/utils/scoreColors";
 
 interface StudentContentSkillsProps {
   groupedSkills: Record<string, any[]>;
@@ -53,17 +53,6 @@ export function StudentContentSkills({
 
   const isLoading = contentSkillsLoading || classContentSkillsLoading;
 
-  const getScoreColor = (score: number) => {
-    if (score >= 90) return "text-emerald-600";
-    if (score >= 80) return "text-blue-600";
-    if (score >= 70) return "text-amber-600";
-    return "text-rose-600";
-  };
-
-  const getProgressColor = (score: number) => {
-    return "bg-black";
-  };
-
   // Enhanced loading component with realistic skeleton placeholders
   const LoadingSkeleton = () => (
     <Card className="w-full border-slate-200 shadow-sm">
@@ -98,12 +87,9 @@ export function StudentContentSkills({
                     <div className="flex items-center justify-between mb-3">
                       <Skeleton className="h-5 w-64" />
                       <div className="flex items-center gap-4">
-                        <Skeleton className="h-4 w-12" />
+                        <Skeleton className="h-16 w-16 rounded-full" />
                         <Skeleton className="h-8 w-40" />
                       </div>
-                    </div>
-                    <div className="relative">
-                      <Skeleton className="h-2 w-full rounded-full" />
                     </div>
                   </div>
                 ))}
@@ -166,9 +152,18 @@ export function StudentContentSkills({
                           {skill.skill_name}
                         </h4>
                         <div className="flex items-center gap-4">
-                          <span className={`font-semibold text-sm ${getScoreColor(skill.score)}`}>
-                            {skill.score}%
-                          </span>
+                          <div className="flex flex-col items-center">
+                            <div className="text-xs text-slate-600 text-center mb-2">Score</div>
+                            <div 
+                              className={`h-16 w-16 rounded-full bg-gradient-to-br ${getScoreColor(skill.score)} 
+                                flex items-center justify-center shadow-sm hover:shadow-md hover:scale-105 
+                                transition-all duration-200`}
+                            >
+                              <span className="text-sm font-bold text-white drop-shadow-sm">
+                                {skill.score}%
+                              </span>
+                            </div>
+                          </div>
                           <Button 
                             variant="outline" 
                             size="sm"
@@ -179,16 +174,6 @@ export function StudentContentSkills({
                             Generate Practice Exercise
                           </Button>
                         </div>
-                      </div>
-                      <div className="relative">
-                        <Progress 
-                          value={skill.score} 
-                          className="h-2 bg-slate-100"
-                        />
-                        <div 
-                          className={`absolute top-0 left-0 h-2 rounded-full transition-all duration-300 ${getProgressColor(skill.score)}`}
-                          style={{ width: `${skill.score}%` }}
-                        />
                       </div>
                     </div>
                   ))}
