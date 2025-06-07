@@ -15,6 +15,7 @@ import {
   linkClassToSubjectSkills
 } from "@/services/examService";
 import { mockPabloContentSkillScores } from "@/data/mockStudentData";
+import { supabase } from "@/integrations/supabase/client";
 
 interface UseStudentProfileDataProps {
   studentId: string;
@@ -29,6 +30,35 @@ export function useStudentProfileData({ studentId, classId, className }: UseStud
   const { data: student, isLoading: studentLoading } = useQuery({
     queryKey: ['activeStudent', studentId],
     queryFn: () => getActiveStudentById(studentId),
+  });
+
+  // 🆕 ENHANCED: Also fetch student profile to link active_students with student_profiles
+  const { data: studentProfile, isLoading: studentProfileLoading } = useQuery({
+    queryKey: ['studentProfile', student?.name],
+    queryFn: async () => {
+      if (!student?.name) return null;
+      console.log('🔗 Looking up student profile for:', student.name);
+      
+      const { data, error } = await supabase
+        .from('student_profiles')
+        .select('*')
+        .eq('student_name', student.name)
+        .maybeSingle();
+
+      if (error && error.code !== 'PGRST116') {
+        console.error('Error fetching student profile:', error);
+        return null;
+      }
+
+      if (data) {
+        console.log('✅ Found student profile:', data.id, 'for', student.name);
+      } else {
+        console.log('⚠️ No student profile found for:', student.name);
+      }
+
+      return data;
+    },
+    enabled: !!student?.name,
   });
 
   const isPabloLuisGarcia = student?.name === 'Pablo Luis Garcia';
@@ -50,16 +80,35 @@ export function useStudentProfileData({ studentId, classId, className }: UseStud
     return classData && classData.subject === 'Science' && classData.grade === 'Grade 10';
   };
 
-  // Fetch test results
+  // 🆕 ENHANCED: Fetch test results using student profile ID when available
   const { data: testResults = [], isLoading: testResultsLoading } = useQuery({
-    queryKey: ['studentTestResults', studentId],
-    queryFn: () => getStudentTestResults(studentId),
+    queryKey: ['studentTestResults', studentProfile?.id, studentId],
+    queryFn: async () => {
+      // Try student profile ID first (for newly processed tests)
+      if (studentProfile?.id) {
+        console.log('📊 Fetching test results using student profile ID:', studentProfile.id);
+        try {
+          const profileResults = await getStudentTestResults(studentProfile.id);
+          if (profileResults.length > 0) {
+            console.log(`✅ Found ${profileResults.length} test results via student profile`);
+            return profileResults;
+          }
+        } catch (error) {
+          console.warn('Failed to fetch via student profile, trying active student ID:', error);
+        }
+      }
+      
+      // Fallback to active student ID
+      console.log('📊 Fetching test results using active student ID:', studentId);
+      return getStudentTestResults(studentId);
+    },
+    enabled: !!(studentProfile?.id || studentId),
   });
 
-  // Fetch content skill scores - use mock data for Pablo Luis Garcia in ANY Grade 10 Math context
+  // 🆕 ENHANCED: Fetch content skill scores using the correct student identifier
   const { data: contentSkillScores = [], isLoading: contentSkillsLoading } = useQuery({
-    queryKey: ['studentContentSkills', studentId, classId],
-    queryFn: () => {
+    queryKey: ['studentContentSkills', studentProfile?.id, studentId, classId],
+    queryFn: async () => {
       console.log('Fetching content skills for:', { 
         studentName: student?.name, 
         isPablo: isPabloLuisGarcia, 
@@ -69,7 +118,8 @@ export function useStudentProfileData({ studentId, classId, className }: UseStud
         classId,
         className,
         classSubject: classData?.subject,
-        classGrade: classData?.grade
+        classGrade: classData?.grade,
+        studentProfileId: studentProfile?.id
       });
       
       // Use mock data for Pablo Luis Garcia in any Grade 10 Math class context
@@ -77,7 +127,10 @@ export function useStudentProfileData({ studentId, classId, className }: UseStud
         console.log('Using mock data for Pablo Luis Garcia in Grade 10 Math');
         return Promise.resolve(mockPabloContentSkillScores);
       }
-      return getStudentContentSkillScores(studentId);
+      
+      // Try student profile ID first, then fallback to active student ID
+      const searchId = studentProfile?.id || studentId;
+      return getStudentContentSkillScores(searchId);
     },
     enabled: !!student, // Wait for student data to load first
     staleTime: isPabloLuisGarcia && classData && classData.subject === 'Math' && classData.grade === 'Grade 10' 
@@ -85,10 +138,15 @@ export function useStudentProfileData({ studentId, classId, className }: UseStud
       : 0, // No cache for regular data
   });
 
-  // Fetch subject skill scores
+  // 🆕 ENHANCED: Fetch subject skill scores using the correct student identifier
   const { data: subjectSkillScores = [], isLoading: subjectSkillsLoading } = useQuery({
-    queryKey: ['studentSubjectSkills', studentId],
-    queryFn: () => getStudentSubjectSkillScores(studentId),
+    queryKey: ['studentSubjectSkills', studentProfile?.id, studentId],
+    queryFn: async () => {
+      const searchId = studentProfile?.id || studentId;
+      console.log('📈 Fetching subject skills using ID:', searchId);
+      return getStudentSubjectSkillScores(searchId);
+    },
+    enabled: !!(studentProfile?.id || studentId),
   });
 
   // Fetch content skills for the class to show complete skill set
@@ -142,9 +200,21 @@ export function useStudentProfileData({ studentId, classId, className }: UseStud
     }
   }, [classData, classId]);
 
+  console.log('🔄 useStudentProfileData summary:', {
+    studentId,
+    studentName: student?.name,
+    studentProfileId: studentProfile?.id,
+    testResultsCount: testResults.length,
+    contentSkillScoresCount: contentSkillScores.length,
+    subjectSkillScoresCount: subjectSkillScores.length,
+    classId,
+    className
+  });
+
   return {
     student,
-    studentLoading,
+    studentLoading: studentLoading || studentProfileLoading,
+    studentProfile,
     classData,
     classLoading,
     testResults,

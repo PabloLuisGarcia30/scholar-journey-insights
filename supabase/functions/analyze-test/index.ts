@@ -14,7 +14,7 @@ serve(async (req) => {
 
   try {
     const { files, examId, studentName, studentEmail } = await req.json();
-    console.log(`🔬 Analyzing test with enhanced database storage for exam: ${examId}`);
+    console.log(`🔬 Analyzing test with enhanced skill matching for exam: ${examId}`);
 
     const openaiApiKey = Deno.env.get('OPENAI_API_KEY');
     if (!openaiApiKey) {
@@ -25,6 +25,13 @@ serve(async (req) => {
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
     const supabase = createClient(supabaseUrl!, supabaseKey!);
+
+    // 🆕 GET CLASS AND SKILL INFORMATION
+    const classInfo = await getClassInfoForExam(supabase, examId);
+    const classSkills = await getClassSkills(supabase, classInfo?.classId);
+
+    console.log(`📚 Found class: ${classInfo?.className || 'Unknown'} (${classInfo?.subject || 'Unknown Subject'})`);
+    console.log(`🎯 Available skills: ${classSkills.contentSkills.length} content + ${classSkills.subjectSkills.length} subject skills`);
 
     // Group files by Student ID and Exam ID for batch processing
     const studentGroups = groupFilesByStudentIdAndExam(files);
@@ -56,11 +63,12 @@ serve(async (req) => {
         continue;
       }
 
-      // Enhanced batch processing with Student ID context
-      const batchResults = await processBatchWithStudentIdContext(
+      // 🆕 Enhanced batch processing with skill matching
+      const batchResults = await processBatchWithSkillMatching(
         groupQuestions,
         detectedStudentId,
         detectedExam,
+        classSkills,
         openaiApiKey
       );
 
@@ -84,19 +92,16 @@ serve(async (req) => {
     const studentProfile = await createOrFindStudentProfile(supabase, primaryStudentId, studentName, studentEmail);
     console.log(`👤 Student profile resolved: ${studentProfile.id} (${studentProfile.student_name})`);
 
-    // 🆕 FIND CLASS ID FOR THE EXAM
-    const classId = await findClassIdForExam(supabase, examId);
-    console.log(`📚 Class ID for exam ${examId}: ${classId || 'Not found'}`);
-
-    // 🆕 SAVE TEST RESULTS TO DATABASE
+    // 🆕 SAVE TEST RESULTS TO DATABASE WITH SKILL SCORES
     const testResultId = await saveTestResultsToDatabase(
       supabase,
       studentProfile.id,
       examId,
-      classId,
+      classInfo?.classId,
       allResults,
       overallScore,
-      detailedAnalysis
+      detailedAnalysis,
+      classSkills
     );
 
     const processingTime = Date.now() - batchMetrics.processingStartTime;
@@ -118,10 +123,20 @@ serve(async (req) => {
       databaseStorage: {
         testResultId,
         studentProfileId: studentProfile.id,
-        classId,
+        classId: classInfo?.classId,
         savedToDatabase: true,
         questionsStored: allResults.length,
         timestamp: new Date().toISOString()
+      },
+      // 🆕 ENHANCED CLASS AND SKILL INFO
+      classInfo: {
+        className: classInfo?.className,
+        subject: classInfo?.subject,
+        grade: classInfo?.grade,
+        skillsMatched: {
+          contentSkills: classSkills.contentSkills.length,
+          subjectSkills: classSkills.subjectSkills.length
+        }
       },
       batchProcessingSummary: batchMetrics.batchProcessingUsed ? {
         enabled: true,
@@ -141,14 +156,16 @@ serve(async (req) => {
         batchProcessingUsed: batchMetrics.batchProcessingUsed,
         studentIdGroupingUsed: studentGroups.size > 1,
         answerKeyValidationEnabled: true,
-        databasePersistenceEnabled: true
+        databasePersistenceEnabled: true,
+        skillMatchingEnabled: true
       }
     };
 
-    console.log(`✅ Analysis complete with database storage: ${allResults.length} questions, ${overallScore}% overall score`);
+    console.log(`✅ Analysis complete with skill matching: ${allResults.length} questions, ${overallScore}% overall score`);
     console.log(`💾 Results saved to database with test result ID: ${testResultId}`);
     console.log(`🆔 Student ID detection rate: ${studentIdDetectionRate}%`);
     console.log(`📋 Answer key validation: ${answerKeyValidation.status.toUpperCase()}`);
+    console.log(`🎯 Skills matched: ${classSkills.contentSkills.length + classSkills.subjectSkills.length} total`);
     
     return new Response(JSON.stringify(response), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -176,7 +193,383 @@ serve(async (req) => {
   }
 });
 
-// 🆕 NEW FUNCTION: Create or find student profile
+// 🆕 NEW FUNCTION: Get class information for exam
+async function getClassInfoForExam(supabase: any, examId: string) {
+  console.log(`🔍 Looking for class info for exam: ${examId}`);
+  
+  const { data: exam, error } = await supabase
+    .from('exams')
+    .select(`
+      class_id,
+      class_name,
+      active_classes (
+        name,
+        subject,
+        grade
+      )
+    `)
+    .eq('exam_id', examId)
+    .maybeSingle();
+
+  if (error && error.code !== 'PGRST116') {
+    console.error('Error finding exam class:', error);
+    return null;
+  }
+
+  if (exam && exam.class_id) {
+    console.log(`✅ Found class info: ${exam.active_classes?.name || exam.class_name}`);
+    return {
+      classId: exam.class_id,
+      className: exam.active_classes?.name || exam.class_name,
+      subject: exam.active_classes?.subject || 'Unknown',
+      grade: exam.active_classes?.grade || 'Unknown'
+    };
+  }
+
+  console.log(`⚠️ No class info found for exam: ${examId}`);
+  return null;
+}
+
+// 🆕 NEW FUNCTION: Get class skills
+async function getClassSkills(supabase: any, classId: string | null) {
+  if (!classId) {
+    console.log('⚠️ No class ID provided, returning empty skills');
+    return { contentSkills: [], subjectSkills: [] };
+  }
+
+  console.log(`🎯 Fetching skills for class: ${classId}`);
+
+  // Get content skills linked to this class
+  const { data: contentSkillsData, error: contentError } = await supabase
+    .from('class_content_skills')
+    .select(`
+      content_skills (
+        id,
+        skill_name,
+        skill_description,
+        topic,
+        subject,
+        grade
+      )
+    `)
+    .eq('class_id', classId);
+
+  if (contentError) {
+    console.error('Error fetching content skills:', contentError);
+  }
+
+  // Get subject skills linked to this class
+  const { data: subjectSkillsData, error: subjectError } = await supabase
+    .from('class_subject_skills')
+    .select(`
+      subject_skills (
+        id,
+        skill_name,
+        skill_description,
+        subject,
+        grade
+      )
+    `)
+    .eq('class_id', classId);
+
+  if (subjectError) {
+    console.error('Error fetching subject skills:', subjectError);
+  }
+
+  const contentSkills = contentSkillsData?.map(item => item.content_skills).filter(Boolean) || [];
+  const subjectSkills = subjectSkillsData?.map(item => item.subject_skills).filter(Boolean) || [];
+
+  console.log(`📊 Found ${contentSkills.length} content skills and ${subjectSkills.length} subject skills`);
+  
+  return { contentSkills, subjectSkills };
+}
+
+// 🆕 ENHANCED FUNCTION: Process batch with skill matching
+async function processBatchWithSkillMatching(
+  questions: any[],
+  studentId: string,
+  examId: string,
+  classSkills: any,
+  apiKey: string
+): Promise<any[]> {
+  console.log(`🔄 Processing batch with skill matching: ${questions.length} questions for Student ID: ${studentId}`);
+  
+  const BATCH_SIZE = 5;
+  const batches = [];
+  
+  for (let i = 0; i < questions.length; i += BATCH_SIZE) {
+    batches.push(questions.slice(i, i + BATCH_SIZE));
+  }
+  
+  const results = [];
+  
+  for (const batch of batches) {
+    try {
+      // Create skill-aware prompt
+      const prompt = createSkillMatchingPrompt(batch, studentId, examId, classSkills);
+      
+      // Try GPT-4o-mini first for cost efficiency
+      let batchResults = await callOpenAI('gpt-4o-mini', prompt, apiKey);
+      
+      // Validate and process results
+      for (let i = 0; i < batch.length; i++) {
+        const result = batchResults[i];
+        const question = batch[i];
+        
+        if (!result || result.error || result.score === undefined) {
+          console.log(`🔄 Retrying question ${question.questionNumber} with GPT-4.1`);
+          
+          // Fallback to GPT-4.1 for individual question
+          const retryPrompt = createIndividualSkillMatchingPrompt(question, studentId, examId, classSkills);
+          const fallbackResults = await callOpenAI('gpt-4.1-2025-04-14', retryPrompt, apiKey);
+          
+          results.push(fallbackResults[0] || {
+            question_number: question.questionNumber,
+            score: 0,
+            feedback: 'Unable to grade this question',
+            error: true,
+            fallback_used: true,
+            student_id: studentId,
+            exam_id: examId,
+            matched_skills: { content: [], subject: [] }
+          });
+        } else {
+          results.push({
+            ...result,
+            student_id: studentId,
+            exam_id: examId,
+            source_file: question.sourceFile,
+            batch_processed: true
+          });
+        }
+      }
+    } catch (error) {
+      console.error(`❌ Batch processing failed:`, error);
+      
+      // Process individually as emergency fallback
+      for (const question of batch) {
+        results.push({
+          question_number: question.questionNumber,
+          score: 0,
+          feedback: `Processing error: ${error.message}`,
+          error: true,
+          emergency_fallback: true,
+          student_id: studentId,
+          exam_id: examId,
+          matched_skills: { content: [], subject: [] }
+        });
+      }
+    }
+  }
+  
+  return results;
+}
+
+// 🆕 NEW FUNCTION: Create skill matching prompt
+function createSkillMatchingPrompt(questions: any[], studentId: string, examId: string, classSkills: any): string {
+  const contentSkillsList = classSkills.contentSkills.map(skill => 
+    `• ${skill.skill_name}: ${skill.skill_description} (Topic: ${skill.topic})`
+  ).join('\n');
+  
+  const subjectSkillsList = classSkills.subjectSkills.map(skill => 
+    `• ${skill.skill_name}: ${skill.skill_description}`
+  ).join('\n');
+
+  const context = `
+Grading test for Student ID: ${studentId}
+Exam ID: ${examId}
+Number of questions: ${questions.length}
+
+AVAILABLE CLASS CONTENT SKILLS:
+${contentSkillsList || 'No content skills available'}
+
+AVAILABLE CLASS SUBJECT SKILLS:
+${subjectSkillsList || 'No subject skills available'}
+
+Please grade the following questions and match them to the available skills above.
+Return a JSON array with exactly ${questions.length} objects.
+Each object should have: 
+- question_number (number)
+- score (0-100)
+- feedback (string)
+- matched_skills (object with content and subject arrays containing skill names that apply)
+
+Questions:
+${questions.map(q => `
+Question ${q.questionNumber}: ${q.questionText || 'Question text not available'}
+Student Answer: ${q.detectedAnswer?.selectedOption || 'No answer detected'}
+Answer Confidence: ${q.detectedAnswer?.confidence || 0}
+`).join('\n')}
+
+Return ONLY a valid JSON array, no additional text.`;
+
+  return context;
+}
+
+// 🆕 NEW FUNCTION: Create individual skill matching prompt
+function createIndividualSkillMatchingPrompt(question: any, studentId: string, examId: string, classSkills: any): string {
+  const contentSkillsList = classSkills.contentSkills.map(skill => 
+    `• ${skill.skill_name}: ${skill.skill_description} (Topic: ${skill.topic})`
+  ).join('\n');
+  
+  const subjectSkillsList = classSkills.subjectSkills.map(skill => 
+    `• ${skill.skill_name}: ${skill.skill_description}`
+  ).join('\n');
+
+  return `
+Grading individual question for Student ID: ${studentId}
+Exam ID: ${examId}
+
+AVAILABLE CLASS CONTENT SKILLS:
+${contentSkillsList || 'No content skills available'}
+
+AVAILABLE CLASS SUBJECT SKILLS:
+${subjectSkillsList || 'No subject skills available'}
+
+Question ${question.questionNumber}: ${question.questionText || 'Question text not available'}
+Student Answer: ${question.detectedAnswer?.selectedOption || 'No answer detected'}
+Answer Confidence: ${question.detectedAnswer?.confidence || 0}
+
+Please provide a grade (0-100), feedback, and match to available skills. 
+Return as JSON array with one object containing: question_number, score, feedback, matched_skills (object with content and subject arrays).
+`;
+}
+
+// 🆕 ENHANCED FUNCTION: Save test results with skill scores
+async function saveTestResultsToDatabase(
+  supabase: any,
+  studentProfileId: string,
+  examId: string,
+  classId: string | null,
+  results: any[],
+  overallScore: number,
+  detailedAnalysis: string,
+  classSkills: any
+) {
+  console.log(`💾 Saving test results with skill matching to database for student: ${studentProfileId}`);
+
+  // Calculate totals
+  const totalPointsEarned = results.reduce((sum, result) => sum + (result.score || 0), 0);
+  const totalPointsPossible = results.length * 100; // Assuming 100 points per question
+
+  // Insert test result
+  const { data: testResult, error: resultError } = await supabase
+    .from('test_results')
+    .insert({
+      student_id: studentProfileId,
+      exam_id: examId,
+      class_id: classId,
+      overall_score: overallScore,
+      total_points_earned: totalPointsEarned,
+      total_points_possible: totalPointsPossible,
+      ai_feedback: generateAiFeedback(results, overallScore),
+      detailed_analysis: detailedAnalysis
+    })
+    .select()
+    .single();
+
+  if (resultError) {
+    console.error('Error saving test result:', resultError);
+    throw new Error(`Failed to save test result: ${resultError.message}`);
+  }
+
+  console.log(`✅ Test result saved with ID: ${testResult.id}`);
+
+  // 🆕 SAVE SKILL SCORES BASED ON MATCHED SKILLS
+  await saveMatchedSkillScores(supabase, testResult.id, results, classSkills);
+
+  return testResult.id;
+}
+
+// 🆕 NEW FUNCTION: Save matched skill scores
+async function saveMatchedSkillScores(supabase: any, testResultId: string, results: any[], classSkills: any) {
+  console.log(`🎯 Saving matched skill scores for test result: ${testResultId}`);
+
+  // Aggregate scores by skill
+  const contentSkillScores = new Map();
+  const subjectSkillScores = new Map();
+
+  results.forEach(result => {
+    if (result.matched_skills) {
+      // Process content skills
+      if (result.matched_skills.content) {
+        result.matched_skills.content.forEach((skillName: string) => {
+          if (!contentSkillScores.has(skillName)) {
+            contentSkillScores.set(skillName, { total: 0, count: 0, points: 0 });
+          }
+          const skill = contentSkillScores.get(skillName);
+          skill.total += result.score || 0;
+          skill.count += 1;
+          skill.points += 100; // Each question worth 100 points
+        });
+      }
+
+      // Process subject skills
+      if (result.matched_skills.subject) {
+        result.matched_skills.subject.forEach((skillName: string) => {
+          if (!subjectSkillScores.has(skillName)) {
+            subjectSkillScores.set(skillName, { total: 0, count: 0, points: 0 });
+          }
+          const skill = subjectSkillScores.get(skillName);
+          skill.total += result.score || 0;
+          skill.count += 1;
+          skill.points += 100; // Each question worth 100 points
+        });
+      }
+    }
+  });
+
+  // Save content skill scores
+  const contentScoresToSave = [];
+  contentSkillScores.forEach((data, skillName) => {
+    const avgScore = data.count > 0 ? data.total / data.count : 0;
+    contentScoresToSave.push({
+      test_result_id: testResultId,
+      skill_name: skillName,
+      score: Math.round(avgScore),
+      points_earned: data.total,
+      points_possible: data.points
+    });
+  });
+
+  if (contentScoresToSave.length > 0) {
+    const { error } = await supabase
+      .from('content_skill_scores')
+      .insert(contentScoresToSave);
+
+    if (error) {
+      console.error('Error saving content skill scores:', error);
+    } else {
+      console.log(`✅ Saved ${contentScoresToSave.length} content skill scores`);
+    }
+  }
+
+  // Save subject skill scores
+  const subjectScoresToSave = [];
+  subjectSkillScores.forEach((data, skillName) => {
+    const avgScore = data.count > 0 ? data.total / data.count : 0;
+    subjectScoresToSave.push({
+      test_result_id: testResultId,
+      skill_name: skillName,
+      score: Math.round(avgScore),
+      points_earned: data.total,
+      points_possible: data.points
+    });
+  });
+
+  if (subjectScoresToSave.length > 0) {
+    const { error } = await supabase
+      .from('subject_skill_scores')
+      .insert(subjectScoresToSave);
+
+    if (error) {
+      console.error('Error saving subject skill scores:', error);
+    } else {
+      console.log(`✅ Saved ${subjectScoresToSave.length} subject skill scores`);
+    }
+  }
+}
+
 async function createOrFindStudentProfile(supabase: any, studentId: string, studentName?: string, studentEmail?: string) {
   console.log(`🔍 Looking for student profile: ${studentId}`);
   
@@ -243,187 +636,6 @@ async function createOrFindStudentProfile(supabase: any, studentId: string, stud
 
   console.log(`✅ Created new student profile: ${newProfile.id}`);
   return newProfile;
-}
-
-// 🆕 NEW FUNCTION: Find class ID for exam
-async function findClassIdForExam(supabase: any, examId: string) {
-  console.log(`🔍 Looking for class ID for exam: ${examId}`);
-  
-  const { data: exam, error } = await supabase
-    .from('exams')
-    .select('class_id')
-    .eq('exam_id', examId)
-    .maybeSingle();
-
-  if (error && error.code !== 'PGRST116') {
-    console.error('Error finding exam class:', error);
-    return null;
-  }
-
-  if (exam && exam.class_id) {
-    console.log(`✅ Found class ID: ${exam.class_id}`);
-    return exam.class_id;
-  }
-
-  console.log(`⚠️ No class ID found for exam: ${examId}`);
-  return null;
-}
-
-// 🆕 NEW FUNCTION: Save test results to database
-async function saveTestResultsToDatabase(
-  supabase: any,
-  studentProfileId: string,
-  examId: string,
-  classId: string | null,
-  results: any[],
-  overallScore: number,
-  detailedAnalysis: string
-) {
-  console.log(`💾 Saving test results to database for student: ${studentProfileId}`);
-
-  // Calculate totals
-  const totalPointsEarned = results.reduce((sum, result) => sum + (result.score || 0), 0);
-  const totalPointsPossible = results.length * 100; // Assuming 100 points per question
-
-  // Insert test result
-  const { data: testResult, error: resultError } = await supabase
-    .from('test_results')
-    .insert({
-      student_id: studentProfileId,
-      exam_id: examId,
-      class_id: classId,
-      overall_score: overallScore,
-      total_points_earned: totalPointsEarned,
-      total_points_possible: totalPointsPossible,
-      ai_feedback: generateAiFeedback(results, overallScore),
-      detailed_analysis: detailedAnalysis
-    })
-    .select()
-    .single();
-
-  if (resultError) {
-    console.error('Error saving test result:', resultError);
-    throw new Error(`Failed to save test result: ${resultError.message}`);
-  }
-
-  console.log(`✅ Test result saved with ID: ${testResult.id}`);
-
-  // 🆕 SAVE CONTENT SKILL SCORES (if available)
-  await saveContentSkillScores(supabase, testResult.id, results);
-
-  // 🆕 SAVE SUBJECT SKILL SCORES (if available)
-  await saveSubjectSkillScores(supabase, testResult.id, results);
-
-  return testResult.id;
-}
-
-// 🆕 NEW FUNCTION: Save content skill scores
-async function saveContentSkillScores(supabase: any, testResultId: string, results: any[]) {
-  console.log(`📊 Analyzing content skills for test result: ${testResultId}`);
-
-  // Group results by content skill (simulate skill detection)
-  const skillScores = [];
-  const questionsPerSkill = Math.ceil(results.length / 3); // Distribute across 3 skills
-
-  // Create sample content skill scores
-  const skills = ['Algebraic Operations', 'Equation Solving', 'Function Analysis'];
-  
-  skills.forEach((skillName, index) => {
-    const skillQuestions = results.slice(index * questionsPerSkill, (index + 1) * questionsPerSkill);
-    if (skillQuestions.length > 0) {
-      const skillPointsEarned = skillQuestions.reduce((sum, q) => sum + (q.score || 0), 0);
-      const skillPointsPossible = skillQuestions.length * 100;
-      const skillScore = skillPointsPossible > 0 ? (skillPointsEarned / skillPointsPossible) * 100 : 0;
-
-      skillScores.push({
-        test_result_id: testResultId,
-        skill_name: skillName,
-        score: Math.round(skillScore),
-        points_earned: skillPointsEarned,
-        points_possible: skillPointsPossible
-      });
-    }
-  });
-
-  if (skillScores.length > 0) {
-    const { error } = await supabase
-      .from('content_skill_scores')
-      .insert(skillScores);
-
-    if (error) {
-      console.error('Error saving content skill scores:', error);
-    } else {
-      console.log(`✅ Saved ${skillScores.length} content skill scores`);
-    }
-  }
-}
-
-// 🆕 NEW FUNCTION: Save subject skill scores
-async function saveSubjectSkillScores(supabase: any, testResultId: string, results: any[]) {
-  console.log(`📈 Analyzing subject skills for test result: ${testResultId}`);
-
-  // Create sample subject skill scores
-  const subjectSkills = ['Mathematical Reasoning', 'Problem Solving', 'Communication'];
-  const skillScores = [];
-
-  subjectSkills.forEach((skillName, index) => {
-    // Simulate skill assessment based on question performance
-    const relevantQuestions = results.filter((_, i) => i % 3 === index);
-    if (relevantQuestions.length > 0) {
-      const skillPointsEarned = relevantQuestions.reduce((sum, q) => sum + (q.score || 0), 0);
-      const skillPointsPossible = relevantQuestions.length * 100;
-      const skillScore = skillPointsPossible > 0 ? (skillPointsEarned / skillPointsPossible) * 100 : 0;
-
-      skillScores.push({
-        test_result_id: testResultId,
-        skill_name: skillName,
-        score: Math.round(skillScore),
-        points_earned: skillPointsEarned,
-        points_possible: skillPointsPossible
-      });
-    }
-  });
-
-  if (skillScores.length > 0) {
-    const { error } = await supabase
-      .from('subject_skill_scores')
-      .insert(skillScores);
-
-    if (error) {
-      console.error('Error saving subject skill scores:', error);
-    } else {
-      console.log(`✅ Saved ${skillScores.length} subject skill scores`);
-    }
-  }
-}
-
-// 🆕 NEW FUNCTION: Generate AI feedback
-function generateAiFeedback(results: any[], overallScore: number): string {
-  const correctAnswers = results.filter(r => r.score >= 80).length;
-  const totalQuestions = results.length;
-  
-  let feedback = `Performance Summary: ${correctAnswers}/${totalQuestions} questions correct (${overallScore}%).\n\n`;
-  
-  if (overallScore >= 90) {
-    feedback += "Excellent work! You demonstrated strong understanding across all areas.";
-  } else if (overallScore >= 80) {
-    feedback += "Good performance overall. Review the questions you missed to strengthen your understanding.";
-  } else if (overallScore >= 70) {
-    feedback += "Adequate performance. Focus on practicing similar problems to improve your skills.";
-  } else {
-    feedback += "Additional practice recommended. Consider reviewing the fundamental concepts covered in this test.";
-  }
-
-  // Add specific question feedback
-  const incorrectQuestions = results.filter(r => r.score < 80).slice(0, 3);
-  if (incorrectQuestions.length > 0) {
-    feedback += "\n\nAreas for improvement:\n";
-    incorrectQuestions.forEach(q => {
-      feedback += `• Question ${q.question_number}: ${q.feedback || 'Review this concept'}\n`;
-    });
-  }
-
-  return feedback;
 }
 
 async function validateWithAnswerKey(supabase: any, results: any[], examId: string, studentId?: string) {
@@ -592,124 +804,13 @@ function extractQuestionsFromFiles(files: any[]): any[] {
   return allQuestions.sort((a, b) => a.questionNumber - b.questionNumber);
 }
 
-async function processBatchWithStudentIdContext(
-  questions: any[],
-  studentId: string,
-  examId: string,
-  apiKey: string
-): Promise<any[]> {
-  console.log(`🔄 Processing batch: ${questions.length} questions for Student ID: ${studentId}`);
-  
-  const BATCH_SIZE = 5;
-  const batches = [];
-  
-  for (let i = 0; i < questions.length; i += BATCH_SIZE) {
-    batches.push(questions.slice(i, i + BATCH_SIZE));
-  }
-  
-  const results = [];
-  
-  for (const batch of batches) {
-    try {
-      // Create context-aware prompt with Student ID and exam information
-      const prompt = createBatchPromptWithStudentIdContext(batch, studentId, examId);
-      
-      // Try GPT-4o-mini first for cost efficiency
-      let batchResults = await callOpenAI('gpt-4o-mini', prompt, apiKey);
-      
-      // Validate and process results
-      for (let i = 0; i < batch.length; i++) {
-        const result = batchResults[i];
-        const question = batch[i];
-        
-        if (!result || result.error || result.score === undefined) {
-          console.log(`🔄 Retrying question ${question.questionNumber} with GPT-4.1`);
-          
-          // Fallback to GPT-4.1 for individual question
-          const retryPrompt = createIndividualPromptWithStudentIdContext(question, studentId, examId);
-          const fallbackResults = await callOpenAI('gpt-4.1-2025-04-14', retryPrompt, apiKey);
-          
-          results.push(fallbackResults[0] || {
-            question_number: question.questionNumber,
-            score: 0,
-            feedback: 'Unable to grade this question',
-            error: true,
-            fallback_used: true,
-            student_id: studentId,
-            exam_id: examId
-          });
-        } else {
-          results.push({
-            ...result,
-            student_id: studentId,
-            exam_id: examId,
-            source_file: question.sourceFile,
-            batch_processed: true
-          });
-        }
-      }
-    } catch (error) {
-      console.error(`❌ Batch processing failed:`, error);
-      
-      // Process individually as emergency fallback
-      for (const question of batch) {
-        results.push({
-          question_number: question.questionNumber,
-          score: 0,
-          feedback: `Processing error: ${error.message}`,
-          error: true,
-          emergency_fallback: true,
-          student_id: studentId,
-          exam_id: examId
-        });
-      }
-    }
-  }
-  
-  return results;
-}
-
-function createBatchPromptWithStudentIdContext(questions: any[], studentId: string, examId: string): string {
-  const context = `
-Grading test for Student ID: ${studentId}
-Exam ID: ${examId}
-Number of questions: ${questions.length}
-
-Please grade the following questions and return a JSON array with exactly ${questions.length} objects.
-Each object should have: question_number, score (0-100), and feedback.
-
-Questions:
-${questions.map(q => `
-Question ${q.questionNumber}: ${q.questionText || 'Question text not available'}
-Student Answer: ${q.detectedAnswer?.selectedOption || 'No answer detected'}
-Answer Confidence: ${q.detectedAnswer?.confidence || 0}
-`).join('\n')}
-
-Return ONLY a valid JSON array, no additional text.`;
-
-  return context;
-}
-
-function createIndividualPromptWithStudentIdContext(question: any, studentId: string, examId: string): string {
-  return `
-Grading individual question for Student ID: ${studentId}
-Exam ID: ${examId}
-
-Question ${question.questionNumber}: ${question.questionText || 'Question text not available'}
-Student Answer: ${question.detectedAnswer?.selectedOption || 'No answer detected'}
-Answer Confidence: ${question.detectedAnswer?.confidence || 0}
-
-Please provide a grade (0-100) and feedback. Return as JSON array with one object containing: question_number, score, feedback.
-`;
-}
-
 async function callOpenAI(model: string, prompt: string, apiKey: string): Promise<any[]> {
   const payload = {
     model,
     messages: [
       {
         role: "system",
-        content: "You are an expert test grader. Always return valid JSON arrays with the exact number of objects requested. Each object must have question_number, score (0-100), and feedback."
+        content: "You are an expert test grader with skill matching capabilities. Always return valid JSON arrays with the exact number of objects requested. Each object must have question_number, score (0-100), feedback, and matched_skills (object with content and subject arrays)."
       },
       {
         role: "user",
@@ -808,4 +909,32 @@ function extractExamIdFromResults(results: any[]): string {
     }
   }
   return 'Unknown Exam';
+}
+
+function generateAiFeedback(results: any[], overallScore: number): string {
+  const correctAnswers = results.filter(r => r.score >= 80).length;
+  const totalQuestions = results.length;
+  
+  let feedback = `Performance Summary: ${correctAnswers}/${totalQuestions} questions correct (${overallScore}%).\n\n`;
+  
+  if (overallScore >= 90) {
+    feedback += "Excellent work! You demonstrated strong understanding across all areas.";
+  } else if (overallScore >= 80) {
+    feedback += "Good performance overall. Review the questions you missed to strengthen your understanding.";
+  } else if (overallScore >= 70) {
+    feedback += "Adequate performance. Focus on practicing similar problems to improve your skills.";
+  } else {
+    feedback += "Additional practice recommended. Consider reviewing the fundamental concepts covered in this test.";
+  }
+
+  // Add specific question feedback
+  const incorrectQuestions = results.filter(r => r.score < 80).slice(0, 3);
+  if (incorrectQuestions.length > 0) {
+    feedback += "\n\nAreas for improvement:\n";
+    incorrectQuestions.forEach(q => {
+      feedback += `• Question ${q.question_number}: ${q.feedback || 'Review this concept'}\n`;
+    });
+  }
+
+  return feedback;
 }

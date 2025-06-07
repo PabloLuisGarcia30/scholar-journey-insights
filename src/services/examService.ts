@@ -362,10 +362,11 @@ export const getStudentTestResults = async (studentId: string): Promise<TestResu
   try {
     console.log('Fetching test results for student:', studentId);
     
+    // Fix: Use student_id instead of active_student_id to match the database column
     const { data, error } = await supabase
       .from('test_results')
       .select('*')
-      .eq('active_student_id', studentId)
+      .eq('student_id', studentId)
       .order('created_at', { ascending: false });
 
     if (error) {
