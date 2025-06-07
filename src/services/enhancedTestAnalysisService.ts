@@ -1,3 +1,4 @@
+
 import { 
   ExtractTextRequest, 
   ExtractTextResponse, 
@@ -37,6 +38,11 @@ export interface BatchAnalysisResult extends EnhancedAnalyzeTestResponse {
     modelDistribution: Record<string, number>;
     costOptimizationSavings: number;
     qualityImprovements: number;
+  };
+  processingMetrics?: {
+    totalProcessingTime: number;
+    aiOptimizationEnabled: boolean;
+    batchProcessingUsed: boolean;
   };
 }
 
