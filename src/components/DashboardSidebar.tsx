@@ -31,6 +31,7 @@ const teacherTools = [
   { title: 'Upload Test', href: '/upload-test', icon: Upload },
   { title: 'Test Creator', href: '/test-creator', icon: TestTube },
   { title: 'Create Quiz Link', href: '/create-quiz-link', icon: Link },
+  { title: 'Student Lesson Tracker', href: '/student-lesson-tracker', icon: Calendar },
 ];
 
 export function DashboardSidebar({ activeView, onViewChange }: DashboardSidebarProps) {
