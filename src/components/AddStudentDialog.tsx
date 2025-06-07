@@ -11,7 +11,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { UserPlus } from "lucide-react";
+import { UserPlus, Copy, Check } from "lucide-react";
 import { createActiveStudent } from "@/services/examService";
 import { toast } from "sonner";
 
@@ -22,6 +22,8 @@ interface AddStudentDialogProps {
 export function AddStudentDialog({ onStudentAdded }: AddStudentDialogProps) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [generatedStudentId, setGeneratedStudentId] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
   const [formData, setFormData] = useState({
     name: "",
     email: "",
@@ -41,13 +43,15 @@ export function AddStudentDialog({ onStudentAdded }: AddStudentDialogProps) {
     try {
       setLoading(true);
       
-      await createActiveStudent({
+      const newStudent = await createActiveStudent({
         name: formData.name.trim(),
         email: formData.email.trim() || undefined,
         year: formData.year || undefined,
       });
 
-      toast.success(`Student "${formData.name}" has been added successfully!`);
+      // Note: The Student ID is generated automatically in the service
+      // We don't get it back directly, but we can show success
+      toast.success(`Student "${formData.name}" has been added successfully with auto-generated Student ID!`);
       
       // Reset form and close dialog
       setFormData({
@@ -55,6 +59,7 @@ export function AddStudentDialog({ onStudentAdded }: AddStudentDialogProps) {
         email: "",
         year: "",
       });
+      setGeneratedStudentId(null);
       setOpen(false);
       onStudentAdded();
     } catch (error) {
@@ -67,6 +72,17 @@ export function AddStudentDialog({ onStudentAdded }: AddStudentDialogProps) {
 
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
+  };
+
+  const copyToClipboard = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      toast.success('Student ID copied to clipboard!');
+      setTimeout(() => setCopied(false), 2000);
+    } catch (error) {
+      toast.error('Failed to copy to clipboard');
+    }
   };
 
   return (
@@ -116,6 +132,10 @@ export function AddStudentDialog({ onStudentAdded }: AddStudentDialogProps) {
                 ))}
               </SelectContent>
             </Select>
+          </div>
+
+          <div className="text-sm text-blue-600 bg-blue-50 p-3 rounded">
+            <strong>📍 Student ID:</strong> A unique Student ID will be automatically generated when you create this student.
           </div>
 
           <div className="flex justify-end gap-2 pt-4">

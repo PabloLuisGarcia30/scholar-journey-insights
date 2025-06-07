@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { StudentIdGenerationService } from "./studentIdGenerationService";
 import type { Question } from "@/utils/pdfGenerator";
 
 export interface ExamData {
@@ -276,8 +277,12 @@ export const createActiveStudent = async (studentData: {
   try {
     console.log('Creating active student:', studentData);
     
-    // First create or find the student in student_profiles
-    const studentProfile = await createOrFindStudent(studentData.name, studentData.email);
+    // Generate unique Student ID
+    const studentId = await StudentIdGenerationService.generateUniqueStudentId(studentData.year);
+    console.log('🆔 Generated Student ID:', studentId);
+    
+    // First create or find the student in student_profiles with the generated ID
+    const studentProfile = await createOrFindStudent(studentData.name, studentData.email, studentId);
     
     // Then create the active student record
     const { data, error } = await supabase
@@ -297,9 +302,10 @@ export const createActiveStudent = async (studentData: {
       throw new Error(`Failed to create active student: ${error.message}`);
     }
 
-    console.log('Successfully created student in both tables:', {
+    console.log('Successfully created student with auto-generated Student ID:', {
       activeStudentId: data.id,
-      studentProfileId: studentProfile.id
+      studentProfileId: studentProfile.id,
+      generatedStudentId: studentId
     });
 
     return data;
@@ -530,11 +536,15 @@ export const saveExamToDatabase = async (examData: ExamData, classId: string): P
   }
 };
 
-export const createOrFindStudent = async (studentName: string, email?: string): Promise<StudentProfile> => {
+export const createOrFindStudent = async (
+  studentName: string, 
+  email?: string, 
+  studentId?: string
+): Promise<StudentProfile> => {
   try {
-    console.log('Creating or finding student:', studentName);
+    console.log('Creating or finding student:', studentName, 'with ID:', studentId);
     
-    // Try to find existing student by name
+    // Try to find existing student by name first
     const { data: existingStudent, error: findError } = await supabase
       .from('student_profiles')
       .select('*')
@@ -547,15 +557,39 @@ export const createOrFindStudent = async (studentName: string, email?: string): 
 
     if (existingStudent) {
       console.log('Found existing student:', existingStudent.id);
+      
+      // If existing student doesn't have a Student ID but we have one, update it
+      if (!existingStudent.student_id && studentId) {
+        console.log('🆔 Updating existing student with Student ID:', studentId);
+        
+        const { data: updatedStudent, error: updateError } = await supabase
+          .from('student_profiles')
+          .update({ student_id: studentId })
+          .eq('id', existingStudent.id)
+          .select()
+          .single();
+
+        if (updateError) {
+          console.error('Error updating student with Student ID:', updateError);
+          throw new Error(`Failed to update student with Student ID: ${updateError.message}`);
+        }
+
+        return updatedStudent;
+      }
+      
       return existingStudent;
     }
 
-    // Create new student profile
+    // Generate Student ID if not provided
+    const finalStudentId = studentId || await StudentIdGenerationService.generateUniqueStudentId();
+
+    // Create new student profile with Student ID
     const { data: newStudent, error: createError } = await supabase
       .from('student_profiles')
       .insert({
         student_name: studentName,
-        email: email
+        email: email,
+        student_id: finalStudentId
       })
       .select()
       .single();
@@ -565,7 +599,7 @@ export const createOrFindStudent = async (studentName: string, email?: string): 
       throw new Error(`Failed to create student: ${createError.message}`);
     }
 
-    console.log('Created new student:', newStudent.id);
+    console.log('Created new student with Student ID:', newStudent.id, finalStudentId);
     return newStudent;
   } catch (error) {
     console.error('Error in createOrFindStudent:', error);
