@@ -23,6 +23,7 @@ import { EnterpriseFeatures } from "@/components/EnterpriseFeatures";
 import { ExamIdDetectionService, ExamIdDetectionResult } from "@/services/examIdDetectionService";
 import { MultiPageDetectionService, PageGroup } from "@/services/multiPageDetectionService";
 import { ExamSelectionModal } from "@/components/ExamSelectionModal";
+import { scalabilityMonitor } from "@/services/scalabilityMonitoringService";
 
 const UploadTest = () => {
   const [dragActive, setDragActive] = useState(false);
