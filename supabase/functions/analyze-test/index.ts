@@ -1,4 +1,3 @@
-
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
@@ -21,6 +20,11 @@ serve(async (req) => {
     if (!openaiApiKey) {
       throw new Error('OpenAI API key not configured');
     }
+
+    // Initialize Supabase client for answer key validation
+    const supabaseUrl = Deno.env.get('SUPABASE_URL');
+    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+    const supabase = createClient(supabaseUrl!, supabaseKey!);
 
     // Group files by student name and exam ID for batch processing
     const studentGroups = groupFilesByStudentAndExam(files);
@@ -62,6 +66,10 @@ serve(async (req) => {
       batchMetrics.questionsProcessed += groupQuestions.length;
     }
 
+    // Perform Answer Key Validation
+    console.log('🔍 Starting answer key validation...');
+    const answerKeyValidation = await validateWithAnswerKey(supabase, allResults, examId);
+
     // Calculate scores and generate analysis
     const overallScore = calculateOverallScore(allResults);
     const detailedAnalysis = generateDetailedAnalysis(allResults, studentName || 'Unknown Student');
@@ -77,6 +85,7 @@ serve(async (req) => {
       detailedAnalysis,
       studentName: studentName || extractStudentNameFromResults(allResults),
       examId: examId || extractExamIdFromResults(allResults),
+      answerKeyValidation,
       batchProcessingSummary: batchMetrics.batchProcessingUsed ? {
         enabled: true,
         totalBatches: batchMetrics.totalBatches,
@@ -89,11 +98,13 @@ serve(async (req) => {
         totalProcessingTime: processingTime,
         aiOptimizationEnabled: true,
         batchProcessingUsed: batchMetrics.batchProcessingUsed,
-        studentGroupingUsed: studentGroups.size > 1
+        studentGroupingUsed: studentGroups.size > 1,
+        answerKeyValidationEnabled: true
       }
     };
 
-    console.log(`✅ Analysis complete: ${allResults.length} questions, ${overallScore}% overall score`);
+    console.log(`✅ Analysis complete with validation: ${allResults.length} questions, ${overallScore}% overall score`);
+    console.log(`📋 Answer key validation: ${answerKeyValidation.status.toUpperCase()}`);
     
     return new Response(JSON.stringify(response), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -116,6 +127,109 @@ serve(async (req) => {
     );
   }
 });
+
+async function validateWithAnswerKey(supabase: any, results: any[], examId: string) {
+  console.log(`🔬 Validating results against answer key for exam: ${examId}`);
+  
+  try {
+    // Get expected question count from answer key
+    const { data: answerKeyData, error } = await supabase
+      .from('answer_keys')
+      .select('question_number')
+      .eq('exam_id', examId);
+
+    if (error) {
+      console.error('❌ Error fetching answer key:', error);
+      return {
+        status: 'no_answer_key',
+        expectedQuestions: 0,
+        actualQuestions: results.length,
+        completionPercentage: 0,
+        isComplete: false,
+        error: error.message
+      };
+    }
+
+    const expectedQuestions = answerKeyData?.length || 0;
+    const actualQuestions = results.length;
+    
+    if (expectedQuestions === 0) {
+      console.log('⚠️ No answer key found for validation');
+      return {
+        status: 'no_answer_key',
+        expectedQuestions: 0,
+        actualQuestions,
+        completionPercentage: 0,
+        isComplete: false,
+        message: 'No answer key found for this exam'
+      };
+    }
+
+    const completionPercentage = Math.round((actualQuestions / expectedQuestions) * 100);
+    const isComplete = actualQuestions === expectedQuestions;
+    
+    let status = 'incomplete';
+    if (isComplete) {
+      status = 'complete';
+    } else if (actualQuestions > 0 && completionPercentage >= 80) {
+      status = 'partial';
+    }
+
+    // Find missing questions if incomplete
+    let missingQuestions = [];
+    if (!isComplete && expectedQuestions > 0) {
+      const processedQuestions = new Set(
+        results.map(r => r.question_number).filter(q => q != null)
+      );
+      for (let i = 1; i <= expectedQuestions; i++) {
+        if (!processedQuestions.has(i)) {
+          missingQuestions.push(i);
+        }
+      }
+    }
+
+    const validation = {
+      status,
+      expectedQuestions,
+      actualQuestions,
+      completionPercentage,
+      isComplete,
+      missingQuestions: missingQuestions.length > 0 ? missingQuestions : undefined,
+      message: generateValidationMessage(status, actualQuestions, expectedQuestions, missingQuestions)
+    };
+
+    console.log(`📊 Answer key validation: ${status} (${actualQuestions}/${expectedQuestions} questions)`);
+    if (missingQuestions.length > 0) {
+      console.log(`❓ Missing questions: ${missingQuestions.join(', ')}`);
+    }
+
+    return validation;
+  } catch (error) {
+    console.error('❌ Answer key validation failed:', error);
+    return {
+      status: 'validation_error',
+      expectedQuestions: 0,
+      actualQuestions: results.length,
+      completionPercentage: 0,
+      isComplete: false,
+      error: error.message
+    };
+  }
+}
+
+function generateValidationMessage(status: string, actual: number, expected: number, missing: number[]): string {
+  switch (status) {
+    case 'complete':
+      return `✅ Complete: All ${expected} questions processed successfully`;
+    case 'partial':
+      return `⚠️ Partial: ${actual}/${expected} questions processed (${Math.round((actual/expected)*100)}%)`;
+    case 'incomplete':
+      const missingText = missing.length > 0 ? ` Missing: ${missing.join(', ')}` : '';
+      return `❌ Incomplete: ${actual}/${expected} questions processed.${missingText}`;
+    default:
+      return `Status: ${status}`;
+  }
+}
 
 function groupFilesByStudentAndExam(files: any[]): Map<string, any[]> {
   const groups = new Map<string, any[]>();

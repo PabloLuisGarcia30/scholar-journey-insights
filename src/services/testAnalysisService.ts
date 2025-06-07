@@ -166,6 +166,17 @@ export interface SkillScore {
   points_possible: number;
 }
 
+export interface AnswerKeyValidationResult {
+  status: 'complete' | 'partial' | 'incomplete' | 'no_answer_key' | 'validation_error';
+  expectedQuestions: number;
+  actualQuestions: number;
+  completionPercentage: number;
+  isComplete: boolean;
+  missingQuestions?: number[];
+  message?: string;
+  error?: string;
+}
+
 export interface QuestionBasedGradingSummary {
   total_questions: number;
   locally_graded: number;
@@ -200,6 +211,7 @@ export interface QuestionBasedGradingSummary {
 
 export interface EnhancedAnalyzeTestResponse extends AnalyzeTestResponse {
   question_based_grading_summary?: QuestionBasedGradingSummary;
+  answerKeyValidation?: AnswerKeyValidationResult;
   enhanced_question_analysis?: {
     total_questions_processed: number;
     questions_with_clear_answers: number;
@@ -288,7 +300,7 @@ export const extractTextFromFile = async (request: ExtractTextRequest): Promise<
 
 export const analyzeTest = async (request: AnalyzeTestRequest): Promise<EnhancedAnalyzeTestResponse> => {
   try {
-    console.log('Calling enhanced analyze-test function with AI model optimization for exam ID:', request.examId);
+    console.log('Calling enhanced analyze-test function with answer key validation for exam ID:', request.examId);
     
     // Determine detail level based on structured data presence and question-based features
     const hasStructuredData = request.files.some(file => file.structuredData);
@@ -315,7 +327,8 @@ export const analyzeTest = async (request: AnalyzeTestRequest): Promise<Enhanced
             'x-question-based-features': hasQuestionBasedFeatures ? 'true' : 'false',
             'x-skill-mapping-enabled': 'true',
             'x-score-validation-enabled': 'true',
-            'x-ai-model-optimization': 'true'
+            'x-ai-model-optimization': 'true',
+            'x-answer-key-validation': 'true'
           }
         });
 
@@ -333,7 +346,22 @@ export const analyzeTest = async (request: AnalyzeTestRequest): Promise<Enhanced
       }
     );
 
-    console.log('Enhanced analyze-test function with AI model optimization response:', result);
+    console.log('Enhanced analyze-test function with answer key validation response:', result);
+    
+    // Log answer key validation results
+    if (result.answerKeyValidation) {
+      const validation = result.answerKeyValidation;
+      console.log(`📋 Answer Key Validation Results:
+        - Status: ${validation.status.toUpperCase()}
+        - Questions: ${validation.actualQuestions}/${validation.expectedQuestions}
+        - Completion: ${validation.completionPercentage}%
+        - Complete: ${validation.isComplete}
+        - Message: ${validation.message || 'No message'}`);
+        
+      if (validation.missingQuestions && validation.missingQuestions.length > 0) {
+        console.log(`❓ Missing Questions: ${validation.missingQuestions.join(', ')}`);
+      }
+    }
     
     // Log enhanced performance metrics including AI model optimization
     if (result.question_based_grading_summary) {
@@ -398,7 +426,7 @@ export const analyzeTest = async (request: AnalyzeTestRequest): Promise<Enhanced
     
     return result;
   } catch (error) {
-    console.error('Error calling enhanced analyze-test function with AI model optimization:', error);
+    console.error('Error calling enhanced analyze-test function with answer key validation:', error);
     
     if (error instanceof RetryableError) {
       throw new Error(`Failed to analyze test after multiple attempts: ${error.message}`);
@@ -467,7 +495,7 @@ export const getExamSkillMappingStatus = async (examId: string) => {
   }
 };
 
-// Enhanced service health monitoring with AI model optimization
+// Enhanced service health monitoring with answer key validation
 export const getEnhancedServiceHealthStatus = () => {
   return {
     googleVision: googleVisionCircuitBreaker.getState(),
@@ -484,7 +512,8 @@ export const getEnhancedServiceHealthStatus = () => {
       mathematicalConsistency: true,
       aiModelOptimization: true,
       costOptimization: true,
-      intelligentModelRouting: true
+      intelligentModelRouting: true,
+      answerKeyValidation: true
     }
   };
 };
