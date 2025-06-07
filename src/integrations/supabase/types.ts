@@ -315,6 +315,51 @@ export type Database = {
           },
         ]
       }
+      jobs: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          errors: Json
+          files: Json
+          id: string
+          max_retries: number
+          priority: string
+          progress: number
+          results: Json
+          retry_count: number
+          started_at: string | null
+          status: string
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          errors?: Json
+          files: Json
+          id: string
+          max_retries?: number
+          priority?: string
+          progress?: number
+          results?: Json
+          retry_count?: number
+          started_at?: string | null
+          status?: string
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          errors?: Json
+          files?: Json
+          id?: string
+          max_retries?: number
+          priority?: string
+          progress?: number
+          results?: Json
+          retry_count?: number
+          started_at?: string | null
+          status?: string
+        }
+        Relationships: []
+      }
       student_links: {
         Row: {
           class_id: string | null
