@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -7,9 +6,11 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { Copy, Link, Calendar, Users, ExternalLink } from 'lucide-react';
+import { Copy, Link, Calendar, Users, ExternalLink, Upload, Info } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { getAllActiveClasses, getExamByExamId, type ActiveClass, type StoredExam } from '@/services/examService';
+import { ShareableLinkCard } from '@/components/ShareableLinkCard';
+import { APP_URLS, APP_CONFIG, MESSAGES } from '@/config/constants';
 
 interface QuizLink {
   id: string;
@@ -166,7 +167,7 @@ export default function CreateQuizLink() {
 
   return (
     <div className="min-h-screen bg-gray-50 py-8">
-      <div className="container mx-auto px-4 max-w-4xl">
+      <div className="container mx-auto px-4 max-w-6xl">
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">
             Create Online Test or Quiz
@@ -176,14 +177,44 @@ export default function CreateQuizLink() {
           </p>
         </div>
 
+        {/* Student Upload Portal Section */}
+        <div className="mb-8">
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
+            <div className="flex items-start gap-4">
+              <Info className="h-6 w-6 text-blue-600 mt-1 flex-shrink-0" />
+              <div className="flex-1">
+                <h3 className="text-lg font-semibold text-blue-900 mb-2">
+                  General Student Upload Portal
+                </h3>
+                <p className="text-blue-700 mb-4">
+                  For general test uploads without restrictions, share the student upload portal. 
+                  Students can upload any test paper for automatic grading.
+                </p>
+                <div className="max-w-md">
+                  <ShareableLinkCard
+                    title={APP_CONFIG.STUDENT_PORTAL_NAME}
+                    description="No time limits or attempt restrictions"
+                    url={APP_URLS.STUDENT_UPLOAD_URL}
+                    icon={<Upload className="h-4 w-4" />}
+                    showQrCode={false}
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           {/* Quiz Creation Form */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Link className="h-5 w-5" />
-                Generate Quiz Link
+                Generate Custom Quiz Link
               </CardTitle>
+              <p className="text-sm text-gray-600">
+                Create time-limited quiz links with attempt restrictions
+              </p>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
@@ -281,7 +312,7 @@ export default function CreateQuizLink() {
                 className="w-full"
                 size="lg"
               >
-                {isGenerating ? "Generating..." : "Generate Quiz Link"}
+                {isGenerating ? "Generating..." : "Generate Custom Quiz Link"}
               </Button>
             </CardContent>
           </Card>
@@ -291,15 +322,15 @@ export default function CreateQuizLink() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Users className="h-5 w-5" />
-                Generated Quiz Links
+                Generated Custom Quiz Links
               </CardTitle>
             </CardHeader>
             <CardContent>
               {generatedLinks.length === 0 ? (
                 <div className="text-center py-8 text-gray-500">
                   <Link className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                  <p>No quiz links generated yet</p>
-                  <p className="text-sm">Create your first quiz link to get started</p>
+                  <p>No custom quiz links generated yet</p>
+                  <p className="text-sm">Create your first custom quiz link to get started</p>
                 </div>
               ) : (
                 <div className="space-y-4">

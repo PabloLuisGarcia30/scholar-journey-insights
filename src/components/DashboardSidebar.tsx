@@ -1,5 +1,5 @@
 
-import { BookOpen, ChartBar, GraduationCap, Calendar, Users, Upload, TestTube, Link } from "lucide-react";
+import { BookOpen, ChartBar, GraduationCap, Calendar, Users, Upload, TestTube, Link, Globe } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -15,8 +15,8 @@ import {
 import { Link as RouterLink } from "react-router-dom";
 
 interface DashboardSidebarProps {
-  activeView: 'dashboard' | 'search' | 'classes' | 'analytics';
-  onViewChange: (view: 'dashboard' | 'search' | 'classes' | 'analytics') => void;
+  activeView: 'dashboard' | 'search' | 'classes' | 'analytics' | 'portals';
+  onViewChange: (view: 'dashboard' | 'search' | 'classes' | 'analytics' | 'portals') => void;
 }
 
 const navigationItems = [
@@ -24,12 +24,13 @@ const navigationItems = [
   { id: 'search', title: 'Students', icon: GraduationCap },
   { id: 'classes', title: 'Classes', icon: Users },
   { id: 'analytics', title: 'Analytics', icon: BookOpen },
+  { id: 'portals', title: 'Student Portals', icon: Globe },
 ];
 
-const externalLinks = [
+const teacherTools = [
   { title: 'Upload Test', href: '/upload-test', icon: Upload },
   { title: 'Test Creator', href: '/test-creator', icon: TestTube },
-  { title: 'Create an Online Test or Quiz', href: '/create-quiz-link', icon: Link },
+  { title: 'Create Quiz Link', href: '/create-quiz-link', icon: Link },
 ];
 
 export function DashboardSidebar({ activeView, onViewChange }: DashboardSidebarProps) {
@@ -69,10 +70,10 @@ export function DashboardSidebar({ activeView, onViewChange }: DashboardSidebarP
         </SidebarGroup>
 
         <SidebarGroup>
-          <SidebarGroupLabel>Tools</SidebarGroupLabel>
+          <SidebarGroupLabel>Teacher Tools</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {externalLinks.map((link) => (
+              {teacherTools.map((link) => (
                 <SidebarMenuItem key={link.title}>
                   <SidebarMenuButton asChild className="w-full hover:bg-gray-100">
                     <RouterLink to={link.href}>
