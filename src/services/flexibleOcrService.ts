@@ -244,9 +244,14 @@ export class FlexibleOcrService extends EnhancedSmartOcrService {
           questionTypeDistribution: {
             multiple_choice: multipleChoiceCount,
             text_based: textBasedCount
-          }
+          },
+          complexity: multipleChoiceCount > textBasedCount ? 'medium' : 'high',
+          estimatedProcessingTime: answerKeys.length * 2000
         },
-        recommendedExtractionMethods: ['roboflow_bubbles', 'google_vision_text'],
+        recommendedExtractionMethods: {
+          'bubble_detection': 'roboflow_bubbles',
+          'text_extraction': 'google_vision_text'
+        },
         detectedElements: [],
         alignmentOffset: { x: 0, y: 0 },
         rotationAngle: 0,
@@ -282,9 +287,14 @@ export class FlexibleOcrService extends EnhancedSmartOcrService {
         questionTypeDistribution: {
           multiple_choice: 0,
           text_based: 0
-        }
+        },
+        complexity: 'medium',
+        estimatedProcessingTime: 5000
       },
-      recommendedExtractionMethods: ['roboflow_bubbles', 'google_vision_text'],
+      recommendedExtractionMethods: {
+        'bubble_detection': 'roboflow_bubbles',
+        'text_extraction': 'google_vision_text'
+      },
       detectedElements: [],
       alignmentOffset: { x: 0, y: 0 },
       rotationAngle: 0,
@@ -321,7 +331,7 @@ export class FlexibleOcrService extends EnhancedSmartOcrService {
     }
     
     // Use database information to guide processing
-    const template = templateMatch.template as DatabaseTemplate;
+    const template = templateMatch.template as unknown as DatabaseTemplate;
     const questionMap = template?.questionMap || {};
     
     for (const [questionNumberStr, questionInfo] of Object.entries(questionMap)) {
