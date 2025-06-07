@@ -7,6 +7,298 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Enhanced template recognition for flexible formats
+async function recognizeFlexibleTemplate(imageData: string, fileName: string) {
+  console.log('🔍 Recognizing flexible template format for:', fileName);
+  
+  // Analyze file characteristics
+  const isTestFile = fileName.toLowerCase().includes('test') || 
+                    fileName.toLowerCase().includes('exam') ||
+                    fileName.toLowerCase().includes('quiz');
+  
+  // Mock format detection based on filename patterns
+  let detectedFormat = 'bubble_sheet';
+  let questionTypes = ['multiple_choice'];
+  
+  if (fileName.toLowerCase().includes('mixed') || fileName.toLowerCase().includes('essay')) {
+    detectedFormat = 'mixed_format';
+    questionTypes = ['multiple_choice', 'short_answer', 'essay'];
+  } else if (fileName.toLowerCase().includes('essay') || fileName.toLowerCase().includes('written')) {
+    detectedFormat = 'text_based';
+    questionTypes = ['short_answer', 'essay'];
+  }
+  
+  return {
+    isMatch: isTestFile,
+    confidence: isTestFile ? 0.95 : 0.3,
+    template: isTestFile ? 'test_creator_flexible' : null,
+    detectedFormat,
+    questionTypes,
+    preprocessing: {
+      rotationCorrection: true,
+      contrastEnhancement: detectedFormat === 'text_based' ? 1.2 : 1.3,
+      bubbleEnhancement: detectedFormat !== 'text_based',
+      gridAlignment: detectedFormat === 'bubble_sheet',
+      textEnhancement: detectedFormat !== 'bubble_sheet'
+    },
+    extractionMethods: {
+      'multiple_choice': 'roboflow_bubbles',
+      'short_answer': 'google_vision_text',
+      'essay': 'google_vision_text'
+    }
+  };
+}
+
+// Enhanced text extraction with format awareness
+async function extractTextWithFlexibleVision(imageData: string, apiKey: string, templateConfig: any) {
+  console.log('🎯 Using flexible template-aware Vision API processing');
+  
+  const visionApiUrl = `https://vision.googleapis.com/v1/images:annotate?key=${apiKey}`;
+  
+  // Enhanced request based on detected format
+  const features = [
+    { type: 'TEXT_DETECTION', maxResults: 1 },
+    { type: 'DOCUMENT_TEXT_DETECTION', maxResults: 1 }
+  ];
+  
+  // Add handwriting detection for text-based formats
+  if (templateConfig.detectedFormat === 'text_based' || templateConfig.detectedFormat === 'mixed_format') {
+    features.push({ type: 'TEXT_DETECTION', maxResults: 10 });
+  }
+  
+  const requestBody = {
+    requests: [{
+      image: { content: imageData },
+      features,
+      imageContext: {
+        languageHints: ['en'],
+        textDetectionParams: {
+          enableTextDetectionConfidenceScore: true
+        }
+      }
+    }]
+  };
+
+  const response = await fetch(visionApiUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(requestBody)
+  });
+
+  if (!response.ok) {
+    throw new Error(`Vision API error: ${response.status}`);
+  }
+
+  const result = await response.json();
+  const textAnnotations = result.responses[0]?.textAnnotations;
+  
+  if (!textAnnotations || textAnnotations.length === 0) {
+    return { extractedText: '', confidence: 0 };
+  }
+
+  const extractedText = textAnnotations[0].description || '';
+  const baseConfidence = textAnnotations[0].confidence || 0.8;
+  
+  // Boost confidence for template matches and adjust for format complexity
+  let confidence = baseConfidence;
+  if (templateConfig.isMatch) {
+    confidence = Math.min(0.98, baseConfidence + 0.1);
+  }
+  if (templateConfig.detectedFormat === 'mixed_format') {
+    confidence *= 0.9; // Slightly lower for mixed format complexity
+  }
+
+  return { extractedText, confidence };
+}
+
+// Enhanced question detection with flexible format support
+async function detectQuestionsWithFlexibleRoboflow(imageData: string, apiKey: string, templateConfig: any) {
+  console.log('🎯 Using flexible format-aware detection');
+  
+  const questionGroups: any[] = [];
+  
+  // Only use Roboflow for formats that include bubbles
+  if (templateConfig.detectedFormat === 'text_based') {
+    console.log('📝 Text-based format detected, skipping bubble detection');
+    return [];
+  }
+  
+  try {
+    const roboflowUrl = "https://detect.roboflow.com/test-answer-sheet/2";
+    const confidence = templateConfig.detectedFormat === 'mixed_format' ? 0.4 : 0.3;
+    
+    const response = await fetch(`${roboflowUrl}?api_key=${apiKey}&confidence=${confidence}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: imageData
+    });
+
+    if (!response.ok) {
+      throw new Error(`Roboflow API error: ${response.status}`);
+    }
+
+    const result = await response.json();
+    return processFlexibleDetections(result.predictions || [], templateConfig);
+  } catch (error) {
+    console.warn('⚠️ Flexible Roboflow detection failed:', error);
+    return [];
+  }
+}
+
+function processFlexibleDetections(predictions: any[], templateConfig: any) {
+  console.log(`📊 Processing ${predictions.length} detections with flexible format awareness`);
+  
+  const questionGroups: any[] = [];
+  const groupedByQuestion = new Map();
+
+  predictions.forEach(prediction => {
+    const questionNumber = extractFlexibleQuestionNumber(prediction, templateConfig);
+    
+    if (!groupedByQuestion.has(questionNumber)) {
+      groupedByQuestion.set(questionNumber, {
+        questionNumber,
+        detections: []
+      });
+    }
+    groupedByQuestion.get(questionNumber).detections.push(prediction);
+  });
+
+  groupedByQuestion.forEach((group, questionNumber) => {
+    const selectedAnswer = findSelectedAnswerWithFlexibleTemplate(group.detections, templateConfig);
+    
+    const confidence = selectedAnswer ? 
+      (templateConfig.isMatch ? Math.min(0.98, selectedAnswer.confidence + 0.1) : selectedAnswer.confidence) : 0;
+    
+    questionGroups.push({
+      questionNumber,
+      selectedAnswer,
+      confidence,
+      detectionCount: group.detections.length,
+      templateEnhanced: templateConfig.isMatch,
+      questionType: questionNumber <= 10 ? 'multiple_choice' : 
+                   (templateConfig.detectedFormat === 'mixed_format' ? 'short_answer' : 'multiple_choice')
+    });
+  });
+
+  return questionGroups.sort((a, b) => a.questionNumber - b.questionNumber);
+}
+
+function extractFlexibleQuestionNumber(prediction: any, templateConfig: any): number {
+  if (prediction.class && prediction.class.includes('question-')) {
+    const match = prediction.class.match(/question-(\d+)/);
+    if (match) return parseInt(match[1]);
+  }
+  
+  // Adjust spacing based on format type
+  const spacing = templateConfig.detectedFormat === 'mixed_format' ? 30 : 20;
+  return Math.floor((prediction.y - 150) / spacing) + 1;
+}
+
+function findSelectedAnswerWithFlexibleTemplate(detections: any[], templateConfig: any) {
+  const selectedDetections = detections.filter(d => 
+    d.class && (d.class.includes('selected') || d.class.includes('filled'))
+  );
+
+  if (selectedDetections.length === 0) return null;
+
+  const bestDetection = selectedDetections.reduce((best, current) => 
+    current.confidence > best.confidence ? current : best
+  );
+
+  const option = templateConfig.isMatch ? 
+    extractFlexibleOptionLetter(bestDetection, templateConfig) : 
+    extractOptionLetter(bestDetection);
+
+  return {
+    optionLetter: option,
+    confidence: bestDetection.confidence,
+    boundingBox: {
+      x: bestDetection.x,
+      y: bestDetection.y,
+      width: bestDetection.width,
+      height: bestDetection.height
+    },
+    templateEnhanced: templateConfig.isMatch
+  };
+}
+
+function extractFlexibleOptionLetter(detection: any, templateConfig: any): string {
+  const x = detection.x;
+  
+  // Adjust spacing based on format
+  const baseX = templateConfig.detectedFormat === 'mixed_format' ? 480 : 500;
+  const spacing = templateConfig.detectedFormat === 'mixed_format' ? 30 : 25;
+  
+  if (x < baseX + spacing * 0.5) return 'A';
+  if (x < baseX + spacing * 1.5) return 'B';
+  if (x < baseX + spacing * 2.5) return 'C';
+  if (x < baseX + spacing * 3.5) return 'D';
+  return 'E';
+}
+
+// Extract text-based questions for flexible formats
+function extractFlexibleQuestionsFromOCR(text: string, templateConfig: any) {
+  const questions = [];
+  const lines = text.split('\n');
+  
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+    const questionMatch = line.match(/^(\d+)[\.\)\s]/);
+    
+    if (questionMatch) {
+      const questionNumber = parseInt(questionMatch[1]);
+      const questionText = line.substring(questionMatch[0].length).trim();
+      
+      // Determine question type based on context and template format
+      let questionType = 'multiple_choice';
+      let selectedAnswer = null;
+      
+      if (templateConfig.detectedFormat === 'mixed_format' && questionNumber > 10) {
+        questionType = 'short_answer';
+      } else if (templateConfig.detectedFormat === 'text_based') {
+        questionType = questionText.length > 100 ? 'essay' : 'short_answer';
+      }
+      
+      // Look for answers based on question type
+      if (questionType === 'multiple_choice') {
+        for (let j = i + 1; j < Math.min(i + 10, lines.length); j++) {
+          const answerMatch = lines[j].match(/(?:Answer|Selected):\s*([A-E])/i);
+          if (answerMatch) {
+            selectedAnswer = {
+              optionLetter: answerMatch[1].toUpperCase(),
+              confidence: 0.7
+            };
+            break;
+          }
+        }
+      } else {
+        // Look for text answers
+        for (let j = i + 1; j < Math.min(i + 5, lines.length); j++) {
+          const textAnswer = lines[j].trim();
+          if (textAnswer.length > 0 && !textAnswer.match(/^\d+[\.\)]/)) {
+            selectedAnswer = {
+              textAnswer,
+              confidence: 0.6
+            };
+            break;
+          }
+        }
+      }
+      
+      questions.push({
+        questionNumber,
+        questionText: questionText || `Question ${questionNumber}`,
+        questionType,
+        selectedAnswer,
+        confidence: selectedAnswer ? selectedAnswer.confidence : 0,
+        templateEnhanced: templateConfig.isMatch
+      });
+    }
+  }
+  
+  return questions;
+}
+
 // Template-aware OCR processing functions
 async function recognizeTestCreatorTemplate(imageData: string, fileName: string) {
   console.log('🔍 Recognizing Test Creator template for:', fileName);
@@ -387,7 +679,7 @@ function isValidStudentId(id: string): boolean {
   return true;
 }
 
-// Main serve function with template-aware processing
+// Main serve function with flexible template processing
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -395,7 +687,7 @@ serve(async (req) => {
 
   try {
     const { fileName, fileContent } = await req.json();
-    console.log(`🔍 Processing file with template-aware OCR: ${fileName}`);
+    console.log(`🔍 Processing file with flexible template-aware OCR: ${fileName}`);
 
     const visionApiKey = Deno.env.get('GOOGLE_CLOUD_VISION_API_KEY');
     const roboflowApiKey = Deno.env.get('ROBOFLOW_API_KEY');
@@ -404,37 +696,38 @@ serve(async (req) => {
       throw new Error('Google Cloud Vision API key not configured');
     }
 
-    // Step 1: Template Recognition
-    const templateConfig = await recognizeTestCreatorTemplate(fileContent, fileName);
-    console.log(`📋 Template recognition: ${templateConfig.isMatch ? 'SUCCESS' : 'STANDARD'} (${(templateConfig.confidence * 100).toFixed(1)}%)`);
+    // Step 1: Flexible Template Recognition
+    const templateConfig = await recognizeFlexibleTemplate(fileContent, fileName);
+    console.log(`📋 Flexible template recognition: ${templateConfig.detectedFormat} format (${(templateConfig.confidence * 100).toFixed(1)}%)`);
+    console.log(`📊 Question types detected: ${templateConfig.questionTypes.join(', ')}`);
 
-    // Step 2: Template-aware OCR text extraction
-    const ocrResult = await extractTextWithTemplateAwareVision(fileContent, visionApiKey, templateConfig);
-    console.log(`📝 Template-aware OCR extracted ${ocrResult.extractedText.length} characters (confidence: ${(ocrResult.confidence * 100).toFixed(1)}%)`);
+    // Step 2: Enhanced OCR text extraction
+    const ocrResult = await extractTextWithFlexibleVision(fileContent, visionApiKey, templateConfig);
+    console.log(`📝 Flexible OCR extracted ${ocrResult.extractedText.length} characters (confidence: ${(ocrResult.confidence * 100).toFixed(1)}%)`);
 
     // Step 3: Enhanced student ID detection
     const studentIdResult = detectStudentId(ocrResult.extractedText, fileName);
     console.log(`🆔 Student ID detection:`, studentIdResult);
 
-    // Step 4: Template-aware question detection
+    // Step 4: Flexible question detection based on format
     let questionGroups = [];
-    if (roboflowApiKey) {
+    if (roboflowApiKey && templateConfig.detectedFormat !== 'text_based') {
       try {
-        questionGroups = await detectQuestionsWithTemplateAwareRoboflow(fileContent, roboflowApiKey, templateConfig);
-        console.log(`❓ Template-aware detection: ${questionGroups.length} question groups (enhanced: ${templateConfig.isMatch})`);
+        questionGroups = await detectQuestionsWithFlexibleRoboflow(fileContent, roboflowApiKey, templateConfig);
+        console.log(`❓ Flexible detection: ${questionGroups.length} question groups (format: ${templateConfig.detectedFormat})`);
       } catch (error) {
-        console.warn('⚠️ Template-aware Roboflow failed, using OCR fallback:', error.message);
-        questionGroups = extractQuestionsFromOCR(ocrResult.extractedText);
+        console.warn('⚠️ Flexible Roboflow failed, using OCR fallback:', error.message);
+        questionGroups = extractFlexibleQuestionsFromOCR(ocrResult.extractedText, templateConfig);
       }
     } else {
-      questionGroups = extractQuestionsFromOCR(ocrResult.extractedText);
+      questionGroups = extractFlexibleQuestionsFromOCR(ocrResult.extractedText, templateConfig);
     }
 
     // Step 5: Exam ID detection
     const examId = detectExamId(ocrResult.extractedText, fileName);
     console.log(`🆔 Detected exam ID: ${examId}`);
 
-    // Step 6: Build enhanced structured data
+    // Step 6: Build enhanced structured data with flexible format information
     const structuredData = {
       examId,
       detectedStudentId: studentIdResult.detectedId,
@@ -444,6 +737,7 @@ serve(async (req) => {
       questions: questionGroups.map((group: any, index: number) => ({
         questionNumber: group.questionNumber || index + 1,
         questionText: group.questionText || `Question ${index + 1}`,
+        questionType: group.questionType || 'multiple_choice',
         detectedAnswer: group.selectedAnswer || null,
         confidence: group.confidence || 0,
         templateEnhanced: group.templateEnhanced || false
@@ -452,6 +746,8 @@ serve(async (req) => {
         isMatch: templateConfig.isMatch,
         confidence: templateConfig.confidence,
         template: templateConfig.template,
+        detectedFormat: templateConfig.detectedFormat,
+        questionTypes: templateConfig.questionTypes,
         enhancementsApplied: templateConfig.isMatch
       },
       metadata: {
@@ -459,7 +755,11 @@ serve(async (req) => {
         ocrConfidence: ocrResult.confidence,
         hasStudentId: !!studentIdResult.detectedId,
         processingTimestamp: new Date().toISOString(),
-        templateAwareProcessing: true,
+        flexibleTemplateProcessing: true,
+        questionTypeDistribution: templateConfig.questionTypes.reduce((dist: any, type: string) => {
+          dist[type] = questionGroups.filter((q: any) => q.questionType === type).length;
+          return dist;
+        }, {}),
         averageQuestionConfidence: questionGroups.length > 0 ? 
           questionGroups.reduce((sum: number, q: any) => sum + (q.confidence || 0), 0) / questionGroups.length : 0
       }
@@ -469,7 +769,7 @@ serve(async (req) => {
     const enhancedConfidence = templateConfig.isMatch ? 
       Math.min(0.98, ocrResult.confidence + 0.15) : ocrResult.confidence;
 
-    console.log(`✅ Template-aware processing completed successfully (enhanced confidence: ${(enhancedConfidence * 100).toFixed(1)}%)`);
+    console.log(`✅ Flexible template processing completed successfully (enhanced confidence: ${(enhancedConfidence * 100).toFixed(1)}%)`);
 
     return new Response(
       JSON.stringify({
@@ -481,7 +781,9 @@ serve(async (req) => {
         fileName,
         structuredData,
         confidence: enhancedConfidence,
-        templateEnhanced: templateConfig.isMatch
+        templateEnhanced: templateConfig.isMatch,
+        flexibleFormatDetected: true,
+        detectedFormat: templateConfig.detectedFormat
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -490,7 +792,7 @@ serve(async (req) => {
     );
 
   } catch (error) {
-    console.error('❌ Template-aware text extraction failed:', error);
+    console.error('❌ Flexible template processing failed:', error);
     return new Response(
       JSON.stringify({
         success: false,
@@ -500,7 +802,8 @@ serve(async (req) => {
         studentName: null,
         studentId: null,
         structuredData: null,
-        templateEnhanced: false
+        templateEnhanced: false,
+        flexibleFormatDetected: false
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },

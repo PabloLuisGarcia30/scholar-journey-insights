@@ -10,11 +10,13 @@ import { BatchProcessingOptimizer, BatchGroup, BatchProcessingResult } from './b
 import { BatchAwareModelRouter, BatchRoutingDecision } from './batchAwareModelRouter';
 import { ProgressiveFallbackHandler, FallbackResult } from './progressiveFallbackHandler';
 import { QuestionComplexityAnalyzer } from './questionComplexityAnalyzer';
+import { FlexibleOcrService, FlexibleProcessingResult } from './flexibleOcrService';
 
 export interface EnhancedAnalysisConfig {
   enableBatchProcessing: boolean;
   enableProgressiveFallback: boolean;
   enableCostOptimization: boolean;
+  enableFlexibleTemplates: boolean;
   maxBatchSize: number;
   qualityThreshold: number;
   validationMode: boolean;
@@ -37,11 +39,14 @@ export interface BatchAnalysisResult extends AnalyzeTestResponse {
     modelDistribution: Record<string, number>;
     costOptimizationSavings: number;
     qualityImprovements: number;
+    flexibleTemplatesUsed?: boolean;
+    questionTypeDistribution?: Record<string, number>;
   };
   processingMetrics?: {
     totalProcessingTime: number;
     aiOptimizationEnabled: boolean;
     batchProcessingUsed: boolean;
+    flexibleTemplateProcessing?: boolean;
   };
 }
 
@@ -49,6 +54,7 @@ const DEFAULT_CONFIG: EnhancedAnalysisConfig = {
   enableBatchProcessing: true,
   enableProgressiveFallback: true,
   enableCostOptimization: true,
+  enableFlexibleTemplates: true,
   maxBatchSize: 6,
   qualityThreshold: 75,
   validationMode: false
@@ -78,7 +84,76 @@ export class EnhancedTestAnalysisService {
       qualityThreshold: this.config.qualityThreshold
     });
 
-    console.log('🚀 EnhancedTestAnalysisService initialized with config:', this.config);
+    console.log('🚀 EnhancedTestAnalysisService initialized with flexible templates:', this.config);
+  }
+
+  async analyzeTestWithFlexibleProcessing(request: AnalyzeTestRequest): Promise<BatchAnalysisResult> {
+    console.log('🔬 Enhanced analysis with flexible template processing');
+    const startTime = Date.now();
+
+    try {
+      // Check if flexible template processing is enabled
+      if (!this.config.enableFlexibleTemplates) {
+        return this.analyzeTestWithBatchProcessing(request);
+      }
+
+      // Extract and analyze questions with flexible templates
+      const flexibleResults = await this.processWithFlexibleTemplates(request);
+      
+      if (flexibleResults.length === 0) {
+        console.log('📝 No flexible results, falling back to standard processing');
+        return this.analyzeTestWithBatchProcessing(request);
+      }
+
+      console.log(`📊 Flexible processing completed: ${flexibleResults.length} files processed`);
+
+      // Create enhanced response with flexible template data
+      const enhancedResponse = await this.createFlexibleResponse(
+        request, 
+        flexibleResults,
+        Date.now() - startTime
+      );
+
+      console.log('✅ Flexible enhanced analysis completed successfully');
+      return enhancedResponse;
+
+    } catch (error) {
+      console.error('❌ Flexible enhanced analysis failed, falling back:', error);
+      return this.analyzeTestWithBatchProcessing(request);
+    }
+  }
+
+  private async processWithFlexibleTemplates(
+    request: AnalyzeTestRequest
+  ): Promise<FlexibleProcessingResult[]> {
+    const results: FlexibleProcessingResult[] = [];
+
+    for (const file of request.files) {
+      try {
+        console.log(`🔧 Processing ${file.fileName} with flexible templates`);
+        
+        // Create a mock File object for processing
+        const mockFile = new File(
+          [new Blob(['mock'])], 
+          file.fileName, 
+          { type: 'image/jpeg' }
+        );
+
+        // Process with flexible OCR service
+        const flexibleResult = await FlexibleOcrService.processWithFlexibleTemplate(
+          mockFile
+        );
+
+        results.push(flexibleResult);
+        console.log(`✅ Flexible processing completed for ${file.fileName}`);
+
+      } catch (error) {
+        console.error(`❌ Flexible processing failed for ${file.fileName}:`, error);
+        // Continue with other files
+      }
+    }
+
+    return results;
   }
 
   async analyzeTestWithBatchProcessing(request: AnalyzeTestRequest): Promise<BatchAnalysisResult> {
@@ -126,6 +201,73 @@ export class EnhancedTestAnalysisService {
       const baseResponse = await analyzeTest(request);
       return baseResponse as BatchAnalysisResult;
     }
+  }
+
+  private async createFlexibleResponse(
+    request: AnalyzeTestRequest,
+    flexibleResults: FlexibleProcessingResult[],
+    processingTime: number
+  ): Promise<BatchAnalysisResult> {
+    // Create base response using standard analysis
+    const baseResponse = await analyzeTest(request);
+    
+    // Calculate flexible template metrics
+    const questionTypeDistribution = this.calculateQuestionTypeDistribution(flexibleResults);
+    const avgQualityScore = flexibleResults.reduce((sum, r) => sum + r.qualityScore, 0) / flexibleResults.length;
+    
+    return {
+      ...baseResponse,
+      enhancedMetrics: {
+        batchProcessingEnabled: this.config.enableBatchProcessing,
+        progressiveFallbacksUsed: [],
+        modelDistribution: this.calculateFlexibleModelDistribution(flexibleResults),
+        costOptimizationSavings: 0,
+        qualityImprovements: Math.floor(avgQualityScore * 100),
+        flexibleTemplatesUsed: true,
+        questionTypeDistribution
+      },
+      processingMetrics: {
+        totalProcessingTime: processingTime,
+        aiOptimizationEnabled: true,
+        batchProcessingUsed: false,
+        flexibleTemplateProcessing: true
+      }
+    };
+  }
+
+  private calculateQuestionTypeDistribution(
+    results: FlexibleProcessingResult[]
+  ): Record<string, number> {
+    const distribution: Record<string, number> = {};
+    let totalQuestions = 0;
+
+    results.forEach(result => {
+      result.questionTypeResults.forEach(q => {
+        distribution[q.questionType] = (distribution[q.questionType] || 0) + 1;
+        totalQuestions++;
+      });
+    });
+
+    // Convert to percentages
+    Object.keys(distribution).forEach(type => {
+      distribution[type] = distribution[type] / totalQuestions;
+    });
+
+    return distribution;
+  }
+
+  private calculateFlexibleModelDistribution(
+    results: FlexibleProcessingResult[]
+  ): Record<string, number> {
+    const distribution: Record<string, number> = {};
+
+    results.forEach(result => {
+      Object.entries(result.processingMethodsUsed).forEach(([method, count]) => {
+        distribution[method] = (distribution[method] || 0) + count;
+      });
+    });
+
+    return distribution;
   }
 
   private extractQuestionsFromRequest(request: AnalyzeTestRequest): any[] {
@@ -329,13 +471,15 @@ export class EnhancedTestAnalysisService {
     return metrics.reduce((sum, metric) => sum + (metric.qualityScore > 80 ? 1 : 0), 0);
   }
 
-  // Backward compatibility methods
+  // Public API methods
   async extractTextFromFile(request: ExtractTextRequest): Promise<ExtractTextResponse> {
     return extractTextFromFile(request);
   }
 
   async analyzeTest(request: AnalyzeTestRequest): Promise<BatchAnalysisResult> {
-    if (this.config.enableBatchProcessing) {
+    if (this.config.enableFlexibleTemplates) {
+      return this.analyzeTestWithFlexibleProcessing(request);
+    } else if (this.config.enableBatchProcessing) {
       return this.analyzeTestWithBatchProcessing(request);
     } else {
       const baseResponse = await analyzeTest(request);
@@ -393,6 +537,7 @@ export class EnhancedTestAnalysisService {
 
     return `Enhanced Analysis Report: ${totalQuestions} questions processed in ${totalBatches} batches ` +
            `(avg size: ${avgBatchSize.toFixed(1)}). Fallback operations: ${fallbackHistory.length}. ` +
+           `Flexible templates: ${this.config.enableFlexibleTemplates}. ` +
            `Batch processing enabled: ${this.config.enableBatchProcessing}`;
   }
 }
