@@ -273,22 +273,25 @@ export class SharedAIModelRouter {
     console.log('🎯 AI Model Router: Analyzing', questions.length, 'questions with configurable thresholds');
     console.log('📊 Using threshold:', this.config.simpleThreshold, '(configurable)');
     
-    const routingDecisions = questions.map(question => {
+    const routingDecisions: ModelRoutingDecision[] = questions.map(question => {
       const answerKey = answerKeys.find(ak => ak.question_number === question.questionNumber);
       if (!answerKey) return null;
       
       const analysis = this.analyzer.analyzeQuestion(question, answerKey);
       const estimatedTokens = this.estimateTokens(question);
+      const estimatedCost = analysis.recommendedModel === 'gpt-4o-mini' 
+        ? this.config.gpt4oMiniCost 
+        : this.config.gpt41Cost;
       
       return {
         questionNumber: question.questionNumber,
         selectedModel: analysis.recommendedModel,
         complexityAnalysis: analysis,
-        estimatedTokens,
-        question: question,
-        answerKey: answerKey
+        fallbackAvailable: analysis.recommendedModel === 'gpt-4o-mini',
+        estimatedCost,
+        reasoning: analysis.reasoning.join('; ')
       };
-    }).filter(Boolean);
+    }).filter(Boolean) as ModelRoutingDecision[];
 
     const distribution = this.calculateDistribution(routingDecisions);
     
@@ -312,7 +315,7 @@ export class SharedAIModelRouter {
     return Math.round(baseTokens + questionTokens + answerTokens);
   }
 
-  private calculateDistribution(decisions: any[]) {
+  private calculateDistribution(decisions: ModelRoutingDecision[]) {
     const gpt4oMini = decisions.filter(d => d.selectedModel === 'gpt-4o-mini').length;
     const gpt41 = decisions.filter(d => d.selectedModel === 'gpt-4.1-2025-04-14').length;
     const total = decisions.length;
