@@ -315,6 +315,68 @@ export type Database = {
           },
         ]
       }
+      student_links: {
+        Row: {
+          class_id: string | null
+          created_at: string
+          current_attempts: number
+          description: string | null
+          exam_id: string | null
+          expires_at: string
+          id: string
+          is_active: boolean
+          link_type: string
+          max_attempts: number
+          student_name: string | null
+          teacher_name: string
+          title: string
+          token: string
+          updated_at: string
+        }
+        Insert: {
+          class_id?: string | null
+          created_at?: string
+          current_attempts?: number
+          description?: string | null
+          exam_id?: string | null
+          expires_at: string
+          id?: string
+          is_active?: boolean
+          link_type: string
+          max_attempts?: number
+          student_name?: string | null
+          teacher_name: string
+          title: string
+          token: string
+          updated_at?: string
+        }
+        Update: {
+          class_id?: string | null
+          created_at?: string
+          current_attempts?: number
+          description?: string | null
+          exam_id?: string | null
+          expires_at?: string
+          id?: string
+          is_active?: boolean
+          link_type?: string
+          max_attempts?: number
+          student_name?: string | null
+          teacher_name?: string
+          title?: string
+          token?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "student_links_class_id_fkey"
+            columns: ["class_id"]
+            isOneToOne: false
+            referencedRelation: "active_classes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       student_profiles: {
         Row: {
           created_at: string
@@ -341,6 +403,100 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      student_quiz_sessions: {
+        Row: {
+          answers: Json
+          completed_at: string | null
+          created_at: string
+          current_question: number
+          id: string
+          is_submitted: boolean
+          started_at: string
+          student_link_id: string
+          student_name: string
+          total_score: number | null
+          updated_at: string
+        }
+        Insert: {
+          answers?: Json
+          completed_at?: string | null
+          created_at?: string
+          current_question?: number
+          id?: string
+          is_submitted?: boolean
+          started_at?: string
+          student_link_id: string
+          student_name: string
+          total_score?: number | null
+          updated_at?: string
+        }
+        Update: {
+          answers?: Json
+          completed_at?: string | null
+          created_at?: string
+          current_question?: number
+          id?: string
+          is_submitted?: boolean
+          started_at?: string
+          student_link_id?: string
+          student_name?: string
+          total_score?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "student_quiz_sessions_student_link_id_fkey"
+            columns: ["student_link_id"]
+            isOneToOne: false
+            referencedRelation: "student_links"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      student_upload_sessions: {
+        Row: {
+          analysis_results: Json | null
+          completed_at: string | null
+          created_at: string
+          id: string
+          overall_score: number | null
+          student_link_id: string
+          student_name: string
+          updated_at: string
+          uploaded_files: Json
+        }
+        Insert: {
+          analysis_results?: Json | null
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          overall_score?: number | null
+          student_link_id: string
+          student_name: string
+          updated_at?: string
+          uploaded_files?: Json
+        }
+        Update: {
+          analysis_results?: Json | null
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          overall_score?: number | null
+          student_link_id?: string
+          student_name?: string
+          updated_at?: string
+          uploaded_files?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "student_upload_sessions_student_link_id_fkey"
+            columns: ["student_link_id"]
+            isOneToOne: false
+            referencedRelation: "student_links"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       subject_skill_scores: {
         Row: {

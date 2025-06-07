@@ -7,22 +7,13 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { AlertCircle, Clock, User, FileText } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-
-interface QuizData {
-  id: string;
-  title: string;
-  description?: string;
-  teacher_name: string;
-  expires_at: string;
-  max_attempts: number;
-  current_attempts: number;
-  exam_id?: string;
-}
+import { getStudentLinkByToken, createQuizSession, incrementLinkAttempts } from '@/services/studentLinkService';
+import type { StudentLink } from '@/services/studentLinkService';
 
 export default function StudentQuiz() {
   const { token } = useParams<{ token: string }>();
   const navigate = useNavigate();
-  const [quizData, setQuizData] = useState<QuizData | null>(null);
+  const [quizData, setQuizData] = useState<StudentLink | null>(null);
   const [studentName, setStudentName] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -40,25 +31,21 @@ export default function StudentQuiz() {
 
   const loadQuizData = async (quizToken: string) => {
     try {
-      // In a real implementation, this would fetch from the database
-      // For now, we'll simulate loading quiz data
+      console.log('Loading quiz data for token:', quizToken);
       
-      // Simulate API delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      const data = await getStudentLinkByToken(quizToken);
       
-      // For demo purposes, create mock data
-      const mockQuizData: QuizData = {
-        id: '1',
-        title: 'Math Quiz - Chapter 5',
-        description: 'This quiz covers topics from Chapter 5: Quadratic Functions',
-        teacher_name: 'Ms. Johnson',
-        expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), // 7 days from now
-        max_attempts: 1,
-        current_attempts: 0,
-        exam_id: 'MATH_CH5_2024',
-      };
+      if (!data) {
+        setError('Quiz not found or has expired');
+        return;
+      }
 
-      setQuizData(mockQuizData);
+      if (data.link_type !== 'quiz') {
+        setError('This link is not for a quiz');
+        return;
+      }
+
+      setQuizData(data);
     } catch (error) {
       console.error('Error loading quiz data:', error);
       setError('Quiz not found or has expired');
@@ -67,7 +54,7 @@ export default function StudentQuiz() {
     }
   };
 
-  const handleStartQuiz = () => {
+  const handleStartQuiz = async () => {
     if (!studentName.trim()) {
       toast({
         title: "Name required",
@@ -77,11 +64,31 @@ export default function StudentQuiz() {
       return;
     }
 
-    setHasStarted(true);
-    toast({
-      title: "Quiz started",
-      description: "Good luck with your quiz!",
-    });
+    if (!quizData) return;
+
+    try {
+      // Increment the attempt count
+      await incrementLinkAttempts(quizData.id);
+      
+      // Create a quiz session
+      await createQuizSession({
+        student_link_id: quizData.id,
+        student_name: studentName.trim(),
+      });
+
+      setHasStarted(true);
+      toast({
+        title: "Quiz started",
+        description: "Good luck with your quiz!",
+      });
+    } catch (error) {
+      console.error('Error starting quiz:', error);
+      toast({
+        title: "Error starting quiz",
+        description: "There was an error starting your quiz. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
   if (isLoading) {

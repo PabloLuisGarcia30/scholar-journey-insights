@@ -61,7 +61,7 @@ export const createStudentLink = async (linkData: {
     // Generate a unique token
     const token = generateToken();
     
-    const { data, error } = await (supabase as any)
+    const { data, error } = await supabase
       .from('student_links')
       .insert({
         token,
@@ -96,7 +96,7 @@ export const getStudentLinkByToken = async (token: string): Promise<StudentLink 
   try {
     console.log('Fetching student link by token:', token);
     
-    const { data, error } = await (supabase as any)
+    const { data, error } = await supabase
       .from('student_links')
       .select('*')
       .eq('token', token)
@@ -122,7 +122,7 @@ export const createQuizSession = async (sessionData: {
   try {
     console.log('Creating quiz session:', sessionData);
     
-    const { data, error } = await (supabase as any)
+    const { data, error } = await supabase
       .from('student_quiz_sessions')
       .insert({
         student_link_id: sessionData.student_link_id,
@@ -154,7 +154,7 @@ export const updateQuizSession = async (
   try {
     console.log('Updating quiz session:', sessionId, updates);
     
-    const { data, error } = await (supabase as any)
+    const { data, error } = await supabase
       .from('student_quiz_sessions')
       .update(updates)
       .eq('id', sessionId)
@@ -178,7 +178,7 @@ export const getTeacherQuizLinks = async (teacherName: string): Promise<StudentL
   try {
     console.log('Fetching quiz links for teacher:', teacherName);
     
-    const { data, error } = await (supabase as any)
+    const { data, error } = await supabase
       .from('student_links')
       .select('*')
       .eq('teacher_name', teacherName)
@@ -201,8 +201,8 @@ export const incrementLinkAttempts = async (linkId: string): Promise<void> => {
   try {
     console.log('Incrementing attempts for link:', linkId);
     
-    // Since we can't use RPC functions that don't exist yet, we'll do this manually
-    const { data: currentLink, error: fetchError } = await (supabase as any)
+    // Get current attempts and increment manually
+    const { data: currentLink, error: fetchError } = await supabase
       .from('student_links')
       .select('current_attempts')
       .eq('id', linkId)
@@ -213,7 +213,7 @@ export const incrementLinkAttempts = async (linkId: string): Promise<void> => {
       throw new Error(`Failed to fetch current attempts: ${fetchError.message}`);
     }
 
-    const { error: updateError } = await (supabase as any)
+    const { error: updateError } = await supabase
       .from('student_links')
       .update({ current_attempts: (currentLink.current_attempts || 0) + 1 })
       .eq('id', linkId);
