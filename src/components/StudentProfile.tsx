@@ -39,7 +39,8 @@ export function StudentProfile({ studentId, classId, className, onBack }: Studen
     classSubjectSkills,
     classSubjectSkillsLoading,
     isClassView,
-    isGrade10MathClass
+    isGrade10MathClass,
+    isGrade10ScienceClass
   } = useStudentProfileData({ studentId, classId, className });
 
   // Process skill data using custom hook
@@ -53,7 +54,8 @@ export function StudentProfile({ studentId, classId, className, onBack }: Studen
     classContentSkills,
     classSubjectSkills,
     isClassView,
-    isGrade10MathClass
+    isGrade10MathClass,
+    isGrade10ScienceClass
   });
 
   const overallGrade = calculateOverallGrade(testResults);
@@ -195,11 +197,11 @@ export function StudentProfile({ studentId, classId, className, onBack }: Studen
         ) : (
           <>
             <TabsContent value="grades">
-              {/* Keep existing grade history implementation */}
+              
             </TabsContent>
 
             <TabsContent value="courses">
-              {/* Keep existing current courses implementation */}
+              
             </TabsContent>
 
             <TabsContent value="progress">
