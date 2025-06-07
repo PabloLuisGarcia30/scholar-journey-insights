@@ -1,4 +1,3 @@
-
 export interface TestTemplate {
   id: string;
   name: string;
@@ -46,7 +45,7 @@ export interface BubbleGridConfig {
 
 export interface ExpectedElement {
   type: 'exam_id' | 'student_info' | 'question_header' | 'answer_box';
-  pattern: string;
+  pattern: RegExp; // Changed from string to RegExp
   position: BoundingBox;
   required: boolean;
 }
