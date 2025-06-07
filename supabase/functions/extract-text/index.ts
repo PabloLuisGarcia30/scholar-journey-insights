@@ -70,7 +70,21 @@ interface EnhancedBubbleDetection {
   questionContext?: {
     questionNumber: number;
     spatialGroup: number;
+    optionLetter?: string;
   };
+}
+
+interface QuestionGroup {
+  questionNumber: number;
+  bubbles: EnhancedBubbleDetection[];
+  selectedAnswer: {
+    optionLetter: string;
+    bubble: EnhancedBubbleDetection;
+    confidence: number;
+  } | null;
+  hasMultipleMarks: boolean;
+  reviewRequired: boolean;
+  processingNotes: string[];
 }
 
 // Create circuit breakers for each service
@@ -110,7 +124,7 @@ serve(async (req) => {
   }
 
   try {
-    console.log('Enhanced bubble detection OCR function called with improved reliability')
+    console.log('Enhanced question-based bubble detection function called')
     const { fileContent, fileName } = await req.json()
     console.log('Processing file:', fileName)
     
@@ -124,7 +138,7 @@ serve(async (req) => {
     }
 
     // Step 1: Google Cloud Vision OCR with circuit breaker and retry
-    console.log('Step 1: Processing with Google Cloud Vision OCR (with retry logic)...')
+    console.log('Step 1: Processing with Google Cloud Vision OCR...')
     const visionData = await googleVisionBreaker.execute(async () => {
       return await retryWithBackoff(async () => {
         const visionResponse = await fetch(
@@ -156,8 +170,8 @@ serve(async (req) => {
 
     console.log('Google Vision API response received')
 
-    // Step 2: Enhanced Roboflow bubble detection with multiple thresholds
-    console.log('Step 2: Enhanced Roboflow bubble detection with quality assessment...')
+    // Step 2: Enhanced Roboflow bubble detection
+    console.log('Step 2: Enhanced Roboflow bubble detection...')
     let roboflowData = null
     let enhancedBubbles: EnhancedBubbleDetection[] = []
     
@@ -185,16 +199,14 @@ serve(async (req) => {
 
       console.log('Roboflow bubble detection completed with', roboflowData?.predictions?.length || 0, 'detections')
       
-      // Enhanced bubble quality assessment
       if (roboflowData?.predictions) {
-        enhancedBubbles = roboflowData.predictions.map((bubble, index) => {
+        enhancedBubbles = roboflowData.predictions.map((bubble) => {
           const quality = assessBubbleQuality(bubble, roboflowData.predictions)
-          const questionContext = determineBubbleContext(bubble, roboflowData.predictions, index)
           
           return {
             ...bubble,
             quality,
-            questionContext
+            questionContext: undefined // Will be set during grouping
           }
         })
         
@@ -208,12 +220,23 @@ serve(async (req) => {
         })
       }
     } catch (error) {
-      console.warn('Roboflow detection failed (using enhanced fallback):', error)
+      console.warn('Roboflow detection failed:', error)
       roboflowData = null
     }
 
-    // Step 3: Enhanced text extraction and processing
-    console.log('Step 3: Enhanced text extraction with bubble context analysis...')
+    // Step 3: Enhanced spatial bubble grouping by question
+    console.log('Step 3: Enhanced spatial bubble grouping by question...')
+    const questionGroups = groupBubblesByQuestion(enhancedBubbles)
+    
+    console.log('Question grouping completed:', {
+      totalQuestions: questionGroups.length,
+      questionsWithAnswers: questionGroups.filter(q => q.selectedAnswer).length,
+      questionsNeedingReview: questionGroups.filter(q => q.reviewRequired).length,
+      questionsWithMultipleMarks: questionGroups.filter(q => q.hasMultipleMarks).length
+    })
+
+    // Step 4: Text extraction and processing
+    console.log('Step 4: Text extraction and processing...')
     
     const fullTextAnnotation = visionData.responses?.[0]?.fullTextAnnotation
     const textAnnotations = visionData.responses?.[0]?.textAnnotations || []
@@ -273,86 +296,81 @@ serve(async (req) => {
 
     const finalConfidence = blockCount > 0 ? overallConfidence / blockCount : 0
 
-    // Step 4: Enhanced OpenAI-powered intelligent parsing with bubble quality analysis
-    console.log('Step 4: Enhanced OpenAI parsing with bubble quality context...')
+    // Step 5: Enhanced OpenAI parsing with question-based context
+    console.log('Step 5: Enhanced OpenAI parsing with question-based bubble context...')
     
-    const bubbleQualityContext = enhancedBubbles.length > 0 ? 
-      `\nBubble Quality Analysis Results:
-      - Total bubbles detected: ${enhancedBubbles.length}
-      - Empty bubbles: ${enhancedBubbles.filter(b => b.quality.fillLevel === 'empty').length}
-      - Lightly filled: ${enhancedBubbles.filter(b => b.quality.fillLevel === 'light').length}
-      - Medium filled: ${enhancedBubbles.filter(b => b.quality.fillLevel === 'medium').length}
-      - Heavily filled: ${enhancedBubbles.filter(b => b.quality.fillLevel === 'heavy').length}
-      - Overfilled: ${enhancedBubbles.filter(b => b.quality.fillLevel === 'overfilled').length}` 
-      : ''
+    const questionGroupContext = questionGroups.map(group => ({
+      questionNumber: group.questionNumber,
+      selectedAnswer: group.selectedAnswer?.optionLetter || 'no_answer',
+      confidence: group.selectedAnswer?.confidence || 0,
+      hasMultipleMarks: group.hasMultipleMarks,
+      reviewRequired: group.reviewRequired,
+      processingNotes: group.processingNotes
+    }))
 
-    const enhancedParsingPrompt = `Analyze this test document OCR text with enhanced bubble detection context. Pay special attention to answer detection confidence based on bubble quality.
+    const enhancedParsingPrompt = `Analyze this test document with enhanced question-based bubble detection. 
 
-BUBBLE QUALITY CONTEXT:${bubbleQualityContext}
+CRITICAL INSTRUCTION: Each question has multiple choice options (A, B, C, D, E). Students fill ONE bubble per question. Empty bubbles are NORMAL for non-selected options and should NOT be considered wrong answers.
 
-KEY INSTRUCTIONS FOR BUBBLE ANALYSIS:
-1. For empty bubbles: Mark as "no_answer" with low confidence
-2. For lightly filled bubbles: Use medium confidence, flag for review  
-3. For medium/heavy filled: Use high confidence
-4. For overfilled bubbles: Flag as potential erasure or mistake
-5. Cross-validate bubble positions with OCR text patterns
-6. Look for answer patterns that suggest student behavior (e.g., always choosing A)
+QUESTION-BASED BUBBLE ANALYSIS:
+${questionGroupContext.map(q => 
+  `Question ${q.questionNumber}: Selected ${q.selectedAnswer} (confidence: ${q.confidence.toFixed(2)})${q.hasMultipleMarks ? ' [MULTIPLE MARKS]' : ''}${q.reviewRequired ? ' [REVIEW NEEDED]' : ''}`
+).join('\n')}
 
-Extract structured information including:
-1. Exam/Test identification with multiple pattern matching
+KEY PROCESSING RULES:
+1. Only count the selected answer for each question (ignore empty bubbles)
+2. If no bubble is clearly selected, mark as "no_answer"
+3. Flag questions with multiple significant marks for review
+4. Cross-validate bubble selections with OCR text patterns
+5. Focus on answer confidence based on relative fill levels within each question
+
+Extract structured information:
+1. Exam/Test identification
 2. Student information (name, ID, email, etc.)  
-3. Questions with enhanced answer confidence based on bubble quality
-4. Answer detection with quality-based confidence scoring
-5. Pattern analysis for inconsistent or questionable answers
+3. Questions with SINGLE answer per question based on bubble analysis
+4. Answer confidence based on question-level bubble quality
 
 OCR Text:
 ${extractedText}
 
-Return a JSON response with enhanced bubble analysis:
+Return JSON with question-based answer detection:
 {
   "examId": "string or null",
-  "examIdConfidence": "high|medium|low",
-  "studentName": "string or null", 
-  "studentNameConfidence": "high|medium|low",
+  "studentName": "string or null",
   "questions": [
     {
       "questionNumber": number,
       "questionText": "string",
-      "type": "multiple-choice|true-false|short-answer",
+      "type": "multiple-choice",
       "options": [{"letter": "A", "text": "option text"}],
       "detectedAnswer": {
         "selectedOption": "A|B|C|D|E|no_answer",
-        "confidence": "high|medium|low|questionable",
+        "confidence": number (0-1),
         "bubbleQuality": "empty|light|medium|heavy|overfilled",
-        "detectionMethod": "bubble_clear|bubble_weak|ocr_pattern|fallback",
+        "detectionMethod": "question_based_selection",
         "reviewFlag": boolean,
-        "reasoning": "string explaining detection confidence"
-      },
-      "rawText": "original OCR text",
-      "confidence": "high|medium|low"
+        "multipleMarksDetected": boolean,
+        "reasoning": "explanation of answer selection within question context"
+      }
     }
   ],
   "answerPatternAnalysis": {
     "consistencyScore": number,
-    "potentialIssues": ["array of detected issues"],
-    "reviewRecommendations": ["array of recommendations"]
+    "potentialIssues": ["list of issues"],
+    "reviewRecommendations": ["recommendations"]
   },
-  "documentType": "test|exam|bubble_sheet|homework",
-  "processingNotes": ["enhanced observations about bubble detection"]
+  "processingNotes": ["question-based processing observations"]
 }`
 
     let parsedData = {
       examId: null,
-      examIdConfidence: 'low',
       studentName: null,
-      studentNameConfidence: 'low',
       questions: [],
       answerPatternAnalysis: {
         consistencyScore: 0.8,
         potentialIssues: [],
         reviewRecommendations: []
       },
-      documentType: 'test',
       processingNotes: []
     }
 
@@ -370,7 +388,7 @@ Return a JSON response with enhanced bubble analysis:
               messages: [
                 {
                   role: 'system',
-                  content: 'You are an expert at parsing educational documents with enhanced bubble detection. Analyze bubble quality and provide detailed confidence assessments. Handle poorly shaded, empty, and overfilled bubbles appropriately. Return only valid JSON.'
+                  content: 'You are an expert at parsing educational documents with question-based bubble detection. Understand that each question has ONE answer and empty bubbles are normal for non-selected options. Focus on question-level answer selection, not individual bubble analysis. Return only valid JSON.'
                 },
                 {
                   role: 'user', 
@@ -395,66 +413,86 @@ Return a JSON response with enhanced bubble analysis:
       try {
         const enhancedParsedData = JSON.parse(aiContent)
         parsedData = { ...parsedData, ...enhancedParsedData }
-        console.log('Enhanced OpenAI parsing successful, found', parsedData.questions?.length || 0, 'questions')
-        console.log('Answer pattern analysis:', parsedData.answerPatternAnalysis)
+        console.log('Enhanced question-based parsing successful, found', parsedData.questions?.length || 0, 'questions')
       } catch (e) {
         console.warn('Failed to parse enhanced OpenAI response as JSON:', e)
-        parsedData.processingNotes.push('Enhanced AI parsing failed, using enhanced fallback')
+        parsedData.processingNotes.push('AI parsing failed, using fallback')
       }
     } catch (error) {
-      console.warn('Enhanced OpenAI parsing request failed (using enhanced fallback):', error)
-      parsedData.processingNotes.push('Enhanced AI parsing unavailable - using enhanced fallback')
+      console.warn('Enhanced OpenAI parsing request failed:', error)
+      parsedData.processingNotes.push('AI parsing unavailable - using fallback')
     }
 
-    // Step 5: Enhanced cross-validation with quality-based confidence scoring
-    console.log('Step 5: Enhanced cross-validation with quality-based scoring...')
+    // Step 6: Cross-validate AI results with question groups
+    console.log('Step 6: Cross-validating AI results with question groups...')
     
     const enhancedAnswers = []
-    const processingMethods = ['google_ocr', 'enhanced_bubble_analysis']
     let crossValidatedCount = 0
     let qualityFlaggedCount = 0
 
     for (const question of parsedData.questions) {
       const questionNum = question.questionNumber
-      const aiDetectedAnswer = question.detectedAnswer
+      const questionGroup = questionGroups.find(g => g.questionNumber === questionNum)
       
-      // Find corresponding enhanced bubble data
-      const questionBubbles = enhancedBubbles.filter(bubble => 
-        bubble.questionContext?.questionNumber === questionNum
-      )
-
       let finalAnswer = {
         questionNumber: questionNum,
-        selectedOption: aiDetectedAnswer?.selectedOption || 'no_answer',
-        detectionMethod: aiDetectedAnswer?.detectionMethod || 'fallback',
-        confidence: calculateEnhancedConfidence(aiDetectedAnswer, questionBubbles),
-        bubbleQuality: aiDetectedAnswer?.bubbleQuality || 'unknown',
-        crossValidated: questionBubbles.length > 0,
-        reviewFlag: aiDetectedAnswer?.reviewFlag || false,
-        qualityAssessment: assessAnswerQuality(aiDetectedAnswer, questionBubbles),
+        selectedOption: 'no_answer',
+        detectionMethod: 'fallback',
+        confidence: 0.1,
+        bubbleQuality: 'unknown',
+        crossValidated: false,
+        reviewFlag: false,
+        multipleMarksDetected: false,
+        qualityAssessment: {
+          bubbleCount: 0,
+          maxBubbleConfidence: 0,
+          fillLevelConsistency: 0,
+          spatialAlignment: 0
+        },
         processingNotes: []
       }
 
-      // Enhanced validation logic
-      if (questionBubbles.length > 0) {
-        const bestBubble = questionBubbles.reduce((best, current) => 
-          current.quality.confidence > best.quality.confidence ? current : best
-        )
-
-        // Cross-validate AI detection with bubble analysis
-        if (bestBubble.quality.fillLevel === 'empty' && finalAnswer.selectedOption !== 'no_answer') {
+      if (questionGroup) {
+        // Use question group analysis as primary source
+        if (questionGroup.selectedAnswer) {
+          finalAnswer.selectedOption = questionGroup.selectedAnswer.optionLetter
+          finalAnswer.confidence = questionGroup.selectedAnswer.confidence
+          finalAnswer.bubbleQuality = questionGroup.selectedAnswer.bubble.quality.fillLevel
+          finalAnswer.detectionMethod = 'question_based_selection'
+          finalAnswer.crossValidated = true
+          finalAnswer.multipleMarksDetected = questionGroup.hasMultipleMarks
+          finalAnswer.reviewFlag = questionGroup.reviewRequired
+          finalAnswer.qualityAssessment = assessQuestionQuality(questionGroup)
+          finalAnswer.processingNotes = questionGroup.processingNotes
+          
+          crossValidatedCount++
+        } else {
+          // No clear answer in question group
+          finalAnswer.selectedOption = 'no_answer'
+          finalAnswer.confidence = 0.1
+          finalAnswer.detectionMethod = 'no_clear_selection'
           finalAnswer.reviewFlag = true
-          finalAnswer.processingNotes.push('AI detected answer but bubble appears empty')
-          finalAnswer.confidence = Math.min(finalAnswer.confidence, 0.3)
-        } else if (bestBubble.quality.fillLevel === 'light' && finalAnswer.confidence > 0.7) {
-          finalAnswer.confidence = 0.6 // Reduce confidence for lightly filled bubbles
-          finalAnswer.processingNotes.push('Light bubble fill detected - reduced confidence')
-        } else if (bestBubble.quality.fillLevel === 'overfilled') {
-          finalAnswer.reviewFlag = true
-          finalAnswer.processingNotes.push('Overfilled bubble detected - possible erasure')
+          finalAnswer.processingNotes.push('No clearly selected bubble in question group')
         }
-
-        crossValidatedCount++
+        
+        // Cross-validate with AI if available
+        const aiAnswer = question.detectedAnswer
+        if (aiAnswer && aiAnswer.selectedOption !== finalAnswer.selectedOption) {
+          finalAnswer.processingNotes.push(`AI detected ${aiAnswer.selectedOption}, bubble analysis shows ${finalAnswer.selectedOption}`)
+          if (finalAnswer.confidence < 0.5) {
+            finalAnswer.reviewFlag = true
+          }
+        }
+      } else {
+        // Fallback to AI detection if no question group found
+        const aiAnswer = question.detectedAnswer
+        if (aiAnswer) {
+          finalAnswer.selectedOption = aiAnswer.selectedOption || 'no_answer'
+          finalAnswer.confidence = typeof aiAnswer.confidence === 'number' ? aiAnswer.confidence : 0.3
+          finalAnswer.detectionMethod = 'ai_fallback'
+          finalAnswer.reviewFlag = true
+          finalAnswer.processingNotes.push('No bubble group found, using AI detection')
+        }
       }
 
       if (finalAnswer.reviewFlag) {
@@ -464,32 +502,32 @@ Return a JSON response with enhanced bubble analysis:
       enhancedAnswers.push(finalAnswer)
     }
 
-    // Step 6: Calculate enhanced validation metrics
+    // Step 7: Calculate enhanced validation metrics
     const questionAnswerAlignment = parsedData.questions.length > 0 ? 
       (enhancedAnswers.length / parsedData.questions.length) : 0
     
-    const bubbleDetectionAccuracy = enhancedBubbles.length > 0 ? 
-      (crossValidatedCount / enhancedBubbles.length) : 0
+    const bubbleDetectionAccuracy = questionGroups.length > 0 ? 
+      (crossValidatedCount / questionGroups.length) : 0
     
     const qualityAssuranceScore = enhancedAnswers.length > 0 ?
       (enhancedAnswers.filter(a => a.confidence > 0.7).length / enhancedAnswers.length) : 0
     
     const overallReliability = (questionAnswerAlignment + bubbleDetectionAccuracy + finalConfidence + qualityAssuranceScore) / 4
 
-    // Step 7: Build enhanced structured response
-    console.log('Step 7: Building enhanced structured response...')
+    // Step 8: Build enhanced structured response
+    console.log('Step 8: Building enhanced structured response...')
     
     const structuredData = {
       documentMetadata: {
         totalPages: pages.length || 1,
-        processingMethods,
+        processingMethods: ['google_ocr', 'question_based_bubble_analysis'],
         overallConfidence: finalConfidence,
         roboflowDetections: enhancedBubbles.length,
         googleOcrBlocks: blockCount,
         enhancedFeatures: {
-          bubbleQualityAnalysis: true,
-          crossValidation: true,
-          confidenceScoring: true,
+          questionBasedGrouping: true,
+          singleAnswerPerQuestion: true,
+          multipleMarkDetection: true,
           reviewFlags: true
         }
       },
@@ -499,7 +537,14 @@ Return a JSON response with enhanced bubble analysis:
         detectedAnswer: enhancedAnswers.find(a => a.questionNumber === q.questionNumber)
       })),
       answers: enhancedAnswers,
-      enhancedBubbleData: enhancedBubbles,
+      questionGroups: questionGroups.map(group => ({
+        questionNumber: group.questionNumber,
+        bubbleCount: group.bubbles.length,
+        selectedAnswer: group.selectedAnswer,
+        hasMultipleMarks: group.hasMultipleMarks,
+        reviewRequired: group.reviewRequired,
+        processingNotes: group.processingNotes
+      })),
       validationResults: {
         questionAnswerAlignment,
         bubbleDetectionAccuracy,
@@ -509,9 +554,9 @@ Return a JSON response with enhanced bubble analysis:
         crossValidationCount: crossValidatedCount,
         qualityFlaggedCount,
         enhancedMetrics: {
-          emptyBubbles: enhancedBubbles.filter(b => b.quality.fillLevel === 'empty').length,
-          lightBubbles: enhancedBubbles.filter(b => b.quality.fillLevel === 'light').length,
-          questionableBubbles: enhancedBubbles.filter(b => b.quality.fillLevel === 'overfilled').length,
+          questionsWithClearAnswers: questionGroups.filter(q => q.selectedAnswer && !q.reviewRequired).length,
+          questionsWithMultipleMarks: questionGroups.filter(q => q.hasMultipleMarks).length,
+          questionsNeedingReview: questionGroups.filter(q => q.reviewRequired).length,
           highConfidenceAnswers: enhancedAnswers.filter(a => a.confidence > 0.8).length,
           reviewFlaggedAnswers: enhancedAnswers.filter(a => a.reviewFlag).length
         }
@@ -523,18 +568,14 @@ Return a JSON response with enhanced bubble analysis:
       }
     }
 
-    console.log('Enhanced bubble detection processing completed successfully')
+    console.log('Enhanced question-based processing completed successfully')
     console.log('Enhanced metrics:', {
       overallReliability: (overallReliability * 100).toFixed(1) + '%',
+      totalQuestions: questionGroups.length,
+      questionsWithAnswers: questionGroups.filter(q => q.selectedAnswer).length,
       crossValidatedAnswers: crossValidatedCount,
       qualityFlaggedAnswers: qualityFlaggedCount,
-      bubbleQualityDistribution: {
-        empty: enhancedBubbles.filter(b => b.quality.fillLevel === 'empty').length,
-        light: enhancedBubbles.filter(b => b.quality.fillLevel === 'light').length,
-        medium: enhancedBubbles.filter(b => b.quality.fillLevel === 'medium').length,
-        heavy: enhancedBubbles.filter(b => b.quality.fillLevel === 'heavy').length,
-        overfilled: enhancedBubbles.filter(b => b.quality.fillLevel === 'overfilled').length
-      }
+      questionsNeedingReview: questionGroups.filter(q => q.reviewRequired).length
     })
 
     return new Response(
@@ -552,7 +593,7 @@ Return a JSON response with enhanced bubble analysis:
     )
 
   } catch (error) {
-    console.error('Error in enhanced bubble detection function:', error)
+    console.error('Error in enhanced question-based bubble detection function:', error)
     return new Response(
       JSON.stringify({ 
         error: error.message,
@@ -562,7 +603,7 @@ Return a JSON response with enhanced bubble analysis:
           'Verify the document is clear and readable',
           'Try uploading a smaller file size',
           'Wait a moment and try again',
-          'Check if bubbles are clearly marked and not too light'
+          'Ensure bubbles are filled clearly and questions are well-spaced'
         ]
       }),
       {
@@ -573,11 +614,199 @@ Return a JSON response with enhanced bubble analysis:
   }
 })
 
-// Enhanced bubble quality assessment function
+// Enhanced spatial bubble grouping by question
+function groupBubblesByQuestion(bubbles: EnhancedBubbleDetection[]): QuestionGroup[] {
+  if (bubbles.length === 0) return []
+  
+  console.log('Starting enhanced spatial bubble grouping for', bubbles.length, 'bubbles')
+  
+  // Sort bubbles by vertical position first, then horizontal
+  const sortedBubbles = bubbles.sort((a, b) => {
+    const verticalDiff = a.y - b.y
+    if (Math.abs(verticalDiff) < 30) { // Same row tolerance
+      return a.x - b.x // Sort horizontally within same row
+    }
+    return verticalDiff
+  })
+  
+  const questionGroups: QuestionGroup[] = []
+  const verticalTolerance = 40 // Pixels tolerance for same question row
+  const optionLetters = ['A', 'B', 'C', 'D', 'E']
+  
+  let currentQuestionNumber = 1
+  let currentRowY = sortedBubbles[0]?.y || 0
+  let currentRowBubbles: EnhancedBubbleDetection[] = []
+  
+  for (const bubble of sortedBubbles) {
+    const isNewRow = Math.abs(bubble.y - currentRowY) > verticalTolerance
+    
+    if (isNewRow && currentRowBubbles.length > 0) {
+      // Process current row as a question
+      const questionGroup = processQuestionRow(currentRowBubbles, currentQuestionNumber, optionLetters)
+      questionGroups.push(questionGroup)
+      
+      // Start new row
+      currentQuestionNumber++
+      currentRowY = bubble.y
+      currentRowBubbles = [bubble]
+    } else {
+      currentRowBubbles.push(bubble)
+      if (!isNewRow) {
+        currentRowY = (currentRowY + bubble.y) / 2 // Average Y position
+      }
+    }
+  }
+  
+  // Process final row
+  if (currentRowBubbles.length > 0) {
+    const questionGroup = processQuestionRow(currentRowBubbles, currentQuestionNumber, optionLetters)
+    questionGroups.push(questionGroup)
+  }
+  
+  console.log(`Grouped ${bubbles.length} bubbles into ${questionGroups.length} questions`)
+  
+  return questionGroups
+}
+
+// Process a row of bubbles as a single question
+function processQuestionRow(bubbles: EnhancedBubbleDetection[], questionNumber: number, optionLetters: string[]): QuestionGroup {
+  console.log(`Processing question ${questionNumber} with ${bubbles.length} bubbles`)
+  
+  // Sort bubbles horizontally within the row
+  const sortedBubbles = bubbles.sort((a, b) => a.x - b.x)
+  
+  // Assign option letters based on horizontal position
+  sortedBubbles.forEach((bubble, index) => {
+    bubble.questionContext = {
+      questionNumber,
+      spatialGroup: questionNumber,
+      optionLetter: optionLetters[index] || `Option${index + 1}`
+    }
+  })
+  
+  // Find the best filled bubble (highest confidence among non-empty bubbles)
+  const filledBubbles = sortedBubbles.filter(b => 
+    b.quality.fillLevel !== 'empty' && b.confidence > 0.2
+  )
+  
+  let selectedAnswer = null
+  let hasMultipleMarks = false
+  let reviewRequired = false
+  const processingNotes: string[] = []
+  
+  if (filledBubbles.length === 0) {
+    processingNotes.push('No filled bubbles detected - marking as no answer')
+  } else if (filledBubbles.length === 1) {
+    // Single clear answer
+    const bestBubble = filledBubbles[0]
+    selectedAnswer = {
+      optionLetter: bestBubble.questionContext?.optionLetter || 'Unknown',
+      bubble: bestBubble,
+      confidence: calculateQuestionConfidence(bestBubble, sortedBubbles)
+    }
+    processingNotes.push(`Single clear answer: ${selectedAnswer.optionLetter}`)
+  } else {
+    // Multiple filled bubbles - find the best one
+    const bestBubble = filledBubbles.reduce((best, current) => {
+      // Prefer higher confidence and heavier fill
+      const bestScore = best.confidence * getFillLevelScore(best.quality.fillLevel)
+      const currentScore = current.confidence * getFillLevelScore(current.quality.fillLevel)
+      return currentScore > bestScore ? current : best
+    })
+    
+    // Check if multiple bubbles are significantly filled
+    const significantlyFilled = filledBubbles.filter(b => 
+      b.confidence > 0.4 && (b.quality.fillLevel === 'medium' || b.quality.fillLevel === 'heavy')
+    )
+    
+    if (significantlyFilled.length > 1) {
+      hasMultipleMarks = true
+      reviewRequired = true
+      processingNotes.push(`Multiple marks detected: ${significantlyFilled.map(b => b.questionContext?.optionLetter).join(', ')}`)
+    }
+    
+    selectedAnswer = {
+      optionLetter: bestBubble.questionContext?.optionLetter || 'Unknown',
+      bubble: bestBubble,
+      confidence: hasMultipleMarks ? 
+        Math.min(0.6, calculateQuestionConfidence(bestBubble, sortedBubbles)) :
+        calculateQuestionConfidence(bestBubble, sortedBubbles)
+    }
+    
+    processingNotes.push(`Selected best answer: ${selectedAnswer.optionLetter} (from ${filledBubbles.length} filled bubbles)`)
+  }
+  
+  // Additional quality checks
+  if (selectedAnswer && selectedAnswer.bubble.quality.fillLevel === 'light') {
+    reviewRequired = true
+    processingNotes.push('Light bubble fill detected - review recommended')
+  }
+  
+  if (selectedAnswer && selectedAnswer.bubble.quality.fillLevel === 'overfilled') {
+    reviewRequired = true
+    processingNotes.push('Overfilled bubble detected - possible erasure')
+  }
+  
+  return {
+    questionNumber,
+    bubbles: sortedBubbles,
+    selectedAnswer,
+    hasMultipleMarks,
+    reviewRequired,
+    processingNotes
+  }
+}
+
+// Calculate confidence based on bubble quality within question context
+function calculateQuestionConfidence(selectedBubble: EnhancedBubbleDetection, allBubbles: EnhancedBubbleDetection[]): number {
+  let confidence = selectedBubble.confidence
+  
+  // Boost confidence based on fill level
+  switch (selectedBubble.quality.fillLevel) {
+    case 'heavy': confidence = Math.min(0.95, confidence + 0.2); break
+    case 'medium': confidence = Math.min(0.85, confidence + 0.1); break
+    case 'light': confidence = Math.max(0.3, confidence - 0.1); break
+    case 'overfilled': confidence = Math.max(0.4, confidence - 0.05); break
+  }
+  
+  // Reduce confidence if other bubbles also show some fill
+  const otherFilledBubbles = allBubbles.filter(b => 
+    b !== selectedBubble && b.quality.fillLevel !== 'empty' && b.confidence > 0.2
+  )
+  
+  if (otherFilledBubbles.length > 0) {
+    confidence = Math.max(0.3, confidence - (otherFilledBubbles.length * 0.1))
+  }
+  
+  return Math.min(0.99, Math.max(0.01, confidence))
+}
+
+// Get numeric score for fill level (for comparison)
+function getFillLevelScore(fillLevel: string): number {
+  switch (fillLevel) {
+    case 'heavy': return 1.0
+    case 'medium': return 0.8
+    case 'light': return 0.5
+    case 'overfilled': return 0.7
+    case 'empty': return 0.1
+    default: return 0.1
+  }
+}
+
+// Assess overall quality of question group
+function assessQuestionQuality(questionGroup: QuestionGroup) {
+  return {
+    bubbleCount: questionGroup.bubbles.length,
+    maxBubbleConfidence: questionGroup.selectedAnswer?.confidence || 0,
+    fillLevelConsistency: calculateFillConsistency(questionGroup.bubbles),
+    spatialAlignment: calculateSpatialAlignment(questionGroup.bubbles)
+  }
+}
+
+// Enhanced bubble quality assessment
 function assessBubbleQuality(bubble: any, allBubbles: any[]): BubbleQuality {
   const confidence = bubble.confidence || 0
   
-  // Determine fill level based on confidence and class
   let fillLevel: BubbleQuality['fillLevel'] = 'empty'
   
   if (confidence < 0.3) {
@@ -592,7 +821,6 @@ function assessBubbleQuality(bubble: any, allBubbles: any[]): BubbleQuality {
     fillLevel = 'overfilled'
   }
   
-  // Calculate spatial consistency (how well positioned relative to other bubbles)
   const spatialConsistency = calculateSpatialConsistency(bubble, allBubbles)
   
   return {
@@ -670,7 +898,6 @@ function assessAnswerQuality(aiAnswer: any, bubbles: any[]) {
 }
 
 function calculateSpatialConsistency(bubble: any, allBubbles: any[]): number {
-  // Simple implementation - can be enhanced
   return 0.8
 }
 
@@ -680,21 +907,18 @@ function calculateFillConsistency(bubbles: any[]): number {
   const fillLevels = bubbles.map(b => b.quality.fillLevel)
   const uniqueLevels = new Set(fillLevels)
   
-  // Higher consistency when bubbles have similar fill levels
   return uniqueLevels.size === 1 ? 1.0 : 0.5
 }
 
 function calculateSpatialAlignment(bubbles: any[]): number {
   if (bubbles.length < 2) return 1.0
   
-  // Calculate variance in x,y positions - lower variance = better alignment
   const xPositions = bubbles.map(b => b.x)
   const yPositions = bubbles.map(b => b.y)
   
   const xVariance = calculateVariance(xPositions)
   const yVariance = calculateVariance(yPositions)
   
-  // Convert variance to alignment score (0-1)
   return Math.max(0, 1 - (xVariance + yVariance) / 10000)
 }
 

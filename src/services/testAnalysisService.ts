@@ -1,3 +1,4 @@
+
 import { supabase } from "@/integrations/supabase/client";
 import { withRetry, CircuitBreaker, RetryableError } from "./retryService";
 
@@ -26,7 +27,7 @@ export interface RoboflowResponse {
 export interface EnhancedAnswer {
   questionNumber: number;
   selectedOption: string;
-  detectionMethod: 'roboflow_bubble' | 'google_ocr' | 'cross_validated' | 'enhanced_bubble' | 'fallback';
+  detectionMethod: 'question_based_selection' | 'ai_fallback' | 'no_clear_selection' | 'fallback';
   confidence: number;
   bubbleCoordinates?: {
     x: number;
@@ -36,9 +37,10 @@ export interface EnhancedAnswer {
   };
   crossValidated: boolean;
   fallbackUsed?: boolean;
-  // Enhanced bubble detection properties
+  // Enhanced question-based detection properties
   bubbleQuality?: 'empty' | 'light' | 'medium' | 'heavy' | 'overfilled' | 'unknown';
   reviewFlag?: boolean;
+  multipleMarksDetected?: boolean;
   qualityAssessment?: {
     bubbleCount: number;
     maxBubbleConfidence: number;
@@ -69,6 +71,19 @@ export interface EnhancedQuestion {
   detectedAnswer?: EnhancedAnswer;
 }
 
+export interface QuestionGroup {
+  questionNumber: number;
+  bubbleCount: number;
+  selectedAnswer: {
+    optionLetter: string;
+    bubble: any;
+    confidence: number;
+  } | null;
+  hasMultipleMarks: boolean;
+  reviewRequired: boolean;
+  processingNotes: string[];
+}
+
 export interface ValidationResults {
   questionAnswerAlignment: number;
   bubbleDetectionAccuracy: number;
@@ -76,11 +91,11 @@ export interface ValidationResults {
   qualityAssuranceScore?: number;
   overallReliability: number;
   crossValidationCount: number;
-  fallbackUsageCount: number;
+  qualityFlaggedCount: number;
   enhancedMetrics?: {
-    emptyBubbles: number;
-    lightBubbles: number;
-    questionableBubbles: number;
+    questionsWithClearAnswers: number;
+    questionsWithMultipleMarks: number;
+    questionsNeedingReview: number;
     highConfidenceAnswers: number;
     reviewFlaggedAnswers: number;
   };
@@ -94,9 +109,9 @@ export interface StructuredData {
     roboflowDetections?: number;
     googleOcrBlocks?: number;
     enhancedFeatures?: {
-      bubbleQualityAnalysis: boolean;
-      crossValidation: boolean;
-      confidenceScoring: boolean;
+      questionBasedGrouping: boolean;
+      singleAnswerPerQuestion: boolean;
+      multipleMarkDetection: boolean;
       reviewFlags: boolean;
     };
   };
@@ -114,24 +129,7 @@ export interface StructuredData {
   }>;
   questions: EnhancedQuestion[];
   answers: EnhancedAnswer[];
-  enhancedBubbleData?: Array<{
-    class: string;
-    confidence: number;
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-    quality: {
-      fillLevel: 'empty' | 'light' | 'medium' | 'heavy' | 'overfilled';
-      confidence: number;
-      detectionMethod: string;
-      spatialConsistency: number;
-    };
-    questionContext?: {
-      questionNumber: number;
-      spatialGroup: number;
-    };
-  }>;
+  questionGroups?: QuestionGroup[];
   validationResults: ValidationResults;
   answerPatternAnalysis?: {
     consistencyScore: number;
@@ -170,7 +168,7 @@ export interface SkillScore {
   points_possible: number;
 }
 
-export interface HybridGradingSummary {
+export interface QuestionBasedGradingSummary {
   total_questions: number;
   locally_graded: number;
   ai_graded: number;
@@ -178,10 +176,12 @@ export interface HybridGradingSummary {
   processing_method: string;
   api_calls_saved: number;
   enhanced_metrics?: {
+    question_based_graded: number;
     high_confidence_graded: number;
     medium_confidence_graded: number;
     enhanced_threshold_graded: number;
-    quality_flagged: number;
+    multiple_marks_detected: number;
+    review_flagged: number;
     bubble_quality_distribution: Record<string, number>;
   };
   quality_report?: {
@@ -192,11 +192,12 @@ export interface HybridGradingSummary {
 }
 
 export interface EnhancedAnalyzeTestResponse extends AnalyzeTestResponse {
-  hybrid_grading_summary?: HybridGradingSummary;
-  enhanced_bubble_analysis?: {
-    total_bubbles_detected: number;
-    quality_distribution: Record<string, number>;
-    review_flagged_count: number;
+  question_based_grading_summary?: QuestionBasedGradingSummary;
+  enhanced_question_analysis?: {
+    total_questions_processed: number;
+    questions_with_clear_answers: number;
+    questions_with_multiple_marks: number;
+    questions_needing_review: number;
     processing_improvements: string[];
   };
 }
@@ -228,7 +229,7 @@ const openaiCircuitBreaker = new CircuitBreaker(3, 30000);
 
 export const extractTextFromFile = async (request: ExtractTextRequest): Promise<ExtractTextResponse> => {
   try {
-    console.log('Calling enhanced dual OCR extract-text function with retry logic for:', request.fileName);
+    console.log('Calling enhanced question-based extract-text function for:', request.fileName);
     
     const result = await withRetry(
       async () => {
@@ -250,7 +251,7 @@ export const extractTextFromFile = async (request: ExtractTextRequest): Promise<
       }
     );
 
-    console.log('Enhanced dual OCR extract-text function response:', result);
+    console.log('Enhanced question-based extract-text function response:', result);
     return result;
   } catch (error) {
     console.error('Error calling enhanced extract-text function:', error);
@@ -265,21 +266,21 @@ export const extractTextFromFile = async (request: ExtractTextRequest): Promise<
 
 export const analyzeTest = async (request: AnalyzeTestRequest): Promise<EnhancedAnalyzeTestResponse> => {
   try {
-    console.log('Calling enhanced analyze-test function with hybrid grading and bubble quality analysis for exam ID:', request.examId);
+    console.log('Calling enhanced question-based analyze-test function for exam ID:', request.examId);
     
-    // Determine detail level based on structured data presence and enhanced features
+    // Determine detail level based on structured data presence and question-based features
     const hasStructuredData = request.files.some(file => file.structuredData);
-    const hasEnhancedFeatures = request.files.some(file => 
-      file.structuredData?.documentMetadata?.enhancedFeatures?.bubbleQualityAnalysis
+    const hasQuestionBasedFeatures = request.files.some(file => 
+      file.structuredData?.documentMetadata?.enhancedFeatures?.questionBasedGrouping
     );
     
-    const detailLevel = hasEnhancedFeatures ? "enhanced" : hasStructuredData ? "detailed" : "summary";
+    const detailLevel = hasQuestionBasedFeatures ? "question_based" : hasStructuredData ? "detailed" : "summary";
     
     console.log('Analysis detail level:', detailLevel, {
       hasStructuredData,
-      hasEnhancedFeatures,
-      enhancedBubbleCount: request.files.reduce((count, file) => 
-        count + (file.structuredData?.enhancedBubbleData?.length || 0), 0
+      hasQuestionBasedFeatures,
+      questionGroupCount: request.files.reduce((count, file) => 
+        count + (file.structuredData?.questionGroups?.length || 0), 0
       )
     });
     
@@ -289,7 +290,7 @@ export const analyzeTest = async (request: AnalyzeTestRequest): Promise<Enhanced
           body: request,
           headers: {
             'x-detail-level': detailLevel,
-            'x-enhanced-features': hasEnhancedFeatures ? 'true' : 'false'
+            'x-question-based-features': hasQuestionBasedFeatures ? 'true' : 'false'
           }
         });
 
@@ -307,12 +308,12 @@ export const analyzeTest = async (request: AnalyzeTestRequest): Promise<Enhanced
       }
     );
 
-    console.log('Enhanced hybrid analyze-test function response:', result);
+    console.log('Enhanced question-based analyze-test function response:', result);
     
-    // Log enhanced grading performance if available
-    if (result.hybrid_grading_summary) {
-      const summary = result.hybrid_grading_summary;
-      console.log(`Enhanced Hybrid Grading Performance:
+    // Log question-based grading performance if available
+    if (result.question_based_grading_summary) {
+      const summary = result.question_based_grading_summary;
+      console.log(`Question-Based Grading Performance:
         - Total Questions: ${summary.total_questions}
         - Locally Graded: ${summary.locally_graded} (${Math.round(summary.local_accuracy * 100)}%)
         - AI Graded: ${summary.ai_graded}
@@ -320,11 +321,13 @@ export const analyzeTest = async (request: AnalyzeTestRequest): Promise<Enhanced
         - Processing Method: ${summary.processing_method}`);
         
       if (summary.enhanced_metrics) {
-        console.log(`Enhanced Metrics:
+        console.log(`Enhanced Question-Based Metrics:
+          - Question-Based Graded: ${summary.enhanced_metrics.question_based_graded}
           - High Confidence: ${summary.enhanced_metrics.high_confidence_graded}
           - Medium Confidence: ${summary.enhanced_metrics.medium_confidence_graded}  
           - Enhanced Threshold: ${summary.enhanced_metrics.enhanced_threshold_graded}
-          - Quality Flagged: ${summary.enhanced_metrics.quality_flagged}
+          - Multiple Marks Detected: ${summary.enhanced_metrics.multiple_marks_detected}
+          - Review Flagged: ${summary.enhanced_metrics.review_flagged}
           - Bubble Quality: ${JSON.stringify(summary.enhanced_metrics.bubble_quality_distribution)}`);
       }
       
@@ -336,14 +339,15 @@ export const analyzeTest = async (request: AnalyzeTestRequest): Promise<Enhanced
       }
     }
     
-    // Log enhanced bubble analysis if available
-    if (result.enhanced_bubble_analysis) {
-      const bubbleAnalysis = result.enhanced_bubble_analysis;
-      console.log(`Enhanced Bubble Analysis:
-        - Total Bubbles: ${bubbleAnalysis.total_bubbles_detected}
-        - Review Flagged: ${bubbleAnalysis.review_flagged_count}
-        - Quality Distribution: ${JSON.stringify(bubbleAnalysis.quality_distribution)}
-        - Processing Improvements: ${bubbleAnalysis.processing_improvements.join(', ')}`);
+    // Log enhanced question analysis if available
+    if (result.enhanced_question_analysis) {
+      const questionAnalysis = result.enhanced_question_analysis;
+      console.log(`Enhanced Question Analysis:
+        - Total Questions: ${questionAnalysis.total_questions_processed}
+        - Clear Answers: ${questionAnalysis.questions_with_clear_answers}
+        - Multiple Marks: ${questionAnalysis.questions_with_multiple_marks}
+        - Needing Review: ${questionAnalysis.questions_needing_review}
+        - Processing Improvements: ${questionAnalysis.processing_improvements.join(', ')}`);
     }
     
     return result;
@@ -365,9 +369,9 @@ export const getEnhancedServiceHealthStatus = () => {
     roboflow: roboflowCircuitBreaker.getState(),
     openai: openaiCircuitBreaker.getState(),
     enhancedFeatures: {
-      bubbleQualityAnalysis: true,
-      crossValidation: true,
-      confidenceScoring: true,
+      questionBasedGrouping: true,
+      singleAnswerPerQuestion: true,
+      multipleMarkDetection: true,
       reviewFlags: true
     }
   };

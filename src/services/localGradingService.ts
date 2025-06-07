@@ -5,11 +5,12 @@ interface LocalGradingResult {
   pointsEarned: number;
   pointsPossible: number;
   confidence: number;
-  gradingMethod: 'local_mcq' | 'local_confident' | 'local_enhanced' | 'requires_ai';
+  gradingMethod: 'local_question_based' | 'local_confident' | 'local_enhanced' | 'requires_ai';
   reasoning?: string;
   qualityFlags?: {
-    bubbleQuality: string;
+    hasMultipleMarks: boolean;
     reviewRequired: boolean;
+    bubbleQuality: string;
     confidenceAdjusted: boolean;
   };
 }
@@ -21,24 +22,25 @@ interface QuestionClassification {
   detectionMethod: string;
   shouldUseLocalGrading: boolean;
   fallbackReason?: string;
-  enhancedAssessment?: {
+  questionAnalysis?: {
+    hasMultipleMarks: boolean;
+    reviewRequired: boolean;
     bubbleQuality: string;
-    qualityScore: number;
-    reviewFlag: boolean;
+    selectedAnswer: string;
   };
 }
 
 export class LocalGradingService {
-  private static readonly HIGH_CONFIDENCE_THRESHOLD = 0.85; // Slightly higher for enhanced system
-  private static readonly MEDIUM_CONFIDENCE_THRESHOLD = 0.6; // Lowered to catch more cases
-  private static readonly ENHANCED_CONFIDENCE_THRESHOLD = 0.4; // New threshold for enhanced handling
+  private static readonly HIGH_CONFIDENCE_THRESHOLD = 0.85;
+  private static readonly MEDIUM_CONFIDENCE_THRESHOLD = 0.6;
+  private static readonly ENHANCED_CONFIDENCE_THRESHOLD = 0.4;
 
   static classifyQuestion(question: any, answerKey: any): QuestionClassification {
     let confidence = 0;
     let isEasyMCQ = false;
     let detectionMethod = 'none';
     let shouldUseLocal = false;
-    let enhancedAssessment = null;
+    let questionAnalysis = null;
 
     // Check if it's a multiple choice question
     const isMCQ = answerKey.question_type?.toLowerCase().includes('multiple') || 
@@ -56,40 +58,48 @@ export class LocalGradingService {
       };
     }
 
-    // Enhanced detection analysis
+    // Enhanced question-based detection analysis
     if (question.detectedAnswer) {
       confidence = question.detectedAnswer.confidence || 0;
       detectionMethod = question.detectedAnswer.detectionMethod || 'unknown';
+      const hasMultipleMarks = question.detectedAnswer.multipleMarksDetected || false;
+      const reviewRequired = question.detectedAnswer.reviewFlag || false;
       const bubbleQuality = question.detectedAnswer.bubbleQuality || 'unknown';
-      const reviewFlag = question.detectedAnswer.reviewFlag || false;
+      const selectedAnswer = question.detectedAnswer.selectedOption || 'no_answer';
       
-      // Create enhanced assessment
-      enhancedAssessment = {
+      questionAnalysis = {
+        hasMultipleMarks,
+        reviewRequired,
         bubbleQuality,
-        qualityScore: this.calculateQualityScore(question.detectedAnswer),
-        reviewFlag
+        selectedAnswer
       };
       
-      // Enhanced classification logic
+      // Enhanced classification logic for question-based detection
       if (confidence >= this.HIGH_CONFIDENCE_THRESHOLD && 
-          !reviewFlag && 
+          !reviewRequired && 
+          !hasMultipleMarks &&
+          selectedAnswer !== 'no_answer' &&
           (bubbleQuality === 'heavy' || bubbleQuality === 'medium')) {
         isEasyMCQ = true;
         shouldUseLocal = true;
       }
       // Medium confidence with quality checks
       else if (confidence >= this.MEDIUM_CONFIDENCE_THRESHOLD && 
-               !reviewFlag && 
+               !reviewRequired && 
+               !hasMultipleMarks &&
+               selectedAnswer !== 'no_answer' &&
                question.detectedAnswer.crossValidated &&
                bubbleQuality !== 'empty') {
         isEasyMCQ = true;
         shouldUseLocal = true;
       }
-      // Enhanced threshold for borderline cases
+      // Enhanced threshold for borderline cases (question-based is more reliable)
       else if (confidence >= this.ENHANCED_CONFIDENCE_THRESHOLD &&
+               selectedAnswer !== 'no_answer' &&
                bubbleQuality === 'light' &&
                question.detectedAnswer.crossValidated &&
-               !reviewFlag) {
+               !hasMultipleMarks &&
+               !reviewRequired) {
         isEasyMCQ = true;
         shouldUseLocal = true;
       }
@@ -101,32 +111,9 @@ export class LocalGradingService {
       confidence,
       detectionMethod,
       shouldUseLocalGrading: shouldUseLocal,
-      enhancedAssessment,
+      questionAnalysis,
       fallbackReason: shouldUseLocal ? undefined : this.getFallbackReason(confidence, question.detectedAnswer)
     };
-  }
-
-  private static calculateQualityScore(detectedAnswer: any): number {
-    if (!detectedAnswer) return 0;
-    
-    let score = 0.5; // Base score
-    
-    // Adjust based on bubble quality
-    switch (detectedAnswer.bubbleQuality) {
-      case 'heavy': score += 0.4; break;
-      case 'medium': score += 0.3; break;
-      case 'light': score += 0.1; break;
-      case 'empty': score -= 0.3; break;
-      case 'overfilled': score -= 0.1; break;
-    }
-    
-    // Adjust based on cross-validation
-    if (detectedAnswer.crossValidated) score += 0.2;
-    
-    // Adjust based on detection method
-    if (detectedAnswer.detectionMethod?.includes('bubble_clear')) score += 0.2;
-    
-    return Math.min(1.0, Math.max(0.0, score));
   }
 
   private static getFallbackReason(confidence: number, detectedAnswer: any): string {
@@ -142,8 +129,16 @@ export class LocalGradingService {
       reasons.push('Flagged for manual review');
     }
     
+    if (detectedAnswer.multipleMarksDetected) {
+      reasons.push('Multiple marks detected');
+    }
+    
+    if (detectedAnswer.selectedOption === 'no_answer') {
+      reasons.push('No clear answer selected');
+    }
+    
     if (detectedAnswer.bubbleQuality === 'empty') {
-      reasons.push('Empty bubble detected');
+      reasons.push('Empty or unclear bubble');
     }
     
     if (detectedAnswer.bubbleQuality === 'overfilled') {
@@ -169,9 +164,10 @@ export class LocalGradingService {
         confidence: 0,
         gradingMethod: 'requires_ai',
         reasoning: classification.fallbackReason,
-        qualityFlags: classification.enhancedAssessment ? {
-          bubbleQuality: classification.enhancedAssessment.bubbleQuality,
-          reviewRequired: classification.enhancedAssessment.reviewFlag,
+        qualityFlags: classification.questionAnalysis ? {
+          hasMultipleMarks: classification.questionAnalysis.hasMultipleMarks,
+          reviewRequired: classification.questionAnalysis.reviewRequired,
+          bubbleQuality: classification.questionAnalysis.bubbleQuality,
           confidenceAdjusted: false
         } : undefined
       };
@@ -183,18 +179,19 @@ export class LocalGradingService {
     const pointsPossible = answerKey.points || 1;
     const pointsEarned = isCorrect ? pointsPossible : 0;
 
-    // Determine grading method based on confidence and quality
-    let gradingMethod: LocalGradingResult['gradingMethod'] = 'local_mcq';
+    // Determine grading method based on confidence and detection method
+    let gradingMethod: LocalGradingResult['gradingMethod'] = 'local_question_based';
     if (classification.confidence >= this.HIGH_CONFIDENCE_THRESHOLD) {
       gradingMethod = 'local_confident';
     } else if (classification.confidence >= this.ENHANCED_CONFIDENCE_THRESHOLD) {
       gradingMethod = 'local_enhanced';
     }
 
-    // Enhanced quality flags
-    const qualityFlags = classification.enhancedAssessment ? {
-      bubbleQuality: classification.enhancedAssessment.bubbleQuality,
-      reviewRequired: classification.enhancedAssessment.reviewFlag,
+    // Enhanced quality flags for question-based grading
+    const qualityFlags = classification.questionAnalysis ? {
+      hasMultipleMarks: classification.questionAnalysis.hasMultipleMarks,
+      reviewRequired: classification.questionAnalysis.reviewRequired,
+      bubbleQuality: classification.questionAnalysis.bubbleQuality,
       confidenceAdjusted: classification.confidence < this.MEDIUM_CONFIDENCE_THRESHOLD
     } : undefined;
 
@@ -205,16 +202,24 @@ export class LocalGradingService {
       pointsPossible,
       confidence: classification.confidence,
       gradingMethod,
-      reasoning: this.generateEnhancedReasoning(studentAnswer, correctAnswer, question.detectedAnswer),
+      reasoning: this.generateQuestionBasedReasoning(studentAnswer, correctAnswer, question.detectedAnswer),
       qualityFlags
     };
   }
 
-  private static generateEnhancedReasoning(studentAnswer: string, correctAnswer: string, detectedAnswer: any): string {
-    let reasoning = `Enhanced local grading: Student selected ${studentAnswer || 'no answer'}, correct answer is ${correctAnswer}`;
+  private static generateQuestionBasedReasoning(studentAnswer: string, correctAnswer: string, detectedAnswer: any): string {
+    let reasoning = `Question-based local grading: Student selected ${studentAnswer || 'no answer'}, correct answer is ${correctAnswer}`;
     
     if (detectedAnswer) {
-      reasoning += ` (Bubble quality: ${detectedAnswer.bubbleQuality || 'unknown'})`;
+      reasoning += ` (Detection: ${detectedAnswer.detectionMethod || 'unknown'})`;
+      
+      if (detectedAnswer.bubbleQuality) {
+        reasoning += ` [Bubble: ${detectedAnswer.bubbleQuality}]`;
+      }
+      
+      if (detectedAnswer.multipleMarksDetected) {
+        reasoning += ' [MULTIPLE MARKS DETECTED]';
+      }
       
       if (detectedAnswer.reviewFlag) {
         reasoning += ' [FLAGGED FOR REVIEW]';
@@ -237,10 +242,12 @@ export class LocalGradingService {
       requiresAI: number;
       localAccuracy: number;
       enhancedMetrics: {
+        questionBasedGraded: number;
         highConfidenceGraded: number;
         mediumConfidenceGraded: number;
         enhancedThresholdGraded: number;
-        qualityFlagged: number;
+        multipleMarksDetected: number;
+        reviewFlagged: number;
         bubbleQualityDistribution: Record<string, number>;
       };
     };
@@ -249,11 +256,13 @@ export class LocalGradingService {
     const aiRequiredQuestions: any[] = [];
     let locallyGradedCount = 0;
     
-    // Enhanced metrics tracking
+    // Enhanced metrics tracking for question-based grading
+    let questionBasedCount = 0;
     let highConfidenceCount = 0;
     let mediumConfidenceCount = 0;
     let enhancedThresholdCount = 0;
-    let qualityFlaggedCount = 0;
+    let multipleMarksCount = 0;
+    let reviewFlaggedCount = 0;
     const bubbleQualityDist: Record<string, number> = {};
 
     for (const question of questions) {
@@ -273,16 +282,20 @@ export class LocalGradingService {
         locallyGradedCount++;
         
         // Track enhanced metrics
-        if (result.gradingMethod === 'local_confident') {
+        if (result.gradingMethod === 'local_question_based') {
+          questionBasedCount++;
+        } else if (result.gradingMethod === 'local_confident') {
           highConfidenceCount++;
-        } else if (result.gradingMethod === 'local_mcq') {
-          mediumConfidenceCount++;
         } else if (result.gradingMethod === 'local_enhanced') {
           enhancedThresholdCount++;
         }
         
+        if (result.qualityFlags?.hasMultipleMarks) {
+          multipleMarksCount++;
+        }
+        
         if (result.qualityFlags?.reviewRequired) {
-          qualityFlaggedCount++;
+          reviewFlaggedCount++;
         }
         
         if (result.qualityFlags?.bubbleQuality) {
@@ -301,10 +314,12 @@ export class LocalGradingService {
         requiresAI: aiRequiredQuestions.length,
         localAccuracy: locallyGradedCount / questions.length,
         enhancedMetrics: {
+          questionBasedGraded: questionBasedCount,
           highConfidenceGraded: highConfidenceCount,
           mediumConfidenceGraded: mediumConfidenceCount,
           enhancedThresholdGraded: enhancedThresholdCount,
-          qualityFlagged: qualityFlaggedCount,
+          multipleMarksDetected: multipleMarksCount,
+          reviewFlagged: reviewFlaggedCount,
           bubbleQualityDistribution: bubbleQualityDist
         }
       }
@@ -316,17 +331,22 @@ export class LocalGradingService {
     const total = results.length;
     const percentage = Math.round((correct / total) * 100);
     
-    const qualityFlagged = results.filter(r => r.qualityFlags?.reviewRequired).length;
-    const enhancedGraded = results.filter(r => r.gradingMethod === 'local_enhanced').length;
+    const multipleMarks = results.filter(r => r.qualityFlags?.hasMultipleMarks).length;
+    const reviewFlagged = results.filter(r => r.qualityFlags?.reviewRequired).length;
+    const questionBased = results.filter(r => r.gradingMethod === 'local_question_based').length;
     
-    let feedback = `Enhanced automated grading completed for ${total} multiple choice questions. Score: ${correct}/${total} (${percentage}%)`;
+    let feedback = `Question-based automated grading completed for ${total} multiple choice questions. Score: ${correct}/${total} (${percentage}%)`;
     
-    if (enhancedGraded > 0) {
-      feedback += `. ${enhancedGraded} questions graded using enhanced bubble analysis`;
+    if (questionBased > 0) {
+      feedback += `. ${questionBased} questions graded using enhanced question-based analysis`;
     }
     
-    if (qualityFlagged > 0) {
-      feedback += `. ${qualityFlagged} questions flagged for review due to bubble quality concerns`;
+    if (multipleMarks > 0) {
+      feedback += `. ${multipleMarks} questions had multiple marks detected`;
+    }
+    
+    if (reviewFlagged > 0) {
+      feedback += `. ${reviewFlagged} questions flagged for review due to quality concerns`;
     }
     
     return feedback;
@@ -351,14 +371,20 @@ export class LocalGradingService {
     const lightBubbles = qualityDist['light'] || 0;
     const emptyBubbles = qualityDist['empty'] || 0;
     const overfilledBubbles = qualityDist['overfilled'] || 0;
+    const multipleMarks = results.filter(r => r.qualityFlags?.hasMultipleMarks).length;
     
     let overallQuality = 'excellent';
+    
+    if (multipleMarks > totalWithQuality * 0.1) {
+      overallQuality = 'needs_improvement';
+      recommendations.push('Multiple marks detected frequently - review bubble sheet instructions');
+    }
     
     if ((lightBubbles + emptyBubbles + overfilledBubbles) / totalWithQuality > 0.3) {
       overallQuality = 'needs_improvement';
       recommendations.push('Consider instructing students to fill bubbles more completely');
     } else if ((lightBubbles + emptyBubbles + overfilledBubbles) / totalWithQuality > 0.15) {
-      overallQuality = 'good';
+      if (overallQuality === 'excellent') overallQuality = 'good';
       recommendations.push('Some bubbles could be filled more clearly');
     }
     
@@ -368,6 +394,10 @@ export class LocalGradingService {
     
     if (overfilledBubbles > 0) {
       recommendations.push(`${overfilledBubbles} questions show potential erasure marks or overfilling`);
+    }
+    
+    if (multipleMarks > 0) {
+      recommendations.push(`${multipleMarks} questions had multiple bubbles marked - may indicate erasures or mistakes`);
     }
     
     return {
