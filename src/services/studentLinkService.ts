@@ -61,7 +61,7 @@ export const createStudentLink = async (linkData: {
     // Generate a unique token
     const token = generateToken();
     
-    const { data, error } = await supabase
+    const { data, error } = await (supabase as any)
       .from('student_links')
       .insert({
         token,
@@ -85,7 +85,7 @@ export const createStudentLink = async (linkData: {
     }
 
     console.log('Student link created successfully:', data);
-    return data;
+    return data as StudentLink;
   } catch (error) {
     console.error('Error in createStudentLink:', error);
     throw error;
@@ -96,7 +96,7 @@ export const getStudentLinkByToken = async (token: string): Promise<StudentLink 
   try {
     console.log('Fetching student link by token:', token);
     
-    const { data, error } = await supabase
+    const { data, error } = await (supabase as any)
       .from('student_links')
       .select('*')
       .eq('token', token)
@@ -108,7 +108,7 @@ export const getStudentLinkByToken = async (token: string): Promise<StudentLink 
       throw new Error(`Failed to fetch student link: ${error.message}`);
     }
 
-    return data;
+    return data as StudentLink | null;
   } catch (error) {
     console.error('Error in getStudentLinkByToken:', error);
     throw error;
@@ -122,7 +122,7 @@ export const createQuizSession = async (sessionData: {
   try {
     console.log('Creating quiz session:', sessionData);
     
-    const { data, error } = await supabase
+    const { data, error } = await (supabase as any)
       .from('student_quiz_sessions')
       .insert({
         student_link_id: sessionData.student_link_id,
@@ -140,7 +140,7 @@ export const createQuizSession = async (sessionData: {
     }
 
     console.log('Quiz session created successfully:', data);
-    return data;
+    return data as StudentQuizSession;
   } catch (error) {
     console.error('Error in createQuizSession:', error);
     throw error;
@@ -154,7 +154,7 @@ export const updateQuizSession = async (
   try {
     console.log('Updating quiz session:', sessionId, updates);
     
-    const { data, error } = await supabase
+    const { data, error } = await (supabase as any)
       .from('student_quiz_sessions')
       .update(updates)
       .eq('id', sessionId)
@@ -167,7 +167,7 @@ export const updateQuizSession = async (
     }
 
     console.log('Quiz session updated successfully:', data);
-    return data;
+    return data as StudentQuizSession;
   } catch (error) {
     console.error('Error in updateQuizSession:', error);
     throw error;
@@ -178,7 +178,7 @@ export const getTeacherQuizLinks = async (teacherName: string): Promise<StudentL
   try {
     console.log('Fetching quiz links for teacher:', teacherName);
     
-    const { data, error } = await supabase
+    const { data, error } = await (supabase as any)
       .from('student_links')
       .select('*')
       .eq('teacher_name', teacherName)
@@ -190,7 +190,7 @@ export const getTeacherQuizLinks = async (teacherName: string): Promise<StudentL
       throw new Error(`Failed to fetch quiz links: ${error.message}`);
     }
 
-    return data || [];
+    return (data || []) as StudentLink[];
   } catch (error) {
     console.error('Error in getTeacherQuizLinks:', error);
     throw error;
@@ -201,12 +201,26 @@ export const incrementLinkAttempts = async (linkId: string): Promise<void> => {
   try {
     console.log('Incrementing attempts for link:', linkId);
     
-    const { error } = await supabase
-      .rpc('increment_link_attempts', { link_id: linkId });
+    // Since we can't use RPC functions that don't exist yet, we'll do this manually
+    const { data: currentLink, error: fetchError } = await (supabase as any)
+      .from('student_links')
+      .select('current_attempts')
+      .eq('id', linkId)
+      .single();
 
-    if (error) {
-      console.error('Error incrementing link attempts:', error);
-      throw new Error(`Failed to increment attempts: ${error.message}`);
+    if (fetchError) {
+      console.error('Error fetching current attempts:', fetchError);
+      throw new Error(`Failed to fetch current attempts: ${fetchError.message}`);
+    }
+
+    const { error: updateError } = await (supabase as any)
+      .from('student_links')
+      .update({ current_attempts: (currentLink.current_attempts || 0) + 1 })
+      .eq('id', linkId);
+
+    if (updateError) {
+      console.error('Error incrementing link attempts:', updateError);
+      throw new Error(`Failed to increment attempts: ${updateError.message}`);
     }
 
     console.log('Link attempts incremented successfully');
