@@ -1,3 +1,4 @@
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
@@ -109,51 +110,53 @@ class ScoreValidationService {
   }
 }
 
-// Enhanced Local Grading Service
-class EnhancedLocalGradingService {
-  private static readonly HIGH_CONFIDENCE_THRESHOLD = 0.85;
-  private static readonly MEDIUM_CONFIDENCE_THRESHOLD = 0.6;
-  private static readonly ENHANCED_CONFIDENCE_THRESHOLD = 0.4;
-
-  static async checkSkillMappingsExist(supabase: any, examId: string): Promise<boolean> {
-    const { data: analysis } = await supabase
-      .from('exam_skill_analysis')
-      .select('analysis_status')
-      .eq('exam_id', examId)
-      .maybeSingle();
-
-    return analysis?.analysis_status === 'completed';
-  }
-
-  static async ensureSkillMappingsExist(supabase: any, examId: string): Promise<boolean> {
-    const exists = await this.checkSkillMappingsExist(supabase, examId);
+// Skill Identification Service
+class SkillIdentificationService {
+  static async ensureSkillsIdentified(supabase: any, examId: string): Promise<boolean> {
+    console.log('Phase 1: Ensuring AI skill identification is completed for exam:', examId);
     
-    if (!exists) {
-      console.log('Skill mappings do not exist, triggering analysis for exam:', examId);
-      
-      try {
-        const { data, error } = await supabase.functions.invoke('analyze-exam-skills', {
-          body: { examId }
-        });
+    // Check if skill mappings already exist
+    const { data: existingMappings } = await supabase
+      .from('exam_skill_mappings')
+      .select('id')
+      .eq('exam_id', examId)
+      .limit(1);
 
-        if (error) {
-          console.error('Error triggering skill analysis:', error);
-          return false;
-        }
-
-        console.log('Skill analysis triggered:', data);
-        return data.status === 'completed' || data.status === 'already_completed';
-      } catch (error) {
-        console.error('Failed to trigger skill analysis:', error);
-        return false;
-      }
+    if (existingMappings && existingMappings.length > 0) {
+      console.log('✓ Skills already identified for exam:', examId);
+      return true;
     }
 
-    return true;
+    console.log('No existing skill mappings found. Triggering AI skill identification...');
+    
+    // Trigger skill identification
+    try {
+      const { data, error } = await supabase.functions.invoke('analyze-exam-skills', {
+        body: { examId }
+      });
+
+      if (error) {
+        console.error('Error triggering skill identification:', error);
+        return false;
+      }
+
+      console.log('AI skill identification result:', data);
+      
+      if (data.status === 'completed' || data.status === 'already_completed') {
+        console.log('✓ AI skill identification completed successfully');
+        return true;
+      } else {
+        console.error('Skill identification failed with status:', data.status);
+        return false;
+      }
+    } catch (error) {
+      console.error('Failed to trigger skill identification:', error);
+      return false;
+    }
   }
 
-  static async getExamSkillMappings(supabase: any, examId: string): Promise<any> {
-    console.log('Fetching skill mappings for exam:', examId);
+  static async getIdentifiedSkills(supabase: any, examId: string): Promise<any> {
+    console.log('Fetching AI-identified skills for exam:', examId);
     
     const { data: mappings, error } = await supabase
       .from('exam_skill_mappings')
@@ -181,9 +184,16 @@ class EnhancedLocalGradingService {
       });
     }
 
-    console.log('Loaded skill mappings for', Object.keys(skillMappings).length, 'questions');
+    console.log('✓ Loaded AI-identified skills for', Object.keys(skillMappings).length, 'questions');
     return skillMappings;
   }
+}
+
+// Enhanced Local Grading Service
+class EnhancedLocalGradingService {
+  private static readonly HIGH_CONFIDENCE_THRESHOLD = 0.85;
+  private static readonly MEDIUM_CONFIDENCE_THRESHOLD = 0.6;
+  private static readonly ENHANCED_CONFIDENCE_THRESHOLD = 0.4;
 
   static classifyQuestion(question: any, answerKey: any) {
     let confidence = 0;
@@ -353,7 +363,7 @@ class EnhancedLocalGradingService {
       pointsPossible,
       confidence: classification.confidence,
       gradingMethod,
-      reasoning: `Local grading with skills: Student selected ${studentAnswer || 'no answer'}, correct answer is ${correctAnswer}`,
+      reasoning: `Local grading with AI-identified skills: Student selected ${studentAnswer || 'no answer'}, correct answer is ${correctAnswer}`,
       skillMappings,
       qualityFlags
     };
@@ -411,16 +421,8 @@ class EnhancedLocalGradingService {
     };
   }
 
-  static async processQuestionsWithSkills(supabase: any, questions: any[], answerKeys: any[], examId: string) {
-    console.log('Processing questions with enhanced local grading and skill mapping');
-    
-    const hasSkillMappings = await this.ensureSkillMappingsExist(supabase, examId);
-    if (!hasSkillMappings) {
-      console.warn('Skill mappings not available, falling back to basic processing');
-      return this.processQuestionsBasic(questions, answerKeys);
-    }
-
-    const skillMappings = await this.getExamSkillMappings(supabase, examId);
+  static async processQuestionsWithIdentifiedSkills(questions: any[], answerKeys: any[], identifiedSkills: any) {
+    console.log('Phase 2: Processing questions with AI-identified skills');
     
     const localResults = [];
     const aiRequiredQuestions = [];
@@ -440,7 +442,7 @@ class EnhancedLocalGradingService {
         continue;
       }
 
-      const questionSkillMappings = skillMappings[question.questionNumber] || [];
+      const questionSkillMappings = identifiedSkills[question.questionNumber] || [];
       const result = this.gradeQuestionWithSkills(question, answerKey, questionSkillMappings);
       
       if (result.gradingMethod === 'requires_ai') {
@@ -472,6 +474,8 @@ class EnhancedLocalGradingService {
 
     const { contentSkillScores, subjectSkillScores } = this.calculateSkillScores(localResults);
 
+    console.log(`✓ Local grading with AI-identified skills: ${locallyGradedCount} local, ${aiRequiredQuestions.length} require AI`);
+
     return {
       localResults,
       aiRequiredQuestions,
@@ -492,63 +496,6 @@ class EnhancedLocalGradingService {
           reviewFlagged: reviewFlaggedCount,
           bubbleQualityDistribution: bubbleQualityDist
         }
-      }
-    };
-  }
-
-  static processQuestionsBasic(questions: any[], answerKeys: any[]) {
-    console.log('Using basic local grading without skill mappings');
-    
-    const localResults = [];
-    const aiRequiredQuestions = [];
-    let locallyGradedCount = 0;
-
-    for (const question of questions) {
-      const answerKey = answerKeys.find(ak => ak.question_number === question.questionNumber);
-      
-      if (!answerKey) {
-        aiRequiredQuestions.push(question);
-        continue;
-      }
-
-      const classification = this.classifyQuestion(question, answerKey);
-      
-      if (!classification.shouldUseLocalGrading) {
-        aiRequiredQuestions.push(question);
-        continue;
-      }
-
-      const studentAnswer = question.detectedAnswer?.selectedOption?.toUpperCase() || '';
-      const correctAnswer = answerKey.correct_answer?.toUpperCase() || '';
-      const isCorrect = studentAnswer === correctAnswer;
-      const pointsPossible = answerKey.points || 1;
-      const pointsEarned = isCorrect ? pointsPossible : 0;
-
-      localResults.push({
-        questionNumber: question.questionNumber,
-        isCorrect,
-        pointsEarned,
-        pointsPossible,
-        confidence: classification.confidence,
-        gradingMethod: 'local_basic',
-        reasoning: `Basic local grading: ${studentAnswer} vs ${correctAnswer}`,
-        qualityFlags: classification.questionAnalysis
-      });
-      
-      locallyGradedCount++;
-    }
-
-    return {
-      localResults,
-      aiRequiredQuestions,
-      localContentSkillScores: [],
-      localSubjectSkillScores: [],
-      summary: {
-        totalQuestions: questions.length,
-        locallyGraded: locallyGradedCount,
-        requiresAI: aiRequiredQuestions.length,
-        localAccuracy: locallyGradedCount / questions.length,
-        skillMappingAvailable: false
       }
     };
   }
@@ -579,19 +526,36 @@ async function parseRequestData(req: Request) {
 // Handler
 async function handleRequest(req: Request): Promise<Response> {
   try {
-    console.log('Enhanced analyze-test function called with comprehensive score validation');
+    console.log('=== HYBRID TEST ANALYSIS WITH AI SKILL IDENTIFICATION FIRST ===');
     
     const { files, examId, studentName, studentEmail, detailLevel } = await parseRequestData(req);
     const { openaiApiKey, supabase } = validateEnv();
     const isDetailed = detailLevel === 'detailed';
 
-    console.log('Step 1: Fetching exam data and checking skill mappings for:', examId);
+    console.log('Starting hybrid analysis for exam:', examId);
+
+    // PHASE 1: ENSURE AI SKILL IDENTIFICATION IS COMPLETED FIRST
+    console.log('\n=== PHASE 1: AI SKILL IDENTIFICATION ===');
+    const skillsIdentified = await SkillIdentificationService.ensureSkillsIdentified(supabase, examId);
     
-    const [examRes, answerKeysRes, contentSkillsRes, subjectSkillsRes] = await Promise.all([
+    if (!skillsIdentified) {
+      throw new Error('Failed to identify skills for the exam. Cannot proceed with grading without skill identification.');
+    }
+
+    // Get the AI-identified skills
+    const identifiedSkills = await SkillIdentificationService.getIdentifiedSkills(supabase, examId);
+    
+    if (Object.keys(identifiedSkills).length === 0) {
+      throw new Error('No skills were identified for this exam. Cannot proceed with skill-based grading.');
+    }
+
+    console.log('✓ Phase 1 Complete: Skills successfully identified');
+
+    // Fetch exam data now that skills are confirmed
+    console.log('\n=== FETCHING EXAM DATA ===');
+    const [examRes, answerKeysRes] = await Promise.all([
       supabase.from('exams').select('*, classes:active_classes(*)').eq('exam_id', examId).maybeSingle(),
-      supabase.from('answer_keys').select('*').eq('exam_id', examId).order('question_number'),
-      supabase.from('class_content_skills').select('content_skills (id, skill_name, skill_description, topic)').eq('class_id', examId),
-      supabase.from('class_subject_skills').select('subject_skills (id, skill_name, skill_description)').eq('class_id', examId)
+      supabase.from('answer_keys').select('*').eq('exam_id', examId).order('question_number')
     ]);
 
     if (examRes.error || !examRes.data) {
@@ -600,14 +564,11 @@ async function handleRequest(req: Request): Promise<Response> {
 
     const examData = examRes.data;
     const answerKeys = answerKeysRes.data || [];
-    const contentSkills = (contentSkillsRes.data || []).map(item => item.content_skills).filter(Boolean);
-    const subjectSkills = (subjectSkillsRes.data || []).map(item => item.subject_skills).filter(Boolean);
 
     console.log('Found exam:', examData.title, 'with', answerKeys.length, 'answer keys');
     console.log('Exam total points:', examData.total_points);
 
-    console.log('Step 2: Processing questions with enhanced skill mapping and validation');
-    
+    // Extract questions from structured data
     const allQuestions = [];
     let hasStructuredData = false;
     
@@ -618,21 +579,30 @@ async function handleRequest(req: Request): Promise<Response> {
       }
     }
 
-    console.log('Found', allQuestions.length, 'questions for enhanced processing');
+    console.log('Found', allQuestions.length, 'questions for processing');
 
-    const processingResult = await EnhancedLocalGradingService.processQuestionsWithSkills(
-      supabase, allQuestions, answerKeys, examId
+    if (allQuestions.length === 0) {
+      throw new Error('No questions found in uploaded files. Cannot proceed with analysis.');
+    }
+
+    // PHASE 2: LOCAL GRADING WITH IDENTIFIED SKILLS
+    console.log('\n=== PHASE 2: LOCAL GRADING WITH AI-IDENTIFIED SKILLS ===');
+    
+    const processingResult = await EnhancedLocalGradingService.processQuestionsWithIdentifiedSkills(
+      allQuestions, answerKeys, identifiedSkills
     );
     
     const { localResults, aiRequiredQuestions, localContentSkillScores, localSubjectSkillScores, summary } = processingResult;
     
-    console.log(`Enhanced processing: ${summary.locallyGraded} local, ${summary.requiresAI} require AI`);
-    console.log('Skill mapping available:', summary.skillMappingAvailable);
+    console.log(`✓ Phase 2 Complete: ${summary.locallyGraded} locally graded, ${summary.requiresAI} require AI`);
 
     const localPointsEarned = localResults.reduce((sum, r) => sum + r.pointsEarned, 0);
     const localPointsPossible = localResults.reduce((sum, r) => sum + r.pointsPossible, 0);
     
-    console.log(`Local grading: ${localPointsEarned}/${localPointsPossible} points`);
+    console.log(`Local grading score: ${localPointsEarned}/${localPointsPossible} points`);
+    
+    // PHASE 3: AI GRADING FOR COMPLEX QUESTIONS
+    console.log('\n=== PHASE 3: AI GRADING FOR COMPLEX QUESTIONS ===');
     
     let aiAnalysis = null;
     let aiPointsEarned = 0;
@@ -641,20 +611,28 @@ async function handleRequest(req: Request): Promise<Response> {
     let aiSubjectSkillScores = [];
 
     if (aiRequiredQuestions.length > 0) {
-      console.log('Step 3: Processing', aiRequiredQuestions.length, 'questions with AI for complex analysis');
+      console.log('Processing', aiRequiredQuestions.length, 'questions with AI');
       
-      const contentSkillsText = contentSkills.map(skill => `${skill.id}:${skill.skill_name}`).join(', ');
-      const subjectSkillsText = subjectSkills.map(skill => `${skill.id}:${skill.skill_name}`).join(', ');
+      // Build skill mapping text from identified skills
+      const allIdentifiedSkills = Object.values(identifiedSkills).flat();
+      const contentSkillsText = allIdentifiedSkills
+        .filter(skill => skill.skill_type === 'content')
+        .map(skill => `${skill.skill_id}:${skill.skill_name}`)
+        .join(', ');
+      const subjectSkillsText = allIdentifiedSkills
+        .filter(skill => skill.skill_type === 'subject')
+        .map(skill => `${skill.skill_id}:${skill.skill_name}`)
+        .join(', ');
 
       const systemPrompt = isDetailed
-        ? `You are an advanced AI test grader. Analyze responses, grade, map to skill IDs, and return detailed JSON.
-CONTENT SKILLS: ${contentSkillsText}
-SUBJECT SKILLS: ${subjectSkillsText}
-Focus on skill mapping and complex question analysis.`
-        : `You are an AI grader. Grade and map answers to skill IDs. Return JSON summary.
-CONTENT SKILLS: ${contentSkillsText}
-SUBJECT SKILLS: ${subjectSkillsText}
-Focus on skill mapping.`;
+        ? `You are an advanced AI test grader. Analyze responses, grade, map to IDENTIFIED skill IDs, and return detailed JSON.
+IDENTIFIED CONTENT SKILLS: ${contentSkillsText}
+IDENTIFIED SUBJECT SKILLS: ${subjectSkillsText}
+Use ONLY the skills that were previously identified for this exam.`
+        : `You are an AI grader. Grade and map answers to IDENTIFIED skill IDs. Return JSON summary.
+IDENTIFIED CONTENT SKILLS: ${contentSkillsText}  
+IDENTIFIED SUBJECT SKILLS: ${subjectSkillsText}
+Use ONLY the skills that were previously identified for this exam.`;
 
       const aiAnswerKeys = aiRequiredQuestions.map(q => {
         const ak = answerKeys.find(ak => ak.question_number === q.questionNumber);
@@ -666,13 +644,13 @@ Focus on skill mapping.`;
       ).join('\n');
 
       const userPrompt = `GRADE: ${examData.title} (${examId})
-AI QUESTIONS ONLY:
+AI QUESTIONS ONLY (Skills already identified by AI):
 ${aiAnswerKeys}
 
 STUDENT ANSWERS:
 ${aiStudentAnswers}
 
-Note: ${summary.locallyGraded} questions already graded locally with skill mapping.`;
+Note: ${summary.locallyGraded} questions already graded locally using AI-identified skills.`;
 
       const maxTokens = isDetailed ? 1500 : 500;
 
@@ -711,7 +689,7 @@ Note: ${summary.locallyGraded} questions already graded locally with skill mappi
         aiContentSkillScores = aiAnalysis.content_skill_scores || [];
         aiSubjectSkillScores = aiAnalysis.subject_skill_scores || [];
         
-        console.log(`AI grading validated: ${aiPointsEarned}/${aiPointsPossible} points`);
+        console.log(`✓ Phase 3 Complete: AI grading validated: ${aiPointsEarned}/${aiPointsPossible} points`);
       } catch (parseError) {
         console.error('Failed to parse AI analysis:', parseError);
         aiAnalysis = {
@@ -722,9 +700,12 @@ Note: ${summary.locallyGraded} questions already graded locally with skill mappi
           subject_skill_scores: []
         };
       }
+    } else {
+      console.log('✓ Phase 3 Complete: No questions required AI grading');
     }
 
-    console.log('Step 4: Combining results with comprehensive score validation');
+    // PHASE 4: SCORE VALIDATION AND FINAL RESULTS
+    console.log('\n=== PHASE 4: SCORE VALIDATION AND FINAL RESULTS ===');
     
     const rawTotalEarned = localPointsEarned + aiPointsEarned;
     const rawTotalPossible = localPointsPossible + aiPointsPossible;
@@ -746,7 +727,7 @@ Note: ${summary.locallyGraded} questions already graded locally with skill mappi
     const allContentSkillScores = [...localContentSkillScores, ...aiContentSkillScores];
     const allSubjectSkillScores = [...localSubjectSkillScores, ...aiSubjectSkillScores];
 
-    const localFeedback = `Enhanced local grading with skill mapping completed for ${localResults.length} questions.`;
+    const localFeedback = `Enhanced hybrid analysis: AI first identified skills, then graded ${localResults.length} questions locally.`;
     const aiFeedback = aiAnalysis?.feedback || '';
     let combinedFeedback = localFeedback + (aiFeedback ? ' ' + aiFeedback : '');
     
@@ -760,7 +741,7 @@ Note: ${summary.locallyGraded} questions already graded locally with skill mappi
       total_points_possible: totalPointsPossible,
       grade: `${Math.round(overallScore)}%`,
       feedback: combinedFeedback,
-      detailed_analysis: aiAnalysis?.detailed_analysis || `Enhanced grading with skills: ${localResults.length} local + ${aiRequiredQuestions.length} AI`,
+      detailed_analysis: aiAnalysis?.detailed_analysis || `Hybrid analysis with AI-identified skills: ${localResults.length} local + ${aiRequiredQuestions.length} AI`,
       content_skill_scores: allContentSkillScores,
       subject_skill_scores: allSubjectSkillScores,
       question_based_grading_summary: {
@@ -768,16 +749,17 @@ Note: ${summary.locallyGraded} questions already graded locally with skill mappi
         locally_graded: summary.locallyGraded,
         ai_graded: summary.requiresAI,
         local_accuracy: summary.localAccuracy,
-        processing_method: hasStructuredData ? "enhanced_dual_ocr_with_skills" : "standard_ocr_with_skills",
+        processing_method: hasStructuredData ? "hybrid_ai_skills_first_dual_ocr" : "hybrid_ai_skills_first_standard",
         api_calls_saved: summary.locallyGraded > 0 ? Math.round((summary.locallyGraded / allQuestions.length) * 100) : 0,
-        skill_mapping_available: summary.skillMappingAvailable,
+        skill_mapping_available: true,
         score_validation_applied: validation.capped,
         enhanced_metrics: summary.enhancedMetrics
       },
       enhanced_question_analysis: {
         total_questions_processed: allQuestions.length,
         questions_with_clear_answers: summary.locallyGraded,
-        questions_with_skill_mapping: summary.skillMappingAvailable ? summary.locallyGraded : 0,
+        questions_with_skill_mapping: Object.keys(identifiedSkills).length,
+        ai_skill_identification_completed: true,
         local_skill_scores_calculated: localContentSkillScores.length + localSubjectSkillScores.length,
         score_validation_summary: {
           validation_applied: validation.capped,
@@ -786,15 +768,15 @@ Note: ${summary.locallyGraded} questions already graded locally with skill mappi
           exam_total_points: examData.total_points
         },
         processing_improvements: [
-          `${summary.locallyGraded} questions processed with local grading and skill mapping`,
-          `${Math.round(summary.localAccuracy * 100)}% questions graded locally`,
-          `Skill mapping ${summary.skillMappingAvailable ? 'available' : 'not available'} for this exam`,
-          `Score validation ${validation.capped ? 'applied' : 'passed'} - ensuring mathematical consistency`
+          `Phase 1: AI identified skills for ${Object.keys(identifiedSkills).length} questions`,
+          `Phase 2: ${summary.locallyGraded} questions graded locally using AI-identified skills`,
+          `Phase 3: ${aiRequiredQuestions.length} complex questions graded with AI`,
+          `Phase 4: Score validation ${validation.capped ? 'applied' : 'passed'} for mathematical consistency`
         ]
       }
     };
 
-    console.log('Step 5: Saving validated results to database');
+    console.log('\n=== SAVING RESULTS TO DATABASE ===');
     
     const { data: studentProfile } = await supabase
       .from('student_profiles')
@@ -847,10 +829,13 @@ Note: ${summary.locallyGraded} questions already graded locally with skill mappi
       );
     }
 
-    console.log('Enhanced test analysis with validated skill mapping completed successfully');
-    console.log(`Performance: ${finalAnalysis.question_based_grading_summary.api_calls_saved}% API calls saved`);
-    console.log(`Score validation: ${validation.capped ? 'applied' : 'passed'}`);
-    console.log(`Final validated score: ${totalPointsEarned}/${totalPointsPossible} (${Math.round(overallScore)}%)`);
+    console.log('\n=== HYBRID ANALYSIS COMPLETE ===');
+    console.log(`✓ AI Skills Identified: ${Object.keys(identifiedSkills).length} questions`);
+    console.log(`✓ Local Grading: ${summary.locallyGraded} questions`); 
+    console.log(`✓ AI Grading: ${aiRequiredQuestions.length} questions`);
+    console.log(`✓ Performance: ${finalAnalysis.question_based_grading_summary.api_calls_saved}% API calls saved`);
+    console.log(`✓ Score validation: ${validation.capped ? 'applied' : 'passed'}`);
+    console.log(`✓ Final validated score: ${totalPointsEarned}/${totalPointsPossible} (${Math.round(overallScore)}%)`);
 
     return new Response(
       JSON.stringify({
@@ -865,7 +850,7 @@ Note: ${summary.locallyGraded} questions already graded locally with skill mappi
     );
 
   } catch (error) {
-    console.error('Error in enhanced analyze-test function:', error);
+    console.error('Error in hybrid analyze-test function:', error);
     return new Response(
       JSON.stringify({ 
         error: error.message,
