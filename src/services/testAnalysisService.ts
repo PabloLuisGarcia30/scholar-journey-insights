@@ -71,7 +71,7 @@ export const extractTextFromFile = async (request: {
   fileName: string;
 }): Promise<ExtractTextResponse> => {
   try {
-    console.log('🔍 Extracting text from file:', request.fileName);
+    console.log('🔍 Extracting text from file with template awareness:', request.fileName);
     
     const { data, error } = await supabase.functions.invoke('extract-text', {
       body: {
@@ -81,7 +81,7 @@ export const extractTextFromFile = async (request: {
     });
 
     if (error) {
-      console.error('❌ Text extraction failed:', error);
+      console.error('❌ Template-aware text extraction failed:', error);
       throw new Error(`Text extraction failed: ${error.message}`);
     }
 
@@ -89,7 +89,17 @@ export const extractTextFromFile = async (request: {
       throw new Error('Text extraction failed: Invalid response');
     }
 
-    console.log('✅ Text extraction successful for:', request.fileName);
+    // Log template enhancement results
+    if (data.templateEnhanced) {
+      console.log('✅ Template-aware processing completed for:', request.fileName);
+      console.log(`📊 Enhanced confidence: ${(data.confidence * 100).toFixed(1)}%`);
+      if (data.structuredData?.templateRecognition) {
+        console.log(`📋 Template match: ${data.structuredData.templateRecognition.confidence * 100}%`);
+      }
+    } else {
+      console.log('📝 Standard processing completed for:', request.fileName);
+    }
+
     return {
       extractedText: data.extractedText || '',
       examId: data.examId || null,
