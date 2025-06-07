@@ -15,8 +15,8 @@ import {
 import { Link as RouterLink } from "react-router-dom";
 
 interface DashboardSidebarProps {
-  activeView: 'dashboard' | 'search' | 'classes' | 'analytics' | 'portals';
-  onViewChange: (view: 'dashboard' | 'search' | 'classes' | 'analytics' | 'portals') => void;
+  activeView: 'dashboard' | 'search' | 'classes' | 'analytics' | 'portals' | 'student-lesson-tracker';
+  onViewChange: (view: 'dashboard' | 'search' | 'classes' | 'analytics' | 'portals' | 'student-lesson-tracker') => void;
 }
 
 const navigationItems = [
@@ -25,13 +25,13 @@ const navigationItems = [
   { id: 'classes', title: 'Classes', icon: Users },
   { id: 'analytics', title: 'Analytics', icon: BookOpen },
   { id: 'portals', title: 'Student Portals', icon: Globe },
+  { id: 'student-lesson-tracker', title: 'Student Lesson Tracker', icon: Calendar },
 ];
 
 const teacherTools = [
   { title: 'Upload Test', href: '/upload-test', icon: Upload },
   { title: 'Test Creator', href: '/test-creator', icon: TestTube },
   { title: 'Create Quiz Link', href: '/create-quiz-link', icon: Link },
-  { title: 'Student Lesson Tracker', href: '/student-lesson-tracker', icon: Calendar },
 ];
 
 export function DashboardSidebar({ activeView, onViewChange }: DashboardSidebarProps) {
