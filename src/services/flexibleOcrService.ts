@@ -1,3 +1,4 @@
+
 import { EnhancedSmartOcrService, EnhancedProcessingResult } from './enhancedSmartOcrService';
 import { FlexibleTemplateService, FlexibleTemplateMatchResult, DetectedQuestionType } from './flexibleTemplateService';
 import { HandwritingDetectionService, HandwritingAnalysis, Mark } from './handwritingDetectionService';
@@ -18,6 +19,9 @@ export interface DatabaseDrivenProcessingResult extends EnhancedProcessingResult
   };
 }
 
+// Export alias for backward compatibility
+export type FlexibleProcessingResult = DatabaseDrivenProcessingResult;
+
 export interface QuestionTypeResult {
   questionNumber: number;
   questionType: string;
@@ -35,6 +39,34 @@ export interface ExtractedAnswer {
   confidence: number;
   rawData?: any;
   boundingBox?: { x: number; y: number; width: number; height: number };
+}
+
+// Extended interfaces for database-driven processing
+interface ExtendedFormatAnalysis {
+  primaryFormat: 'bubble_sheet' | 'text_based' | 'mixed_format';
+  questionTypeDistribution: Record<string, number>;
+  complexity?: 'simple' | 'moderate' | 'complex';
+  estimatedProcessingTime: number;
+  expectedQuestionCount: number;
+}
+
+interface ExtendedTemplateLayout {
+  questionCount: number;
+  hasMultipleChoice: boolean;
+  hasTextBased: boolean;
+}
+
+interface DatabaseTemplate {
+  name: string;
+  examId?: string;
+  questionMap?: Record<number, QuestionInfo>;
+  layout: ExtendedTemplateLayout;
+}
+
+interface QuestionInfo {
+  type: string;
+  correctAnswer: string;
+  options: any;
 }
 
 export class FlexibleOcrService extends EnhancedSmartOcrService {
@@ -132,6 +164,14 @@ export class FlexibleOcrService extends EnhancedSmartOcrService {
     }
   }
   
+  // Alias for backward compatibility
+  static async processWithFlexibleTemplate(
+    file: File, 
+    expectedQuestionCount?: number
+  ): Promise<FlexibleProcessingResult> {
+    return this.processWithDatabaseTemplate(file, expectedQuestionCount);
+  }
+  
   // Extract exam ID from file for database lookup
   private static async extractExamIdFromFile(file: File, imageData: string): Promise<string> {
     // Try filename first
@@ -180,36 +220,45 @@ export class FlexibleOcrService extends EnhancedSmartOcrService {
           options: key.options
         };
         return map;
-      }, {} as Record<number, any>);
+      }, {} as Record<number, QuestionInfo>);
+      
+      const template: DatabaseTemplate = {
+        name: 'database_driven',
+        examId,
+        questionMap,
+        layout: {
+          questionCount: answerKeys.length,
+          hasMultipleChoice: multipleChoiceCount > 0,
+          hasTextBased: textBasedCount > 0
+        }
+      };
+      
+      const detectedQuestionTypes: DetectedQuestionType[] = answerKeys.map(key => ({
+        questionNumber: key.question_number,
+        detectedType: key.question_type,
+        confidence: 0.98,
+        answerRegion: { x: 0, y: 0, width: 100, height: 20 },
+        extractionMethod: key.question_type === 'multiple_choice' || key.question_type === 'true_false' 
+          ? 'roboflow_bubbles' 
+          : 'google_vision_text'
+      }));
+      
+      const formatAnalysis: ExtendedFormatAnalysis = {
+        primaryFormat: multipleChoiceCount > 0 ? 'mixed_format' : 'text_based',
+        questionTypeDistribution: {
+          multiple_choice: multipleChoiceCount,
+          text_based: textBasedCount
+        },
+        expectedQuestionCount: answerKeys.length,
+        estimatedProcessingTime: answerKeys.length * 500 // ms per question
+      };
       
       return {
         isMatch: true,
         confidence: 0.98,
-        template: {
-          name: 'database_driven',
-          examId,
-          questionMap,
-          layout: {
-            questionCount: answerKeys.length,
-            hasMultipleChoice: multipleChoiceCount > 0,
-            hasTextBased: textBasedCount > 0
-          }
-        },
-        detectedQuestionTypes: answerKeys.map(key => ({
-          questionNumber: key.question_number,
-          detectedType: key.question_type,
-          confidence: 0.98,
-          answerRegion: { x: 0, y: 0, width: 100, height: 20 }
-        })),
-        formatAnalysis: {
-          primaryFormat: multipleChoiceCount > 0 ? 'mixed_format' : 'text_based',
-          questionTypeDistribution: {
-            multiple_choice: multipleChoiceCount,
-            text_based: textBasedCount
-          },
-          expectedQuestionCount: answerKeys.length,
-          estimatedProcessingTime: answerKeys.length * 500 // ms per question
-        },
+        template: template as any,
+        detectedQuestionTypes,
+        formatAnalysis: formatAnalysis as any,
         databaseDriven: true
       };
       
@@ -220,27 +269,31 @@ export class FlexibleOcrService extends EnhancedSmartOcrService {
   }
   
   private static createFallbackTemplate(): FlexibleTemplateMatchResult & { databaseDriven: boolean } {
+    const template: DatabaseTemplate = {
+      name: 'fallback_mixed',
+      layout: {
+        questionCount: 0,
+        hasMultipleChoice: true,
+        hasTextBased: true
+      }
+    };
+    
+    const formatAnalysis: ExtendedFormatAnalysis = {
+      primaryFormat: 'mixed_format',
+      questionTypeDistribution: {
+        multiple_choice: 0,
+        text_based: 0
+      },
+      expectedQuestionCount: 0,
+      estimatedProcessingTime: 5000
+    };
+    
     return {
       isMatch: false,
       confidence: 0.6,
-      template: {
-        name: 'fallback_mixed',
-        layout: {
-          questionCount: 0,
-          hasMultipleChoice: true,
-          hasTextBased: true
-        }
-      },
+      template: template as any,
       detectedQuestionTypes: [],
-      formatAnalysis: {
-        primaryFormat: 'mixed_format',
-        questionTypeDistribution: {
-          multiple_choice: 0,
-          text_based: 0
-        },
-        expectedQuestionCount: 0,
-        estimatedProcessingTime: 5000
-      },
+      formatAnalysis: formatAnalysis as any,
       databaseDriven: false
     };
   }
@@ -274,7 +327,8 @@ export class FlexibleOcrService extends EnhancedSmartOcrService {
     }
     
     // Use database information to guide processing
-    const questionMap = templateMatch.template?.questionMap || {};
+    const template = templateMatch.template as DatabaseTemplate;
+    const questionMap = template?.questionMap || {};
     
     for (const [questionNumberStr, questionInfo] of Object.entries(questionMap)) {
       const questionNumber = parseInt(questionNumberStr);
@@ -335,7 +389,7 @@ export class FlexibleOcrService extends EnhancedSmartOcrService {
   private static async processMultipleChoiceWithDatabase(
     imageData: string,
     questionNumber: number,
-    questionInfo: any
+    questionInfo: QuestionInfo
   ): Promise<{ extractedAnswer: ExtractedAnswer; processingMethod: string }> {
     
     // Simulate bubble detection with high confidence due to database guidance
@@ -362,7 +416,7 @@ export class FlexibleOcrService extends EnhancedSmartOcrService {
   private static async processTextBasedWithDatabase(
     imageData: string,
     questionNumber: number,
-    questionInfo: any
+    questionInfo: QuestionInfo
   ): Promise<{ extractedAnswer: ExtractedAnswer; processingMethod: string }> {
     
     await new Promise(resolve => setTimeout(resolve, 300));
@@ -407,7 +461,8 @@ export class FlexibleOcrService extends EnhancedSmartOcrService {
     
     if (templateMatch.databaseDriven) {
       // Question count validation
-      const expectedCount = templateMatch.formatAnalysis.expectedQuestionCount;
+      const formatAnalysis = templateMatch.formatAnalysis as ExtendedFormatAnalysis;
+      const expectedCount = formatAnalysis.expectedQuestionCount;
       const actualCount = results.length;
       const countMatch = Math.abs(expectedCount - actualCount) <= 1;
       
@@ -472,7 +527,8 @@ export class FlexibleOcrService extends EnhancedSmartOcrService {
     const databaseBonus = templateMatch.databaseDriven ? 0.1 : 0;
     const enhancedConfidence = Math.min(1.0, (avgConfidence + qualityScore) / 2 + databaseBonus);
     
-    const estimatedTime = templateMatch.formatAnalysis.estimatedProcessingTime || 5000;
+    const formatAnalysis = templateMatch.formatAnalysis as ExtendedFormatAnalysis;
+    const estimatedTime = formatAnalysis.estimatedProcessingTime || 5000;
     
     return {
       overallConfidence: enhancedConfidence,

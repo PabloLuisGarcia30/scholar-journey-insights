@@ -10,7 +10,7 @@ import { BatchProcessingOptimizer, BatchGroup, BatchProcessingResult } from './b
 import { BatchAwareModelRouter, BatchRoutingDecision } from './batchAwareModelRouter';
 import { ProgressiveFallbackHandler, FallbackResult } from './progressiveFallbackHandler';
 import { QuestionComplexityAnalyzer } from './questionComplexityAnalyzer';
-import { FlexibleOcrService, FlexibleProcessingResult } from './flexibleOcrService';
+import { FlexibleOcrService, DatabaseDrivenProcessingResult } from './flexibleOcrService';
 
 export interface EnhancedAnalysisConfig {
   enableBatchProcessing: boolean;
@@ -130,8 +130,8 @@ export class EnhancedTestAnalysisService {
 
   private async processWithFlexibleTemplates(
     request: AnalyzeTestRequest
-  ): Promise<FlexibleProcessingResult[]> {
-    const results: FlexibleProcessingResult[] = [];
+  ): Promise<DatabaseDrivenProcessingResult[]> {
+    const results: DatabaseDrivenProcessingResult[] = [];
 
     for (const file of request.files) {
       try {
@@ -145,7 +145,7 @@ export class EnhancedTestAnalysisService {
         );
 
         // Process with flexible OCR service
-        const flexibleResult = await FlexibleOcrService.processWithFlexibleTemplate(
+        const flexibleResult = await FlexibleOcrService.processWithDatabaseTemplate(
           mockFile
         );
 
@@ -210,7 +210,7 @@ export class EnhancedTestAnalysisService {
 
   private async createFlexibleResponse(
     request: AnalyzeTestRequest,
-    flexibleResults: FlexibleProcessingResult[],
+    flexibleResults: DatabaseDrivenProcessingResult[],
     processingTime: number
   ): Promise<BatchAnalysisResult> {
     // Create base response using standard analysis
@@ -218,7 +218,7 @@ export class EnhancedTestAnalysisService {
     
     // Calculate flexible template metrics
     const questionTypeDistribution = this.calculateQuestionTypeDistribution(flexibleResults);
-    const avgQualityScore = flexibleResults.reduce((sum, r) => sum + r.qualityScore, 0) / flexibleResults.length;
+    const avgQualityScore = flexibleResults.reduce((sum, r) => sum + (r.qualityScore || 0), 0) / flexibleResults.length;
     
     return {
       ...baseResponse,
@@ -246,7 +246,7 @@ export class EnhancedTestAnalysisService {
   }
 
   private calculateQuestionTypeDistribution(
-    results: FlexibleProcessingResult[]
+    results: DatabaseDrivenProcessingResult[]
   ): Record<string, number> {
     const distribution: Record<string, number> = {};
     let totalQuestions = 0;
@@ -267,13 +267,13 @@ export class EnhancedTestAnalysisService {
   }
 
   private calculateFlexibleModelDistribution(
-    results: FlexibleProcessingResult[]
+    results: DatabaseDrivenProcessingResult[]
   ): Record<string, number> {
     const distribution: Record<string, number> = {};
 
     results.forEach(result => {
       Object.entries(result.processingMethodsUsed).forEach(([method, count]) => {
-        distribution[method] = (distribution[method] || 0) + count;
+        distribution[method] = (distribution[method] || 0) + (count as number);
       });
     });
 
