@@ -9,6 +9,7 @@ export interface AnswerKeyValidationResult {
   isComplete: boolean;
   status: 'complete' | 'incomplete' | 'partial' | 'no_answer_key';
   missingQuestions?: number[];
+  studentId?: string;
 }
 
 export interface BatchValidationSummary {
@@ -19,6 +20,7 @@ export interface BatchValidationSummary {
   overallSuccessRate: number;
   validationResults: Record<string, AnswerKeyValidationResult>;
   recommendations: string[];
+  studentIdDetectionRate: number;
 }
 
 export class AnswerKeyValidationService {
@@ -60,9 +62,10 @@ export class AnswerKeyValidationService {
 
   static async validateStudentResults(
     examId: string, 
-    studentResults: any[]
+    studentResults: any[],
+    studentId?: string
   ): Promise<AnswerKeyValidationResult> {
-    console.log(`🔬 Validating student results for exam: ${examId}`);
+    console.log(`🔬 Validating student results for exam: ${examId}, student: ${studentId || 'Unknown'}`);
     
     const expectedQuestions = await this.getExpectedQuestionCount(examId);
     const actualQuestions = studentResults.length;
@@ -75,7 +78,8 @@ export class AnswerKeyValidationService {
         actualQuestions,
         completionPercentage: 0,
         isComplete: false,
-        status: 'no_answer_key'
+        status: 'no_answer_key',
+        studentId
       };
     }
 
@@ -110,15 +114,16 @@ export class AnswerKeyValidationService {
       completionPercentage,
       isComplete,
       status,
+      studentId,
       ...(missingQuestions && { missingQuestions })
     };
 
-    console.log(`📊 Validation result: ${status} (${actualQuestions}/${expectedQuestions} questions)`);
+    console.log(`📊 Validation result for ${studentId}: ${status} (${actualQuestions}/${expectedQuestions} questions)`);
     return result;
   }
 
   static async validateBatchResults(
-    batchResults: { results: any[], studentName?: string, examId?: string }[]
+    batchResults: { results: any[], studentId?: string, examId?: string }[]
   ): Promise<BatchValidationSummary> {
     console.log(`🎯 Validating batch results for ${batchResults.length} students`);
     
@@ -126,12 +131,17 @@ export class AnswerKeyValidationService {
     let completeStudents = 0;
     let incompleteStudents = 0;
     let partialStudents = 0;
+    let studentsWithDetectedIds = 0;
 
     for (const batch of batchResults) {
-      const studentKey = batch.studentName || 'Unknown_Student';
+      const studentKey = batch.studentId || 'Unknown_Student';
       const examId = batch.examId || 'Unknown_Exam';
       
-      const validation = await this.validateStudentResults(examId, batch.results);
+      if (batch.studentId) {
+        studentsWithDetectedIds++;
+      }
+      
+      const validation = await this.validateStudentResults(examId, batch.results, batch.studentId);
       validationResults[studentKey] = validation;
       
       switch (validation.status) {
@@ -151,9 +161,16 @@ export class AnswerKeyValidationService {
     const totalStudents = batchResults.length;
     const overallSuccessRate = totalStudents > 0 ? 
       Math.round(((completeStudents + partialStudents) / totalStudents) * 100) : 0;
+    
+    const studentIdDetectionRate = totalStudents > 0 ? 
+      Math.round((studentsWithDetectedIds / totalStudents) * 100) : 0;
 
-    // Generate recommendations
+    // Generate recommendations based on Student ID detection
     const recommendations: string[] = [];
+    
+    if (studentIdDetectionRate < 95) {
+      recommendations.push(`Student ID detection rate is ${studentIdDetectionRate}%. Consider standardizing ID formats in documents.`);
+    }
     
     if (incompleteStudents > 0) {
       recommendations.push(`${incompleteStudents} student(s) have incomplete results. Review file quality and processing.`);
@@ -182,21 +199,23 @@ export class AnswerKeyValidationService {
       partialStudents,
       overallSuccessRate,
       validationResults,
-      recommendations
+      recommendations,
+      studentIdDetectionRate
     };
 
-    console.log(`📈 Batch validation summary: ${overallSuccessRate}% success rate`);
+    console.log(`📈 Batch validation summary: ${overallSuccessRate}% success rate, ${studentIdDetectionRate}% ID detection rate`);
     console.log(`   Complete: ${completeStudents}, Partial: ${partialStudents}, Incomplete: ${incompleteStudents}`);
     
     return summary;
   }
 
   static generateValidationReport(summary: BatchValidationSummary): string {
-    const { totalStudents, completeStudents, partialStudents, incompleteStudents, overallSuccessRate } = summary;
+    const { totalStudents, completeStudents, partialStudents, incompleteStudents, overallSuccessRate, studentIdDetectionRate } = summary;
     
     let report = `Answer Key Validation Report\n`;
     report += `================================\n\n`;
     report += `Total Students: ${totalStudents}\n`;
+    report += `Student ID Detection Rate: ${studentIdDetectionRate}%\n`;
     report += `Complete Results: ${completeStudents} (${Math.round((completeStudents/totalStudents)*100)}%)\n`;
     report += `Partial Results: ${partialStudents} (${Math.round((partialStudents/totalStudents)*100)}%)\n`;
     report += `Incomplete Results: ${incompleteStudents} (${Math.round((incompleteStudents/totalStudents)*100)}%)\n`;
@@ -210,12 +229,12 @@ export class AnswerKeyValidationService {
       report += `\n`;
     }
     
-    // Add detailed breakdown
-    report += `Detailed Results:\n`;
-    report += `-----------------\n`;
-    Object.entries(summary.validationResults).forEach(([studentName, result]) => {
+    // Add detailed breakdown by Student ID
+    report += `Detailed Results by Student ID:\n`;
+    report += `--------------------------------\n`;
+    Object.entries(summary.validationResults).forEach(([studentId, result]) => {
       const status = result.status.toUpperCase();
-      report += `${studentName}: ${status} (${result.actualQuestions}/${result.expectedQuestions} questions)\n`;
+      report += `${studentId}: ${status} (${result.actualQuestions}/${result.expectedQuestions} questions)\n`;
       
       if (result.missingQuestions && result.missingQuestions.length > 0) {
         report += `  Missing: Questions ${result.missingQuestions.join(', ')}\n`;

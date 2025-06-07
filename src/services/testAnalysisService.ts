@@ -300,7 +300,7 @@ export const extractTextFromFile = async (request: ExtractTextRequest): Promise<
 
 export const analyzeTest = async (request: AnalyzeTestRequest): Promise<EnhancedAnalyzeTestResponse> => {
   try {
-    console.log('Calling enhanced analyze-test function with answer key validation for exam ID:', request.examId);
+    console.log('Calling enhanced analyze-test function with student ID detection for exam ID:', request.examId);
     
     // Determine detail level based on structured data presence and question-based features
     const hasStructuredData = request.files.some(file => file.structuredData);
@@ -328,7 +328,8 @@ export const analyzeTest = async (request: AnalyzeTestRequest): Promise<Enhanced
             'x-skill-mapping-enabled': 'true',
             'x-score-validation-enabled': 'true',
             'x-ai-model-optimization': 'true',
-            'x-answer-key-validation': 'true'
+            'x-answer-key-validation': 'true',
+            'x-student-id-detection': 'true'
           }
         });
 
@@ -342,17 +343,18 @@ export const analyzeTest = async (request: AnalyzeTestRequest): Promise<Enhanced
       {
         maxAttempts: 2,
         baseDelay: 3000,
-        timeoutMs: 150000, // Increased timeout for AI model optimization
+        timeoutMs: 150000,
       }
     );
 
-    console.log('Enhanced analyze-test function with answer key validation response:', result);
+    console.log('Enhanced analyze-test function with student ID detection response:', result);
     
     // Log answer key validation results
     if (result.answerKeyValidation) {
       const validation = result.answerKeyValidation;
       console.log(`📋 Answer Key Validation Results:
         - Status: ${validation.status.toUpperCase()}
+        - Student ID: ${validation.studentId || 'Not detected'}
         - Questions: ${validation.actualQuestions}/${validation.expectedQuestions}
         - Completion: ${validation.completionPercentage}%
         - Complete: ${validation.isComplete}
@@ -426,7 +428,7 @@ export const analyzeTest = async (request: AnalyzeTestRequest): Promise<Enhanced
     
     return result;
   } catch (error) {
-    console.error('Error calling enhanced analyze-test function with answer key validation:', error);
+    console.error('Error calling enhanced analyze-test function with student ID detection:', error);
     
     if (error instanceof RetryableError) {
       throw new Error(`Failed to analyze test after multiple attempts: ${error.message}`);
@@ -495,7 +497,7 @@ export const getExamSkillMappingStatus = async (examId: string) => {
   }
 };
 
-// Enhanced service health monitoring with answer key validation
+// Enhanced service health monitoring with student ID detection
 export const getEnhancedServiceHealthStatus = () => {
   return {
     googleVision: googleVisionCircuitBreaker.getState(),
@@ -513,7 +515,8 @@ export const getEnhancedServiceHealthStatus = () => {
       aiModelOptimization: true,
       costOptimization: true,
       intelligentModelRouting: true,
-      answerKeyValidation: true
+      answerKeyValidation: true,
+      studentIdDetection: true
     }
   };
 };

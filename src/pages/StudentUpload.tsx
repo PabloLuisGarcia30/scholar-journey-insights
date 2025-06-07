@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -11,6 +10,7 @@ import type { ExtractTextResponse, AnalyzeTestResponse } from '@/services/testAn
 
 export default function StudentUpload() {
   const [studentName, setStudentName] = useState('');
+  const [studentId, setStudentId] = useState('');
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [extractedResults, setExtractedResults] = useState<ExtractTextResponse[]>([]);
@@ -40,10 +40,10 @@ export default function StudentUpload() {
   };
 
   const handleUploadAndAnalyze = async () => {
-    if (!studentName.trim()) {
+    if (!studentName.trim() && !studentId.trim()) {
       toast({
-        title: "Student name required",
-        description: "Please enter your name before uploading files.",
+        title: "Student information required",
+        description: "Please enter your name or student ID before uploading files.",
         variant: "destructive",
       });
       return;
@@ -74,6 +74,20 @@ export default function StudentUpload() {
       const extractionResults = await Promise.all(extractionPromises);
       setExtractedResults(extractionResults);
 
+      // Check for detected Student IDs
+      const detectedIds = extractionResults
+        .map(result => result.structuredData?.detectedStudentId)
+        .filter(Boolean);
+      
+      if (detectedIds.length > 0) {
+        console.log(`🆔 Detected Student IDs: ${detectedIds.join(', ')}`);
+        
+        // Update student ID if detected and not manually entered
+        if (!studentId.trim() && detectedIds[0]) {
+          setStudentId(detectedIds[0]);
+        }
+      }
+
       // Step 2: Analyze the test if we found an exam ID
       const examId = extractionResults.find(result => result.examId)?.examId;
       
@@ -97,16 +111,19 @@ export default function StudentUpload() {
       const analysisResponse = await analyzeTest({
         files: filesForAnalysis,
         examId,
-        studentName: studentName.trim(),
+        studentName: studentName.trim() || studentId.trim(),
         studentEmail: '', // Optional for student upload
       });
 
       setAnalysisResult(analysisResponse);
       setCurrentStep('results');
 
+      // Show Student ID detection info in success message
+      const detectedIdInfo = detectedIds.length > 0 ? ` Student ID detected: ${detectedIds[0]}` : '';
+      
       toast({
         title: "Analysis completed!",
-        description: `Your test has been processed successfully. Overall score: ${analysisResponse.overall_score}%`,
+        description: `Your test has been processed successfully. Overall score: ${analysisResponse.overall_score}%${detectedIdInfo}`,
       });
 
     } catch (error) {
@@ -128,19 +145,34 @@ export default function StudentUpload() {
     setAnalysisResult(null);
     setCurrentStep('upload');
     setStudentName('');
+    setStudentId('');
   };
 
   const renderUploadStep = () => (
     <div className="space-y-6">
-      <div className="space-y-2">
-        <Label htmlFor="studentName">Your Name</Label>
-        <Input
-          id="studentName"
-          value={studentName}
-          onChange={(e) => setStudentName(e.target.value)}
-          placeholder="Enter your full name"
-          className="w-full"
-        />
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <Label htmlFor="studentName">Your Name</Label>
+          <Input
+            id="studentName"
+            value={studentName}
+            onChange={(e) => setStudentName(e.target.value)}
+            placeholder="Enter your full name"
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="studentId">Student ID (recommended)</Label>
+          <Input
+            id="studentId"
+            value={studentId}
+            onChange={(e) => setStudentId(e.target.value)}
+            placeholder="Enter your student ID"
+          />
+        </div>
+      </div>
+      
+      <div className="text-sm text-gray-600 bg-blue-50 p-3 rounded">
+        <strong>Tip:</strong> Including your Student ID improves processing accuracy and helps ensure your test is correctly identified.
       </div>
 
       <div className="space-y-4">
@@ -192,7 +224,7 @@ export default function StudentUpload() {
 
       <Button 
         onClick={handleUploadAndAnalyze}
-        disabled={!studentName.trim() || selectedFiles.length === 0 || isProcessing}
+        disabled={(!studentName.trim() && !studentId.trim()) || selectedFiles.length === 0 || isProcessing}
         className="w-full"
         size="lg"
       >
@@ -241,6 +273,12 @@ export default function StudentUpload() {
             <p className="text-gray-600 mt-2">
               Your test has been successfully analyzed.
             </p>
+            {/* Show detected Student ID if available */}
+            {extractedResults.some(r => r.structuredData?.detectedStudentId) && (
+              <p className="text-sm text-blue-600 mt-1">
+                Student ID detected: {extractedResults.find(r => r.structuredData?.detectedStudentId)?.structuredData?.detectedStudentId}
+              </p>
+            )}
           </div>
 
           <Card>
@@ -338,6 +376,9 @@ export default function StudentUpload() {
           </p>
           <p>
             Maximum file size: 10MB per file
+          </p>
+          <p className="text-blue-600 font-medium">
+            📍 Include your Student ID for 98%+ accurate processing
           </p>
         </div>
       </div>

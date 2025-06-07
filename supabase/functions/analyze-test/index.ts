@@ -14,7 +14,7 @@ serve(async (req) => {
 
   try {
     const { files, examId, studentName, studentEmail } = await req.json();
-    console.log(`🔬 Analyzing test for student: ${studentName}, exam: ${examId}`);
+    console.log(`🔬 Analyzing test with Student ID detection for exam: ${examId}`);
 
     const openaiApiKey = Deno.env.get('OPENAI_API_KEY');
     if (!openaiApiKey) {
@@ -26,7 +26,7 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
     const supabase = createClient(supabaseUrl!, supabaseKey!);
 
-    // Group files by student name and exam ID for batch processing
+    // Group files by student ID and exam ID for batch processing
     const studentGroups = groupFilesByStudentAndExam(files);
     console.log(`📊 Created ${studentGroups.size} student-exam groups`);
 
@@ -35,14 +35,19 @@ serve(async (req) => {
       totalBatches: 0,
       studentsProcessed: 0,
       questionsProcessed: 0,
+      studentIdsDetected: 0,
       batchProcessingUsed: studentGroups.size > 1,
       processingStartTime: Date.now()
     };
 
     // Process each student-exam group
     for (const [groupKey, groupFiles] of studentGroups) {
-      const [detectedStudent, detectedExam] = groupKey.split('|');
-      console.log(`🎯 Processing group: ${detectedStudent} - ${detectedExam}`);
+      const [detectedStudentId, detectedExam] = groupKey.split('|');
+      console.log(`🎯 Processing group: ${detectedStudentId} - ${detectedExam}`);
+      
+      if (detectedStudentId !== 'Unknown_Student') {
+        batchMetrics.studentIdsDetected++;
+      }
       
       const groupQuestions = extractQuestionsFromFiles(groupFiles);
       
@@ -51,10 +56,10 @@ serve(async (req) => {
         continue;
       }
 
-      // Enhanced batch processing with student context
+      // Enhanced batch processing with student ID context
       const batchResults = await processBatchWithStudentContext(
         groupQuestions,
-        detectedStudent,
+        detectedStudentId,
         detectedExam,
         openaiApiKey
       );
@@ -66,15 +71,18 @@ serve(async (req) => {
       batchMetrics.questionsProcessed += groupQuestions.length;
     }
 
-    // Perform Answer Key Validation
-    console.log('🔍 Starting answer key validation...');
-    const answerKeyValidation = await validateWithAnswerKey(supabase, allResults, examId);
+    // Perform Answer Key Validation with Student ID
+    console.log('🔍 Starting answer key validation with Student ID detection...');
+    const primaryStudentId = extractStudentIdFromResults(allResults);
+    const answerKeyValidation = await validateWithAnswerKey(supabase, allResults, examId, primaryStudentId);
 
     // Calculate scores and generate analysis
     const overallScore = calculateOverallScore(allResults);
-    const detailedAnalysis = generateDetailedAnalysis(allResults, studentName || 'Unknown Student');
+    const detailedAnalysis = generateDetailedAnalysis(allResults, primaryStudentId);
     
     const processingTime = Date.now() - batchMetrics.processingStartTime;
+    const studentIdDetectionRate = batchMetrics.studentsProcessed > 0 ? 
+      Math.round((batchMetrics.studentIdsDetected / batchMetrics.studentsProcessed) * 100) : 0;
     
     const response = {
       success: true,
@@ -83,7 +91,8 @@ serve(async (req) => {
       totalQuestions: batchMetrics.questionsProcessed,
       correctAnswers: allResults.filter(r => r.score >= 80).length,
       detailedAnalysis,
-      studentName: studentName || extractStudentNameFromResults(allResults),
+      studentName: studentName || primaryStudentId, // Fallback for compatibility
+      studentId: primaryStudentId,
       examId: examId || extractExamIdFromResults(allResults),
       answerKeyValidation,
       batchProcessingSummary: batchMetrics.batchProcessingUsed ? {
@@ -91,11 +100,15 @@ serve(async (req) => {
         totalBatches: batchMetrics.totalBatches,
         studentsProcessed: batchMetrics.studentsProcessed,
         questionsProcessed: batchMetrics.questionsProcessed,
+        studentIdsDetected: batchMetrics.studentIdsDetected,
+        studentIdDetectionRate,
         processingTimeMs: processingTime,
         avgQuestionsPerBatch: Math.round(batchMetrics.questionsProcessed / batchMetrics.totalBatches)
       } : null,
       processingMetrics: {
         totalProcessingTime: processingTime,
+        studentIdDetectionEnabled: true,
+        studentIdDetectionRate,
         aiOptimizationEnabled: true,
         batchProcessingUsed: batchMetrics.batchProcessingUsed,
         studentGroupingUsed: studentGroups.size > 1,
@@ -103,7 +116,8 @@ serve(async (req) => {
       }
     };
 
-    console.log(`✅ Analysis complete with validation: ${allResults.length} questions, ${overallScore}% overall score`);
+    console.log(`✅ Analysis complete with Student ID detection: ${allResults.length} questions, ${overallScore}% overall score`);
+    console.log(`🆔 Student ID detection rate: ${studentIdDetectionRate}%`);
     console.log(`📋 Answer key validation: ${answerKeyValidation.status.toUpperCase()}`);
     
     return new Response(JSON.stringify(response), {
@@ -128,8 +142,8 @@ serve(async (req) => {
   }
 });
 
-async function validateWithAnswerKey(supabase: any, results: any[], examId: string) {
-  console.log(`🔬 Validating results against answer key for exam: ${examId}`);
+async function validateWithAnswerKey(supabase: any, results: any[], examId: string, studentId?: string) {
+  console.log(`🔬 Validating results against answer key for exam: ${examId}, student: ${studentId || 'Unknown'}`);
   
   try {
     // Get expected question count from answer key
@@ -194,11 +208,12 @@ async function validateWithAnswerKey(supabase: any, results: any[], examId: stri
       actualQuestions,
       completionPercentage,
       isComplete,
+      studentId,
       missingQuestions: missingQuestions.length > 0 ? missingQuestions : undefined,
-      message: generateValidationMessage(status, actualQuestions, expectedQuestions, missingQuestions)
+      message: generateValidationMessage(status, actualQuestions, expectedQuestions, missingQuestions, studentId)
     };
 
-    console.log(`📊 Answer key validation: ${status} (${actualQuestions}/${expectedQuestions} questions)`);
+    console.log(`📊 Answer key validation for ${studentId}: ${status} (${actualQuestions}/${expectedQuestions} questions)`);
     if (missingQuestions.length > 0) {
       console.log(`❓ Missing questions: ${missingQuestions.join(', ')}`);
     }
@@ -212,22 +227,25 @@ async function validateWithAnswerKey(supabase: any, results: any[], examId: stri
       actualQuestions: results.length,
       completionPercentage: 0,
       isComplete: false,
+      studentId,
       error: error.message
     };
   }
 }
 
-function generateValidationMessage(status: string, actual: number, expected: number, missing: number[]): string {
+function generateValidationMessage(status: string, actual: number, expected: number, missing: number[], studentId?: string): string {
+  const studentInfo = studentId ? ` for Student ID: ${studentId}` : '';
+  
   switch (status) {
     case 'complete':
-      return `✅ Complete: All ${expected} questions processed successfully`;
+      return `✅ Complete${studentInfo}: All ${expected} questions processed successfully`;
     case 'partial':
-      return `⚠️ Partial: ${actual}/${expected} questions processed (${Math.round((actual/expected)*100)}%)`;
+      return `⚠️ Partial${studentInfo}: ${actual}/${expected} questions processed (${Math.round((actual/expected)*100)}%)`;
     case 'incomplete':
       const missingText = missing.length > 0 ? ` Missing: ${missing.join(', ')}` : '';
-      return `❌ Incomplete: ${actual}/${expected} questions processed.${missingText}`;
+      return `❌ Incomplete${studentInfo}: ${actual}/${expected} questions processed.${missingText}`;
     default:
-      return `Status: ${status}`;
+      return `Status${studentInfo}: ${status}`;
   }
 }
 
@@ -235,9 +253,10 @@ function groupFilesByStudentAndExam(files: any[]): Map<string, any[]> {
   const groups = new Map<string, any[]>();
   
   for (const file of files) {
-    const detectedStudent = file.structuredData?.detectedStudentName || 'Unknown_Student';
+    // Use Student ID instead of name for grouping
+    const detectedStudentId = file.structuredData?.detectedStudentId || 'Unknown_Student';
     const detectedExam = file.structuredData?.examId || 'Unknown_Exam';
-    const groupKey = `${detectedStudent}|${detectedExam}`;
+    const groupKey = `${detectedStudentId}|${detectedExam}`;
     
     if (!groups.has(groupKey)) {
       groups.set(groupKey, []);
@@ -259,7 +278,7 @@ function extractQuestionsFromFiles(files: any[]): any[] {
         allQuestions.push({
           ...question,
           sourceFile: file.fileName,
-          detectedStudentName: file.structuredData.detectedStudentName,
+          detectedStudentId: file.structuredData.detectedStudentId,
           examId: file.structuredData.examId
         });
       }
@@ -276,7 +295,7 @@ function extractQuestionsFromFiles(files: any[]): any[] {
               confidence: group.selectedAnswer.confidence
             },
             sourceFile: file.fileName,
-            detectedStudentName: file.structuredData.detectedStudentName,
+            detectedStudentId: file.structuredData.detectedStudentId,
             examId: file.structuredData.examId
           });
         }
@@ -289,13 +308,13 @@ function extractQuestionsFromFiles(files: any[]): any[] {
 
 async function processBatchWithStudentContext(
   questions: any[],
-  studentName: string,
+  studentId: string,
   examId: string,
   apiKey: string
 ): Promise<any[]> {
-  console.log(`🔄 Processing batch: ${questions.length} questions for ${studentName}`);
+  console.log(`🔄 Processing batch: ${questions.length} questions for student ID: ${studentId}`);
   
-  const BATCH_SIZE = 5; // Optimal batch size for OpenAI
+  const BATCH_SIZE = 5;
   const batches = [];
   
   for (let i = 0; i < questions.length; i += BATCH_SIZE) {
@@ -306,8 +325,8 @@ async function processBatchWithStudentContext(
   
   for (const batch of batches) {
     try {
-      // Create context-aware prompt with student and exam information
-      const prompt = createBatchPromptWithContext(batch, studentName, examId);
+      // Create context-aware prompt with student ID and exam information
+      const prompt = createBatchPromptWithContext(batch, studentId, examId);
       
       // Try GPT-4o-mini first for cost efficiency
       let batchResults = await callOpenAI('gpt-4o-mini', prompt, apiKey);
@@ -321,7 +340,7 @@ async function processBatchWithStudentContext(
           console.log(`🔄 Retrying question ${question.questionNumber} with GPT-4.1`);
           
           // Fallback to GPT-4.1 for individual question
-          const retryPrompt = createIndividualPromptWithContext(question, studentName, examId);
+          const retryPrompt = createIndividualPromptWithContext(question, studentId, examId);
           const fallbackResults = await callOpenAI('gpt-4.1-2025-04-14', retryPrompt, apiKey);
           
           results.push(fallbackResults[0] || {
@@ -330,13 +349,13 @@ async function processBatchWithStudentContext(
             feedback: 'Unable to grade this question',
             error: true,
             fallback_used: true,
-            student_name: studentName,
+            student_id: studentId,
             exam_id: examId
           });
         } else {
           results.push({
             ...result,
-            student_name: studentName,
+            student_id: studentId,
             exam_id: examId,
             source_file: question.sourceFile,
             batch_processed: true
@@ -354,7 +373,7 @@ async function processBatchWithStudentContext(
           feedback: `Processing error: ${error.message}`,
           error: true,
           emergency_fallback: true,
-          student_name: studentName,
+          student_id: studentId,
           exam_id: examId
         });
       }
@@ -364,9 +383,9 @@ async function processBatchWithStudentContext(
   return results;
 }
 
-function createBatchPromptWithContext(questions: any[], studentName: string, examId: string): string {
+function createBatchPromptWithContext(questions: any[], studentId: string, examId: string): string {
   const context = `
-Grading test for: ${studentName}
+Grading test for Student ID: ${studentId}
 Exam ID: ${examId}
 Number of questions: ${questions.length}
 
@@ -385,9 +404,9 @@ Return ONLY a valid JSON array, no additional text.`;
   return context;
 }
 
-function createIndividualPromptWithContext(question: any, studentName: string, examId: string): string {
+function createIndividualPromptWithContext(question: any, studentId: string, examId: string): string {
   return `
-Grading individual question for: ${studentName}
+Grading individual question for Student ID: ${studentId}
 Exam ID: ${examId}
 
 Question ${question.questionNumber}: ${question.questionText || 'Question text not available'}
@@ -452,7 +471,7 @@ function calculateOverallScore(results: any[]): number {
   return Math.round(totalScore / results.length);
 }
 
-function generateDetailedAnalysis(results: any[], studentName: string): string {
+function generateDetailedAnalysis(results: any[], studentId: string): string {
   const totalQuestions = results.length;
   const correctAnswers = results.filter(r => r.score >= 80).length;
   const overallScore = calculateOverallScore(results);
@@ -467,7 +486,7 @@ function generateDetailedAnalysis(results: any[], studentName: string): string {
     .map(r => `Question ${r.question_number}: ${r.feedback}`)
     .slice(0, 3);
 
-  let analysis = `Test Analysis for ${studentName}\n\n`;
+  let analysis = `Test Analysis for Student ID: ${studentId}\n\n`;
   analysis += `Overall Performance: ${overallScore}% (${correctAnswers}/${totalQuestions} questions correct)\n\n`;
   
   if (strengths.length > 0) {
@@ -487,10 +506,10 @@ function generateDetailedAnalysis(results: any[], studentName: string): string {
   return analysis;
 }
 
-function extractStudentNameFromResults(results: any[]): string {
+function extractStudentIdFromResults(results: any[]): string {
   for (const result of results) {
-    if (result.student_name && result.student_name !== 'Unknown_Student') {
-      return result.student_name;
+    if (result.student_id && result.student_id !== 'Unknown_Student') {
+      return result.student_id;
     }
   }
   return 'Unknown Student';
