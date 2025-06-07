@@ -48,9 +48,9 @@ async function recognizeFlexibleTemplate(imageData: string, fileName: string) {
   };
 }
 
-// Optimized OCR extraction using only DOCUMENT_TEXT_DETECTION for best efficiency
-async function extractTextWithOptimizedVision(imageData: string, apiKey: string, templateConfig: any) {
-  console.log('🎯 Using optimized Vision API processing');
+// Simplified and optimized OCR extraction using DOCUMENT_TEXT_DETECTION
+async function extractTextWithFlexibleVision(imageData: string, apiKey: string, templateConfig: any) {
+  console.log('🎯 Using simplified Vision API processing');
   
   const visionApiUrl = `https://vision.googleapis.com/v1/images:annotate?key=${apiKey}`;
   
@@ -60,10 +60,7 @@ async function extractTextWithOptimizedVision(imageData: string, apiKey: string,
       image: { content: imageData },
       features: [{ type: 'DOCUMENT_TEXT_DETECTION' }],
       imageContext: { 
-        languageHints: ['en'],
-        textDetectionParams: {
-          enableTextDetectionConfidenceScore: true
-        }
+        languageHints: ['en']
       }
     }]
   };
@@ -88,8 +85,8 @@ async function extractTextWithOptimizedVision(imageData: string, apiKey: string,
   // Use the full text from DOCUMENT_TEXT_DETECTION for best results
   const extractedText = fullTextAnnotation.text || '';
   
-  // Calculate confidence based on template match and text quality
-  let confidence = 0.9; // High default confidence due to DOCUMENT_TEXT_DETECTION reliability
+  // Simplified confidence calculation - high default due to DOCUMENT_TEXT_DETECTION reliability
+  let confidence = 0.9;
   
   if (templateConfig.isMatch) {
     confidence = Math.min(0.98, confidence + 0.05);
@@ -442,7 +439,7 @@ function isValidStudentId(id: string): boolean {
   return true;
 }
 
-// Main serve function with optimized processing
+// Main serve function with simplified OCR processing
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -450,7 +447,7 @@ serve(async (req) => {
 
   try {
     const { fileName, fileContent } = await req.json();
-    console.log(`🔍 Processing file with optimized template-aware OCR: ${fileName}`);
+    console.log(`🔍 Processing file with simplified OCR pipeline: ${fileName}`);
 
     const visionApiKey = Deno.env.get('GOOGLE_CLOUD_VISION_API_KEY');
     const roboflowApiKey = Deno.env.get('ROBOFLOW_API_KEY');
@@ -464,9 +461,9 @@ serve(async (req) => {
     console.log(`📋 Flexible template recognition: ${templateConfig.detectedFormat} format (${(templateConfig.confidence * 100).toFixed(1)}%)`);
     console.log(`📊 Question types detected: ${templateConfig.questionTypes.join(', ')}`);
 
-    // Step 2: Optimized OCR text extraction
-    const ocrResult = await extractTextWithOptimizedVision(fileContent, visionApiKey, templateConfig);
-    console.log(`📝 Optimized OCR extracted ${ocrResult.extractedText.length} characters (confidence: ${(ocrResult.confidence * 100).toFixed(1)}%)`);
+    // Step 2: Simplified OCR text extraction
+    const ocrResult = await extractTextWithFlexibleVision(fileContent, visionApiKey, templateConfig);
+    console.log(`📝 Simplified OCR extracted ${ocrResult.extractedText.length} characters (confidence: ${(ocrResult.confidence * 100).toFixed(1)}%)`);
 
     // Step 3: Enhanced student ID detection
     const studentIdResult = detectStudentId(ocrResult.extractedText, fileName);
@@ -518,7 +515,7 @@ serve(async (req) => {
         ocrConfidence: ocrResult.confidence,
         hasStudentId: !!studentIdResult.detectedId,
         processingTimestamp: new Date().toISOString(),
-        optimizedTemplateProcessing: true,
+        simplifiedOcrProcessing: true,
         questionTypeDistribution: templateConfig.questionTypes.reduce((dist: any, type: string) => {
           dist[type] = questionGroups.filter((q: any) => q.questionType === type).length;
           return dist;
@@ -530,9 +527,9 @@ serve(async (req) => {
 
     // Calculate enhanced confidence score
     const enhancedConfidence = templateConfig.isMatch ? 
-      Math.min(0.98, ocrResult.confidence + 0.1) : ocrResult.confidence;
+      Math.min(0.98, ocrResult.confidence + 0.05) : ocrResult.confidence;
 
-    console.log(`✅ Optimized template processing completed successfully (enhanced confidence: ${(enhancedConfidence * 100).toFixed(1)}%)`);
+    console.log(`✅ Simplified OCR processing completed successfully (enhanced confidence: ${(enhancedConfidence * 100).toFixed(1)}%)`);
 
     return new Response(
       JSON.stringify({
@@ -545,7 +542,7 @@ serve(async (req) => {
         structuredData,
         confidence: enhancedConfidence,
         templateEnhanced: templateConfig.isMatch,
-        optimizedFormatDetected: true,
+        simplifiedOcrEnabled: true,
         detectedFormat: templateConfig.detectedFormat
       }),
       {
@@ -555,7 +552,7 @@ serve(async (req) => {
     );
 
   } catch (error) {
-    console.error('❌ Optimized template processing failed:', error);
+    console.error('❌ Simplified OCR processing failed:', error);
     return new Response(
       JSON.stringify({
         success: false,
@@ -566,7 +563,7 @@ serve(async (req) => {
         studentId: null,
         structuredData: null,
         templateEnhanced: false,
-        optimizedFormatDetected: false
+        simplifiedOcrEnabled: false
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
