@@ -268,6 +268,45 @@ export type Database = {
         }
         Relationships: []
       }
+      error_recovery_sessions: {
+        Row: {
+          attempts_count: number
+          completed_at: string | null
+          created_at: string
+          error_type: string
+          final_success: boolean | null
+          id: string
+          original_request_id: string
+          recovery_details: Json | null
+          recovery_strategy: string
+          total_recovery_time_ms: number | null
+        }
+        Insert: {
+          attempts_count?: number
+          completed_at?: string | null
+          created_at?: string
+          error_type: string
+          final_success?: boolean | null
+          id?: string
+          original_request_id: string
+          recovery_details?: Json | null
+          recovery_strategy: string
+          total_recovery_time_ms?: number | null
+        }
+        Update: {
+          attempts_count?: number
+          completed_at?: string | null
+          created_at?: string
+          error_type?: string
+          final_success?: boolean | null
+          id?: string
+          original_request_id?: string
+          recovery_details?: Json | null
+          recovery_strategy?: string
+          total_recovery_time_ms?: number | null
+        }
+        Relationships: []
+      }
       exam_skill_analysis: {
         Row: {
           ai_analysis_data: Json | null
@@ -447,6 +486,45 @@ export type Database = {
           retry_count?: number
           started_at?: string | null
           status?: string
+        }
+        Relationships: []
+      }
+      performance_benchmarks: {
+        Row: {
+          batch_size: number | null
+          id: string
+          operation_type: string
+          optimization_notes: string | null
+          success_rate: number
+          system_load: string | null
+          timestamp: string
+          total_processing_time_ms: number
+          validation_overhead_percent: number
+          validation_time_ms: number
+        }
+        Insert: {
+          batch_size?: number | null
+          id?: string
+          operation_type: string
+          optimization_notes?: string | null
+          success_rate: number
+          system_load?: string | null
+          timestamp?: string
+          total_processing_time_ms: number
+          validation_overhead_percent: number
+          validation_time_ms: number
+        }
+        Update: {
+          batch_size?: number | null
+          id?: string
+          operation_type?: string
+          optimization_notes?: string | null
+          success_rate?: number
+          system_load?: string | null
+          timestamp?: string
+          total_processing_time_ms?: number
+          validation_overhead_percent?: number
+          validation_time_ms?: number
         }
         Relationships: []
       }
@@ -771,6 +849,60 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      validation_logs: {
+        Row: {
+          error_details: Json | null
+          error_message: string | null
+          id: string
+          input_size_bytes: number | null
+          model_used: string | null
+          operation_type: string
+          processing_time_ms: number | null
+          retry_count: number | null
+          schema_version: string | null
+          session_id: string | null
+          success: boolean
+          temperature: number | null
+          timestamp: string
+          user_context: Json | null
+          validation_type: string
+        }
+        Insert: {
+          error_details?: Json | null
+          error_message?: string | null
+          id?: string
+          input_size_bytes?: number | null
+          model_used?: string | null
+          operation_type: string
+          processing_time_ms?: number | null
+          retry_count?: number | null
+          schema_version?: string | null
+          session_id?: string | null
+          success: boolean
+          temperature?: number | null
+          timestamp?: string
+          user_context?: Json | null
+          validation_type: string
+        }
+        Update: {
+          error_details?: Json | null
+          error_message?: string | null
+          id?: string
+          input_size_bytes?: number | null
+          model_used?: string | null
+          operation_type?: string
+          processing_time_ms?: number | null
+          retry_count?: number | null
+          schema_version?: string | null
+          session_id?: string | null
+          success?: boolean
+          temperature?: number | null
+          timestamp?: string
+          user_context?: Json | null
+          validation_type?: string
+        }
+        Relationships: []
       }
     }
     Views: {
