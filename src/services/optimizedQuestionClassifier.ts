@@ -25,10 +25,10 @@ export interface OptimizedClassificationResult extends QuestionClassification {
 }
 
 export class OptimizedQuestionClassifier {
-  // Precompiled regex patterns for performance optimization
+  // Precompiled regex patterns for performance optimization - REVERTED TO A-D ONLY
   private static readonly PRECOMPILED_PATTERNS = {
-    mcq: /^[A-E]$/i,  // Extended to support A-E (was A-D)
-    mcqLowercase: /^[a-e]$/,
+    mcq: /^[A-D]$/i,  // REVERTED: Back to A-D only (was A-E)
+    mcqLowercase: /^[a-d]$/,  // REVERTED: Back to a-d only
     trueFalse: /^(true|false|t|f)$/i,
     numeric: /^-?\d+(\.\d+)?([eE][+-]?\d+)?$/,
     simpleUnit: /^-?\d+(\.\d+)?\s*[a-zA-Z°%]{0,5}$/,
@@ -108,6 +108,12 @@ export class OptimizedQuestionClassifier {
     const studentAnswer = question.detectedAnswer?.selectedOption || '';
     const ocrConfidence = question.detectedAnswer?.confidence || 0;
 
+    // ENHANCED: Validate A-D format only
+    if (correctAnswer && !/^[A-D]$/i.test(correctAnswer)) {
+      console.warn(`⚠️ Invalid answer format detected: ${correctAnswer}. Expected A-D only.`);
+      return null; // Force fallback for invalid formats
+    }
+
     // Fast-path 1: Explicit question type hints
     if (this.FAST_PATH_PATTERNS.some(pattern => questionType.includes(pattern))) {
       if (questionType.includes('multiple') && (hasOptions || this.PRECOMPILED_PATTERNS.mcq.test(correctAnswer))) {
@@ -119,7 +125,7 @@ export class OptimizedQuestionClassifier {
       }
     }
 
-    // Fast-path 2: Clear answer patterns
+    // Fast-path 2: Clear answer patterns - STRICT A-D VALIDATION
     if (this.PRECOMPILED_PATTERNS.mcq.test(correctAnswer) && ocrConfidence > 0.7) {
       return this.createFastPathResult(question, 'multiple_choice', 0.85, 'fast_mcq_answer');
     }
@@ -192,8 +198,8 @@ export class OptimizedQuestionClassifier {
       case 'multiple_choice':
         return {
           type: 'exact_match',
-          expectedFormat: 'A|B|C|D|E',
-          variations: ['A', 'B', 'C', 'D', 'E', 'a', 'b', 'c', 'd', 'e']
+          expectedFormat: 'A|B|C|D',  // REVERTED: Back to A-D only
+          variations: ['A', 'B', 'C', 'D', 'a', 'b', 'c', 'd']  // REVERTED: Back to A-D only
         };
       case 'true_false':
         return {

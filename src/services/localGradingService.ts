@@ -31,6 +31,7 @@ interface QuestionClassification {
 
 import { OptimizedQuestionClassifier, OptimizedClassificationResult } from './optimizedQuestionClassifier';
 import { ClassificationLogger } from './classificationLogger';
+import { AnswerKeyMatchingService } from './answerKeyMatchingService';
 
 export class LocalGradingService {
   private static readonly HIGH_CONFIDENCE_THRESHOLD = 0.85;
@@ -38,6 +39,28 @@ export class LocalGradingService {
   private static readonly ENHANCED_CONFIDENCE_THRESHOLD = 0.4;
 
   static classifyQuestion(question: any, answerKey: any): QuestionClassification {
+    // PHASE 1: Validate A-D format in answer key before classification
+    if (answerKey?.correct_answer) {
+      const correctAnswer = answerKey.correct_answer.toString().trim();
+      if (!/^[A-D]$/i.test(correctAnswer)) {
+        console.warn(`⚠️ Invalid answer format in answer key: ${correctAnswer}. Expected A-D only.`);
+        return {
+          questionNumber: question.questionNumber,
+          isEasyMCQ: false,
+          confidence: 0.1,
+          detectionMethod: 'format_validation_failed',
+          shouldUseLocalGrading: false,
+          fallbackReason: `Invalid answer format: ${correctAnswer}. Only A-D supported.`,
+          questionAnalysis: {
+            hasMultipleMarks: false,
+            reviewRequired: true,
+            bubbleQuality: 'unknown',
+            selectedAnswer: 'invalid_format'
+          }
+        };
+      }
+    }
+
     // Use optimized classifier with performance tracking
     const result: OptimizedClassificationResult = OptimizedQuestionClassifier.classifyQuestionOptimized(question, answerKey);
     
@@ -199,6 +222,7 @@ export class LocalGradingService {
         multipleMarksDetected: number;
         reviewFlagged: number;
         bubbleQualityDistribution: Record<string, number>;
+        formatValidationFailures: number; // NEW: Track format validation failures
       };
     };
   } {
@@ -213,17 +237,25 @@ export class LocalGradingService {
     let enhancedThresholdCount = 0;
     let multipleMarksCount = 0;
     let reviewFlaggedCount = 0;
+    let formatValidationFailures = 0; // NEW: Track format validation failures
     const bubbleQualityDist: Record<string, number> = {};
 
     for (const question of questions) {
       const answerKey = answerKeys.find(ak => ak.question_number === question.questionNumber);
       
       if (!answerKey) {
+        console.warn(`⚠️ No answer key found for question ${question.questionNumber}`);
         aiRequiredQuestions.push(question);
         continue;
       }
 
       const result = this.gradeQuestion(question, answerKey);
+      
+      // Track format validation failures
+      if (result.gradingMethod === 'requires_ai' && 
+          result.reasoning?.includes('Invalid answer format')) {
+        formatValidationFailures++;
+      }
       
       if (result.gradingMethod === 'requires_ai') {
         aiRequiredQuestions.push(question);
@@ -270,7 +302,8 @@ export class LocalGradingService {
           enhancedThresholdGraded: enhancedThresholdCount,
           multipleMarksDetected: multipleMarksCount,
           reviewFlagged: reviewFlaggedCount,
-          bubbleQualityDistribution: bubbleQualityDist
+          bubbleQualityDistribution: bubbleQualityDist,
+          formatValidationFailures // NEW: Include format validation failures
         }
       }
     };
@@ -361,13 +394,18 @@ export class LocalGradingService {
   static getOptimizationMetrics() {
     return {
       classifier: OptimizedQuestionClassifier.getPerformanceMetrics(),
-      analytics: ClassificationLogger.getClassificationAnalytics()
+      analytics: ClassificationLogger.getClassificationAnalytics(),
+      answerKeyMatching: {
+        cacheSize: AnswerKeyMatchingService['answerKeyCache']?.size || 0,
+        // Additional answer key matching metrics could be added here
+      }
     };
   }
 
   // New method to optimize performance
   static optimizePerformance() {
     OptimizedQuestionClassifier.optimizeCache(1000);
+    AnswerKeyMatchingService.optimizeCache(50); // NEW: Optimize answer key cache
     ClassificationLogger.clearLogs();
     console.log('🚀 Local grading service performance optimized');
   }

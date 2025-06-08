@@ -2,6 +2,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { PerformanceOptimizationService } from './performanceOptimizationService';
 import { OptimizedQuestionClassifier } from './optimizedQuestionClassifier';
 import { ClassificationLogger } from './classificationLogger';
+import { AnswerKeyMatchingService, AnswerKeyValidationResult } from './answerKeyMatchingService';
 
 export interface EnhancedBatchJob {
   id: string;
@@ -66,26 +67,59 @@ export class EnhancedBatchGradingService {
     return 'complex';
   }
 
-  // Create optimized batches based on complexity
-  private static createSmartBatches(questions: any[], answerKeys: any[]): Array<{
+  // PHASE 2: FIXED - Replace index-based matching with proper database matching
+  private static async createSmartBatches(questions: any[], examId: string): Promise<Array<{
     questions: any[];
     answerKeys: any[];
     complexity: 'simple' | 'medium' | 'complex';
     batchSize: number;
     processingMethod: 'local' | 'openai_batch' | 'openai_single';
-  }> {
+    validationResult: AnswerKeyValidationResult;
+  }>> {
+    console.log(`🎯 Creating smart batches for ${questions.length} questions, exam: ${examId}`);
+    
+    // PHASE 2: Use proper answer key matching instead of index-based
+    const validationResult = await AnswerKeyMatchingService.matchQuestionsToAnswerKeys(questions, examId);
+    
+    // Generate validation report
+    const report = AnswerKeyMatchingService.generateValidationReport(validationResult);
+    console.log(report);
+
+    // PHASE 5: Enhanced Error Handling - Check if validation failed
+    if (!validationResult.isValid) {
+      console.error('❌ Answer key validation failed:', {
+        missing: validationResult.missingQuestions,
+        duplicates: validationResult.duplicateQuestions,
+        invalidFormats: validationResult.invalidFormats
+      });
+      
+      // For now, we'll continue with available matches but flag the issues
+      console.warn('⚠️ Continuing with partial matches - some questions may not be graded correctly');
+    }
+
     const categorized = {
       simple: [] as any[],
       medium: [] as any[],
       complex: [] as any[]
     };
 
-    // Categorize questions by complexity
-    questions.forEach((question, index) => {
-      const answerKey = answerKeys[index];
-      const complexity = this.classifyQuestionComplexity(question, answerKey);
-      categorized[complexity].push({ question, answerKey, originalIndex: index });
-    });
+    // Categorize questions by complexity using MATCHED answer keys
+    for (const match of validationResult.matches) {
+      if (match.answerKey) {
+        const question = questions.find(q => q.questionNumber === match.questionNumber);
+        if (question) {
+          const complexity = this.classifyQuestionComplexity(question, match.answerKey);
+          categorized[complexity].push({ question, answerKey: match.answerKey, originalIndex: match.questionNumber });
+        }
+      } else {
+        // Handle missing answer keys - put in complex category for manual review
+        const question = questions.find(q => q.questionNumber === match.questionNumber);
+        if (question) {
+          console.warn(`⚠️ Question ${match.questionNumber} has no answer key - routing to complex batch`);
+          categorized.complex.push({ question, answerKey: null, originalIndex: match.questionNumber });
+        }
+      }
+    }
 
     const batches = [];
 
@@ -99,7 +133,8 @@ export class EnhancedBatchGradingService {
           answerKeys: batch.map(item => item.answerKey),
           complexity: 'simple' as const,
           batchSize: batch.length,
-          processingMethod: 'local' as const
+          processingMethod: 'local' as const,
+          validationResult
         });
       }
     }
@@ -114,7 +149,8 @@ export class EnhancedBatchGradingService {
           answerKeys: batch.map(item => item.answerKey),
           complexity: 'medium' as const,
           batchSize: batch.length,
-          processingMethod: 'openai_batch' as const
+          processingMethod: 'openai_batch' as const,
+          validationResult
         });
       }
     }
@@ -129,59 +165,87 @@ export class EnhancedBatchGradingService {
           answerKeys: batch.map(item => item.answerKey),
           complexity: 'complex' as const,
           batchSize: batch.length,
-          processingMethod: 'openai_batch' as const
+          processingMethod: 'openai_batch' as const,
+          validationResult
         });
       }
     }
+
+    console.log(`📦 Created ${batches.length} smart batches:`, {
+      simple: categorized.simple.length,
+      medium: categorized.medium.length,
+      complex: categorized.complex.length
+    });
 
     return batches;
   }
 
   static async createEnhancedBatchJob(
     questions: any[],
-    answerKeys: any[],
-    examId: string,
+    examId: string, // PHASE 2: Now requires examId instead of answerKeys array
     studentName: string,
     priority: 'low' | 'normal' | 'high' | 'urgent' = 'normal'
   ): Promise<string> {
     const jobId = `enhanced_grading_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     
-    // Analyze complexity distribution with optimized classifier
-    const complexityDistribution = { simple: 0, medium: 0, complex: 0 };
-    questions.forEach((question, index) => {
-      const complexity = this.classifyQuestionComplexity(question, answerKeys[index]);
-      complexityDistribution[complexity]++;
-    });
+    console.log(`🎯 Creating enhanced batch job: ${jobId} for exam: ${examId}`);
 
-    const job: EnhancedBatchJob = {
-      id: jobId,
-      questions,
-      answerKeys,
-      examId,
-      studentName,
-      status: 'pending',
-      priority,
-      progress: 0,
-      results: [],
-      errors: [],
-      processingMetrics: {
-        complexityDistribution,
-        batchesCreated: 0,
-        totalApiCalls: 0,
-        costEstimate: 0,
-        circuitBreakerTrips: 0
+    try {
+      // PHASE 2: Pre-validate answer keys before creating job
+      const validationResult = await AnswerKeyMatchingService.matchQuestionsToAnswerKeys(questions, examId);
+      
+      // Analyze complexity distribution with optimized classifier
+      const complexityDistribution = { simple: 0, medium: 0, complex: 0 };
+      for (const match of validationResult.matches) {
+        if (match.answerKey) {
+          const question = questions.find(q => q.questionNumber === match.questionNumber);
+          if (question) {
+            const complexity = this.classifyQuestionComplexity(question, match.answerKey);
+            complexityDistribution[complexity]++;
+          }
+        } else {
+          complexityDistribution.complex++; // Missing answer keys go to complex
+        }
       }
-    };
 
-    this.jobs.set(jobId, job);
-    
-    console.log(`🎯 Enhanced batch job created: ${jobId}`);
-    console.log(`📊 Complexity distribution: ${complexityDistribution.simple} simple, ${complexityDistribution.medium} medium, ${complexityDistribution.complex} complex`);
+      const job: EnhancedBatchJob = {
+        id: jobId,
+        questions,
+        answerKeys: [], // PHASE 2: Deprecated - will be fetched from database
+        examId,
+        studentName,
+        status: 'pending',
+        priority,
+        progress: 0,
+        results: [],
+        errors: [],
+        processingMetrics: {
+          complexityDistribution,
+          batchesCreated: 0,
+          totalApiCalls: 0,
+          costEstimate: 0,
+          circuitBreakerTrips: 0
+        }
+      };
 
-    // Start processing immediately
-    this.processEnhancedBatchJob(jobId);
-    
-    return jobId;
+      this.jobs.set(jobId, job);
+      
+      console.log(`📊 Job created with complexity distribution:`, complexityDistribution);
+      console.log(`🔍 Answer key validation:`, {
+        valid: validationResult.isValid,
+        matched: validationResult.matchedQuestions,
+        missing: validationResult.missingQuestions.length
+      });
+
+      // Start processing immediately
+      this.processEnhancedBatchJob(jobId);
+      
+      return jobId;
+
+    } catch (error) {
+      console.error(`❌ Failed to create batch job:`, error);
+      throw error;
+    }
   }
 
   private static async processEnhancedBatchJob(jobId: string): Promise<void> {
@@ -193,8 +257,8 @@ export class EnhancedBatchGradingService {
     this.notifyJobUpdate(job);
 
     try {
-      // Create smart batches
-      const smartBatches = this.createSmartBatches(job.questions, job.answerKeys);
+      // PHASE 2: Create smart batches with proper answer key matching
+      const smartBatches = await this.createSmartBatches(job.questions, job.examId);
       job.processingMetrics.batchesCreated = smartBatches.length;
       
       console.log(`🔄 Processing ${smartBatches.length} smart batches for job ${jobId}`);
@@ -207,8 +271,14 @@ export class EnhancedBatchGradingService {
           const batchStartTime = Date.now();
           let batchResults: BatchGradingResult[] = [];
 
+          // PHASE 5: Enhanced Error Handling - Check for missing answer keys in batch
+          const missingAnswerKeys = batch.answerKeys.filter(ak => ak === null).length;
+          if (missingAnswerKeys > 0) {
+            console.warn(`⚠️ Batch contains ${missingAnswerKeys} questions with missing answer keys`);
+          }
+
           if (batch.processingMethod === 'local') {
-            // Process simple questions with local AI (simulated for now)
+            // Process simple questions with local AI
             batchResults = await this.processLocalBatch(batch.questions, batch.answerKeys);
           } else {
             // Process with enhanced OpenAI batch
@@ -237,7 +307,7 @@ export class EnhancedBatchGradingService {
           console.error(`❌ Batch failed (${batch.complexity}):`, error);
           job.errors.push(`Batch processing failed: ${error.message}`);
           
-          // Create fallback results for failed batch
+          // PHASE 5: Enhanced Error Handling - Create fallback results for failed batch
           const fallbackResults = batch.questions.map((question, index) => ({
             questionNumber: question.questionNumber || index + 1,
             isCorrect: false,
@@ -448,7 +518,7 @@ export class EnhancedBatchGradingService {
   // New optimization method
   static optimizePerformance() {
     OptimizedQuestionClassifier.optimizeCache(2000); // Larger cache for batch processing
-    OptimizedQuestionClassifier.clearCache();
+    AnswerKeyMatchingService.optimizeCache(100); // NEW: Optimize answer key cache
     ClassificationLogger.clearLogs();
     console.log('🚀 Enhanced batch grading service performance optimized');
   }
