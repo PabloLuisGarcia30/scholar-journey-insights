@@ -62,6 +62,20 @@ export function StudentSubjectSkills({
     });
   };
 
+  const handleSkillClick = (skillName: string) => {
+    if (isSelectionMode) {
+      const skill = relevantSkills.find(s => s.skill_name === skillName);
+      if (skill) {
+        const canSelect = canSelectMore || isSkillSelected(skillName);
+        if (canSelect) {
+          handleSkillSelection(skill, { stopPropagation: () => {} } as React.MouseEvent);
+        }
+      }
+    } else {
+      onGeneratePracticeTest(skillName);
+    }
+  };
+
   const handlePractice = (skillName: string) => {
     if (isSelectionMode) {
       const skill = relevantSkills.find(s => s.skill_name === skillName);
@@ -128,7 +142,8 @@ export function StudentSubjectSkills({
                         ? 'opacity-50 cursor-not-allowed' 
                         : ''
                     }`}
-                    onClick={() => handlePractice(skillName)}
+                    onClick={() => handleSkillClick(skillName)}
+                    title={isSelectionMode ? (canSelect ? "Click to select skill" : "Maximum skills selected") : "Click to generate practice exercise"}
                   >
                     {isSelectionMode && (
                       <div className="absolute top-3 right-3 z-10">
@@ -184,15 +199,20 @@ export function StudentSubjectSkills({
                       <Progress value={score} />
                     </div>
                     {!isSelectionMode && (
-                      <Button 
-                        variant="secondary" 
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handlePractice(skillName);
-                        }}
-                      >
-                        Practice this Skill <ArrowRight className="ml-2 h-4 w-4" />
-                      </Button>
+                      <>
+                        <Button 
+                          variant="secondary" 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handlePractice(skillName);
+                          }}
+                        >
+                          Practice this Skill <ArrowRight className="ml-2 h-4 w-4" />
+                        </Button>
+                        <div className="mt-2 text-xs text-gray-500">
+                          Click anywhere on this card to create a practice exercise
+                        </div>
+                      </>
                     )}
                   </div>
                 );

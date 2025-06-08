@@ -69,7 +69,10 @@ export function StudentContentSkills({
 
   const handleSkillClick = (skill: any) => {
     if (isSelectionMode) {
-      handleSkillSelection(skill, { stopPropagation: () => {} } as React.MouseEvent);
+      const canSelect = canSelectMore || isSkillSelected(skill.skill_name);
+      if (canSelect) {
+        handleSkillSelection(skill, { stopPropagation: () => {} } as React.MouseEvent);
+      }
     } else {
       onGeneratePracticeTest(skill.skill_name);
     }
@@ -198,6 +201,7 @@ export function StudentContentSkills({
                             : ''
                         }`}
                         onClick={() => handleSkillClick(skill)}
+                        title={isSelectionMode ? (canSelect ? "Click to select skill" : "Maximum skills selected") : "Click to generate practice exercise"}
                       >
                         {isSelectionMode && (
                           <div className="absolute top-3 right-3 z-10">
@@ -246,6 +250,13 @@ export function StudentContentSkills({
                             style={{ width: `${skill.score}%` }}
                           />
                         </div>
+                        
+                        {/* Click hint text */}
+                        {!isSelectionMode && (
+                          <div className="mt-2 text-xs text-slate-500 group-hover:text-slate-700 transition-colors">
+                            Click to create practice exercise for this skill
+                          </div>
+                        )}
                       </div>
                     );
                   })}
