@@ -15,3 +15,15 @@ verify_jwt = false
 
 [functions.batch-queue-manager]
 verify_jwt = false
+
+[functions.get-question-cache]
+verify_jwt = false
+
+[functions.set-question-cache]
+verify_jwt = false
+
+[functions.get-question-cache-stats]
+verify_jwt = false
+
+[functions.cleanup-question-cache]
+verify_jwt = false
