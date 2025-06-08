@@ -13,7 +13,7 @@ import { StudentProgressChart } from "./StudentProgressChart";
 import { useStudentProfileData } from "@/hooks/useStudentProfileData";
 import { useSkillData } from "@/hooks/useSkillData";
 import { calculateOverallGrade } from "@/utils/studentProfileUtils";
-import { MultiSkillSelectionProvider, useMultiSkillSelection } from "@/contexts/MultiSkillSelectionContext";
+import { useMultiSkillSelection } from "@/contexts/MultiSkillSelectionContext";
 import { generateMultiplePracticeTests, MultiPracticeTestResult } from "@/services/practiceTestService";
 import { toast } from "sonner";
 
@@ -24,7 +24,7 @@ interface StudentProfileProps {
   onBack: () => void;
 }
 
-function StudentProfileContent({ studentId, classId, className, onBack }: StudentProfileProps) {
+export function StudentProfile({ studentId, classId, className, onBack }: StudentProfileProps) {
   const [showPracticeTest, setShowPracticeTest] = useState(false);
   const [showMultiPracticeTests, setShowMultiPracticeTests] = useState(false);
   const [selectedSkill, setSelectedSkill] = useState<string | null>(null);
@@ -309,13 +309,5 @@ function StudentProfileContent({ studentId, classId, className, onBack }: Studen
         onGenerateTests={handleGenerateMultiPracticeTests}
       />
     </div>
-  );
-}
-
-export function StudentProfile(props: StudentProfileProps) {
-  return (
-    <MultiSkillSelectionProvider>
-      <StudentProfileContent {...props} />
-    </MultiSkillSelectionProvider>
   );
 }
