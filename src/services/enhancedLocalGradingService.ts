@@ -1,4 +1,6 @@
+
 import { supabase } from "@/integrations/supabase/client";
+import { EnhancedQuestionClassifier, QuestionClassification, SimpleAnswerValidation } from "./enhancedQuestionClassifier";
 
 export interface SkillMapping {
   skill_id: string;
@@ -32,6 +34,8 @@ export interface EnhancedLocalGradingResult {
   reasoning: string;
   skillMappings?: SkillMapping[];
   qualityFlags?: any;
+  questionClassification?: QuestionClassification;
+  answerValidation?: SimpleAnswerValidation;
 }
 
 // Score Validation Service
@@ -107,9 +111,6 @@ class ScoreValidationService {
 }
 
 export class EnhancedLocalGradingService {
-  private static readonly HIGH_CONFIDENCE_THRESHOLD = 0.85;
-  private static readonly MEDIUM_CONFIDENCE_THRESHOLD = 0.6;
-  private static readonly ENHANCED_CONFIDENCE_THRESHOLD = 0.4;
 
   // Check if AI-identified skill mappings exist for an exam
   static async checkAIIdentifiedSkillMappings(examId: string): Promise<boolean> {
@@ -185,176 +186,54 @@ export class EnhancedLocalGradingService {
     return skillMappings;
   }
 
-  static classifyQuestion(question: any, answerKey: any) {
-    let confidence = 0;
-    let isEasyMCQ = false;
-    let detectionMethod = 'none';
-    let shouldUseLocal = false;
-    let questionAnalysis = null;
-
-    // Check if it's a multiple choice question (A, B, C, D)
-    const isMCQ = answerKey.question_type?.toLowerCase().includes('multiple') || 
-                  answerKey.options || 
-                  /^[A-D]$/i.test(answerKey.correct_answer);
-
-    if (!isMCQ) {
-      return {
-        questionNumber: question.questionNumber,
-        isEasyMCQ: false,
-        confidence: 0,
-        detectionMethod: 'not_mcq',
-        shouldUseLocalGrading: false,
-        fallbackReason: 'Not a multiple choice question'
-      };
-    }
-
-    // Enhanced question-based detection analysis
-    if (question.detectedAnswer) {
-      confidence = question.detectedAnswer.confidence || 0;
-      detectionMethod = question.detectedAnswer.detectionMethod || 'unknown';
-      const hasMultipleMarks = question.detectedAnswer.multipleMarksDetected || false;
-      const reviewRequired = question.detectedAnswer.reviewFlag || false;
-      const bubbleQuality = question.detectedAnswer.bubbleQuality || 'unknown';
-      const selectedAnswer = question.detectedAnswer.selectedOption || 'no_answer';
-      
-      questionAnalysis = {
-        hasMultipleMarks,
-        reviewRequired,
-        bubbleQuality,
-        selectedAnswer
-      };
-      
-      // Enhanced classification logic for question-based detection
-      if (confidence >= this.HIGH_CONFIDENCE_THRESHOLD && 
-          !reviewRequired && 
-          !hasMultipleMarks &&
-          selectedAnswer !== 'no_answer' &&
-          /^[A-D]$/i.test(selectedAnswer) &&
-          (bubbleQuality === 'heavy' || bubbleQuality === 'medium')) {
-        isEasyMCQ = true;
-        shouldUseLocal = true;
-      }
-      // Medium confidence with quality checks
-      else if (confidence >= this.MEDIUM_CONFIDENCE_THRESHOLD && 
-               !reviewRequired && 
-               !hasMultipleMarks &&
-               selectedAnswer !== 'no_answer' &&
-               /^[A-D]$/i.test(selectedAnswer) &&
-               question.detectedAnswer.crossValidated &&
-               bubbleQuality !== 'empty') {
-        isEasyMCQ = true;
-        shouldUseLocal = true;
-      }
-      // Enhanced threshold for borderline cases
-      else if (confidence >= this.ENHANCED_CONFIDENCE_THRESHOLD &&
-               selectedAnswer !== 'no_answer' &&
-               /^[A-D]$/i.test(selectedAnswer) &&
-               bubbleQuality === 'light' &&
-               question.detectedAnswer.crossValidated &&
-               !hasMultipleMarks &&
-               !reviewRequired) {
-        isEasyMCQ = true;
-        shouldUseLocal = true;
-      }
-    }
-
-    return {
-      questionNumber: question.questionNumber,
-      isEasyMCQ,
-      confidence,
-      detectionMethod,
-      shouldUseLocalGrading: shouldUseLocal,
-      questionAnalysis,
-      fallbackReason: shouldUseLocal ? undefined : this.getFallbackReason(confidence, question.detectedAnswer)
-    };
-  }
-
-  private static getFallbackReason(confidence: number, detectedAnswer: any): string {
-    if (!detectedAnswer) return 'No answer detection data';
+  static gradeQuestionWithEnhancedClassification(question: any, answerKey: any, skillMappings: SkillMapping[]): EnhancedLocalGradingResult {
+    // Use enhanced classification instead of old logic
+    const classification = EnhancedQuestionClassifier.classifyQuestion(question, answerKey);
     
-    const reasons = [];
-    
-    if (confidence < this.ENHANCED_CONFIDENCE_THRESHOLD) {
-      reasons.push('Low confidence detection');
-    }
-    
-    if (detectedAnswer.reviewFlag) {
-      reasons.push('Flagged for manual review');
-    }
-    
-    if (detectedAnswer.multipleMarksDetected) {
-      reasons.push('Multiple marks detected');
-    }
-    
-    if (detectedAnswer.selectedOption === 'no_answer') {
-      reasons.push('No clear answer selected');
-    }
-    
-    if (!/^[A-D]$/i.test(detectedAnswer.selectedOption || '')) {
-      reasons.push('Invalid answer option (not A-D)');
-    }
-    
-    if (detectedAnswer.bubbleQuality === 'empty') {
-      reasons.push('Empty or unclear bubble');
-    }
-    
-    if (detectedAnswer.bubbleQuality === 'overfilled') {
-      reasons.push('Overfilled bubble detected');
-    }
-    
-    if (!detectedAnswer.crossValidated) {
-      reasons.push('No cross-validation available');
-    }
-    
-    return reasons.length > 0 ? reasons.join(', ') : 'Quality threshold not met';
-  }
-
-  static gradeQuestionWithAIIdentifiedSkills(question: any, answerKey: any, skillMappings: SkillMapping[]): EnhancedLocalGradingResult {
-    const classification = this.classifyQuestion(question, answerKey);
-    
-    if (!classification.shouldUseLocalGrading) {
+    if (!classification.shouldUseLocalGrading || !classification.isSimple) {
       return {
         questionNumber: question.questionNumber,
         isCorrect: false,
         pointsEarned: 0,
         pointsPossible: answerKey.points || 1,
-        confidence: 0,
+        confidence: classification.confidence,
         gradingMethod: 'requires_ai',
-        reasoning: classification.fallbackReason,
+        reasoning: classification.fallbackReason || 'Complex question requiring AI analysis',
         skillMappings,
-        qualityFlags: classification.questionAnalysis ? {
-          hasMultipleMarks: classification.questionAnalysis.hasMultipleMarks,
-          reviewRequired: classification.questionAnalysis.reviewRequired,
-          bubbleQuality: classification.questionAnalysis.bubbleQuality,
+        questionClassification: classification,
+        qualityFlags: {
+          hasMultipleMarks: question.detectedAnswer?.multipleMarksDetected || false,
+          reviewRequired: question.detectedAnswer?.reviewFlag || false,
+          bubbleQuality: question.detectedAnswer?.bubbleQuality || 'unknown',
           confidenceAdjusted: false
-        } : undefined
+        }
       };
     }
 
-    const studentAnswer = question.detectedAnswer?.selectedOption?.toUpperCase() || '';
-    const correctAnswer = answerKey.correct_answer?.toUpperCase() || '';
-    const isCorrect = studentAnswer === correctAnswer;
+    const studentAnswer = question.detectedAnswer?.selectedOption?.trim() || '';
+    const correctAnswer = answerKey.correct_answer?.trim() || '';
     const pointsPossible = answerKey.points || 1;
+
+    // Enhanced answer validation
+    const answerValidation = EnhancedQuestionClassifier.validateSimpleAnswer(
+      studentAnswer, 
+      correctAnswer, 
+      classification.answerPattern
+    );
+
+    const isCorrect = answerValidation.isValid;
     let pointsEarned = isCorrect ? pointsPossible : 0;
 
     // Validate question score
     pointsEarned = ScoreValidationService.validateQuestionScore(pointsEarned, pointsPossible, question.questionNumber);
 
-    // Determine grading method based on confidence and detection method
-    let gradingMethod = 'local_with_ai_identified_skills';
-    if (classification.confidence >= this.HIGH_CONFIDENCE_THRESHOLD) {
-      gradingMethod = 'local_confident_with_ai_skills';
-    } else if (classification.confidence >= this.ENHANCED_CONFIDENCE_THRESHOLD) {
-      gradingMethod = 'local_enhanced_with_ai_skills';
+    // Determine grading method based on question type and confidence
+    let gradingMethod = `local_${classification.questionType}`;
+    if (classification.confidence >= 0.85) {
+      gradingMethod = `local_${classification.questionType}_high_confidence`;
+    } else if (classification.confidence >= 0.6) {
+      gradingMethod = `local_${classification.questionType}_medium_confidence`;
     }
-
-    // Enhanced quality flags for question-based grading
-    const qualityFlags = classification.questionAnalysis ? {
-      hasMultipleMarks: classification.questionAnalysis.hasMultipleMarks,
-      reviewRequired: classification.questionAnalysis.reviewRequired,
-      bubbleQuality: classification.questionAnalysis.bubbleQuality,
-      confidenceAdjusted: classification.confidence < this.MEDIUM_CONFIDENCE_THRESHOLD
-    } : undefined;
 
     return {
       questionNumber: question.questionNumber,
@@ -363,34 +242,46 @@ export class EnhancedLocalGradingService {
       pointsPossible,
       confidence: classification.confidence,
       gradingMethod,
-      reasoning: this.generateReasoningWithAISkills(studentAnswer, correctAnswer, question.detectedAnswer),
+      reasoning: this.generateEnhancedReasoning(
+        studentAnswer, 
+        correctAnswer, 
+        classification, 
+        answerValidation
+      ),
       skillMappings,
-      qualityFlags
+      questionClassification: classification,
+      answerValidation,
+      qualityFlags: {
+        hasMultipleMarks: question.detectedAnswer?.multipleMarksDetected || false,
+        reviewRequired: question.detectedAnswer?.reviewFlag || false,
+        bubbleQuality: question.detectedAnswer?.bubbleQuality || 'unknown',
+        confidenceAdjusted: classification.confidence < 0.6
+      }
     };
   }
 
-  private static generateReasoningWithAISkills(studentAnswer: string, correctAnswer: string, detectedAnswer: any): string {
-    let reasoning = `Local grading with AI-identified skills: Student selected ${studentAnswer || 'no answer'}, correct answer is ${correctAnswer}`;
+  private static generateEnhancedReasoning(
+    studentAnswer: string, 
+    correctAnswer: string, 
+    classification: QuestionClassification,
+    validation: SimpleAnswerValidation
+  ): string {
+    const questionTypeMap = {
+      'multiple_choice': 'Multiple Choice',
+      'true_false': 'True/False',
+      'fill_in_blank': 'Fill-in-the-blank',
+      'numeric': 'Numeric',
+      'complex': 'Complex'
+    };
+
+    let reasoning = `Enhanced local grading (${questionTypeMap[classification.questionType]}): `;
+    reasoning += `Student answered "${studentAnswer || 'no answer'}", correct answer is "${correctAnswer}"`;
     
-    if (detectedAnswer) {
-      reasoning += ` (Detection: ${detectedAnswer.detectionMethod || 'unknown'})`;
-      
-      if (detectedAnswer.bubbleQuality) {
-        reasoning += ` [Bubble: ${detectedAnswer.bubbleQuality}]`;
-      }
-      
-      if (detectedAnswer.multipleMarksDetected) {
-        reasoning += ' [MULTIPLE MARKS DETECTED]';
-      }
-      
-      if (detectedAnswer.reviewFlag) {
-        reasoning += ' [FLAGGED FOR REVIEW]';
-      }
-      
-      if (detectedAnswer.processingNotes && detectedAnswer.processingNotes.length > 0) {
-        reasoning += ` Notes: ${detectedAnswer.processingNotes.join(', ')}`;
-      }
+    if (validation.matchType) {
+      reasoning += ` [Validation: ${validation.matchType}, confidence: ${(validation.confidence * 100).toFixed(1)}%]`;
     }
+    
+    reasoning += ` [Detection: ${classification.detectionMethod}, OCR confidence: ${(classification.confidence * 100).toFixed(1)}%]`;
     
     return reasoning;
   }
@@ -445,9 +336,9 @@ export class EnhancedLocalGradingService {
     });
   }
 
-  // NEW MAIN PROCESSING METHOD: Ensures AI skill identification happens first
+  // MAIN PROCESSING METHOD: Enhanced hybrid workflow with improved classification
   static async processQuestionsWithHybridWorkflow(questions: any[], answerKeys: any[], examId: string) {
-    console.log('Starting hybrid workflow: AI skill identification first, then grading');
+    console.log('Starting enhanced hybrid workflow with improved question classification');
     
     // STEP 1: Ensure AI skill identification is completed
     const hasAISkills = await this.ensureAISkillIdentification(examId);
@@ -464,16 +355,20 @@ export class EnhancedLocalGradingService {
       throw new Error('No skills were identified for this exam. Cannot proceed with skill-based grading.');
     }
 
-    // STEP 3: Proceed with grading using AI-identified skills
+    // STEP 3: Process questions with enhanced classification
     const localResults: EnhancedLocalGradingResult[] = [];
     const aiRequiredQuestions = [];
     let locallyGradedCount = 0;
     
-    // Enhanced metrics tracking
-    let questionBasedCount = 0;
-    let highConfidenceCount = 0;
-    let mediumConfidenceCount = 0;
-    let enhancedThresholdCount = 0;
+    // Enhanced metrics tracking by question type
+    const questionTypeMetrics = {
+      multiple_choice: 0,
+      true_false: 0,
+      fill_in_blank: 0,
+      numeric: 0,
+      complex: 0
+    };
+    
     let multipleMarksCount = 0;
     let reviewFlaggedCount = 0;
     const bubbleQualityDist = {};
@@ -487,7 +382,7 @@ export class EnhancedLocalGradingService {
       }
 
       const questionSkillMappings = aiIdentifiedSkills[question.questionNumber] || [];
-      const result = this.gradeQuestionWithAIIdentifiedSkills(question, answerKey, questionSkillMappings);
+      const result = this.gradeQuestionWithEnhancedClassification(question, answerKey, questionSkillMappings);
       
       if (result.gradingMethod === 'requires_ai') {
         aiRequiredQuestions.push(question);
@@ -495,13 +390,9 @@ export class EnhancedLocalGradingService {
         localResults.push(result);
         locallyGradedCount++;
         
-        // Track enhanced metrics
-        if (result.gradingMethod.includes('question_based')) {
-          questionBasedCount++;
-        } else if (result.gradingMethod.includes('confident')) {
-          highConfidenceCount++;
-        } else if (result.gradingMethod.includes('enhanced')) {
-          enhancedThresholdCount++;
+        // Track question type metrics
+        if (result.questionClassification) {
+          questionTypeMetrics[result.questionClassification.questionType]++;
         }
         
         if (result.qualityFlags?.hasMultipleMarks) {
@@ -519,7 +410,7 @@ export class EnhancedLocalGradingService {
       }
     }
 
-    // Calculate skill scores from local results (includes validation)
+    // Calculate skill scores from local results
     const localSkillScores = this.calculateSkillScores(localResults);
 
     // Validate total local scores
@@ -528,11 +419,8 @@ export class EnhancedLocalGradingService {
     
     const localValidation = ScoreValidationService.validateFinalScore(localTotalEarned, localTotalPossible);
     
-    if (localValidation.capped) {
-      console.warn('Local grading scores were adjusted for validation');
-    }
-
-    console.log(`✓ Hybrid workflow complete: AI skills identified → ${locallyGradedCount} locally graded, ${aiRequiredQuestions.length} require AI`);
+    console.log(`✓ Enhanced hybrid workflow complete: ${locallyGradedCount} locally graded, ${aiRequiredQuestions.length} require AI`);
+    console.log('Question type breakdown:', questionTypeMetrics);
 
     return {
       localResults,
@@ -547,26 +435,23 @@ export class EnhancedLocalGradingService {
         aiSkillsIdentified: true,
         scoreValidationApplied: localValidation.capped,
         enhancedMetrics: {
-          questionBasedGraded: questionBasedCount,
-          highConfidenceGraded: highConfidenceCount,
-          mediumConfidenceGraded: mediumConfidenceCount,
-          enhancedThresholdGraded: enhancedThresholdCount,
+          questionTypeBreakdown: questionTypeMetrics,
           multipleMarksDetected: multipleMarksCount,
           reviewFlagged: reviewFlaggedCount,
-          bubbleQualityDistribution: bubbleQualityDist
+          bubbleQualityDistribution: bubbleQualityDist,
+          enhancedClassificationUsed: true
         }
       }
     };
   }
 
-  // Legacy method - now triggers error to force use of hybrid workflow
+  // Legacy methods - force use of enhanced workflow
   static processQuestionsWithSkills(questions: any[], answerKeys: any[], examId: string) {
-    throw new Error('This method is deprecated. Use processQuestionsWithHybridWorkflow() instead to ensure AI skill identification happens first.');
+    throw new Error('This method is deprecated. Use processQuestionsWithHybridWorkflow() instead to ensure enhanced question classification.');
   }
 
-  // Legacy method - now triggers error to force use of hybrid workflow  
   static processQuestionsBasic(questions: any[], answerKeys: any[]) {
-    throw new Error('Basic processing without AI skill identification is not allowed in hybrid mode. Use processQuestionsWithHybridWorkflow() instead.');
+    throw new Error('Basic processing without enhanced classification is not allowed. Use processQuestionsWithHybridWorkflow() instead.');
   }
 
   static generateLocalFeedback(results: EnhancedLocalGradingResult[]): string {
@@ -574,14 +459,21 @@ export class EnhancedLocalGradingService {
     const total = results.length;
     const percentage = Math.round((correct / total) * 100);
     
+    const questionTypes = results.reduce((acc, r) => {
+      if (r.questionClassification) {
+        acc[r.questionClassification.questionType] = (acc[r.questionClassification.questionType] || 0) + 1;
+      }
+      return acc;
+    }, {} as Record<string, number>);
+    
     const multipleMarks = results.filter(r => r.qualityFlags?.hasMultipleMarks).length;
     const reviewFlagged = results.filter(r => r.qualityFlags?.reviewRequired).length;
-    const withAISkills = results.filter(r => r.skillMappings && r.skillMappings.length > 0).length;
     
-    let feedback = `Hybrid analysis completed: AI first identified skills, then graded ${total} questions locally. Score: ${correct}/${total} (${percentage}%)`;
+    let feedback = `Enhanced local grading completed for ${total} questions. Score: ${correct}/${total} (${percentage}%)`;
     
-    if (withAISkills > 0) {
-      feedback += `. ${withAISkills} questions used AI-identified skill mappings`;
+    const typeBreakdown = Object.entries(questionTypes).map(([type, count]) => `${count} ${type.replace('_', ' ')}`).join(', ');
+    if (typeBreakdown) {
+      feedback += `. Question types graded: ${typeBreakdown}`;
     }
     
     if (multipleMarks > 0) {
@@ -589,7 +481,7 @@ export class EnhancedLocalGradingService {
     }
     
     if (reviewFlagged > 0) {
-      feedback += `. ${reviewFlagged} questions flagged for review due to quality concerns`;
+      feedback += `. ${reviewFlagged} questions flagged for review`;
     }
     
     return feedback;
