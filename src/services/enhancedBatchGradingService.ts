@@ -3,6 +3,7 @@ import { PerformanceOptimizationService } from './performanceOptimizationService
 import { OptimizedQuestionClassifier } from './optimizedQuestionClassifier';
 import { ClassificationLogger } from './classificationLogger';
 import { AnswerKeyMatchingService, AnswerKeyValidationResult } from './answerKeyMatchingService';
+import { ConservativeBatchOptimizer, SkillAwareBatchGroup } from './conservativeBatchOptimizer';
 
 export interface EnhancedBatchJob {
   id: string;
@@ -81,27 +82,28 @@ interface ConcurrencyConfig {
 export class EnhancedBatchGradingService {
   private static jobs = new Map<string, EnhancedBatchJob>();
   private static jobListeners = new Map<string, (job: EnhancedBatchJob) => void>();
+  private static conservativeBatchOptimizer = new ConservativeBatchOptimizer();
   
-  // Enhanced concurrency management
+  // Conservative concurrency management - reduced for accuracy
   private static concurrencyConfig: ConcurrencyConfig = {
     localAI: {
-      maxConcurrent: 8, // Higher for local processing
+      maxConcurrent: 4, // Reduced from 8
       currentActive: 0
     },
     openAI: {
-      maxConcurrent: 3, // Conservative for API rate limits
+      maxConcurrent: 2, // Reduced from 3
       currentActive: 0,
-      rateLimitBuffer: 500 // ms between requests
+      rateLimitBuffer: 1000 // Increased buffer for quality
     },
     circuitBreaker: {
-      failureThreshold: 5,
-      recoveryTimeMs: 60000,
+      failureThreshold: 3, // More sensitive to failures
+      recoveryTimeMs: 90000, // Longer recovery time
       isOpen: false,
       lastFailureTime: 0
     }
   };
 
-  // Smart question classification for routing (now optimized)
+  // Conservative question classification for routing
   private static classifyQuestionComplexity(question: any, answerKey: any): 'simple' | 'medium' | 'complex' {
     const classification = OptimizedQuestionClassifier.classifyQuestionOptimized(question, answerKey);
     
@@ -113,16 +115,18 @@ export class EnhancedBatchGradingService {
       classification.metrics
     );
 
-    if (classification.isSimple && classification.shouldUseLocalGrading) {
-      if (classification.confidence >= 0.8) return 'simple';
-      if (classification.confidence >= 0.6) return 'medium';
+    // More conservative classification - when in doubt, mark as complex
+    if (classification.isSimple && classification.shouldUseLocalGrading && classification.confidence >= 0.9) {
+      return 'simple';
+    } else if (classification.confidence >= 0.8) {
+      return 'medium';
     }
     
-    return 'complex';
+    return 'complex'; // Default to complex for maximum accuracy
   }
 
-  // PHASE 2: FIXED - Replace index-based matching with proper database matching OR use pre-validated keys
-  private static async createSmartBatches(
+  // PHASE 2: Conservative smart batches with skill-aware grouping
+  private static async createConservativeSmartBatches(
     questions: any[], 
     examId: string,
     preValidatedAnswerKeys?: any[]
@@ -134,9 +138,12 @@ export class EnhancedBatchGradingService {
     processingMethod: 'local' | 'openai_batch' | 'openai_single';
     validationResult: AnswerKeyValidationResult;
     batchIndex: number;
+    skillAlignment: number;
+    qualityMetrics: any;
   }>> {
-    console.log(`🎯 Creating smart batches for ${questions.length} questions, exam: ${examId}`);
+    console.log(`🎯 Creating conservative smart batches for ${questions.length} questions, exam: ${examId}`);
     
+    // Get validation result
     let validationResult: AnswerKeyValidationResult;
     
     if (preValidatedAnswerKeys && preValidatedAnswerKeys.length > 0) {
@@ -168,98 +175,81 @@ export class EnhancedBatchGradingService {
       validationResult = await AnswerKeyMatchingService.matchQuestionsToAnswerKeys(questions, examId);
     }
     
-    const report = AnswerKeyMatchingService.generateValidationReport(validationResult);
-    console.log(report);
-
     if (!validationResult.isValid) {
-      console.error('❌ Answer key validation failed:', {
-        missing: validationResult.missingQuestions,
-        duplicates: validationResult.duplicateQuestions,
-        invalidFormats: validationResult.invalidFormats
-      });
-      console.warn('⚠️ Continuing with partial matches - some questions may not be graded correctly');
+      console.error('❌ Answer key validation failed - using conservative fallback');
     }
 
-    const categorized = {
-      simple: [] as any[],
-      medium: [] as any[],
-      complex: [] as any[]
-    };
+    // Get skill mappings for conservative grouping
+    const { data: skillMappings } = await supabase
+      .from('exam_skill_mappings')
+      .select('*')
+      .eq('exam_id', examId);
 
-    for (const match of validationResult.matches) {
-      if (match.answerKey) {
-        const question = questions.find(q => q.questionNumber === match.questionNumber);
-        if (question) {
-          const complexity = this.classifyQuestionComplexity(question, match.answerKey);
-          categorized[complexity].push({ question, answerKey: match.answerKey, originalIndex: match.questionNumber });
-        }
-      } else {
-        const question = questions.find(q => q.questionNumber === match.questionNumber);
-        if (question) {
-          console.warn(`⚠️ Question ${match.questionNumber} has no answer key - routing to complex batch`);
-          categorized.complex.push({ question, answerKey: null, originalIndex: match.questionNumber });
-        }
-      }
-    }
+    // Prepare complexity analyses (simplified for conservative approach)
+    const complexityAnalyses = questions.map(question => ({
+      questionNumber: question.questionNumber,
+      complexityScore: this.calculateConservativeComplexity(question, validationResult.matches.find(m => m.questionNumber === question.questionNumber)?.answerKey),
+      confidenceInDecision: 0.8,
+      recommendedModel: 'gpt-4o-mini'
+    }));
 
-    const batches = [];
-    let batchIndex = 0;
+    // Use conservative batch optimizer
+    const skillAwareBatches = this.conservativeBatchOptimizer.optimizeQuestionBatches(
+      questions,
+      validationResult.matches.map(m => m.answerKey).filter(Boolean),
+      skillMappings || [],
+      complexityAnalyses
+    );
 
-    if (categorized.simple.length > 0) {
-      const simpleBatchSize = Math.min(20, categorized.simple.length);
-      for (let i = 0; i < categorized.simple.length; i += simpleBatchSize) {
-        const batch = categorized.simple.slice(i, i + simpleBatchSize);
-        batches.push({
-          questions: batch.map(item => item.question),
-          answerKeys: batch.map(item => item.answerKey),
-          complexity: 'simple' as const,
-          batchSize: batch.length,
-          processingMethod: 'local' as const,
-          validationResult,
-          batchIndex: batchIndex++
-        });
-      }
-    }
+    // Convert to expected format
+    const batches = skillAwareBatches.map((batch, index) => ({
+      questions: batch.questions,
+      answerKeys: batch.answerKeys,
+      complexity: batch.complexity,
+      batchSize: batch.batchSize,
+      processingMethod: this.selectConservativeProcessingMethod(batch),
+      validationResult,
+      batchIndex: index,
+      skillAlignment: batch.qualityMetrics.skillAlignment,
+      qualityMetrics: batch.qualityMetrics
+    }));
 
-    if (categorized.medium.length > 0) {
-      const mediumBatchSize = Math.min(15, categorized.medium.length);
-      for (let i = 0; i < categorized.medium.length; i += mediumBatchSize) {
-        const batch = categorized.medium.slice(i, i + mediumBatchSize);
-        batches.push({
-          questions: batch.map(item => item.question),
-          answerKeys: batch.map(item => item.answerKey),
-          complexity: 'medium' as const,
-          batchSize: batch.length,
-          processingMethod: 'openai_batch' as const,
-          validationResult,
-          batchIndex: batchIndex++
-        });
-      }
-    }
-
-    if (categorized.complex.length > 0) {
-      const complexBatchSize = Math.min(8, categorized.complex.length);
-      for (let i = 0; i < categorized.complex.length; i += complexBatchSize) {
-        const batch = categorized.complex.slice(i, i + complexBatchSize);
-        batches.push({
-          questions: batch.map(item => item.question),
-          answerKeys: batch.map(item => item.answerKey),
-          complexity: 'complex' as const,
-          batchSize: batch.length,
-          processingMethod: 'openai_batch' as const,
-          validationResult,
-          batchIndex: batchIndex++
-        });
-      }
-    }
-
-    console.log(`📦 Created ${batches.length} smart batches:`, {
-      simple: categorized.simple.length,
-      medium: categorized.medium.length,
-      complex: categorized.complex.length
-    });
+    const summary = this.conservativeBatchOptimizer.generateConservativeSummary(skillAwareBatches);
+    console.log(`📊 ${summary}`);
 
     return batches;
+  }
+
+  private static calculateConservativeComplexity(question: any, answerKey: any): number {
+    let complexity = 50; // Start with medium complexity
+    
+    if (!answerKey) return 80; // Missing answer key = complex
+    
+    const questionText = answerKey.question_text || '';
+    const correctAnswer = answerKey.correct_answer || '';
+    
+    // Conservative complexity calculation
+    if (questionText.length > 100) complexity += 20;
+    if (correctAnswer.length > 50) complexity += 15;
+    if (questionText.includes('explain') || questionText.includes('analyze')) complexity += 25;
+    if (answerKey.points > 1) complexity += 15;
+    
+    return Math.min(complexity, 100);
+  }
+
+  private static selectConservativeProcessingMethod(batch: SkillAwareBatchGroup): 'local' | 'openai_batch' | 'openai_single' {
+    // Conservative method selection - prefer accuracy over speed
+    if (batch.complexity === 'simple' && 
+        batch.qualityMetrics.skillAlignment > 0.9 && 
+        batch.batchSize <= 3) {
+      return 'local';
+    }
+    
+    if (batch.batchSize === 1 || batch.qualityMetrics.skillAlignment < 0.7) {
+      return 'openai_single'; // Individual processing for uncertain cases
+    }
+    
+    return 'openai_batch';
   }
 
   static async createEnhancedBatchJob(
@@ -269,12 +259,10 @@ export class EnhancedBatchGradingService {
     priority: 'low' | 'normal' | 'high' | 'urgent' = 'normal',
     preValidatedAnswerKeys?: any[]
   ): Promise<string> {
-    const jobId = `enhanced_grading_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const jobId = `conservative_grading_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     
-    console.log(`🎯 Creating enhanced batch job: ${jobId} for exam: ${examId}`);
-    if (preValidatedAnswerKeys) {
-      console.log(`📋 Using ${preValidatedAnswerKeys.length} pre-validated answer keys`);
-    }
+    console.log(`🎯 Creating conservative batch job: ${jobId} for exam: ${examId}`);
+    console.log(`📊 Conservative settings: Reduced batch sizes, skill-aware grouping, quality-first approach`);
 
     try {
       const complexityDistribution = { simple: 0, medium: 0, complex: 0 };
@@ -282,6 +270,7 @@ export class EnhancedBatchGradingService {
       const answerKeysForAnalysis = preValidatedAnswerKeys || 
         (await AnswerKeyMatchingService.getAnswerKeysForExam(examId));
       
+      // Conservative complexity analysis
       for (let i = 0; i < questions.length; i++) {
         const question = questions[i];
         const answerKey = answerKeysForAnalysis[i];
@@ -290,7 +279,7 @@ export class EnhancedBatchGradingService {
           const complexity = this.classifyQuestionComplexity(question, answerKey);
           complexityDistribution[complexity]++;
         } else {
-          complexityDistribution.complex++;
+          complexityDistribution.complex++; // No answer key = complex
         }
       }
 
@@ -320,20 +309,19 @@ export class EnhancedBatchGradingService {
 
       this.jobs.set(jobId, job);
       
-      console.log(`📊 Job created with complexity distribution:`, complexityDistribution);
-      console.log(`🔍 Answer key strategy:`, preValidatedAnswerKeys ? 'pre-validated' : 'database-fetch');
+      console.log(`📊 Conservative job created with complexity distribution:`, complexityDistribution);
 
-      this.processEnhancedBatchJob(jobId);
+      this.processConservativeBatchJob(jobId);
       
       return jobId;
 
     } catch (error) {
-      console.error(`❌ Failed to create batch job:`, error);
+      console.error(`❌ Failed to create conservative batch job:`, error);
       throw error;
     }
   }
 
-  private static async processEnhancedBatchJob(jobId: string): Promise<void> {
+  private static async processConservativeBatchJob(jobId: string): Promise<void> {
     const job = this.jobs.get(jobId);
     if (!job) return;
 
@@ -342,32 +330,38 @@ export class EnhancedBatchGradingService {
     this.notifyJobUpdate(job);
 
     try {
-      const smartBatches = await this.createSmartBatches(
+      const conservativeSmartBatches = await this.createConservativeSmartBatches(
         job.questions, 
         job.examId,
         job.answerKeys.length > 0 ? job.answerKeys : undefined
       );
       
-      job.processingMetrics.batchesCreated = smartBatches.length;
+      job.processingMetrics.batchesCreated = conservativeSmartBatches.length;
       
-      job.batchProgress = smartBatches.map((batch, index) => ({
+      job.batchProgress = conservativeSmartBatches.map((batch, index) => ({
         batchIndex: index,
         complexity: batch.complexity,
         progress: 0,
         status: 'pending' as const,
+        startTime: undefined,
+        endTime: undefined,
         resultsCount: 0
       }));
       
-      console.log(`🚀 Processing ${smartBatches.length} smart batches in parallel for job ${jobId}`);
+      console.log(`🚀 Processing ${conservativeSmartBatches.length} conservative batches for job ${jobId}`);
       
-      const { localBatches, openAIBatches } = this.separateBatchesByMethod(smartBatches);
+      // Process batches with conservative concurrency (reduced parallelism)
+      const { localBatches, openAIBatches } = this.separateBatchesByMethod(conservativeSmartBatches);
       
       const batchPromises: Promise<BatchProcessingResult>[] = [];
       
-      localBatches.forEach(batch => {
-        batchPromises.push(this.processControlledBatch(batch, job, 'local'));
+      // Process local batches with reduced concurrency
+      localBatches.forEach((batch, index) => {
+        const delay = index * 200; // Add delay between local batches
+        batchPromises.push(this.processControlledBatch(batch, job, 'local', delay));
       });
       
+      // Process OpenAI batches with increased delays for quality
       openAIBatches.forEach((batch, index) => {
         const delay = index * this.concurrencyConfig.openAI.rateLimitBuffer;
         batchPromises.push(this.processControlledBatch(batch, job, 'openai', delay));
@@ -412,38 +406,31 @@ export class EnhancedBatchGradingService {
       const allBatchResults = successfulResults.flatMap(batch => batch.results);
       job.results.push(...allBatchResults);
       
-      job.processingMetrics.parallelBatchesProcessed = successfulResults.length;
-      job.processingMetrics.concurrentBatches = Math.max(
-        this.concurrencyConfig.localAI.currentActive,
-        this.concurrencyConfig.openAI.currentActive
-      );
+      // Record quality metrics
+      conservativeSmartBatches.forEach((batch, index) => {
+        const result = successfulResults.find(r => r.batchIndex === index);
+        if (result) {
+          this.conservativeBatchOptimizer.recordBatchQuality(
+            batch.batchSize,
+            result.results.filter(r => r.confidence > 0.7).length / result.results.length,
+            batch.skillAlignment
+          );
+        }
+      });
       
-      const processingTimes = successfulResults.map(r => r.processingTime).filter(t => t > 0);
-      job.processingMetrics.avgBatchProcessingTime = processingTimes.length > 0 
-        ? processingTimes.reduce((sum, time) => sum + time, 0) / processingTimes.length 
-        : 0;
-      
-      if (batchErrors.length > 0) {
-        console.warn(`⚠️ ${batchErrors.length} batches encountered errors:`, batchErrors);
-        job.errors.push(...batchErrors.map(e => `Batch ${e.batch.batchIndex} failed: ${e.error.message}`));
-      }
-      
-      job.status = batchErrors.length === smartBatches.length ? 'failed' : 'completed';
+      job.status = batchErrors.length === conservativeSmartBatches.length ? 'failed' : 'completed';
       job.progress = 100;
       job.completedAt = Date.now();
       
       const processingTime = job.completedAt - (job.startedAt || job.completedAt);
-      job.processingMetrics.costEstimate = this.calculateCostEstimate(job);
-      
-      console.log(`🎉 Enhanced parallel batch job completed: ${jobId}`);
+      console.log(`🎉 Conservative batch job completed: ${jobId} - Quality-first approach`);
       console.log(`📈 Results: ${job.results.length} questions processed in ${processingTime}ms`);
-      console.log(`⚡ Parallelization: ${successfulResults.length} batches processed concurrently`);
-      console.log(`💰 Estimated cost: $${job.processingMetrics.costEstimate.toFixed(4)}`);
+      console.log(`🎯 Quality metrics: ${this.conservativeBatchOptimizer.getQualityMetrics().averageBatchSize.toFixed(1)} avg batch size`);
 
     } catch (error) {
-      console.error(`❌ Enhanced batch job failed: ${jobId}:`, error);
+      console.error(`❌ Conservative batch job failed: ${jobId}:`, error);
       job.status = 'failed';
-      job.errors.push(`Job processing failed: ${error.message}`);
+      job.errors.push(`Conservative job processing failed: ${error.message}`);
     }
 
     this.notifyJobUpdate(job);
@@ -816,11 +803,39 @@ export class EnhancedBatchGradingService {
   }
 
   static updateConcurrencyConfig(config: Partial<ConcurrencyConfig>): void {
+    // Ensure conservative limits are maintained
+    if (config.localAI?.maxConcurrent && config.localAI.maxConcurrent > 6) {
+      console.warn('⚠️ Conservative batching: Limiting local AI concurrency to 6 for quality');
+      config.localAI.maxConcurrent = 6;
+    }
+    
+    if (config.openAI?.maxConcurrent && config.openAI.maxConcurrent > 3) {
+      console.warn('⚠️ Conservative batching: Limiting OpenAI concurrency to 3 for quality');
+      config.openAI.maxConcurrent = 3;
+    }
+    
     this.concurrencyConfig = { ...this.concurrencyConfig, ...config };
-    console.log('⚙️ Concurrency configuration updated:', this.concurrencyConfig);
+    console.log('⚙️ Conservative concurrency configuration updated:', this.concurrencyConfig);
   }
 
-  static getConcurrencyStatus(): ConcurrencyConfig {
-    return { ...this.concurrencyConfig };
+  static enableConservativeMode(): void {
+    this.concurrencyConfig.localAI.maxConcurrent = 3;
+    this.concurrencyConfig.openAI.maxConcurrent = 2;
+    this.concurrencyConfig.openAI.rateLimitBuffer = 1500;
+    this.concurrencyConfig.circuitBreaker.failureThreshold = 2;
+    
+    console.log('🎯 Conservative mode enabled - prioritizing accuracy over speed');
+  }
+
+  static getConservativeMetrics(): {
+    batchOptimizer: any;
+    qualityMetrics: any;
+    concurrencyLimits: ConcurrencyConfig;
+  } {
+    return {
+      batchOptimizer: this.conservativeBatchOptimizer.getQualityMetrics(),
+      qualityMetrics: this.conservativeBatchOptimizer.getQualityMetrics(),
+      concurrencyLimits: this.concurrencyConfig
+    };
   }
 }
