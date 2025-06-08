@@ -43,11 +43,11 @@ export class OpenAIComplexGradingService {
     console.log(`🚀 Enhanced OpenAI grading ${questions.length} complex questions with smart batching`);
     
     // Use the enhanced batch grading service for improved performance
+    // Fix: Adjust arguments to match the expected method signature
     const jobId = await EnhancedBatchGradingService.createEnhancedBatchJob(
       questions,
       answerKeys,
       examId,
-      studentName,
       'high' // Use high priority for complex grading
     );
 
