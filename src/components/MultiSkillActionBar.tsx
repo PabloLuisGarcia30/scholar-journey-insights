@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { X, FileText } from "lucide-react";
 import { useMultiSkillSelection } from "@/contexts/MultiSkillSelectionContext";
 import { generateMultiplePracticeTests } from "@/services/practiceTestService";
+import { generateTestPDF } from "@/utils/pdfGenerator";
 import { toast } from "sonner";
 import { useState } from "react";
 
@@ -48,6 +49,42 @@ export function MultiSkillActionBar({ onGenerateTests }: MultiSkillActionBarProp
 
       if (successCount > 0) {
         toast.success(`Successfully generated ${successCount} practice test${successCount !== 1 ? 's' : ''}`);
+        
+        // Generate and download PDFs for successful tests
+        const successfulResults = results.filter(r => r.status === 'completed' && r.testData);
+        
+        for (const result of successfulResults) {
+          if (result.testData) {
+            // Create practice Student ID
+            const practiceStudentId = `PRAC-${Date.now().toString().slice(-6)}-${result.skillName.slice(0, 3).toUpperCase()}`;
+            
+            // Convert PracticeTestData to TestData format for PDF generation
+            const pdfTestData = {
+              examId: `PRACTICE-${Date.now()}-${result.skillName.replace(/\s+/g, '-')}`,
+              title: result.testData.title,
+              description: result.testData.description || '',
+              className: baseRequest.className,
+              timeLimit: result.testData.estimatedTime,
+              questions: result.testData.questions.map(q => ({
+                id: q.id,
+                type: q.type,
+                question: q.question,
+                options: q.options,
+                correctAnswer: undefined, // Don't include answers in printed version
+                points: q.points
+              })),
+              studentName: baseRequest.studentName,
+              studentId: practiceStudentId
+            };
+            
+            // Generate and download PDF
+            generateTestPDF(pdfTestData);
+          }
+        }
+        
+        if (successfulResults.length > 0) {
+          toast.success(`Downloaded ${successfulResults.length} practice test PDF${successfulResults.length !== 1 ? 's' : ''}`);
+        }
       }
       
       if (errorCount > 0) {
@@ -107,12 +144,12 @@ export function MultiSkillActionBar({ onGenerateTests }: MultiSkillActionBarProp
               {isGenerating ? (
                 <>
                   <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full mr-2" />
-                  Generating...
+                  Generating & Downloading...
                 </>
               ) : (
                 <>
                   <FileText className="h-4 w-4 mr-2" />
-                  Generate {selectedSkills.length} Practice Test{selectedSkills.length !== 1 ? 's' : ''}
+                  Generate & Download {selectedSkills.length} PDF{selectedSkills.length !== 1 ? 's' : ''}
                 </>
               )}
             </Button>
