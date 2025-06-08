@@ -67,8 +67,12 @@ export class EnhancedBatchGradingService {
     return 'complex';
   }
 
-  // PHASE 2: FIXED - Replace index-based matching with proper database matching
-  private static async createSmartBatches(questions: any[], examId: string): Promise<Array<{
+  // PHASE 2: FIXED - Replace index-based matching with proper database matching OR use pre-validated keys
+  private static async createSmartBatches(
+    questions: any[], 
+    examId: string,
+    preValidatedAnswerKeys?: any[]
+  ): Promise<Array<{
     questions: any[];
     answerKeys: any[];
     complexity: 'simple' | 'medium' | 'complex';
@@ -78,8 +82,39 @@ export class EnhancedBatchGradingService {
   }>> {
     console.log(`🎯 Creating smart batches for ${questions.length} questions, exam: ${examId}`);
     
-    // PHASE 2: Use proper answer key matching instead of index-based
-    const validationResult = await AnswerKeyMatchingService.matchQuestionsToAnswerKeys(questions, examId);
+    let validationResult: AnswerKeyValidationResult;
+    
+    // PHASE 1: Use pre-validated answer keys when available
+    if (preValidatedAnswerKeys && preValidatedAnswerKeys.length > 0) {
+      console.log(`📋 Using pre-validated answer keys (${preValidatedAnswerKeys.length} keys)`);
+      
+      // Create validation result from pre-validated keys
+      const matches = questions.map((question, index) => {
+        const answerKey = preValidatedAnswerKeys[index];
+        return {
+          questionNumber: question.questionNumber,
+          answerKey: answerKey || null,
+          matchType: answerKey ? 'exact' : 'missing' as const,
+          confidence: answerKey ? 1.0 : 0.0,
+          reasoning: answerKey ? `Pre-validated answer key for question ${question.questionNumber}` : `No pre-validated key for question ${question.questionNumber}`
+        };
+      });
+      
+      validationResult = {
+        isValid: matches.every(m => m.answerKey !== null),
+        totalQuestions: questions.length,
+        matchedQuestions: matches.filter(m => m.answerKey !== null).length,
+        missingQuestions: matches.filter(m => m.answerKey === null).map(m => m.questionNumber),
+        duplicateQuestions: [],
+        invalidFormats: [],
+        matches
+      };
+      
+    } else {
+      // PHASE 2: Fallback to database matching when no pre-validated keys
+      console.log(`🔍 No pre-validated keys provided, fetching from database`);
+      validationResult = await AnswerKeyMatchingService.matchQuestionsToAnswerKeys(questions, examId);
+    }
     
     // Generate validation report
     const report = AnswerKeyMatchingService.generateValidationReport(validationResult);
@@ -182,27 +217,33 @@ export class EnhancedBatchGradingService {
 
   static async createEnhancedBatchJob(
     questions: any[],
-    examId: string, // PHASE 2: Now requires examId instead of answerKeys array
+    examId: string,
     studentName: string,
-    priority: 'low' | 'normal' | 'high' | 'urgent' = 'normal'
+    priority: 'low' | 'normal' | 'high' | 'urgent' = 'normal',
+    preValidatedAnswerKeys?: any[] // PHASE 1: Add optional pre-validated answer keys
   ): Promise<string> {
     const jobId = `enhanced_grading_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     
     console.log(`🎯 Creating enhanced batch job: ${jobId} for exam: ${examId}`);
+    if (preValidatedAnswerKeys) {
+      console.log(`📋 Using ${preValidatedAnswerKeys.length} pre-validated answer keys`);
+    }
 
     try {
-      // PHASE 2: Pre-validate answer keys before creating job
-      const validationResult = await AnswerKeyMatchingService.matchQuestionsToAnswerKeys(questions, examId);
-      
-      // Analyze complexity distribution with optimized classifier
+      // PHASE 3: Analyze complexity distribution with optimized classifier
       const complexityDistribution = { simple: 0, medium: 0, complex: 0 };
-      for (const match of validationResult.matches) {
-        if (match.answerKey) {
-          const question = questions.find(q => q.questionNumber === match.questionNumber);
-          if (question) {
-            const complexity = this.classifyQuestionComplexity(question, match.answerKey);
-            complexityDistribution[complexity]++;
-          }
+      
+      // Use pre-validated keys for complexity analysis when available
+      const answerKeysForAnalysis = preValidatedAnswerKeys || 
+        (await AnswerKeyMatchingService.getAnswerKeysForExam(examId));
+      
+      for (let i = 0; i < questions.length; i++) {
+        const question = questions[i];
+        const answerKey = answerKeysForAnalysis[i];
+        
+        if (answerKey) {
+          const complexity = this.classifyQuestionComplexity(question, answerKey);
+          complexityDistribution[complexity]++;
         } else {
           complexityDistribution.complex++; // Missing answer keys go to complex
         }
@@ -211,7 +252,7 @@ export class EnhancedBatchGradingService {
       const job: EnhancedBatchJob = {
         id: jobId,
         questions,
-        answerKeys: [], // PHASE 2: Deprecated - will be fetched from database
+        answerKeys: preValidatedAnswerKeys || [], // PHASE 1: Store pre-validated keys
         examId,
         studentName,
         status: 'pending',
@@ -231,11 +272,7 @@ export class EnhancedBatchGradingService {
       this.jobs.set(jobId, job);
       
       console.log(`📊 Job created with complexity distribution:`, complexityDistribution);
-      console.log(`🔍 Answer key validation:`, {
-        valid: validationResult.isValid,
-        matched: validationResult.matchedQuestions,
-        missing: validationResult.missingQuestions.length
-      });
+      console.log(`🔍 Answer key strategy:`, preValidatedAnswerKeys ? 'pre-validated' : 'database-fetch');
 
       // Start processing immediately
       this.processEnhancedBatchJob(jobId);
@@ -257,8 +294,12 @@ export class EnhancedBatchGradingService {
     this.notifyJobUpdate(job);
 
     try {
-      // PHASE 2: Create smart batches with proper answer key matching
-      const smartBatches = await this.createSmartBatches(job.questions, job.examId);
+      // PHASE 1: Pass pre-validated answer keys to smart batch creation
+      const smartBatches = await this.createSmartBatches(
+        job.questions, 
+        job.examId,
+        job.answerKeys.length > 0 ? job.answerKeys : undefined
+      );
       job.processingMetrics.batchesCreated = smartBatches.length;
       
       console.log(`🔄 Processing ${smartBatches.length} smart batches for job ${jobId}`);

@@ -1,3 +1,4 @@
+
 import { supabase } from "@/integrations/supabase/client";
 import { QuestionCacheService, QuestionCacheResult } from "./questionCacheService";
 import { SkillMapping, QuestionSkillMappings, EnhancedLocalGradingResult } from "./enhancedLocalGradingService";
@@ -42,13 +43,13 @@ export class OpenAIComplexGradingService {
   ): Promise<OpenAIGradingResult[]> {
     console.log(`🚀 Enhanced OpenAI grading ${questions.length} complex questions with smart batching for student: ${studentName}`);
     
-    // Use the enhanced batch grading service for improved performance
-    // Fixed: Correct argument order to match method signature (questions, examId, studentName, priority)
+    // PHASE 2: Pass pre-validated answer keys to maintain context
     const jobId = await EnhancedBatchGradingService.createEnhancedBatchJob(
       questions,
       examId,
       studentName,
-      'high' // Use high priority for complex grading
+      'high', // Use high priority for complex grading
+      answerKeys // PHASE 1: Pass the pre-validated answer keys
     );
 
     // Poll for job completion
@@ -94,7 +95,8 @@ export class OpenAIComplexGradingService {
                 confidenceAdjusted: result.confidence < 0.7,
                 openAIProcessed: result.gradingMethod !== 'local_ai',
                 batchProcessed: result.gradingMethod === 'openai_batch',
-                enhancedProcessing: true
+                enhancedProcessing: true,
+                preValidatedAnswerKeys: true // PHASE 3: Flag that pre-validated keys were used
               }
             };
           });
