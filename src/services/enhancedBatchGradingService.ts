@@ -94,7 +94,7 @@ export class EnhancedBatchGradingService {
         return {
           questionNumber: question.questionNumber,
           answerKey: answerKey || null,
-          matchType: answerKey ? 'exact' : 'missing' as const,
+          matchType: (answerKey ? 'exact' : 'missing') as 'exact' | 'missing',
           confidence: answerKey ? 1.0 : 0.0,
           reasoning: answerKey ? `Pre-validated answer key for question ${question.questionNumber}` : `No pre-validated key for question ${question.questionNumber}`
         };
