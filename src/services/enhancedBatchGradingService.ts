@@ -1,6 +1,7 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { PerformanceOptimizationService } from './performanceOptimizationService';
+import { OptimizedQuestionClassifier } from './optimizedQuestionClassifier';
+import { ClassificationLogger } from './classificationLogger';
 
 export interface EnhancedBatchJob {
   id: string;
@@ -42,27 +43,26 @@ export class EnhancedBatchGradingService {
   private static jobs = new Map<string, EnhancedBatchJob>();
   private static jobListeners = new Map<string, (job: EnhancedBatchJob) => void>();
 
-  // Smart question classification for routing
+  // Smart question classification for routing (now optimized)
   private static classifyQuestionComplexity(question: any, answerKey: any): 'simple' | 'medium' | 'complex' {
-    let complexityScore = 0;
+    // Use optimized classifier for better performance
+    const classification = OptimizedQuestionClassifier.classifyQuestionOptimized(question, answerKey);
+    
+    // Log for analytics
+    ClassificationLogger.logClassification(
+      question.questionNumber?.toString() || 'unknown',
+      classification,
+      question,
+      answerKey,
+      classification.metrics
+    );
 
-    // Question text analysis
-    const questionText = answerKey?.question_text || '';
-    if (questionText.length > 200) complexityScore += 0.2;
-    if (questionText.includes('explain') || questionText.includes('analyze')) complexityScore += 0.3;
-    if (questionText.includes('compare') || questionText.includes('evaluate')) complexityScore += 0.3;
-
-    // Answer analysis
-    const correctAnswer = answerKey?.correct_answer || '';
-    if (correctAnswer.length > 50) complexityScore += 0.2;
-
-    // Multiple choice vs open-ended
-    if (answerKey?.question_type === 'multiple_choice' && correctAnswer.length < 10) {
-      complexityScore -= 0.2;
+    // Map detailed classification to simple routing categories
+    if (classification.isSimple && classification.shouldUseLocalGrading) {
+      if (classification.confidence >= 0.8) return 'simple';
+      if (classification.confidence >= 0.6) return 'medium';
     }
-
-    if (complexityScore < 0.3) return 'simple';
-    if (complexityScore < 0.7) return 'medium';
+    
     return 'complex';
   }
 
@@ -146,7 +146,7 @@ export class EnhancedBatchGradingService {
   ): Promise<string> {
     const jobId = `enhanced_grading_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     
-    // Analyze complexity distribution
+    // Analyze complexity distribution with optimized classifier
     const complexityDistribution = { simple: 0, medium: 0, complex: 0 };
     questions.forEach((question, index) => {
       const complexity = this.classifyQuestionComplexity(question, answerKeys[index]);
@@ -397,6 +397,10 @@ export class EnhancedBatchGradingService {
     successRate: number;
     costEfficiency: number;
     complexityDistribution: { simple: number; medium: number; complex: number };
+    optimizationMetrics: {
+      classifier: any;
+      analytics: any;
+    };
   }> {
     const allJobs = Array.from(this.jobs.values());
     const completedJobs = allJobs.filter(job => job.status === 'completed');
@@ -407,7 +411,11 @@ export class EnhancedBatchGradingService {
         averageProcessingTime: 0,
         successRate: 0,
         costEfficiency: 0,
-        complexityDistribution: { simple: 0, medium: 0, complex: 0 }
+        complexityDistribution: { simple: 0, medium: 0, complex: 0 },
+        optimizationMetrics: {
+          classifier: OptimizedQuestionClassifier.getPerformanceMetrics(),
+          analytics: ClassificationLogger.getClassificationAnalytics()
+        }
       };
     }
 
@@ -429,7 +437,19 @@ export class EnhancedBatchGradingService {
       averageProcessingTime: totalProcessingTime / completedJobs.length,
       successRate,
       costEfficiency: totalQuestions / (totalProcessingTime / 1000), // questions per second
-      complexityDistribution: aggregatedComplexity
+      complexityDistribution: aggregatedComplexity,
+      optimizationMetrics: {
+        classifier: OptimizedQuestionClassifier.getPerformanceMetrics(),
+        analytics: ClassificationLogger.getClassificationAnalytics()
+      }
     };
+  }
+
+  // New optimization method
+  static optimizePerformance() {
+    OptimizedQuestionClassifier.optimizeCache(2000); // Larger cache for batch processing
+    OptimizedQuestionClassifier.clearCache();
+    ClassificationLogger.clearLogs();
+    console.log('🚀 Enhanced batch grading service performance optimized');
   }
 }

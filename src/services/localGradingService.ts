@@ -1,4 +1,3 @@
-
 interface LocalGradingResult {
   questionNumber: number;
   isCorrect: boolean;
@@ -30,92 +29,36 @@ interface QuestionClassification {
   };
 }
 
+import { OptimizedQuestionClassifier } from './optimizedQuestionClassifier';
+import { ClassificationLogger } from './classificationLogger';
+
 export class LocalGradingService {
   private static readonly HIGH_CONFIDENCE_THRESHOLD = 0.85;
   private static readonly MEDIUM_CONFIDENCE_THRESHOLD = 0.6;
   private static readonly ENHANCED_CONFIDENCE_THRESHOLD = 0.4;
 
   static classifyQuestion(question: any, answerKey: any): QuestionClassification {
-    let confidence = 0;
-    let isEasyMCQ = false;
-    let detectionMethod = 'none';
-    let shouldUseLocal = false;
-    let questionAnalysis = null;
+    // Use optimized classifier with performance tracking
+    const result = OptimizedQuestionClassifier.classifyQuestionOptimized(question, answerKey);
+    
+    // Log classification for analytics
+    ClassificationLogger.logClassification(
+      question.questionNumber?.toString() || 'unknown',
+      result,
+      question,
+      answerKey,
+      result.metrics
+    );
 
-    // Check if it's a multiple choice question (A, B, C, D)
-    const isMCQ = answerKey.question_type?.toLowerCase().includes('multiple') || 
-                  answerKey.options || 
-                  /^[A-D]$/i.test(answerKey.correct_answer);
-
-    if (!isMCQ) {
-      return {
-        questionNumber: question.questionNumber,
-        isEasyMCQ: false,
-        confidence: 0,
-        detectionMethod: 'not_mcq',
-        shouldUseLocalGrading: false,
-        fallbackReason: 'Not a multiple choice question'
-      };
-    }
-
-    // Enhanced question-based detection analysis
-    if (question.detectedAnswer) {
-      confidence = question.detectedAnswer.confidence || 0;
-      detectionMethod = question.detectedAnswer.detectionMethod || 'unknown';
-      const hasMultipleMarks = question.detectedAnswer.multipleMarksDetected || false;
-      const reviewRequired = question.detectedAnswer.reviewFlag || false;
-      const bubbleQuality = question.detectedAnswer.bubbleQuality || 'unknown';
-      const selectedAnswer = question.detectedAnswer.selectedOption || 'no_answer';
-      
-      questionAnalysis = {
-        hasMultipleMarks,
-        reviewRequired,
-        bubbleQuality,
-        selectedAnswer
-      };
-      
-      // Enhanced classification logic for question-based detection
-      if (confidence >= this.HIGH_CONFIDENCE_THRESHOLD && 
-          !reviewRequired && 
-          !hasMultipleMarks &&
-          selectedAnswer !== 'no_answer' &&
-          /^[A-D]$/i.test(selectedAnswer) &&
-          (bubbleQuality === 'heavy' || bubbleQuality === 'medium')) {
-        isEasyMCQ = true;
-        shouldUseLocal = true;
-      }
-      // Medium confidence with quality checks
-      else if (confidence >= this.MEDIUM_CONFIDENCE_THRESHOLD && 
-               !reviewRequired && 
-               !hasMultipleMarks &&
-               selectedAnswer !== 'no_answer' &&
-               /^[A-D]$/i.test(selectedAnswer) &&
-               question.detectedAnswer.crossValidated &&
-               bubbleQuality !== 'empty') {
-        isEasyMCQ = true;
-        shouldUseLocal = true;
-      }
-      // Enhanced threshold for borderline cases (question-based is more reliable)
-      else if (confidence >= this.ENHANCED_CONFIDENCE_THRESHOLD &&
-               selectedAnswer !== 'no_answer' &&
-               /^[A-D]$/i.test(selectedAnswer) &&
-               bubbleQuality === 'light' &&
-               question.detectedAnswer.crossValidated &&
-               !hasMultipleMarks &&
-               !reviewRequired) {
-        isEasyMCQ = true;
-        shouldUseLocal = true;
-      }
-    }
-
+    // Convert to expected interface format for backward compatibility
     return {
-      questionNumber: question.questionNumber,
-      isEasyMCQ,
-      confidence,
-      detectionMethod,
-      shouldUseLocalGrading: shouldUseLocal,
-      questionAnalysis,
-      fallbackReason: shouldUseLocal ? undefined : this.getFallbackReason(confidence, question.detectedAnswer)
+      questionNumber: result.questionNumber,
+      isEasyMCQ: result.isSimple && result.questionType === 'multiple_choice',
+      confidence: result.confidence,
+      detectionMethod: result.detectionMethod,
+      shouldUseLocalGrading: result.shouldUseLocalGrading,
+      fallbackReason: result.fallbackReason,
+      questionAnalysis: result.questionAnalysis
     };
   }
 
@@ -412,5 +355,20 @@ export class LocalGradingService {
       recommendations,
       qualityDistribution: qualityDist
     };
+  }
+
+  // New method to get performance metrics
+  static getOptimizationMetrics() {
+    return {
+      classifier: OptimizedQuestionClassifier.getPerformanceMetrics(),
+      analytics: ClassificationLogger.getClassificationAnalytics()
+    };
+  }
+
+  // New method to optimize performance
+  static optimizePerformance() {
+    OptimizedQuestionClassifier.optimizeCache(1000);
+    ClassificationLogger.clearLogs();
+    console.log('🚀 Local grading service performance optimized');
   }
 }
