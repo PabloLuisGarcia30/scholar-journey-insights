@@ -245,7 +245,7 @@ export class FlexibleOcrService extends EnhancedSmartOcrService {
             multiple_choice: multipleChoiceCount,
             text_based: textBasedCount
           },
-          complexity: multipleChoiceCount > textBasedCount ? 'medium' : 'high',
+          complexity: multipleChoiceCount > textBasedCount ? 'moderate' : 'complex',
           estimatedProcessingTime: answerKeys.length * 2000
         },
         recommendedExtractionMethods: {
@@ -288,7 +288,7 @@ export class FlexibleOcrService extends EnhancedSmartOcrService {
           multiple_choice: 0,
           text_based: 0
         },
-        complexity: 'medium',
+        complexity: 'moderate',
         estimatedProcessingTime: 5000
       },
       recommendedExtractionMethods: {
