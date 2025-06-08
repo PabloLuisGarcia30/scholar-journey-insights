@@ -194,52 +194,14 @@ export function StudentPerformanceOverview({ students: propStudents, classes: pr
 
   // Handle skill circle click for practice test generation
   const handleSkillClick = async (student: StudentWithSkills, skill: SkillScore) => {
-    if (isSelectionMode) {
-      // Multi-selection mode: add/remove skill from selection
-      const selectedSkill = {
-        id: `${student.id}-${skill.skill_name}`,
-        name: skill.skill_name,
-        score: skill.score,
-        type: 'content' as const
-      };
-      toggleSkillSelection(selectedSkill);
-      return;
-    }
-
-    // Single practice test generation
-    const testKey = `${student.id}-${skill.skill_name}`;
-    setGeneratingTests(prev => new Set([...prev, testKey]));
-
-    try {
-      // Find student's class for context
-      const studentClass = classes.find(cls => 
-        cls.students && cls.students.includes(student.id)
-      );
-
-      const practiceTest = await generatePracticeTest({
-        studentName: student.name,
-        className: studentClass?.name || 'Unknown Class',
-        skillName: skill.skill_name,
-        grade: student.year || 'Grade 10',
-        subject: studentClass?.subject || 'Math',
-        classId: studentClass?.id
-      });
-
-      toast.success(`Practice test generated for ${skill.skill_name}`);
-      console.log('Generated practice test:', practiceTest);
-      
-      // TODO: Show practice test results or navigate to test view
-      
-    } catch (error) {
-      console.error('Error generating practice test:', error);
-      toast.error(`Failed to generate practice test: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    } finally {
-      setGeneratingTests(prev => {
-        const newSet = new Set(prev);
-        newSet.delete(testKey);
-        return newSet;
-      });
-    }
+    // Always use the multi-skill selection system for both single and multi-select modes
+    const selectedSkill = {
+      id: `${student.id}-${skill.skill_name}`,
+      name: skill.skill_name,
+      score: skill.score,
+      type: 'content' as const
+    };
+    toggleSkillSelection(selectedSkill);
   };
 
   // Check if a skill is selected in multi-selection mode
@@ -1215,10 +1177,7 @@ export function StudentPerformanceOverview({ students: propStudents, classes: pr
                               ${isSelected ? 'ring-2 ring-blue-500 ring-offset-2' : ''}
                               ${isGenerating ? 'animate-pulse' : ''}`}
                             onClick={() => handleSkillClick(student, skill)}
-                            title={isSelectionMode 
-                              ? `${isSelected ? 'Remove' : 'Add'} ${skill.skill_name} ${isSelected ? 'from' : 'to'} selection`
-                              : `Click to generate practice test for ${skill.skill_name}`
-                            }
+                            title={`Click to select ${skill.skill_name} for practice test generation`}
                           >
                             {isGenerating ? (
                               <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full" />
@@ -1230,7 +1189,7 @@ export function StudentPerformanceOverview({ students: propStudents, classes: pr
                           </div>
                           
                           {/* Selection indicator */}
-                          {isSelectionMode && isSelected && (
+                          {isSelected && (
                             <div className="absolute -top-1 -right-1 h-4 w-4 bg-blue-500 rounded-full flex items-center justify-center">
                               <Check className="h-2.5 w-2.5 text-white" />
                             </div>
