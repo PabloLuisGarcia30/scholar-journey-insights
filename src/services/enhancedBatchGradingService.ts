@@ -24,7 +24,19 @@ export interface EnhancedBatchJob {
     totalApiCalls: number;
     costEstimate: number;
     circuitBreakerTrips: number;
+    parallelBatchesProcessed: number;
+    concurrentBatches: number;
+    avgBatchProcessingTime: number;
   };
+  batchProgress: Array<{
+    batchIndex: number;
+    complexity: string;
+    progress: number;
+    status: 'pending' | 'processing' | 'completed' | 'failed';
+    startTime?: number;
+    endTime?: number;
+    resultsCount: number;
+  }>;
 }
 
 export interface BatchGradingResult {
@@ -40,16 +52,59 @@ export interface BatchGradingResult {
   processingTime: number;
 }
 
+interface BatchProcessingResult {
+  batchIndex: number;
+  results: BatchGradingResult[];
+  processingTime: number;
+  complexity: string;
+  method: string;
+}
+
+interface ConcurrencyConfig {
+  localAI: {
+    maxConcurrent: number;
+    currentActive: number;
+  };
+  openAI: {
+    maxConcurrent: number;
+    currentActive: number;
+    rateLimitBuffer: number;
+  };
+  circuitBreaker: {
+    failureThreshold: number;
+    recoveryTimeMs: number;
+    isOpen: boolean;
+    lastFailureTime: number;
+  };
+}
+
 export class EnhancedBatchGradingService {
   private static jobs = new Map<string, EnhancedBatchJob>();
   private static jobListeners = new Map<string, (job: EnhancedBatchJob) => void>();
+  
+  // Enhanced concurrency management
+  private static concurrencyConfig: ConcurrencyConfig = {
+    localAI: {
+      maxConcurrent: 8, // Higher for local processing
+      currentActive: 0
+    },
+    openAI: {
+      maxConcurrent: 3, // Conservative for API rate limits
+      currentActive: 0,
+      rateLimitBuffer: 500 // ms between requests
+    },
+    circuitBreaker: {
+      failureThreshold: 5,
+      recoveryTimeMs: 60000,
+      isOpen: false,
+      lastFailureTime: 0
+    }
+  };
 
   // Smart question classification for routing (now optimized)
   private static classifyQuestionComplexity(question: any, answerKey: any): 'simple' | 'medium' | 'complex' {
-    // Use optimized classifier for better performance
     const classification = OptimizedQuestionClassifier.classifyQuestionOptimized(question, answerKey);
     
-    // Log for analytics
     ClassificationLogger.logClassification(
       question.questionNumber?.toString() || 'unknown',
       classification,
@@ -58,7 +113,6 @@ export class EnhancedBatchGradingService {
       classification.metrics
     );
 
-    // Map detailed classification to simple routing categories
     if (classification.isSimple && classification.shouldUseLocalGrading) {
       if (classification.confidence >= 0.8) return 'simple';
       if (classification.confidence >= 0.6) return 'medium';
@@ -79,16 +133,15 @@ export class EnhancedBatchGradingService {
     batchSize: number;
     processingMethod: 'local' | 'openai_batch' | 'openai_single';
     validationResult: AnswerKeyValidationResult;
+    batchIndex: number;
   }>> {
     console.log(`🎯 Creating smart batches for ${questions.length} questions, exam: ${examId}`);
     
     let validationResult: AnswerKeyValidationResult;
     
-    // PHASE 1: Use pre-validated answer keys when available
     if (preValidatedAnswerKeys && preValidatedAnswerKeys.length > 0) {
       console.log(`📋 Using pre-validated answer keys (${preValidatedAnswerKeys.length} keys)`);
       
-      // Create validation result from pre-validated keys
       const matches = questions.map((question, index) => {
         const answerKey = preValidatedAnswerKeys[index];
         return {
@@ -111,24 +164,19 @@ export class EnhancedBatchGradingService {
       };
       
     } else {
-      // PHASE 2: Fallback to database matching when no pre-validated keys
       console.log(`🔍 No pre-validated keys provided, fetching from database`);
       validationResult = await AnswerKeyMatchingService.matchQuestionsToAnswerKeys(questions, examId);
     }
     
-    // Generate validation report
     const report = AnswerKeyMatchingService.generateValidationReport(validationResult);
     console.log(report);
 
-    // PHASE 5: Enhanced Error Handling - Check if validation failed
     if (!validationResult.isValid) {
       console.error('❌ Answer key validation failed:', {
         missing: validationResult.missingQuestions,
         duplicates: validationResult.duplicateQuestions,
         invalidFormats: validationResult.invalidFormats
       });
-      
-      // For now, we'll continue with available matches but flag the issues
       console.warn('⚠️ Continuing with partial matches - some questions may not be graded correctly');
     }
 
@@ -138,7 +186,6 @@ export class EnhancedBatchGradingService {
       complex: [] as any[]
     };
 
-    // Categorize questions by complexity using MATCHED answer keys
     for (const match of validationResult.matches) {
       if (match.answerKey) {
         const question = questions.find(q => q.questionNumber === match.questionNumber);
@@ -147,7 +194,6 @@ export class EnhancedBatchGradingService {
           categorized[complexity].push({ question, answerKey: match.answerKey, originalIndex: match.questionNumber });
         }
       } else {
-        // Handle missing answer keys - put in complex category for manual review
         const question = questions.find(q => q.questionNumber === match.questionNumber);
         if (question) {
           console.warn(`⚠️ Question ${match.questionNumber} has no answer key - routing to complex batch`);
@@ -157,8 +203,8 @@ export class EnhancedBatchGradingService {
     }
 
     const batches = [];
+    let batchIndex = 0;
 
-    // Simple questions - route to local AI (free + fast)
     if (categorized.simple.length > 0) {
       const simpleBatchSize = Math.min(20, categorized.simple.length);
       for (let i = 0; i < categorized.simple.length; i += simpleBatchSize) {
@@ -169,12 +215,12 @@ export class EnhancedBatchGradingService {
           complexity: 'simple' as const,
           batchSize: batch.length,
           processingMethod: 'local' as const,
-          validationResult
+          validationResult,
+          batchIndex: batchIndex++
         });
       }
     }
 
-    // Medium questions - batch with OpenAI for efficiency
     if (categorized.medium.length > 0) {
       const mediumBatchSize = Math.min(15, categorized.medium.length);
       for (let i = 0; i < categorized.medium.length; i += mediumBatchSize) {
@@ -185,12 +231,12 @@ export class EnhancedBatchGradingService {
           complexity: 'medium' as const,
           batchSize: batch.length,
           processingMethod: 'openai_batch' as const,
-          validationResult
+          validationResult,
+          batchIndex: batchIndex++
         });
       }
     }
 
-    // Complex questions - smaller batches for quality
     if (categorized.complex.length > 0) {
       const complexBatchSize = Math.min(8, categorized.complex.length);
       for (let i = 0; i < categorized.complex.length; i += complexBatchSize) {
@@ -201,7 +247,8 @@ export class EnhancedBatchGradingService {
           complexity: 'complex' as const,
           batchSize: batch.length,
           processingMethod: 'openai_batch' as const,
-          validationResult
+          validationResult,
+          batchIndex: batchIndex++
         });
       }
     }
@@ -220,7 +267,7 @@ export class EnhancedBatchGradingService {
     examId: string,
     studentName: string,
     priority: 'low' | 'normal' | 'high' | 'urgent' = 'normal',
-    preValidatedAnswerKeys?: any[] // PHASE 1: Add optional pre-validated answer keys
+    preValidatedAnswerKeys?: any[]
   ): Promise<string> {
     const jobId = `enhanced_grading_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     
@@ -230,10 +277,8 @@ export class EnhancedBatchGradingService {
     }
 
     try {
-      // PHASE 3: Analyze complexity distribution with optimized classifier
       const complexityDistribution = { simple: 0, medium: 0, complex: 0 };
       
-      // Use pre-validated keys for complexity analysis when available
       const answerKeysForAnalysis = preValidatedAnswerKeys || 
         (await AnswerKeyMatchingService.getAnswerKeysForExam(examId));
       
@@ -245,14 +290,14 @@ export class EnhancedBatchGradingService {
           const complexity = this.classifyQuestionComplexity(question, answerKey);
           complexityDistribution[complexity]++;
         } else {
-          complexityDistribution.complex++; // Missing answer keys go to complex
+          complexityDistribution.complex++;
         }
       }
 
       const job: EnhancedBatchJob = {
         id: jobId,
         questions,
-        answerKeys: preValidatedAnswerKeys || [], // PHASE 1: Store pre-validated keys
+        answerKeys: preValidatedAnswerKeys || [],
         examId,
         studentName,
         status: 'pending',
@@ -265,8 +310,12 @@ export class EnhancedBatchGradingService {
           batchesCreated: 0,
           totalApiCalls: 0,
           costEstimate: 0,
-          circuitBreakerTrips: 0
-        }
+          circuitBreakerTrips: 0,
+          parallelBatchesProcessed: 0,
+          concurrentBatches: 0,
+          avgBatchProcessingTime: 0
+        },
+        batchProgress: []
       };
 
       this.jobs.set(jobId, job);
@@ -274,7 +323,6 @@ export class EnhancedBatchGradingService {
       console.log(`📊 Job created with complexity distribution:`, complexityDistribution);
       console.log(`🔍 Answer key strategy:`, preValidatedAnswerKeys ? 'pre-validated' : 'database-fetch');
 
-      // Start processing immediately
       this.processEnhancedBatchJob(jobId);
       
       return jobId;
@@ -294,89 +342,102 @@ export class EnhancedBatchGradingService {
     this.notifyJobUpdate(job);
 
     try {
-      // PHASE 1: Pass pre-validated answer keys to smart batch creation
       const smartBatches = await this.createSmartBatches(
         job.questions, 
         job.examId,
         job.answerKeys.length > 0 ? job.answerKeys : undefined
       );
+      
       job.processingMetrics.batchesCreated = smartBatches.length;
       
-      console.log(`🔄 Processing ${smartBatches.length} smart batches for job ${jobId}`);
-
-      let processedQuestions = 0;
-      const totalQuestions = job.questions.length;
-
-      for (const batch of smartBatches) {
-        try {
-          const batchStartTime = Date.now();
-          let batchResults: BatchGradingResult[] = [];
-
-          // PHASE 5: Enhanced Error Handling - Check for missing answer keys in batch
-          const missingAnswerKeys = batch.answerKeys.filter(ak => ak === null).length;
-          if (missingAnswerKeys > 0) {
-            console.warn(`⚠️ Batch contains ${missingAnswerKeys} questions with missing answer keys`);
+      job.batchProgress = smartBatches.map((batch, index) => ({
+        batchIndex: index,
+        complexity: batch.complexity,
+        progress: 0,
+        status: 'pending' as const,
+        resultsCount: 0
+      }));
+      
+      console.log(`🚀 Processing ${smartBatches.length} smart batches in parallel for job ${jobId}`);
+      
+      const { localBatches, openAIBatches } = this.separateBatchesByMethod(smartBatches);
+      
+      const batchPromises: Promise<BatchProcessingResult>[] = [];
+      
+      localBatches.forEach(batch => {
+        batchPromises.push(this.processControlledBatch(batch, job, 'local'));
+      });
+      
+      openAIBatches.forEach((batch, index) => {
+        const delay = index * this.concurrencyConfig.openAI.rateLimitBuffer;
+        batchPromises.push(this.processControlledBatch(batch, job, 'openai', delay));
+      });
+      
+      const allResults = await Promise.allSettled(batchPromises);
+      
+      const successfulResults: BatchProcessingResult[] = [];
+      const batchErrors: Array<{ batch: any; error: any }> = [];
+      
+      allResults.forEach((result, index) => {
+        if (result.status === 'fulfilled') {
+          successfulResults.push(result.value);
+          
+          const batchIndex = result.value.batchIndex;
+          if (job.batchProgress[batchIndex]) {
+            job.batchProgress[batchIndex].status = 'completed';
+            job.batchProgress[batchIndex].progress = 100;
+            job.batchProgress[batchIndex].endTime = Date.now();
+            job.batchProgress[batchIndex].resultsCount = result.value.results.length;
           }
-
-          if (batch.processingMethod === 'local') {
-            // Process simple questions with local AI
-            batchResults = await this.processLocalBatch(batch.questions, batch.answerKeys);
-          } else {
-            // Process with enhanced OpenAI batch
-            batchResults = await this.processOpenAIBatch(batch.questions, batch.answerKeys, job.examId);
-            job.processingMetrics.totalApiCalls++;
+        } else {
+          const batch = index < localBatches.length ? localBatches[index] : openAIBatches[index - localBatches.length];
+          batchErrors.push({ batch, error: result.reason });
+          
+          if (job.batchProgress[batch.batchIndex]) {
+            job.batchProgress[batch.batchIndex].status = 'failed';
+            job.batchProgress[batch.batchIndex].endTime = Date.now();
           }
-
-          job.results.push(...batchResults);
-          processedQuestions += batch.questions.length;
-
-          // Update progress
-          job.progress = (processedQuestions / totalQuestions) * 100;
-          job.estimatedTimeRemaining = this.calculateTimeRemaining(job, processedQuestions, totalQuestions);
           
-          const batchTime = Date.now() - batchStartTime;
-          console.log(`✅ Batch completed (${batch.complexity}): ${batch.questions.length} questions in ${batchTime}ms`);
-          
-          this.notifyJobUpdate(job);
-
-          // Small delay between batches to prevent rate limiting
-          if (batch.processingMethod !== 'local') {
-            await new Promise(resolve => setTimeout(resolve, 200));
-          }
-
-        } catch (error) {
-          console.error(`❌ Batch failed (${batch.complexity}):`, error);
-          job.errors.push(`Batch processing failed: ${error.message}`);
-          
-          // PHASE 5: Enhanced Error Handling - Create fallback results for failed batch
-          const fallbackResults = batch.questions.map((question, index) => ({
-            questionNumber: question.questionNumber || index + 1,
-            isCorrect: false,
-            pointsEarned: 0,
-            pointsPossible: batch.answerKeys[index]?.points || 1,
-            confidence: 0.3,
-            gradingMethod: 'fallback' as const,
-            reasoning: `Batch processing failed: ${error.message}`,
-            complexityScore: 0.5,
-            reasoningDepth: 'medium' as const,
-            processingTime: Date.now() - Date.now()
-          }));
-          
-          job.results.push(...fallbackResults);
-          processedQuestions += batch.questions.length;
+          const fallbackResults = this.createFallbackResults(batch, result.reason);
+          successfulResults.push({
+            batchIndex: batch.batchIndex,
+            results: fallbackResults,
+            processingTime: 0,
+            complexity: batch.complexity,
+            method: 'fallback'
+          });
         }
+      });
+      
+      const allBatchResults = successfulResults.flatMap(batch => batch.results);
+      job.results.push(...allBatchResults);
+      
+      job.processingMetrics.parallelBatchesProcessed = successfulResults.length;
+      job.processingMetrics.concurrentBatches = Math.max(
+        this.concurrencyConfig.localAI.currentActive,
+        this.concurrencyConfig.openAI.currentActive
+      );
+      
+      const processingTimes = successfulResults.map(r => r.processingTime).filter(t => t > 0);
+      job.processingMetrics.avgBatchProcessingTime = processingTimes.length > 0 
+        ? processingTimes.reduce((sum, time) => sum + time, 0) / processingTimes.length 
+        : 0;
+      
+      if (batchErrors.length > 0) {
+        console.warn(`⚠️ ${batchErrors.length} batches encountered errors:`, batchErrors);
+        job.errors.push(...batchErrors.map(e => `Batch ${e.batch.batchIndex} failed: ${e.error.message}`));
       }
-
-      job.status = job.errors.length > 0 ? 'failed' : 'completed';
+      
+      job.status = batchErrors.length === smartBatches.length ? 'failed' : 'completed';
       job.progress = 100;
       job.completedAt = Date.now();
-
-      // Calculate final metrics
+      
       const processingTime = job.completedAt - (job.startedAt || job.completedAt);
       job.processingMetrics.costEstimate = this.calculateCostEstimate(job);
-
-      console.log(`🎉 Enhanced batch job completed: ${jobId}`);
+      
+      console.log(`🎉 Enhanced parallel batch job completed: ${jobId}`);
       console.log(`📈 Results: ${job.results.length} questions processed in ${processingTime}ms`);
+      console.log(`⚡ Parallelization: ${successfulResults.length} batches processed concurrently`);
       console.log(`💰 Estimated cost: $${job.processingMetrics.costEstimate.toFixed(4)}`);
 
     } catch (error) {
@@ -388,14 +449,173 @@ export class EnhancedBatchGradingService {
     this.notifyJobUpdate(job);
   }
 
+  private static separateBatchesByMethod(batches: any[]): { 
+    localBatches: any[], 
+    openAIBatches: any[] 
+  } {
+    const localBatches = batches.filter(batch => batch.processingMethod === 'local');
+    const openAIBatches = batches.filter(batch => batch.processingMethod !== 'local');
+    
+    localBatches.sort((a, b) => {
+      const priorityOrder = { simple: 0, medium: 1, complex: 2 };
+      return priorityOrder[a.complexity] - priorityOrder[b.complexity];
+    });
+    
+    openAIBatches.sort((a, b) => {
+      const priorityOrder = { simple: 0, medium: 1, complex: 2 };
+      return priorityOrder[a.complexity] - priorityOrder[b.complexity];
+    });
+    
+    return { localBatches, openAIBatches };
+  }
+
+  private static async processControlledBatch(
+    batch: any, 
+    job: EnhancedBatchJob, 
+    method: 'local' | 'openai',
+    delay: number = 0
+  ): Promise<BatchProcessingResult> {
+    if (delay > 0) {
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
+    
+    await this.waitForConcurrencySlot(method);
+    
+    if (method === 'local') {
+      this.concurrencyConfig.localAI.currentActive++;
+    } else {
+      this.concurrencyConfig.openAI.currentActive++;
+    }
+    
+    if (job.batchProgress[batch.batchIndex]) {
+      job.batchProgress[batch.batchIndex].status = 'processing';
+      job.batchProgress[batch.batchIndex].startTime = Date.now();
+    }
+    
+    try {
+      const batchStartTime = Date.now();
+      let batchResults: BatchGradingResult[] = [];
+      
+      if (batch.processingMethod === 'local') {
+        batchResults = await this.processLocalBatch(batch.questions, batch.answerKeys);
+      } else {
+        batchResults = await this.processOpenAIBatch(batch.questions, batch.answerKeys, job.examId);
+        job.processingMetrics.totalApiCalls++;
+      }
+      
+      const processingTime = Date.now() - batchStartTime;
+      
+      this.updateJobProgress(job);
+      
+      console.log(`✅ Batch ${batch.batchIndex} completed (${batch.complexity}, ${method}): ${batch.questions.length} questions in ${processingTime}ms`);
+      
+      return {
+        batchIndex: batch.batchIndex,
+        results: batchResults,
+        processingTime,
+        complexity: batch.complexity,
+        method: batch.processingMethod
+      };
+      
+    } catch (error) {
+      console.error(`❌ Batch ${batch.batchIndex} failed (${batch.complexity}, ${method}):`, error);
+      
+      if (method === 'openai') {
+        this.handleCircuitBreaker(error);
+      }
+      
+      throw error;
+      
+    } finally {
+      if (method === 'local') {
+        this.concurrencyConfig.localAI.currentActive--;
+      } else {
+        this.concurrencyConfig.openAI.currentActive--;
+      }
+    }
+  }
+
+  private static async waitForConcurrencySlot(method: 'local' | 'openai'): Promise<void> {
+    const config = method === 'local' 
+      ? this.concurrencyConfig.localAI 
+      : this.concurrencyConfig.openAI;
+      
+    while (config.currentActive >= config.maxConcurrent) {
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+    
+    if (method === 'openai' && this.concurrencyConfig.circuitBreaker.isOpen) {
+      const now = Date.now();
+      if (now - this.concurrencyConfig.circuitBreaker.lastFailureTime > this.concurrencyConfig.circuitBreaker.recoveryTimeMs) {
+        this.concurrencyConfig.circuitBreaker.isOpen = false;
+        console.log('🔄 Circuit breaker reset - resuming OpenAI processing');
+      } else {
+        throw new Error('Circuit breaker is open - OpenAI processing temporarily disabled');
+      }
+    }
+  }
+
+  private static handleCircuitBreaker(error: any): void {
+    this.concurrencyConfig.circuitBreaker.lastFailureTime = Date.now();
+    
+    if (error.message?.includes('rate limit') || error.message?.includes('429')) {
+      this.concurrencyConfig.circuitBreaker.isOpen = true;
+      console.warn('🚨 Circuit breaker opened due to rate limiting');
+    }
+  }
+
+  private static updateJobProgress(job: EnhancedBatchJob): void {
+    const completedBatches = job.batchProgress.filter(bp => bp.status === 'completed').length;
+    const totalBatches = job.batchProgress.length;
+    
+    if (totalBatches > 0) {
+      job.progress = (completedBatches / totalBatches) * 100;
+      job.estimatedTimeRemaining = this.calculateEnhancedTimeRemaining(job);
+      this.notifyJobUpdate(job);
+    }
+  }
+
+  private static calculateEnhancedTimeRemaining(job: EnhancedBatchJob): number {
+    if (!job.startedAt) return 0;
+    
+    const completedBatches = job.batchProgress.filter(bp => bp.status === 'completed');
+    if (completedBatches.length === 0) return 0;
+    
+    const avgBatchTime = completedBatches.reduce((sum, batch) => {
+      const batchTime = (batch.endTime || Date.now()) - (batch.startTime || Date.now());
+      return sum + batchTime;
+    }, 0) / completedBatches.length;
+    
+    const remainingBatches = job.batchProgress.filter(bp => bp.status !== 'completed').length;
+    const parallelizationFactor = Math.min(
+      remainingBatches,
+      this.concurrencyConfig.localAI.maxConcurrent + this.concurrencyConfig.openAI.maxConcurrent
+    );
+    
+    return Math.round((avgBatchTime * remainingBatches / parallelizationFactor) / 1000);
+  }
+
+  private static createFallbackResults(batch: any, error: any): BatchGradingResult[] {
+    return batch.questions.map((question: any, index: number) => ({
+      questionNumber: question.questionNumber || index + 1,
+      isCorrect: false,
+      pointsEarned: 0,
+      pointsPossible: batch.answerKeys[index]?.points || 1,
+      confidence: 0.3,
+      gradingMethod: 'fallback' as const,
+      reasoning: `Batch processing failed: ${error.message}`,
+      complexityScore: 0.5,
+      reasoningDepth: 'medium' as const,
+      processingTime: 0
+    }));
+  }
+
   private static async processLocalBatch(questions: any[], answerKeys: any[]): Promise<BatchGradingResult[]> {
-    // Simulate local AI processing (replace with actual local AI service)
     return questions.map((question, index) => {
       const answerKey = answerKeys[index];
       const studentAnswer = question.detectedAnswer?.selectedOption || '';
       const correctAnswer = answerKey?.correct_answer || '';
       
-      // Simple comparison for multiple choice
       const isCorrect = studentAnswer.toLowerCase().trim() === correctAnswer.toLowerCase().trim();
       
       return {
@@ -408,7 +628,7 @@ export class EnhancedBatchGradingService {
         reasoning: `Local AI: Answer ${isCorrect ? 'matches' : 'does not match'} expected response.`,
         complexityScore: 0.3,
         reasoningDepth: 'shallow' as const,
-        processingTime: 50 + Math.random() * 100 // 50-150ms
+        processingTime: 50 + Math.random() * 100
       };
     });
   }
@@ -447,7 +667,7 @@ export class EnhancedBatchGradingService {
         reasoning: result.reasoning,
         complexityScore: result.complexityScore || 0.7,
         reasoningDepth: result.reasoningDepth || 'medium',
-        processingTime: 2000 + Math.random() * 1000 // 2-3 seconds per batch
+        processingTime: 2000 + Math.random() * 1000
       }));
 
     } catch (error) {
@@ -463,17 +683,16 @@ export class EnhancedBatchGradingService {
     const avgTimePerQuestion = elapsed / processedQuestions;
     const remainingQuestions = totalQuestions - processedQuestions;
     
-    return Math.round((avgTimePerQuestion * remainingQuestions) / 1000); // seconds
+    return Math.round((avgTimePerQuestion * remainingQuestions) / 1000);
   }
 
   private static calculateCostEstimate(job: EnhancedBatchJob): number {
     const { complexityDistribution, totalApiCalls } = job.processingMetrics;
     
-    // Rough cost estimates (per question)
     const costs = {
-      simple: 0, // Local AI is free
-      medium: 0.002, // Batched OpenAI
-      complex: 0.004 // Complex OpenAI processing
+      simple: 0,
+      medium: 0.002,
+      complex: 0.004
     };
     
     return (
@@ -508,6 +727,12 @@ export class EnhancedBatchGradingService {
     successRate: number;
     costEfficiency: number;
     complexityDistribution: { simple: number; medium: number; complex: number };
+    parallelizationMetrics: {
+      avgConcurrentBatches: number;
+      avgBatchProcessingTime: number;
+      parallelEfficiencyGain: number;
+      circuitBreakerTrips: number;
+    };
     optimizationMetrics: {
       classifier: any;
       analytics: any;
@@ -523,6 +748,12 @@ export class EnhancedBatchGradingService {
         successRate: 0,
         costEfficiency: 0,
         complexityDistribution: { simple: 0, medium: 0, complex: 0 },
+        parallelizationMetrics: {
+          avgConcurrentBatches: 0,
+          avgBatchProcessingTime: 0,
+          parallelEfficiencyGain: 0,
+          circuitBreakerTrips: 0
+        },
         optimizationMetrics: {
           classifier: OptimizedQuestionClassifier.getPerformanceMetrics(),
           analytics: ClassificationLogger.getClassificationAnalytics()
@@ -543,12 +774,29 @@ export class EnhancedBatchGradingService {
       complex: acc.complex + job.processingMetrics.complexityDistribution.complex
     }), { simple: 0, medium: 0, complex: 0 });
 
+    const avgConcurrentBatches = completedJobs.reduce((sum, job) => 
+      sum + job.processingMetrics.concurrentBatches, 0) / completedJobs.length;
+    
+    const avgBatchProcessingTime = completedJobs.reduce((sum, job) => 
+      sum + job.processingMetrics.avgBatchProcessingTime, 0) / completedJobs.length;
+    
+    const totalCircuitBreakerTrips = completedJobs.reduce((sum, job) => 
+      sum + job.processingMetrics.circuitBreakerTrips, 0);
+    
+    const parallelEfficiencyGain = avgConcurrentBatches > 1 ? avgConcurrentBatches * 0.8 : 1;
+    
     return {
       totalJobs: allJobs.length,
       averageProcessingTime: totalProcessingTime / completedJobs.length,
       successRate,
-      costEfficiency: totalQuestions / (totalProcessingTime / 1000), // questions per second
+      costEfficiency: totalQuestions / (totalProcessingTime / 1000),
       complexityDistribution: aggregatedComplexity,
+      parallelizationMetrics: {
+        avgConcurrentBatches,
+        avgBatchProcessingTime,
+        parallelEfficiencyGain,
+        circuitBreakerTrips: totalCircuitBreakerTrips
+      },
       optimizationMetrics: {
         classifier: OptimizedQuestionClassifier.getPerformanceMetrics(),
         analytics: ClassificationLogger.getClassificationAnalytics()
@@ -556,11 +804,23 @@ export class EnhancedBatchGradingService {
     };
   }
 
-  // New optimization method
   static optimizePerformance() {
-    OptimizedQuestionClassifier.optimizeCache(2000); // Larger cache for batch processing
-    AnswerKeyMatchingService.optimizeCache(100); // NEW: Optimize answer key cache
+    OptimizedQuestionClassifier.optimizeCache(2000);
+    AnswerKeyMatchingService.optimizeCache(100);
     ClassificationLogger.clearLogs();
-    console.log('🚀 Enhanced batch grading service performance optimized');
+    
+    this.concurrencyConfig.circuitBreaker.isOpen = false;
+    this.concurrencyConfig.circuitBreaker.lastFailureTime = 0;
+    
+    console.log('🚀 Enhanced batch grading service performance optimized with parallelization');
+  }
+
+  static updateConcurrencyConfig(config: Partial<ConcurrencyConfig>): void {
+    this.concurrencyConfig = { ...this.concurrencyConfig, ...config };
+    console.log('⚙️ Concurrency configuration updated:', this.concurrencyConfig);
+  }
+
+  static getConcurrencyStatus(): ConcurrencyConfig {
+    return { ...this.concurrencyConfig };
   }
 }
