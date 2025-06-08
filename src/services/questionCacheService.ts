@@ -22,6 +22,26 @@ export interface QuestionCacheStats {
   distilBertCached: number;
   openAICached: number;
   topCachedExams: Array<{ examId: string; questionCount: number; hitRate: number }>;
+  dailyStats?: {
+    totalQueries: number;
+    cacheHits: number;
+    cacheMisses: number;
+    avgResponseTime: number;
+  };
+  performanceMetrics?: {
+    memoryUtilization: number;
+    cleanupFrequency: number;
+    errorRate: number;
+  };
+}
+
+export interface CachePerformanceTracker {
+  totalQueries: number;
+  cacheHits: number;
+  cacheMisses: number;
+  totalResponseTime: number;
+  errorCount: number;
+  lastReset: number;
 }
 
 export class QuestionCacheService {
@@ -32,6 +52,16 @@ export class QuestionCacheService {
   private static questionCache: Map<string, QuestionCacheResult> = new Map();
   private static cleanupInterval: number | null = null;
   private static lastCleanup: number = Date.now();
+  
+  // Performance tracking
+  private static performanceTracker: CachePerformanceTracker = {
+    totalQueries: 0,
+    cacheHits: 0,
+    cacheMisses: 0,
+    totalResponseTime: 0,
+    errorCount: 0,
+    lastReset: Date.now()
+  };
 
   static {
     // Initialize automatic cleanup on service load
@@ -118,12 +148,17 @@ export class QuestionCacheService {
     studentAnswer: string,
     correctAnswer: string
   ): Promise<QuestionCacheResult | null> {
+    const startTime = Date.now();
+    this.performanceTracker.totalQueries++;
+
     try {
       const cacheKey = this.generateQuestionCacheKey(examId, questionNumber, studentAnswer, correctAnswer);
       
       // Check in-memory cache first
       const memoryResult = this.questionCache.get(cacheKey);
       if (memoryResult && memoryResult.cachedAt + this.QUESTION_CACHE_DURATION > Date.now()) {
+        this.performanceTracker.cacheHits++;
+        this.performanceTracker.totalResponseTime += (Date.now() - startTime);
         console.log(`📋 Question cache hit (memory): ${examId} Q${questionNumber}`);
         return memoryResult;
       }
@@ -138,6 +173,7 @@ export class QuestionCacheService {
       });
 
       if (error) {
+        this.performanceTracker.errorCount++;
         console.warn('Question cache lookup error:', error);
         return null;
       }
@@ -149,6 +185,9 @@ export class QuestionCacheService {
           cachedAt: data.cachedAt
         };
         
+        this.performanceTracker.cacheHits++;
+        this.performanceTracker.totalResponseTime += (Date.now() - startTime);
+        
         // Store in memory for faster future access (with size check)
         if (this.questionCache.size < this.MAX_MEMORY_CACHE_SIZE) {
           this.questionCache.set(cacheKey, cachedResult);
@@ -157,8 +196,12 @@ export class QuestionCacheService {
         return cachedResult;
       }
 
+      this.performanceTracker.cacheMisses++;
+      this.performanceTracker.totalResponseTime += (Date.now() - startTime);
       return null;
     } catch (error) {
+      this.performanceTracker.errorCount++;
+      this.performanceTracker.totalResponseTime += (Date.now() - startTime);
       console.error('Question cache retrieval error:', error);
       return null;
     }
@@ -277,17 +320,37 @@ export class QuestionCacheService {
       
       if (error) {
         console.warn('Question cache stats error:', error);
-        return this.getMemoryQuestionCacheStats();
+        return this.getEnhancedMemoryQuestionCacheStats();
       }
 
-      return data;
+      // Enhance with performance metrics
+      const enhancedStats: QuestionCacheStats = {
+        ...data,
+        dailyStats: {
+          totalQueries: this.performanceTracker.totalQueries,
+          cacheHits: this.performanceTracker.cacheHits,
+          cacheMisses: this.performanceTracker.cacheMisses,
+          avgResponseTime: this.performanceTracker.totalQueries > 0 
+            ? this.performanceTracker.totalResponseTime / this.performanceTracker.totalQueries 
+            : 0
+        },
+        performanceMetrics: {
+          memoryUtilization: (this.questionCache.size / this.MAX_MEMORY_CACHE_SIZE) * 100,
+          cleanupFrequency: this.MEMORY_CLEANUP_INTERVAL / 1000, // in seconds
+          errorRate: this.performanceTracker.totalQueries > 0 
+            ? (this.performanceTracker.errorCount / this.performanceTracker.totalQueries) * 100 
+            : 0
+        }
+      };
+
+      return enhancedStats;
     } catch (error) {
       console.error('Question cache stats retrieval error:', error);
-      return this.getMemoryQuestionCacheStats();
+      return this.getEnhancedMemoryQuestionCacheStats();
     }
   }
 
-  private static getMemoryQuestionCacheStats(): QuestionCacheStats {
+  private static getEnhancedMemoryQuestionCacheStats(): QuestionCacheStats {
     const entries = Array.from(this.questionCache.values());
     const validEntries = entries.filter(e => e.cachedAt + this.QUESTION_CACHE_DURATION > Date.now());
     
@@ -299,17 +362,37 @@ export class QuestionCacheService {
       e.originalGradingMethod.includes('openai')
     ).length;
 
-    // Estimate cost savings (rough calculation)
+    // Calculate enhanced metrics
     const openAICostPerQuestion = 0.01;
-    const costSavings = openAICached * openAICostPerQuestion;
+    const distilBertCostPerQuestion = 0.001;
+    const costSavings = (openAICached * openAICostPerQuestion) + (distilBertCached * distilBertCostPerQuestion);
+
+    const hitRate = this.performanceTracker.totalQueries > 0 
+      ? this.performanceTracker.cacheHits / this.performanceTracker.totalQueries 
+      : (validEntries.length > 0 ? 0.85 : 0);
 
     return {
       totalCachedQuestions: validEntries.length,
-      hitRate: validEntries.length > 0 ? 0.85 : 0, // Estimated hit rate
+      hitRate,
       costSavings,
       distilBertCached,
       openAICached,
-      topCachedExams: []
+      topCachedExams: [],
+      dailyStats: {
+        totalQueries: this.performanceTracker.totalQueries,
+        cacheHits: this.performanceTracker.cacheHits,
+        cacheMisses: this.performanceTracker.cacheMisses,
+        avgResponseTime: this.performanceTracker.totalQueries > 0 
+          ? this.performanceTracker.totalResponseTime / this.performanceTracker.totalQueries 
+          : 0
+      },
+      performanceMetrics: {
+        memoryUtilization: (this.questionCache.size / this.MAX_MEMORY_CACHE_SIZE) * 100,
+        cleanupFrequency: this.MEMORY_CLEANUP_INTERVAL / 1000,
+        errorRate: this.performanceTracker.totalQueries > 0 
+          ? (this.performanceTracker.errorCount / this.performanceTracker.totalQueries) * 100 
+          : 0
+      }
     };
   }
 
@@ -344,13 +427,27 @@ export class QuestionCacheService {
     utilizationPercent: number;
     lastCleanup: Date;
     nextCleanup: Date;
+    performanceStats: CachePerformanceTracker;
   } {
     return {
       memorySize: this.questionCache.size,
       maxSize: this.MAX_MEMORY_CACHE_SIZE,
       utilizationPercent: (this.questionCache.size / this.MAX_MEMORY_CACHE_SIZE) * 100,
       lastCleanup: new Date(this.lastCleanup),
-      nextCleanup: new Date(this.lastCleanup + 60 * 60 * 1000) // Next hour
+      nextCleanup: new Date(this.lastCleanup + 60 * 60 * 1000), // Next hour
+      performanceStats: { ...this.performanceTracker }
     };
+  }
+
+  static resetPerformanceStats(): void {
+    this.performanceTracker = {
+      totalQueries: 0,
+      cacheHits: 0,
+      cacheMisses: 0,
+      totalResponseTime: 0,
+      errorCount: 0,
+      lastReset: Date.now()
+    };
+    console.log('📊 Cache performance stats reset');
   }
 }

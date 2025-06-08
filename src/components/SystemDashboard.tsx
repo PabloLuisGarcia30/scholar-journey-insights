@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -15,10 +14,12 @@ import {
   CheckCircle,
   Settings,
   BarChart3,
-  Zap
+  Zap,
+  Database
 } from 'lucide-react';
 import { scalabilityMonitor, ScalabilityStats } from '@/services/scalabilityMonitoringService';
 import { enhancedBatchService } from '@/services/enhancedBatchProcessingService';
+import { CacheAnalytics } from './CacheAnalytics';
 
 export const SystemDashboard: React.FC = () => {
   const [stats, setStats] = useState<ScalabilityStats | null>(null);
@@ -196,6 +197,7 @@ export const SystemDashboard: React.FC = () => {
           <TabsTrigger value="queue">Queue Management</TabsTrigger>
           <TabsTrigger value="performance">Performance Metrics</TabsTrigger>
           <TabsTrigger value="scaling">Auto-scaling</TabsTrigger>
+          <TabsTrigger value="cache">Cache Analytics</TabsTrigger>
           <TabsTrigger value="recommendations">Recommendations</TabsTrigger>
         </TabsList>
 
@@ -322,6 +324,10 @@ export const SystemDashboard: React.FC = () => {
               </div>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="cache" className="space-y-4">
+          <CacheAnalytics />
         </TabsContent>
 
         <TabsContent value="recommendations" className="space-y-4">
