@@ -1,6 +1,6 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { EnhancedQuestionClassifier, QuestionClassification, SimpleAnswerValidation } from "./enhancedQuestionClassifier";
+import { DistilBertLocalGradingService, DistilBertGradingResult } from "./distilBertLocalGrading";
 
 export interface SkillMapping {
   skill_id: string;
@@ -36,6 +36,7 @@ export interface EnhancedLocalGradingResult {
   qualityFlags?: any;
   questionClassification?: QuestionClassification;
   answerValidation?: SimpleAnswerValidation;
+  distilBertResult?: DistilBertGradingResult; // NEW: DistilBERT analysis
 }
 
 // Score Validation Service
@@ -184,6 +185,86 @@ export class EnhancedLocalGradingService {
 
     console.log('✓ Loaded AI-identified skills for', Object.keys(skillMappings).length, 'questions');
     return skillMappings;
+  }
+
+  static gradeQuestionWithDistilBert(question: any, answerKey: any, skillMappings: SkillMapping[]): Promise<EnhancedLocalGradingResult> {
+    // Use enhanced classification
+    const classification = EnhancedQuestionClassifier.classifyQuestion(question, answerKey);
+    
+    if (!classification.shouldUseLocalGrading || !classification.isSimple) {
+      return {
+        questionNumber: question.questionNumber,
+        isCorrect: false,
+        pointsEarned: 0,
+        pointsPossible: answerKey.points || 1,
+        confidence: classification.confidence,
+        gradingMethod: 'requires_ai',
+        reasoning: classification.fallbackReason || 'Complex question requiring AI analysis',
+        skillMappings,
+        questionClassification: classification,
+        qualityFlags: {
+          hasMultipleMarks: question.detectedAnswer?.multipleMarksDetected || false,
+          reviewRequired: question.detectedAnswer?.reviewFlag || false,
+          bubbleQuality: question.detectedAnswer?.bubbleQuality || 'unknown',
+          confidenceAdjusted: false
+        }
+      };
+    }
+
+    const studentAnswer = question.detectedAnswer?.selectedOption?.trim() || '';
+    const correctAnswer = answerKey.correct_answer?.trim() || '';
+    const pointsPossible = answerKey.points || 1;
+
+    try {
+      // Use DistilBERT for semantic grading
+      const distilBertService = DistilBertLocalGradingService.getInstance();
+      const distilBertResult = await distilBertService.gradeAnswer(
+        studentAnswer,
+        correctAnswer,
+        classification
+      );
+
+      const isCorrect = distilBertResult.isCorrect;
+      let pointsEarned = isCorrect ? pointsPossible : 0;
+
+      // Validate question score
+      pointsEarned = ScoreValidationService.validateQuestionScore(pointsEarned, pointsPossible, question.questionNumber);
+
+      // Determine grading method
+      let gradingMethod = `distilbert_${classification.questionType}`;
+      if (distilBertResult.method === 'semantic_matching') {
+        gradingMethod = `distilbert_semantic_${classification.questionType}`;
+      } else {
+        gradingMethod = `distilbert_pattern_${classification.questionType}`;
+      }
+
+      return {
+        questionNumber: question.questionNumber,
+        isCorrect,
+        pointsEarned,
+        pointsPossible,
+        confidence: distilBertResult.confidence,
+        gradingMethod,
+        reasoning: distilBertResult.reasoning,
+        skillMappings,
+        questionClassification: classification,
+        distilBertResult,
+        qualityFlags: {
+          hasMultipleMarks: question.detectedAnswer?.multipleMarksDetected || false,
+          reviewRequired: question.detectedAnswer?.reviewFlag || false,
+          bubbleQuality: question.detectedAnswer?.bubbleQuality || 'unknown',
+          confidenceAdjusted: distilBertResult.confidence < 0.6,
+          aiProcessingUsed: true,
+          semanticMatchingUsed: distilBertResult.method === 'semantic_matching'
+        }
+      };
+
+    } catch (error) {
+      console.error('DistilBERT grading failed, falling back to enhanced classification:', error);
+      
+      // Fallback to existing enhanced classification grading
+      return this.gradeQuestionWithEnhancedClassification(question, answerKey, skillMappings);
+    }
   }
 
   static gradeQuestionWithEnhancedClassification(question: any, answerKey: any, skillMappings: SkillMapping[]): EnhancedLocalGradingResult {
@@ -336,9 +417,9 @@ export class EnhancedLocalGradingService {
     });
   }
 
-  // MAIN PROCESSING METHOD: Enhanced hybrid workflow with improved classification
-  static async processQuestionsWithHybridWorkflow(questions: any[], answerKeys: any[], examId: string) {
-    console.log('Starting enhanced hybrid workflow with improved question classification');
+  // MAIN PROCESSING METHOD: Enhanced hybrid workflow with DistilBERT
+  static async processQuestionsWithDistilBertWorkflow(questions: any[], answerKeys: any[], examId: string) {
+    console.log('🤖 Starting DistilBERT-enhanced hybrid workflow with local AI grading');
     
     // STEP 1: Ensure AI skill identification is completed
     const hasAISkills = await this.ensureAISkillIdentification(examId);
@@ -347,7 +428,16 @@ export class EnhancedLocalGradingService {
       throw new Error('AI skill identification failed. Cannot proceed without identified skills.');
     }
 
-    // STEP 2: Get the AI-identified skills
+    // STEP 2: Initialize DistilBERT model
+    const distilBertService = DistilBertLocalGradingService.getInstance();
+    try {
+      await distilBertService.initialize();
+      console.log('✅ DistilBERT model loaded and ready for local AI grading');
+    } catch (error) {
+      console.warn('⚠️ DistilBERT initialization failed, falling back to pattern matching:', error);
+    }
+
+    // STEP 3: Get the AI-identified skills
     const aiIdentifiedSkills = await this.getAIIdentifiedSkillMappings(examId);
     
     if (Object.keys(aiIdentifiedSkills).length === 0) {
@@ -355,18 +445,26 @@ export class EnhancedLocalGradingService {
       throw new Error('No skills were identified for this exam. Cannot proceed with skill-based grading.');
     }
 
-    // STEP 3: Process questions with enhanced classification
+    // STEP 4: Process questions with DistilBERT + enhanced classification
     const localResults: EnhancedLocalGradingResult[] = [];
     const aiRequiredQuestions = [];
     let locallyGradedCount = 0;
+    let distilBertUsedCount = 0;
     
-    // Enhanced metrics tracking by question type
+    // Enhanced metrics tracking
     const questionTypeMetrics = {
       multiple_choice: 0,
       true_false: 0,
       fill_in_blank: 0,
       numeric: 0,
       complex: 0
+    };
+
+    const gradingMethodMetrics = {
+      distilbert_semantic: 0,
+      distilbert_pattern: 0,
+      enhanced_classification: 0,
+      requires_ai: 0
     };
     
     let multipleMarksCount = 0;
@@ -382,13 +480,26 @@ export class EnhancedLocalGradingService {
       }
 
       const questionSkillMappings = aiIdentifiedSkills[question.questionNumber] || [];
-      const result = this.gradeQuestionWithEnhancedClassification(question, answerKey, questionSkillMappings);
+      const result = await this.gradeQuestionWithDistilBert(question, answerKey, questionSkillMappings);
       
       if (result.gradingMethod === 'requires_ai') {
         aiRequiredQuestions.push(question);
+        gradingMethodMetrics.requires_ai++;
       } else {
         localResults.push(result);
         locallyGradedCount++;
+        
+        // Track DistilBERT usage
+        if (result.distilBertResult) {
+          distilBertUsedCount++;
+          if (result.distilBertResult.method === 'semantic_matching') {
+            gradingMethodMetrics.distilbert_semantic++;
+          } else {
+            gradingMethodMetrics.distilbert_pattern++;
+          }
+        } else {
+          gradingMethodMetrics.enhanced_classification++;
+        }
         
         // Track question type metrics
         if (result.questionClassification) {
@@ -419,8 +530,12 @@ export class EnhancedLocalGradingService {
     
     const localValidation = ScoreValidationService.validateFinalScore(localTotalEarned, localTotalPossible);
     
-    console.log(`✓ Enhanced hybrid workflow complete: ${locallyGradedCount} locally graded, ${aiRequiredQuestions.length} require AI`);
+    const distilBertUsageRate = locallyGradedCount > 0 ? (distilBertUsedCount / locallyGradedCount) * 100 : 0;
+    
+    console.log(`✅ DistilBERT-enhanced workflow complete: ${locallyGradedCount} locally graded, ${aiRequiredQuestions.length} require AI`);
+    console.log(`🤖 DistilBERT usage: ${distilBertUsedCount}/${locallyGradedCount} (${distilBertUsageRate.toFixed(1)}%)`);
     console.log('Question type breakdown:', questionTypeMetrics);
+    console.log('Grading method breakdown:', gradingMethodMetrics);
 
     return {
       localResults,
@@ -434,15 +549,29 @@ export class EnhancedLocalGradingService {
         skillMappingAvailable: true,
         aiSkillsIdentified: true,
         scoreValidationApplied: localValidation.capped,
+        distilBertMetrics: {
+          modelInfo: distilBertService.getModelInfo(),
+          questionsProcessed: distilBertUsedCount,
+          usageRate: distilBertUsageRate,
+          semanticMatchingUsed: gradingMethodMetrics.distilbert_semantic,
+          patternFallbackUsed: gradingMethodMetrics.distilbert_pattern
+        },
         enhancedMetrics: {
           questionTypeBreakdown: questionTypeMetrics,
+          gradingMethodBreakdown: gradingMethodMetrics,
           multipleMarksDetected: multipleMarksCount,
           reviewFlagged: reviewFlaggedCount,
           bubbleQualityDistribution: bubbleQualityDist,
-          enhancedClassificationUsed: true
+          distilBertIntegrationUsed: true
         }
       }
     };
+  }
+
+  // MAIN PROCESSING METHOD: Enhanced hybrid workflow with improved classification
+  static async processQuestionsWithHybridWorkflow(questions: any[], answerKeys: any[], examId: string) {
+    console.log('🔄 Redirecting to DistilBERT-enhanced workflow...');
+    return this.processQuestionsWithDistilBertWorkflow(questions, answerKeys, examId);
   }
 
   // Legacy methods - force use of enhanced workflow
@@ -482,6 +611,37 @@ export class EnhancedLocalGradingService {
     
     if (reviewFlagged > 0) {
       feedback += `. ${reviewFlagged} questions flagged for review`;
+    }
+    
+    return feedback;
+  }
+
+  static generateDistilBertFeedback(results: EnhancedLocalGradingResult[]): string {
+    const correct = results.filter(r => r.isCorrect).length;
+    const total = results.length;
+    const percentage = Math.round((correct / total) * 100);
+    
+    const distilBertUsed = results.filter(r => r.distilBertResult).length;
+    const semanticMatching = results.filter(r => r.distilBertResult?.method === 'semantic_matching').length;
+    
+    const questionTypes = results.reduce((acc, r) => {
+      if (r.questionClassification) {
+        acc[r.questionClassification.questionType] = (acc[r.questionClassification.questionType] || 0) + 1;
+      }
+      return acc;
+    }, {} as Record<string, number>);
+    
+    let feedback = `🤖 DistilBERT local AI grading completed for ${total} questions. Score: ${correct}/${total} (${percentage}%)`;
+    
+    if (distilBertUsed > 0) {
+      const distilBertRate = ((distilBertUsed / total) * 100).toFixed(1);
+      const semanticRate = total > 0 ? ((semanticMatching / total) * 100).toFixed(1) : '0';
+      feedback += `. Local AI used: ${distilBertUsed}/${total} (${distilBertRate}%), semantic matching: ${semanticRate}%`;
+    }
+    
+    const typeBreakdown = Object.entries(questionTypes).map(([type, count]) => `${count} ${type.replace('_', ' ')}`).join(', ');
+    if (typeBreakdown) {
+      feedback += `. Question types: ${typeBreakdown}`;
     }
     
     return feedback;
