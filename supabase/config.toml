@@ -30,3 +30,6 @@ verify_jwt = false
 
 [functions.grade-complex-question]
 verify_jwt = false
+
+[functions.grade-with-distilbert-wasm]
+verify_jwt = false

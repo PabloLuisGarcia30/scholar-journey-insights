@@ -1,24 +1,27 @@
-
 import { pipeline } from '@huggingface/transformers';
 import { QuestionClassification, SimpleAnswerValidation } from './enhancedQuestionClassifier';
+import { WasmDistilBertService, WasmDistilBertResult } from './wasmDistilBertService';
 
 export interface DistilBertConfig {
   model: string;
-  device: 'cpu' | 'webgpu';
+  device: 'cpu' | 'webgpu' | 'wasm';
   similarityThreshold: number;
   confidenceThreshold: number;
+  enableWasmFallback: boolean;
 }
 
 export interface DistilBertGradingResult {
   isCorrect: boolean;
   confidence: number;
   similarity: number;
-  method: 'semantic_matching' | 'pattern_fallback';
+  method: 'semantic_matching' | 'pattern_fallback' | 'wasm_distilbert';
   reasoning: string;
+  processingTime?: number;
   embeddings?: {
     student: number[];
     correct: number[];
   };
+  wasmResult?: WasmDistilBertResult;
 }
 
 export class DistilBertLocalGradingService {
@@ -28,10 +31,11 @@ export class DistilBertLocalGradingService {
   private loadingPromise: Promise<void> | null = null;
 
   private readonly config: DistilBertConfig = {
-    model: 'Xenova/all-MiniLM-L6-v2', // Lightweight sentence transformer
+    model: 'Xenova/all-MiniLM-L6-v2',
     device: 'webgpu',
-    similarityThreshold: 0.75, // Minimum similarity for correct answer
-    confidenceThreshold: 0.6   // Minimum confidence to use DistilBERT
+    similarityThreshold: 0.75,
+    confidenceThreshold: 0.6,
+    enableWasmFallback: true // Enable WASM as primary method
   };
 
   static getInstance(): DistilBertLocalGradingService {
@@ -49,7 +53,7 @@ export class DistilBertLocalGradingService {
     }
 
     this.isLoading = true;
-    console.log('🤖 Initializing DistilBERT for local AI grading...');
+    console.log('🤖 Initializing DistilBERT with WASM support...');
 
     this.loadingPromise = this.loadModel();
     await this.loadingPromise;
@@ -58,7 +62,13 @@ export class DistilBertLocalGradingService {
 
   private async loadModel(): Promise<void> {
     try {
-      // Try WebGPU first, fallback to CPU
+      // Try WASM first for better performance
+      if (this.config.enableWasmFallback) {
+        console.log('✅ WASM DistilBERT enabled as primary method');
+        return; // Skip browser model loading when WASM is primary
+      }
+
+      // Fallback to browser-based model
       let device = this.config.device;
       try {
         this.featureExtractor = await pipeline(
@@ -78,9 +88,9 @@ export class DistilBertLocalGradingService {
         console.log('✅ DistilBERT loaded with CPU');
       }
 
-      console.log(`🚀 Local AI grading ready (${device})`);
+      console.log(`🚀 Browser-based AI grading ready (${device})`);
     } catch (error) {
-      console.error('❌ Failed to load DistilBERT model:', error);
+      console.error('❌ Failed to load browser DistilBERT model:', error);
       throw new Error('Failed to initialize local AI model');
     }
   }
@@ -90,10 +100,45 @@ export class DistilBertLocalGradingService {
     correctAnswer: string,
     classification: QuestionClassification
   ): Promise<DistilBertGradingResult> {
+    const startTime = Date.now();
+
+    // Try WASM DistilBERT first for better performance and cost efficiency
+    if (this.config.enableWasmFallback) {
+      try {
+        console.log('🤖 Using WASM DistilBERT for grading...');
+        const wasmResult = await WasmDistilBertService.gradeWithWasm(studentAnswer, correctAnswer, classification);
+        
+        // Convert WASM result to our expected format
+        const result: DistilBertGradingResult = {
+          isCorrect: wasmResult.isCorrect,
+          confidence: wasmResult.confidence,
+          similarity: wasmResult.similarity,
+          method: wasmResult.method === 'wasm_distilbert' ? 'semantic_matching' : 'pattern_fallback',
+          reasoning: wasmResult.reasoning,
+          processingTime: wasmResult.processingTime,
+          wasmResult
+        };
+
+        // If WASM result is high confidence, return it
+        if (WasmDistilBertService.isHighConfidence(wasmResult)) {
+          console.log(`✅ High confidence WASM result: ${wasmResult.confidence.toFixed(2)}`);
+          return result;
+        }
+
+        console.log(`⚠️ Low confidence WASM result (${wasmResult.confidence.toFixed(2)}), trying browser fallback...`);
+        
+        // Continue to browser-based model for verification if confidence is low
+      } catch (error) {
+        console.warn('⚠️ WASM DistilBERT failed, falling back to browser model:', error);
+      }
+    }
+
+    // Fallback to browser-based DistilBERT
     await this.initialize();
 
     if (!this.featureExtractor) {
-      throw new Error('DistilBERT model not initialized');
+      console.warn('⚠️ No DistilBERT model available, using pattern fallback');
+      return this.patternFallback(studentAnswer, correctAnswer, classification, startTime);
     }
 
     // Clean and normalize answers
@@ -107,7 +152,8 @@ export class DistilBertLocalGradingService {
         confidence: 1.0,
         similarity: 0,
         method: 'pattern_fallback',
-        reasoning: 'No answer provided'
+        reasoning: 'No answer provided',
+        processingTime: Date.now() - startTime
       };
     }
 
@@ -133,6 +179,7 @@ export class DistilBertLocalGradingService {
         similarity,
         method: 'semantic_matching',
         reasoning: this.generateReasoning(cleanStudent, cleanCorrect, similarity, isCorrect),
+        processingTime: Date.now() - startTime,
         embeddings: {
           student: studentEmbedding,
           correct: correctEmbedding
@@ -140,10 +187,10 @@ export class DistilBertLocalGradingService {
       };
 
     } catch (error) {
-      console.warn('⚠️ DistilBERT grading failed, using pattern fallback:', error);
+      console.warn('⚠️ Browser DistilBERT grading failed, using pattern fallback:', error);
       
       // Fallback to simple pattern matching
-      return this.patternFallback(cleanStudent, cleanCorrect, classification);
+      return this.patternFallback(cleanStudent, cleanCorrect, classification, startTime);
     }
   }
 
@@ -218,11 +265,15 @@ export class DistilBertLocalGradingService {
   private patternFallback(
     studentAnswer: string,
     correctAnswer: string,
-    classification: QuestionClassification
+    classification: QuestionClassification,
+    startTime: number
   ): DistilBertGradingResult {
+    const cleanStudent = this.normalizeText(studentAnswer);
+    const cleanCorrect = this.normalizeText(correctAnswer);
+    
     // Simple pattern-based fallback
-    const isExactMatch = studentAnswer === correctAnswer;
-    const isCaseInsensitiveMatch = studentAnswer.toLowerCase() === correctAnswer.toLowerCase();
+    const isExactMatch = cleanStudent === cleanCorrect;
+    const isCaseInsensitiveMatch = cleanStudent.toLowerCase() === cleanCorrect.toLowerCase();
     
     let isCorrect = false;
     let confidence = 0.5;
@@ -235,8 +286,8 @@ export class DistilBertLocalGradingService {
       confidence = 0.85;
     } else if (classification.questionType === 'numeric') {
       // Try numeric comparison
-      const studentNum = parseFloat(studentAnswer.replace(/[^\d.-]/g, ''));
-      const correctNum = parseFloat(correctAnswer.replace(/[^\d.-]/g, ''));
+      const studentNum = parseFloat(cleanStudent.replace(/[^\d.-]/g, ''));
+      const correctNum = parseFloat(cleanCorrect.replace(/[^\d.-]/g, ''));
       
       if (!isNaN(studentNum) && !isNaN(correctNum)) {
         const tolerance = Math.abs(correctNum * 0.01) + 0.01; // 1% tolerance
@@ -250,21 +301,32 @@ export class DistilBertLocalGradingService {
       confidence,
       similarity: isCorrect ? 0.9 : 0.1,
       method: 'pattern_fallback',
-      reasoning: `Pattern matching fallback: "${studentAnswer}" vs "${correctAnswer}". ${isCorrect ? 'Match found' : 'No match'}`
+      reasoning: `Pattern matching fallback: "${studentAnswer}" vs "${correctAnswer}". ${isCorrect ? 'Match found' : 'No match'}`,
+      processingTime: Date.now() - startTime
     };
   }
 
-  // Utility methods
-  getModelInfo(): { model: string; device: string; ready: boolean } {
+  getModelInfo(): { model: string; device: string; ready: boolean; wasmEnabled: boolean } {
     return {
       model: this.config.model,
       device: this.config.device,
-      ready: !!this.featureExtractor
+      ready: !!this.featureExtractor,
+      wasmEnabled: this.config.enableWasmFallback
     };
   }
 
   updateConfig(updates: Partial<DistilBertConfig>): void {
     Object.assign(this.config, updates);
     console.log('DistilBERT config updated:', this.config);
+  }
+
+  enableWasmMode(): void {
+    this.config.enableWasmFallback = true;
+    console.log('🤖 WASM DistilBERT mode enabled');
+  }
+
+  disableWasmMode(): void {
+    this.config.enableWasmFallback = false;
+    console.log('🖥️ Browser DistilBERT mode enabled');
   }
 }

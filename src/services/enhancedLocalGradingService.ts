@@ -205,7 +205,7 @@ export class EnhancedLocalGradingService {
         console.log(`⚡ Cache hit for Q${question.questionNumber}: ${cachedResult.originalGradingMethod}`);
         return {
           ...cachedResult,
-          skillMappings, // Update with current skill mappings
+          skillMappings,
           qualityFlags: {
             ...cachedResult.qualityFlags,
             cacheHit: true
@@ -242,13 +242,13 @@ export class EnhancedLocalGradingService {
       };
     }
 
-    // STEP 4: Process SIMPLE questions with DistilBERT
-    console.log(`Question ${question.questionNumber}: Simple question detected, processing with DistilBERT`);
+    // STEP 4: Process SIMPLE questions with Enhanced DistilBERT (now with WASM support)
+    console.log(`Question ${question.questionNumber}: Simple question detected, processing with Enhanced DistilBERT (WASM)`);
     
     const pointsPossible = answerKey.points || 1;
 
     try {
-      // Use DistilBERT for semantic grading of simple questions only
+      // Use Enhanced DistilBERT with WASM support for semantic grading
       const distilBertService = DistilBertLocalGradingService.getInstance();
       const distilBertResult = await distilBertService.gradeAnswer(
         studentAnswer,
@@ -262,9 +262,11 @@ export class EnhancedLocalGradingService {
       // Validate question score
       pointsEarned = ScoreValidationService.validateQuestionScore(pointsEarned, pointsPossible, question.questionNumber);
 
-      // Determine grading method
+      // Determine grading method with WASM indication
       let gradingMethod = `distilbert_simple_${classification.questionType}`;
-      if (distilBertResult.method === 'semantic_matching') {
+      if (distilBertResult.wasmResult?.method === 'wasm_distilbert') {
+        gradingMethod = `wasm_distilbert_${classification.questionType}`;
+      } else if (distilBertResult.method === 'semantic_matching') {
         gradingMethod = `distilbert_semantic_${classification.questionType}`;
       } else {
         gradingMethod = `distilbert_pattern_${classification.questionType}`;
@@ -277,7 +279,7 @@ export class EnhancedLocalGradingService {
         pointsPossible,
         confidence: distilBertResult.confidence,
         gradingMethod,
-        reasoning: `DistilBERT local AI: ${distilBertResult.reasoning}`,
+        reasoning: `Enhanced DistilBERT${distilBertResult.wasmResult ? ' (WASM)' : ''}: ${distilBertResult.reasoning}`,
         skillMappings,
         questionClassification: classification,
         distilBertResult,
@@ -288,7 +290,9 @@ export class EnhancedLocalGradingService {
           confidenceAdjusted: distilBertResult.confidence < 0.6,
           aiProcessingUsed: true,
           semanticMatchingUsed: distilBertResult.method === 'semantic_matching',
-          localAIProcessed: true
+          localAIProcessed: true,
+          wasmProcessed: !!distilBertResult.wasmResult,
+          processingTime: distilBertResult.processingTime
         }
       };
 
@@ -308,7 +312,7 @@ export class EnhancedLocalGradingService {
       return result;
 
     } catch (error) {
-      console.error('DistilBERT grading failed for simple question, falling back to enhanced classification:', error);
+      console.error('Enhanced DistilBERT grading failed, falling back to basic classification:', error);
       
       // Fallback to existing enhanced classification grading for simple questions
       return this.gradeQuestionWithEnhancedClassification(question, answerKey, skillMappings);
@@ -638,17 +642,21 @@ export class EnhancedLocalGradingService {
     const percentage = Math.round((correct / total) * 100);
     
     const distilBertUsed = results.filter(r => r.distilBertResult).length;
+    const wasmUsed = results.filter(r => r.qualityFlags?.wasmProcessed).length;
     const semanticMatching = results.filter(r => r.distilBertResult?.method === 'semantic_matching').length;
     const cacheHits = results.filter(r => r.qualityFlags?.cacheHit).length;
     
-    const questionTypes = results.reduce((acc, r) => {
-      if (r.questionClassification) {
-        acc[r.questionClassification.questionType] = (acc[r.questionClassification.questionType] || 0) + 1;
-      }
-      return acc;
-    }, {} as Record<string, number>);
+    const avgProcessingTime = results
+      .filter(r => r.qualityFlags?.processingTime)
+      .reduce((sum, r) => sum + (r.qualityFlags?.processingTime || 0), 0) / 
+      Math.max(1, results.filter(r => r.qualityFlags?.processingTime).length);
     
-    let feedback = `🤖 DistilBERT local AI grading completed for ${total} questions. Score: ${correct}/${total} (${percentage}%)`;
+    let feedback = `🤖 Enhanced DistilBERT grading completed for ${total} questions. Score: ${correct}/${total} (${percentage}%)`;
+    
+    if (wasmUsed > 0) {
+      const wasmRate = ((wasmUsed / total) * 100).toFixed(1);
+      feedback += `. WASM processing: ${wasmUsed}/${total} (${wasmRate}%)`;
+    }
     
     if (cacheHits > 0) {
       const cacheRate = ((cacheHits / total) * 100).toFixed(1);
@@ -657,13 +665,11 @@ export class EnhancedLocalGradingService {
     
     if (distilBertUsed > 0) {
       const distilBertRate = ((distilBertUsed / total) * 100).toFixed(1);
-      const semanticRate = total > 0 ? ((semanticMatching / total) * 100).toFixed(1) : '0';
-      feedback += `. Local AI used: ${distilBertUsed}/${total} (${distilBertRate}%), semantic matching: ${semanticRate}%`;
+      feedback += `. Local AI used: ${distilBertUsed}/${total} (${distilBertRate}%)`;
     }
     
-    const typeBreakdown = Object.entries(questionTypes).map(([type, count]) => `${count} ${type.replace('_', ' ')}`).join(', ');
-    if (typeBreakdown) {
-      feedback += `. Question types: ${typeBreakdown}`;
+    if (avgProcessingTime > 0) {
+      feedback += `. Avg processing: ${avgProcessingTime.toFixed(0)}ms/question`;
     }
     
     return feedback;
