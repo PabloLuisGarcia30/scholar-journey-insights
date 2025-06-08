@@ -1,5 +1,5 @@
 
-import Ajv, { JSONSchemaType } from 'ajv';
+import Ajv from 'ajv';
 
 // Grading result schema for individual questions
 export interface GradingResult {
@@ -50,15 +50,14 @@ export interface ProcessingMetrics {
 
 export class JsonValidationService {
   private ajv: Ajv;
-  private gradingResultSchema: JSONSchemaType<GradingResult>;
-  private batchGradingResultSchema: JSONSchemaType<BatchGradingResult>;
-  private testAnalysisResultSchema: JSONSchemaType<TestAnalysisResult>;
 
   constructor() {
     this.ajv = new Ajv({ allErrors: true, removeAdditional: true });
-    
-    // Individual grading result schema
-    this.gradingResultSchema = {
+  }
+
+  // Individual grading result schema (using plain object instead of JSONSchemaType)
+  private getGradingResultSchema() {
+    return {
       type: 'object',
       required: ['questionNumber', 'isCorrect', 'pointsEarned', 'confidence'],
       properties: {
@@ -66,35 +65,38 @@ export class JsonValidationService {
         isCorrect: { type: 'boolean' },
         pointsEarned: { type: 'number', minimum: 0 },
         confidence: { type: 'number', minimum: 0, maximum: 1 },
-        reasoning: { type: 'string', nullable: true },
+        reasoning: { type: 'string' },
         skillAlignment: { 
           type: 'array', 
-          items: { type: 'string' },
-          nullable: true 
+          items: { type: 'string' }
         }
       },
       additionalProperties: false
     };
+  }
 
-    // Batch grading result schema
-    this.batchGradingResultSchema = {
+  // Batch grading result schema
+  private getBatchGradingResultSchema() {
+    return {
       type: 'object',
       required: ['results'],
       properties: {
         results: {
           type: 'array',
-          items: this.gradingResultSchema,
+          items: this.getGradingResultSchema(),
           minItems: 1
         },
-        batchId: { type: 'string', nullable: true },
-        processingTime: { type: 'number', minimum: 0, nullable: true },
-        modelUsed: { type: 'string', nullable: true }
+        batchId: { type: 'string' },
+        processingTime: { type: 'number', minimum: 0 },
+        modelUsed: { type: 'string' }
       },
       additionalProperties: false
     };
+  }
 
-    // Test analysis result schema
-    this.testAnalysisResultSchema = {
+  // Test analysis result schema
+  private getTestAnalysisResultSchema() {
+    return {
       type: 'object',
       required: ['overallScore', 'grade', 'total_points_earned', 'total_points_possible'],
       properties: {
@@ -102,7 +104,7 @@ export class JsonValidationService {
         grade: { type: 'string', enum: ['A', 'B', 'C', 'D', 'F'] },
         total_points_earned: { type: 'number', minimum: 0 },
         total_points_possible: { type: 'number', minimum: 0 },
-        ai_feedback: { type: 'string', nullable: true },
+        ai_feedback: { type: 'string' },
         content_skill_scores: {
           type: 'array',
           items: {
@@ -115,8 +117,7 @@ export class JsonValidationService {
               points_possible: { type: 'number', minimum: 0 }
             },
             additionalProperties: false
-          },
-          nullable: true
+          }
         },
         subject_skill_scores: {
           type: 'array',
@@ -130,8 +131,7 @@ export class JsonValidationService {
               points_possible: { type: 'number', minimum: 0 }
             },
             additionalProperties: false
-          },
-          nullable: true
+          }
         },
         processingMetrics: {
           type: 'object',
@@ -145,8 +145,7 @@ export class JsonValidationService {
             totalTokensUsed: { type: 'number', minimum: 0 },
             estimatedCostSavings: { type: 'number', minimum: 0 }
           },
-          additionalProperties: false,
-          nullable: true
+          additionalProperties: false
         }
       },
       additionalProperties: false
@@ -154,41 +153,41 @@ export class JsonValidationService {
   }
 
   // Validate individual grading result
-  validateGradingResult(data: unknown): { valid: boolean; data?: GradingResult; errors?: string[] } {
-    const validate = this.ajv.compile(this.gradingResultSchema);
+  validateGradingResult(data: unknown): { success: boolean; data?: GradingResult; errors?: string[] } {
+    const validate = this.ajv.compile(this.getGradingResultSchema());
     const valid = validate(data);
     
     if (valid) {
-      return { valid: true, data: data as GradingResult };
+      return { success: true, data: data as GradingResult };
     } else {
       const errors = validate.errors?.map(err => `${err.instancePath}: ${err.message}`) || ['Unknown validation error'];
-      return { valid: false, errors };
+      return { success: false, errors };
     }
   }
 
   // Validate batch grading results
-  validateBatchGradingResult(data: unknown): { valid: boolean; data?: BatchGradingResult; errors?: string[] } {
-    const validate = this.ajv.compile(this.batchGradingResultSchema);
+  validateBatchGradingResult(data: unknown): { success: boolean; data?: BatchGradingResult; errors?: string[] } {
+    const validate = this.ajv.compile(this.getBatchGradingResultSchema());
     const valid = validate(data);
     
     if (valid) {
-      return { valid: true, data: data as BatchGradingResult };
+      return { success: true, data: data as BatchGradingResult };
     } else {
       const errors = validate.errors?.map(err => `${err.instancePath}: ${err.message}`) || ['Unknown validation error'];
-      return { valid: false, errors };
+      return { success: false, errors };
     }
   }
 
   // Validate test analysis result
-  validateTestAnalysisResult(data: unknown): { valid: boolean; data?: TestAnalysisResult; errors?: string[] } {
-    const validate = this.ajv.compile(this.testAnalysisResultSchema);
+  validateTestAnalysisResult(data: unknown): { success: boolean; data?: TestAnalysisResult; errors?: string[] } {
+    const validate = this.ajv.compile(this.getTestAnalysisResultSchema());
     const valid = validate(data);
     
     if (valid) {
-      return { valid: true, data: data as TestAnalysisResult };
+      return { success: true, data: data as TestAnalysisResult };
     } else {
       const errors = validate.errors?.map(err => `${err.instancePath}: ${err.message}`) || ['Unknown validation error'];
-      return { valid: false, errors };
+      return { success: false, errors };
     }
   }
 

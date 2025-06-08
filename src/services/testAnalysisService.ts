@@ -1,3 +1,4 @@
+
 import { supabase } from "@/integrations/supabase/client";
 import { jsonValidationService } from './jsonValidationService';
 import { transactionService } from './transactionService';
@@ -168,7 +169,7 @@ export const analyzeTest = async (request: {
     // Validate the response using our JSON validation service
     const validationResult = jsonValidationService.validateTestAnalysisResult(data);
     
-    if (!validationResult.valid || !validationResult.data) {
+    if (!validationResult.success || !validationResult.data) {
       console.error('⚠️ Response validation failed:', validationResult.errors);
       console.warn('🔄 Using fallback response structure');
       

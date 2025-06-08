@@ -39,7 +39,7 @@ export class TransactionService {
         .insert({
           exam_id: testData.examId,
           student_id: testData.studentProfileId,
-          class_id: testData.classId,
+          class_id: testData.classId || '',
           overall_score: testData.overallScore,
           total_points_earned: testData.totalPointsEarned,
           total_points_possible: testData.totalPointsPossible,
@@ -127,13 +127,20 @@ export class TransactionService {
     }
   }
 
-  // Batch insert with transaction safety
-  async batchInsertWithTransaction<T>(
-    tableName: string,
-    records: T[],
+  // Simplified batch insert for basic operations
+  async batchInsertTestResults(
+    records: Array<{
+      exam_id: string;
+      student_id: string;
+      class_id: string;
+      overall_score: number;
+      total_points_earned: number;
+      total_points_possible: number;
+      ai_feedback?: string;
+    }>,
     batchSize: number = 100
   ): Promise<{ success: boolean; insertedCount: number; error?: string }> {
-    console.log(`🔄 Starting batch insert for ${tableName}: ${records.length} records`);
+    console.log(`🔄 Starting batch insert for test_results: ${records.length} records`);
     
     if (records.length === 0) {
       return { success: true, insertedCount: 0 };
@@ -147,7 +154,7 @@ export class TransactionService {
         const batch = records.slice(i, i + batchSize);
         
         const { data, error } = await supabase
-          .from(tableName)
+          .from('test_results')
           .insert(batch)
           .select('id');
 
@@ -159,7 +166,7 @@ export class TransactionService {
         console.log(`📦 Batch ${Math.floor(i / batchSize) + 1} completed: ${data?.length || 0} records`);
       }
 
-      console.log(`✅ Batch insert completed: ${totalInserted} records inserted into ${tableName}`);
+      console.log(`✅ Batch insert completed: ${totalInserted} records inserted into test_results`);
       
       return {
         success: true,
@@ -167,7 +174,7 @@ export class TransactionService {
       };
 
     } catch (error) {
-      console.error(`❌ Batch insert failed for ${tableName}:`, error);
+      console.error(`❌ Batch insert failed for test_results:`, error);
       
       return {
         success: false,
