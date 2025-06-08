@@ -1,4 +1,3 @@
-
 // Shared AI Optimization Logic - Compatible with Edge Functions and Frontend
 // This eliminates code duplication between client and server implementations
 
@@ -15,7 +14,7 @@ export interface ComplexityFactors {
 
 export interface ComplexityAnalysis {
   complexityScore: number;
-  recommendedModel: 'gpt-4o-mini' | 'gpt-4.1-2025-04-14';
+  recommendedModel: 'gpt-4o-mini' | 'gpt-4.1-2025-04-14' | 'local_distilbert';
   factors: ComplexityFactors;
   reasoning: string[];
   confidenceInDecision: number;
@@ -23,21 +22,11 @@ export interface ComplexityAnalysis {
 
 export interface ModelRoutingDecision {
   questionNumber: number;
-  selectedModel: 'gpt-4o-mini' | 'gpt-4.1-2025-04-14';
+  selectedModel: 'gpt-4o-mini' | 'gpt-4.1-2025-04-14' | 'local_distilbert';
   complexityAnalysis: ComplexityAnalysis;
   fallbackAvailable: boolean;
   estimatedCost: number;
   reasoning: string;
-}
-
-export interface AIOptimizationConfig {
-  simpleThreshold: number;
-  complexThreshold: number;
-  fallbackConfidenceThreshold: number;
-  gpt4oMiniCost: number;
-  gpt41Cost: number;
-  enableAdaptiveThresholds: boolean;
-  validationMode: boolean;
 }
 
 // Default configuration - can be overridden

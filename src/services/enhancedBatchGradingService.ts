@@ -200,7 +200,7 @@ export class EnhancedBatchGradingService {
       
       return {
         complexityScore,
-        recommendedModel: complexityScore > 60 ? 'gpt-4o' : complexityScore > 30 ? 'gpt-4o-mini' : 'local_distilbert',
+        recommendedModel: complexityScore > 60 ? 'gpt-4.1-2025-04-14' : complexityScore > 30 ? 'gpt-4o-mini' : 'local_distilbert',
         factors: {
           ocrConfidence: question.detectedAnswer?.confidence || 0,
           bubbleQuality: question.detectedAnswer?.bubbleQuality || 'unknown',
