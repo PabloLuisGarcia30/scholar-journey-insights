@@ -4,6 +4,7 @@ import { OptimizedQuestionClassifier } from './optimizedQuestionClassifier';
 import { ClassificationLogger } from './classificationLogger';
 import { AnswerKeyMatchingService, AnswerKeyValidationResult } from './answerKeyMatchingService';
 import { ConservativeBatchOptimizer, SkillAwareBatchGroup } from './conservativeBatchOptimizer';
+import { ComplexityAnalysis } from './shared/aiOptimizationShared';
 
 export interface EnhancedBatchJob {
   id: string;
@@ -185,13 +186,32 @@ export class EnhancedBatchGradingService {
       .select('*')
       .eq('exam_id', examId);
 
-    // Prepare complexity analyses (simplified for conservative approach)
-    const complexityAnalyses = questions.map(question => ({
-      questionNumber: question.questionNumber,
-      complexityScore: this.calculateConservativeComplexity(question, validationResult.matches.find(m => m.questionNumber === question.questionNumber)?.answerKey),
-      confidenceInDecision: 0.8,
-      recommendedModel: 'gpt-4o-mini'
-    }));
+    // Prepare proper complexity analyses that match the ComplexityAnalysis interface
+    const complexityAnalyses: ComplexityAnalysis[] = questions.map(question => {
+      const answerKey = validationResult.matches.find(m => m.questionNumber === question.questionNumber)?.answerKey;
+      const complexityScore = this.calculateConservativeComplexity(question, answerKey);
+      
+      return {
+        complexityScore,
+        recommendedModel: complexityScore > 60 ? 'gpt-4.1-2025-04-14' : 'gpt-4o-mini',
+        factors: {
+          ocrConfidence: question.detectedAnswer?.confidence || 0,
+          bubbleQuality: question.detectedAnswer?.bubbleQuality || 'unknown',
+          hasMultipleMarks: question.detectedAnswer?.multipleMarksDetected || false,
+          hasReviewFlags: question.detectedAnswer?.reviewFlag || false,
+          isCrossValidated: question.detectedAnswer?.crossValidated || false,
+          questionType: answerKey?.question_type || 'multiple_choice',
+          answerClarity: question.detectedAnswer?.confidence || 0,
+          selectedAnswer: question.detectedAnswer?.selectedOption || 'no_answer'
+        },
+        reasoning: [
+          `Conservative complexity analysis: ${complexityScore}`,
+          answerKey ? 'Answer key available' : 'No answer key found',
+          `Question type: ${answerKey?.question_type || 'unknown'}`
+        ],
+        confidenceInDecision: answerKey ? 80 : 50
+      };
+    });
 
     // Use conservative batch optimizer
     const skillAwareBatches = this.conservativeBatchOptimizer.optimizeQuestionBatches(

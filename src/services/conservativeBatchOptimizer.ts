@@ -83,7 +83,8 @@ export class ConservativeBatchOptimizer {
     // Phase 2: Create conservative batches within each skill group
     const conservativeBatches = this.createConservativeBatches(
       skillGroupedQuestions, 
-      complexityAnalyses
+      complexityAnalyses,
+      questions
     );
     
     // Phase 3: Apply quality controls
@@ -136,7 +137,8 @@ export class ConservativeBatchOptimizer {
 
   private createConservativeBatches(
     skillGroupedQuestions: Map<string, any>,
-    complexityAnalyses: ComplexityAnalysis[]
+    complexityAnalyses: ComplexityAnalysis[],
+    originalQuestions: any[]
   ): SkillAwareBatchGroup[] {
     const batches: SkillAwareBatchGroup[] = [];
 
@@ -144,7 +146,7 @@ export class ConservativeBatchOptimizer {
       const { questions, answerKeys, skills, subject, skillDomain, rubricType } = group;
       
       // Further group by complexity within skill groups
-      const complexityGroups = this.groupByComplexity(questions, answerKeys, complexityAnalyses);
+      const complexityGroups = this.groupByComplexity(questions, answerKeys, complexityAnalyses, originalQuestions);
       
       for (const [complexity, complexityGroup] of complexityGroups) {
         const maxBatchSize = this.config.maxBatchSizes[complexity as keyof typeof this.config.maxBatchSizes];
@@ -202,7 +204,8 @@ export class ConservativeBatchOptimizer {
   private groupByComplexity(
     questions: any[], 
     answerKeys: any[], 
-    complexityAnalyses: ComplexityAnalysis[]
+    complexityAnalyses: ComplexityAnalysis[],
+    originalQuestions: any[]
   ): Map<string, { questions: any[], answerKeys: any[], skills: any[] }> {
     const complexityGroups = new Map([
       ['simple', { questions: [], answerKeys: [], skills: [] }],
@@ -211,7 +214,13 @@ export class ConservativeBatchOptimizer {
     ]);
 
     questions.forEach((question, index) => {
-      const analysis = complexityAnalyses.find(a => a.questionNumber === question.questionNumber);
+      // Find complexity analysis by matching question number
+      const analysis = complexityAnalyses.find(a => {
+        // Find the original question index to match with complexity analysis
+        const originalIndex = originalQuestions.findIndex(oq => oq.questionNumber === question.questionNumber);
+        return originalIndex === complexityAnalyses.indexOf(a);
+      });
+      
       const complexity = this.determineComplexity(analysis);
       
       const group = complexityGroups.get(complexity);
@@ -243,7 +252,7 @@ export class ConservativeBatchOptimizer {
     // Calculate question type compatibility (how similar are the question formats)
     const questionTypes = answerKeys.map(ak => ak.question_type || 'multiple_choice');
     const uniqueTypes = new Set(questionTypes);
-    const questionTypeCompatibility = questionTypes.length > 0 ? 1 - (uniqueTypes.size - 1) / uniqueTypes.length : 1;
+    const questionTypeCompatibility = questionTypes.length > 0 ? 1 - (uniqueTypes.size - 1) / questionTypes.length : 1;
     
     return {
       skillAlignment,
