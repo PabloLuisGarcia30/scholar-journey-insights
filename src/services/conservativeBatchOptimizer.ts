@@ -12,6 +12,7 @@ export interface SkillAwareBatchGroup {
   recommendedModel: string;
   batchSize: number;
   priority: number;
+  processingMethod: 'local' | 'openai_batch' | 'openai_single';
   qualityMetrics: {
     skillAlignment: number;
     rubricConsistency: number;
@@ -20,7 +21,14 @@ export interface SkillAwareBatchGroup {
 }
 
 export interface ConservativeBatchConfig {
-  maxBatchSizes: {
+  // Aggressive batching for local processing
+  localBatchSizes: {
+    simple: number;
+    medium: number;
+    complex: number;
+  };
+  // Conservative batching for OpenAI processing
+  openAIBatchSizes: {
     simple: number;
     medium: number;
     complex: number;
@@ -32,24 +40,33 @@ export interface ConservativeBatchConfig {
     minSkillAlignment: number;
     minRubricConsistency: number;
     minConfidence: number;
+    localAggressiveThreshold: number; // Confidence threshold for aggressive local batching
   };
   adaptiveSizing: boolean;
   qualityFallbackEnabled: boolean;
 }
 
-const CONSERVATIVE_CONFIG: ConservativeBatchConfig = {
-  maxBatchSizes: {
-    simple: 6,   // Reduced from 15
-    medium: 4,   // Reduced from 10  
-    complex: 2   // Reduced from 6
+const HYBRID_CONSERVATIVE_CONFIG: ConservativeBatchConfig = {
+  // Aggressive batching for simple questions processed locally
+  localBatchSizes: {
+    simple: 20,   // Increased from 6 - aggressive for MCQs
+    medium: 8,    // Increased from 4 - moderate for local processing
+    complex: 3    // Slightly increased from 2
   },
-  minBatchSize: 1, // Allow single questions for maximum accuracy
+  // Conservative batching for OpenAI processing (maintain quality)
+  openAIBatchSizes: {
+    simple: 4,    // Conservative even for simple OpenAI processing
+    medium: 3,    // Very conservative for medium complexity
+    complex: 2    // Ultra conservative for complex reasoning
+  },
+  minBatchSize: 1,
   enableSkillGrouping: true,
   enableRubricGrouping: true,
   qualityThresholds: {
     minSkillAlignment: 0.8,
     minRubricConsistency: 0.9,
-    minConfidence: 0.7
+    minConfidence: 0.7,
+    localAggressiveThreshold: 0.85 // High confidence required for aggressive local batching
   },
   adaptiveSizing: true,
   qualityFallbackEnabled: true
@@ -62,11 +79,12 @@ export class ConservativeBatchOptimizer {
     timestamp: number; 
     batchSize: number; 
     accuracy: number; 
-    skillAccuracy: number; 
+    skillAccuracy: number;
+    processingMethod: string;
   }> = [];
 
   constructor(config: Partial<ConservativeBatchConfig> = {}) {
-    this.config = { ...CONSERVATIVE_CONFIG, ...config };
+    this.config = { ...HYBRID_CONSERVATIVE_CONFIG, ...config };
   }
 
   optimizeQuestionBatches(
@@ -75,121 +93,245 @@ export class ConservativeBatchOptimizer {
     skillMappings: any[],
     complexityAnalyses: ComplexityAnalysis[]
   ): SkillAwareBatchGroup[] {
-    console.log(`🎯 Conservative batching: Processing ${questions.length} questions with quality-first approach`);
+    console.log(`🎯 Hybrid Conservative Batching: Processing ${questions.length} questions with method-aware strategy`);
 
-    // Phase 1: Group by subject and skill domain first
-    const skillGroupedQuestions = this.groupBySkillDomain(questions, answerKeys, skillMappings);
-    
-    // Phase 2: Create conservative batches within each skill group
-    const conservativeBatches = this.createConservativeBatches(
-      skillGroupedQuestions, 
-      complexityAnalyses,
-      questions
+    // Phase 1: Classify questions by processing method first
+    const { localQuestions, openAIQuestions } = this.separateByProcessingMethod(
+      questions, 
+      answerKeys, 
+      skillMappings, 
+      complexityAnalyses
     );
+
+    console.log(`📊 Method separation: ${localQuestions.length} local, ${openAIQuestions.length} OpenAI`);
+
+    // Phase 2: Create aggressive batches for local processing
+    const localBatches = this.createAggressiveLocalBatches(localQuestions);
     
-    // Phase 3: Apply quality controls
-    const qualityValidatedBatches = this.applyQualityControls(conservativeBatches);
+    // Phase 3: Create conservative batches for OpenAI processing
+    const openAIBatches = this.createConservativeOpenAIBatches(openAIQuestions);
     
-    console.log(`📊 Conservative batching complete: ${qualityValidatedBatches.length} quality-optimized batches`);
+    // Phase 4: Combine and prioritize batches
+    const allBatches = [...localBatches, ...openAIBatches];
+    const prioritizedBatches = this.prioritizeBatches(allBatches);
     
-    return qualityValidatedBatches;
+    console.log(`✅ Hybrid batching complete: ${localBatches.length} aggressive local + ${openAIBatches.length} conservative OpenAI batches`);
+    
+    return prioritizedBatches;
   }
 
-  private groupBySkillDomain(
+  private separateByProcessingMethod(
     questions: any[], 
     answerKeys: any[], 
-    skillMappings: any[]
-  ): Map<string, { questions: any[], answerKeys: any[], skills: any[] }> {
-    const skillGroups = new Map();
+    skillMappings: any[], 
+    complexityAnalyses: ComplexityAnalysis[]
+  ): {
+    localQuestions: Array<{
+      question: any;
+      answerKey: any;
+      skills: any[];
+      analysis: ComplexityAnalysis;
+      index: number;
+    }>;
+    openAIQuestions: Array<{
+      question: any;
+      answerKey: any;
+      skills: any[];
+      analysis: ComplexityAnalysis;
+      index: number;
+    }>;
+  } {
+    const localQuestions: any[] = [];
+    const openAIQuestions: any[] = [];
 
     questions.forEach((question, index) => {
       const answerKey = answerKeys.find(ak => ak.question_number === question.questionNumber);
       const questionSkills = skillMappings.filter(sm => sm.question_number === question.questionNumber);
-      
-      if (!answerKey) return;
+      const analysis = complexityAnalyses[index];
 
-      // Create grouping key based on subject and primary skill domain
-      const subject = this.extractSubject(answerKey, questionSkills);
-      const skillDomain = this.extractSkillDomain(questionSkills);
-      const rubricType = this.extractRubricType(answerKey);
-      
-      const groupKey = `${subject}_${skillDomain}_${rubricType}`;
-      
-      if (!skillGroups.has(groupKey)) {
-        skillGroups.set(groupKey, {
-          questions: [],
-          answerKeys: [],
-          skills: [],
-          subject,
-          skillDomain,
-          rubricType
-        });
+      if (!answerKey || !analysis) {
+        // Missing data -> OpenAI for safety
+        openAIQuestions.push({ question, answerKey, skills: questionSkills, analysis, index });
+        return;
       }
+
+      const processingMethod = this.determineProcessingMethod(question, answerKey, analysis);
       
-      const group = skillGroups.get(groupKey);
-      group.questions.push(question);
-      group.answerKeys.push(answerKey);
-      group.skills.push(questionSkills);
+      if (processingMethod === 'local') {
+        localQuestions.push({ question, answerKey, skills: questionSkills, analysis, index });
+      } else {
+        openAIQuestions.push({ question, answerKey, skills: questionSkills, analysis, index });
+      }
     });
 
-    return skillGroups;
+    return { localQuestions, openAIQuestions };
   }
 
-  private createConservativeBatches(
-    skillGroupedQuestions: Map<string, any>,
-    complexityAnalyses: ComplexityAnalysis[],
-    originalQuestions: any[]
+  private determineProcessingMethod(
+    question: any,
+    answerKey: any,
+    analysis: ComplexityAnalysis
+  ): 'local' | 'openai' {
+    // Enhanced routing logic for aggressive local batching
+    
+    // High confidence simple questions -> aggressive local processing
+    if (analysis.complexityScore <= 30 && 
+        analysis.confidenceInDecision >= this.config.qualityThresholds.localAggressiveThreshold) {
+      
+      // Additional checks for truly simple questions
+      const questionType = answerKey.question_type?.toLowerCase() || '';
+      const hasReviewFlags = question.detectedAnswer?.reviewFlag || 
+                           question.detectedAnswer?.multipleMarksDetected ||
+                           (question.detectedAnswer?.confidence || 0) < 0.7;
+
+      // Simple MCQs, T/F, basic numeric without review flags
+      if ((questionType.includes('multiple') || 
+           questionType.includes('true') || 
+           questionType.includes('false') ||
+           this.isSimpleNumeric(answerKey)) && 
+          !hasReviewFlags) {
+        return 'local';
+      }
+    }
+
+    // Medium confidence medium complexity -> conservative local
+    if (analysis.complexityScore <= 50 && 
+        analysis.confidenceInDecision >= 0.80 &&
+        answerKey.question_type?.toLowerCase().includes('multiple')) {
+      return 'local';
+    }
+
+    // Everything else -> OpenAI for quality
+    return 'openai';
+  }
+
+  private isSimpleNumeric(answerKey: any): boolean {
+    const correctAnswer = answerKey.correct_answer?.toString() || '';
+    const questionText = answerKey.question_text?.toLowerCase() || '';
+    
+    // Simple numeric: single number, basic calculation
+    const isNumeric = /^\d+(\.\d+)?$/.test(correctAnswer.trim());
+    const isBasicMath = questionText.includes('calculate') || 
+                       questionText.includes('solve') ||
+                       questionText.includes('find');
+    
+    return isNumeric && isBasicMath && correctAnswer.length <= 10;
+  }
+
+  private createAggressiveLocalBatches(
+    localQuestions: Array<{
+      question: any;
+      answerKey: any;
+      skills: any[];
+      analysis: ComplexityAnalysis;
+      index: number;
+    }>
   ): SkillAwareBatchGroup[] {
+    console.log(`🚀 Creating aggressive batches for ${localQuestions.length} local questions`);
+    
     const batches: SkillAwareBatchGroup[] = [];
 
-    for (const [groupKey, group] of skillGroupedQuestions) {
-      const { questions, answerKeys, skills, subject, skillDomain, rubricType } = group;
+    // Group by complexity for aggressive batching
+    const complexityGroups = this.groupLocalQuestionsByComplexity(localQuestions);
+    
+    for (const [complexity, group] of complexityGroups) {
+      const maxBatchSize = this.config.localBatchSizes[complexity as keyof typeof this.config.localBatchSizes];
       
-      // Further group by complexity within skill groups
-      const complexityGroups = this.groupByComplexity(questions, answerKeys, complexityAnalyses, originalQuestions);
+      // Create large, aggressive batches for local processing
+      for (let i = 0; i < group.length; i += maxBatchSize) {
+        const batchQuestions = group.slice(i, i + maxBatchSize);
+        
+        if (batchQuestions.length > 0) {
+          const questions = batchQuestions.map(q => q.question);
+          const answerKeys = batchQuestions.map(q => q.answerKey);
+          const skills = batchQuestions.map(q => q.skills);
+          const analyses = batchQuestions.map(q => q.analysis);
+          
+          const qualityMetrics = this.calculateBatchQualityMetrics(questions, answerKeys, skills);
+          
+          batches.push({
+            id: `aggressive_local_${++this.batchCounter}`,
+            questions,
+            answerKeys,
+            complexity: complexity as any,
+            subject: this.extractSubject(answerKeys[0], skills[0]),
+            skillDomain: this.extractSkillDomain(skills.flat()),
+            rubricType: this.extractRubricType(answerKeys[0]),
+            confidenceRange: this.calculateConfidenceRange(analyses),
+            recommendedModel: 'local_distilbert',
+            batchSize: questions.length,
+            priority: this.calculateAggressivePriority(complexity as any, analyses),
+            processingMethod: 'local',
+            qualityMetrics
+          });
+        }
+      }
+    }
+
+    return batches;
+  }
+
+  private createConservativeOpenAIBatches(
+    openAIQuestions: Array<{
+      question: any;
+      answerKey: any;
+      skills: any[];
+      analysis: ComplexityAnalysis;
+      index: number;
+    }>
+  ): SkillAwareBatchGroup[] {
+    console.log(`🎯 Creating conservative batches for ${openAIQuestions.length} OpenAI questions`);
+    
+    const batches: SkillAwareBatchGroup[] = [];
+
+    // Group by skill domain and complexity for conservative batching
+    const skillGroups = this.groupOpenAIQuestionsBySkill(openAIQuestions);
+    
+    for (const [groupKey, group] of skillGroups) {
+      const complexityGroups = this.groupByComplexityConservative(group);
       
       for (const [complexity, complexityGroup] of complexityGroups) {
-        const maxBatchSize = this.config.maxBatchSizes[complexity as keyof typeof this.config.maxBatchSizes];
+        const maxBatchSize = this.config.openAIBatchSizes[complexity as keyof typeof this.config.openAIBatchSizes];
         
-        // Create small, conservative batches
-        for (let i = 0; i < complexityGroup.questions.length; i += maxBatchSize) {
-          const batchQuestions = complexityGroup.questions.slice(i, i + maxBatchSize);
-          const batchAnswerKeys = complexityGroup.answerKeys.slice(i, i + maxBatchSize);
-          const batchSkills = complexityGroup.skills.slice(i, i + maxBatchSize);
+        // Create small, conservative batches for OpenAI processing
+        for (let i = 0; i < complexityGroup.length; i += maxBatchSize) {
+          const batchQuestions = complexityGroup.slice(i, i + maxBatchSize);
           
           if (batchQuestions.length > 0) {
-            const qualityMetrics = this.calculateBatchQualityMetrics(
-              batchQuestions, 
-              batchAnswerKeys, 
-              batchSkills
-            );
+            const questions = batchQuestions.map(q => q.question);
+            const answerKeys = batchQuestions.map(q => q.answerKey);
+            const skills = batchQuestions.map(q => q.skills);
+            const analyses = batchQuestions.map(q => q.analysis);
+            
+            const qualityMetrics = this.calculateBatchQualityMetrics(questions, answerKeys, skills);
             
             // Only create batch if it meets quality thresholds
             if (this.meetQualityThresholds(qualityMetrics)) {
               batches.push({
-                id: `conservative_batch_${++this.batchCounter}`,
-                questions: batchQuestions,
-                answerKeys: batchAnswerKeys,
+                id: `conservative_openai_${++this.batchCounter}`,
+                questions,
+                answerKeys,
                 complexity: complexity as any,
-                subject,
-                skillDomain,
-                rubricType,
-                confidenceRange: this.calculateConfidenceRange(batchSkills),
-                recommendedModel: this.selectModelForBatch(complexity as any, qualityMetrics),
-                batchSize: batchQuestions.length,
-                priority: this.calculateConservativePriority(complexity as any, qualityMetrics),
+                subject: this.extractSubject(answerKeys[0], skills[0]),
+                skillDomain: this.extractSkillDomain(skills.flat()),
+                rubricType: this.extractRubricType(answerKeys[0]),
+                confidenceRange: this.calculateConfidenceRange(analyses),
+                recommendedModel: this.selectConservativeModel(complexity as any, qualityMetrics),
+                batchSize: questions.length,
+                priority: this.calculateConservativePriority(complexity as any, analyses),
+                processingMethod: batchQuestions.length === 1 ? 'openai_single' : 'openai_batch',
                 qualityMetrics
               });
             } else {
-              // Split into individual questions if batch doesn't meet quality thresholds
-              batchQuestions.forEach((question, qIndex) => {
+              // Split into individual questions for maximum quality
+              batchQuestions.forEach((questionData) => {
                 batches.push(this.createSingleQuestionBatch(
-                  question,
-                  batchAnswerKeys[qIndex],
-                  batchSkills[qIndex],
-                  subject,
-                  skillDomain,
-                  rubricType
+                  questionData.question,
+                  questionData.answerKey,
+                  questionData.skills,
+                  this.extractSubject(questionData.answerKey, questionData.skills),
+                  this.extractSkillDomain(questionData.skills),
+                  this.extractRubricType(questionData.answerKey)
                 ));
               });
             }
@@ -198,40 +340,117 @@ export class ConservativeBatchOptimizer {
       }
     }
 
-    return batches.sort((a, b) => b.priority - a.priority);
+    return batches;
   }
 
-  private groupByComplexity(
-    questions: any[], 
-    answerKeys: any[], 
-    complexityAnalyses: ComplexityAnalysis[],
-    originalQuestions: any[]
-  ): Map<string, { questions: any[], answerKeys: any[], skills: any[] }> {
-    const complexityGroups = new Map([
-      ['simple', { questions: [], answerKeys: [], skills: [] }],
-      ['medium', { questions: [], answerKeys: [], skills: [] }],
-      ['complex', { questions: [], answerKeys: [], skills: [] }]
+  private groupLocalQuestionsByComplexity(
+    questions: Array<{
+      question: any;
+      answerKey: any;
+      skills: any[];
+      analysis: ComplexityAnalysis;
+      index: number;
+    }>
+  ): Map<string, typeof questions> {
+    const groups = new Map([
+      ['simple', []],
+      ['medium', []],
+      ['complex', []]
     ]);
 
-    questions.forEach((question, index) => {
-      // Find complexity analysis by matching question number
-      const analysis = complexityAnalyses.find(a => {
-        // Find the original question index to match with complexity analysis
-        const originalIndex = originalQuestions.findIndex(oq => oq.questionNumber === question.questionNumber);
-        return originalIndex === complexityAnalyses.indexOf(a);
-      });
-      
-      const complexity = this.determineComplexity(analysis);
-      
-      const group = complexityGroups.get(complexity);
+    questions.forEach((questionData) => {
+      const complexity = this.determineComplexity(questionData.analysis);
+      const group = groups.get(complexity);
       if (group) {
-        group.questions.push(question);
-        group.answerKeys.push(answerKeys[index]);
-        group.skills.push([]);
+        group.push(questionData);
       }
     });
 
-    return complexityGroups;
+    return groups;
+  }
+
+  private groupOpenAIQuestionsBySkill(
+    questions: Array<{
+      question: any;
+      answerKey: any;
+      skills: any[];
+      analysis: ComplexityAnalysis;
+      index: number;
+    }>
+  ): Map<string, typeof questions> {
+    const groups = new Map();
+
+    questions.forEach((questionData) => {
+      const subject = this.extractSubject(questionData.answerKey, questionData.skills);
+      const skillDomain = this.extractSkillDomain(questionData.skills);
+      const rubricType = this.extractRubricType(questionData.answerKey);
+      
+      const groupKey = `${subject}_${skillDomain}_${rubricType}`;
+      
+      if (!groups.has(groupKey)) {
+        groups.set(groupKey, []);
+      }
+      
+      groups.get(groupKey).push(questionData);
+    });
+
+    return groups;
+  }
+
+  private groupByComplexityConservative(questions: any[]): Map<string, any[]> {
+    const groups = new Map([
+      ['simple', []],
+      ['medium', []],
+      ['complex', []]
+    ]);
+
+    questions.forEach((questionData) => {
+      const complexity = this.determineComplexity(questionData.analysis);
+      const group = groups.get(complexity);
+      if (group) {
+        group.push(questionData);
+      }
+    });
+
+    return groups;
+  }
+
+  private prioritizeBatches(batches: SkillAwareBatchGroup[]): SkillAwareBatchGroup[] {
+    return batches.sort((a, b) => {
+      // Prioritize local processing for speed
+      if (a.processingMethod === 'local' && b.processingMethod !== 'local') return -1;
+      if (b.processingMethod === 'local' && a.processingMethod !== 'local') return 1;
+      
+      // Then by priority score
+      return b.priority - a.priority;
+    });
+  }
+
+  private calculateAggressivePriority(
+    complexity: 'simple' | 'medium' | 'complex',
+    analyses: ComplexityAnalysis[]
+  ): number {
+    let priority = 70; // Higher base priority for local processing
+
+    // Bonus for high confidence (reliable fast processing)
+    const avgConfidence = analyses.reduce((sum, a) => sum + a.confidenceInDecision, 0) / analyses.length;
+    priority += (avgConfidence / 100) * 20;
+
+    // Simple questions get highest priority for quick wins
+    switch (complexity) {
+      case 'simple': priority += 30; break;
+      case 'medium': priority += 20; break;
+      case 'complex': priority += 10; break;
+    }
+
+    // Bonus for larger batches (efficiency)
+    if (analyses.length >= 10) {
+      priority += 15;
+    } else if (analyses.length >= 5) {
+      priority += 10;
+    }
+
+    return Math.round(priority);
   }
 
   private calculateBatchQualityMetrics(
@@ -239,17 +458,14 @@ export class ConservativeBatchOptimizer {
     answerKeys: any[], 
     skillMappings: any[]
   ): { skillAlignment: number; rubricConsistency: number; questionTypeCompatibility: number } {
-    // Calculate skill alignment (how similar are the skills being tested)
     const allSkills = skillMappings.flat().map(s => s.skill_name);
     const uniqueSkills = new Set(allSkills);
     const skillAlignment = allSkills.length > 0 ? 1 - (uniqueSkills.size - 1) / allSkills.length : 1;
     
-    // Calculate rubric consistency (how similar are the grading criteria)
     const rubricTypes = answerKeys.map(ak => this.extractRubricType(ak));
     const uniqueRubrics = new Set(rubricTypes);
     const rubricConsistency = rubricTypes.length > 0 ? 1 - (uniqueRubrics.size - 1) / rubricTypes.length : 1;
     
-    // Calculate question type compatibility (how similar are the question formats)
     const questionTypes = answerKeys.map(ak => ak.question_type || 'multiple_choice');
     const uniqueTypes = new Set(questionTypes);
     const questionTypeCompatibility = questionTypes.length > 0 ? 1 - (uniqueTypes.size - 1) / questionTypes.length : 1;
@@ -282,10 +498,11 @@ export class ConservativeBatchOptimizer {
       subject,
       skillDomain,
       rubricType,
-      confidenceRange: [1.0, 1.0], // Perfect confidence for single questions
-      recommendedModel: 'gpt-4o-mini',
+      confidenceRange: [1.0, 1.0],
+      recommendedModel: 'gpt-4o',
       batchSize: 1,
-      priority: 100, // High priority for individual processing
+      priority: 100,
+      processingMethod: 'openai_single',
       qualityMetrics: {
         skillAlignment: 1.0,
         rubricConsistency: 1.0,
@@ -294,42 +511,15 @@ export class ConservativeBatchOptimizer {
     };
   }
 
-  private applyQualityControls(batches: SkillAwareBatchGroup[]): SkillAwareBatchGroup[] {
-    if (!this.config.qualityFallbackEnabled) return batches;
-
-    return batches.map(batch => {
-      // Check if batch size should be reduced based on quality metrics
-      if (batch.qualityMetrics.skillAlignment < 0.6 && batch.batchSize > 2) {
-        console.log(`⚠️ Reducing batch ${batch.id} size due to low skill alignment`);
-        
-        // Split batch in half
-        const midPoint = Math.ceil(batch.batchSize / 2);
-        const firstHalf = {
-          ...batch,
-          id: `${batch.id}_split_1`,
-          questions: batch.questions.slice(0, midPoint),
-          answerKeys: batch.answerKeys.slice(0, midPoint),
-          batchSize: midPoint
-        };
-        
-        return firstHalf; // Return first half, second half would need separate handling
-      }
-      
-      return batch;
-    });
-  }
-
   private extractSubject(answerKey: any, skills: any[]): string {
-    return skills[0]?.subject || answerKey.subject || 'General';
+    return skills[0]?.subject || answerKey?.subject || 'General';
   }
 
   private extractSkillDomain(skills: any[]): string {
     if (skills.length === 0) return 'General';
     
-    // Group similar skills
     const skillNames = skills.map(s => s.skill_name);
     
-    // Simple domain extraction logic
     if (skillNames.some(s => s.includes('Algebra'))) return 'Algebra';
     if (skillNames.some(s => s.includes('Geometry'))) return 'Geometry';
     if (skillNames.some(s => s.includes('Reading'))) return 'Reading';
@@ -339,8 +529,8 @@ export class ConservativeBatchOptimizer {
   }
 
   private extractRubricType(answerKey: any): string {
-    const questionType = answerKey.question_type || 'multiple_choice';
-    const points = answerKey.points || 1;
+    const questionType = answerKey?.question_type || 'multiple_choice';
+    const points = answerKey?.points || 1;
     
     if (points > 1) return 'multi_point';
     if (questionType.includes('essay')) return 'essay';
@@ -357,42 +547,46 @@ export class ConservativeBatchOptimizer {
     return 'complex';
   }
 
-  private calculateConfidenceRange(skillMappings: any[][]): [number, number] {
-    const confidences = skillMappings.flat().map(s => s.confidence || 0.8);
+  private calculateConfidenceRange(analyses: ComplexityAnalysis[]): [number, number] {
+    const confidences = analyses.map(a => a.confidenceInDecision);
     if (confidences.length === 0) return [0.8, 0.8];
     
     return [Math.min(...confidences), Math.max(...confidences)];
   }
 
-  private selectModelForBatch(complexity: 'simple' | 'medium' | 'complex', metrics: any): string {
-    // Conservative model selection prioritizing accuracy
+  private selectConservativeModel(complexity: 'simple' | 'medium' | 'complex', metrics: any): string {
     if (complexity === 'complex' || metrics.skillAlignment < 0.7) {
-      return 'gpt-4o'; // Use more powerful model for complex/uncertain cases
+      return 'gpt-4o';
     }
     
     return 'gpt-4o-mini';
   }
 
-  private calculateConservativePriority(complexity: 'simple' | 'medium' | 'complex', metrics: any): number {
-    let priority = 50; // Base priority
+  private calculateConservativePriority(
+    complexity: 'simple' | 'medium' | 'complex',
+    analyses: ComplexityAnalysis[]
+  ): number {
+    let priority = 50;
     
-    // Higher priority for higher quality batches
-    priority += metrics.skillAlignment * 30;
-    priority += metrics.rubricConsistency * 20;
-    
-    // Adjust for complexity (simple questions get slight priority boost for quick wins)
+    const avgConfidence = analyses.reduce((sum, a) => sum + a.confidenceInDecision, 0) / analyses.length;
+    priority += (avgConfidence / 100) * 30;
+
     switch (complexity) {
       case 'simple': priority += 10; break;
       case 'medium': priority += 5; break;
-      case 'complex': priority += 15; break; // Complex questions get high priority for accuracy
+      case 'complex': priority += 15; break;
     }
     
+    if (analyses.length <= 2) {
+      priority += 10;
+    }
+
     return Math.round(priority);
   }
 
   updateConfiguration(config: Partial<ConservativeBatchConfig>): void {
     this.config = { ...this.config, ...config };
-    console.log('🎯 Conservative batch configuration updated:', this.config);
+    console.log('🎯 Hybrid Conservative batch configuration updated:', this.config);
   }
 
   getQualityMetrics(): {
@@ -400,37 +594,44 @@ export class ConservativeBatchOptimizer {
     qualityThresholdsMet: number;
     skillAlignmentAverage: number;
     rubricConsistencyAverage: number;
+    localVsOpenAIRatio: number;
   } {
     if (this.qualityMetrics.length === 0) {
       return {
         averageBatchSize: 0,
         qualityThresholdsMet: 0,
         skillAlignmentAverage: 0,
-        rubricConsistencyAverage: 0
+        rubricConsistencyAverage: 0,
+        localVsOpenAIRatio: 0
       };
     }
 
+    const localMetrics = this.qualityMetrics.filter(m => m.processingMethod === 'local');
+    const openAIMetrics = this.qualityMetrics.filter(m => m.processingMethod !== 'local');
+    
     const avgBatchSize = this.qualityMetrics.reduce((sum, m) => sum + m.batchSize, 0) / this.qualityMetrics.length;
     const avgAccuracy = this.qualityMetrics.reduce((sum, m) => sum + m.accuracy, 0) / this.qualityMetrics.length;
     const avgSkillAccuracy = this.qualityMetrics.reduce((sum, m) => sum + m.skillAccuracy, 0) / this.qualityMetrics.length;
+    const localVsOpenAIRatio = localMetrics.length / Math.max(openAIMetrics.length, 1);
     
     return {
       averageBatchSize: avgBatchSize,
       qualityThresholdsMet: avgAccuracy,
       skillAlignmentAverage: avgSkillAccuracy,
-      rubricConsistencyAverage: avgAccuracy
+      rubricConsistencyAverage: avgAccuracy,
+      localVsOpenAIRatio
     };
   }
 
-  recordBatchQuality(batchSize: number, accuracy: number, skillAccuracy: number): void {
+  recordBatchQuality(batchSize: number, accuracy: number, skillAccuracy: number, processingMethod: string): void {
     this.qualityMetrics.push({
       timestamp: Date.now(),
       batchSize,
       accuracy,
-      skillAccuracy
+      skillAccuracy,
+      processingMethod
     });
     
-    // Keep only last 100 metrics
     if (this.qualityMetrics.length > 100) {
       this.qualityMetrics = this.qualityMetrics.slice(-100);
     }
@@ -438,18 +639,18 @@ export class ConservativeBatchOptimizer {
 
   generateConservativeSummary(batches: SkillAwareBatchGroup[]): string {
     const totalQuestions = batches.reduce((sum, batch) => sum + batch.questions.length, 0);
-    const avgBatchSize = totalQuestions > 0 ? (totalQuestions / batches.length).toFixed(1) : '0';
+    const localBatches = batches.filter(b => b.processingMethod === 'local');
+    const openAIBatches = batches.filter(b => b.processingMethod !== 'local');
     
-    const complexityDist = batches.reduce((dist, batch) => {
-      dist[batch.complexity] = (dist[batch.complexity] || 0) + batch.questions.length;
-      return dist;
-    }, {} as Record<string, number>);
+    const localQuestions = localBatches.reduce((sum, batch) => sum + batch.questions.length, 0);
+    const openAIQuestions = openAIBatches.reduce((sum, batch) => sum + batch.questions.length, 0);
+    
+    const avgLocalBatchSize = localBatches.length > 0 ? 
+      (localQuestions / localBatches.length).toFixed(1) : '0';
+    const avgOpenAIBatchSize = openAIBatches.length > 0 ? 
+      (openAIQuestions / openAIBatches.length).toFixed(1) : '0';
 
-    const avgSkillAlignment = batches.reduce((sum, batch) => 
-      sum + batch.qualityMetrics.skillAlignment, 0) / batches.length;
-
-    return `Conservative Batch Summary: ${totalQuestions} questions → ${batches.length} quality-optimized batches (avg: ${avgBatchSize}). ` +
-           `Distribution - Simple: ${complexityDist.simple || 0}, Medium: ${complexityDist.medium || 0}, Complex: ${complexityDist.complex || 0}. ` +
-           `Average skill alignment: ${(avgSkillAlignment * 100).toFixed(1)}%. Quality-first approach prioritizing accuracy over speed.`;
+    return `Hybrid Conservative Batching: ${totalQuestions} questions → ${localBatches.length} aggressive local (avg: ${avgLocalBatchSize}) + ${openAIBatches.length} conservative OpenAI (avg: ${avgOpenAIBatchSize}) batches. ` +
+           `Efficiency: ${localQuestions} local (${((localQuestions/totalQuestions)*100).toFixed(1)}%) for speed, ${openAIQuestions} OpenAI for quality.`;
   }
 }
