@@ -8,7 +8,8 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuCheckboxItem } from "@/components/ui/dropdown-menu";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Moon, UserCheck, FileText, FileCheck, BookOpen, X, Check } from "lucide-react";
+import { Moon, UserCheck, FileText, FileCheck, BookOpen, X, Check, Layers } from "lucide-react";
+import { toast } from "sonner";
 import { 
   getAllActiveStudents,
   getStudentContentSkillScores,
@@ -16,6 +17,8 @@ import {
   type ActiveStudent,
   type ActiveClass
 } from "@/services/examService";
+import { useMultiSkillSelection } from "@/contexts/MultiSkillSelectionContext";
+import { generatePracticeTest } from "@/services/practiceTestService";
 
 interface SkillScore {
   skill_name: string;
@@ -24,6 +27,11 @@ interface SkillScore {
 
 interface StudentWithSkills extends ActiveStudent {
   lowestSkills: SkillScore[];
+}
+
+interface StudentPerformanceOverviewProps {
+  students?: ActiveStudent[];
+  classes?: ActiveClass[];
 }
 
 // Mock data for students without scores
@@ -46,10 +54,10 @@ const generateMockSkills = (): SkillScore[] => {
   return shuffled.slice(0, 5).sort((a, b) => a.score - b.score);
 };
 
-export function StudentPerformanceOverview() {
+export function StudentPerformanceOverview({ students: propStudents, classes: propClasses }: StudentPerformanceOverviewProps) {
   const [studentsWithSkills, setStudentsWithSkills] = useState<StudentWithSkills[]>([]);
   const [allStudentsWithSkills, setAllStudentsWithSkills] = useState<StudentWithSkills[]>([]);
-  const [classes, setClasses] = useState<ActiveClass[]>([]);
+  const [classes, setClasses] = useState<ActiveClass[]>(propClasses || []);
   const [selectedClass, setSelectedClass] = useState<ActiveClass | null>(null);
   const [selectedSubject, setSelectedSubject] = useState<string>("all_subjects");
   const [selectedClasses, setSelectedClasses] = useState<ActiveClass[]>([]);
@@ -59,7 +67,11 @@ export function StudentPerformanceOverview() {
   const [subjectDropdownOpen, setSubjectDropdownOpen] = useState(false);
   const [viewMode, setViewMode] = useState<'class' | 'subject' | 'multi-class' | 'multi-subject'>('class');
   const [showMultiClassSelector, setShowMultiClassSelector] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!propStudents);
+  const [generatingTests, setGeneratingTests] = useState<Set<string>>(new Set());
+
+  // Multi-skill selection context
+  const { isSelectionMode, toggleSelectionMode, toggleSkillSelection, selectedSkills } = useMultiSkillSelection();
 
   // Get unique subjects from classes
   const availableSubjects = Array.from(new Set(classes.map(c => c.subject))).sort();
@@ -75,8 +87,15 @@ export function StudentPerformanceOverview() {
     : [];
 
   useEffect(() => {
-    loadDashboardData();
-  }, []);
+    if (propStudents && propClasses) {
+      // Use provided data
+      loadStudentSkills(propStudents);
+      setClasses(propClasses);
+    } else {
+      // Load data independently
+      loadDashboardData();
+    }
+  }, [propStudents, propClasses]);
 
   const loadDashboardData = async () => {
     try {
@@ -133,6 +152,104 @@ export function StudentPerformanceOverview() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const loadStudentSkills = async (students: ActiveStudent[]) => {
+    const studentsWithSkillsData = await Promise.all(
+      students.map(async (student) => {
+        try {
+          const skillScores = await getStudentContentSkillScores(student.id);
+          
+          let lowestSkills: SkillScore[];
+          
+          if (skillScores && skillScores.length > 0) {
+            lowestSkills = skillScores
+              .map(score => ({
+                skill_name: score.skill_name,
+                score: score.score
+              }))
+              .sort((a, b) => a.score - b.score)
+              .slice(0, 5);
+          } else {
+            lowestSkills = generateMockSkills();
+          }
+
+          return {
+            ...student,
+            lowestSkills
+          };
+        } catch (error) {
+          console.error(`Error fetching skills for student ${student.id}:`, error);
+          return {
+            ...student,
+            lowestSkills: generateMockSkills()
+          };
+        }
+      })
+    );
+
+    setAllStudentsWithSkills(studentsWithSkillsData);
+    setStudentsWithSkills(studentsWithSkillsData);
+  };
+
+  // Handle skill circle click for practice test generation
+  const handleSkillClick = async (student: StudentWithSkills, skill: SkillScore) => {
+    if (isSelectionMode) {
+      // Multi-selection mode: add/remove skill from selection
+      const selectedSkill = {
+        id: `${student.id}-${skill.skill_name}`,
+        name: skill.skill_name,
+        score: skill.score,
+        type: 'content' as const
+      };
+      toggleSkillSelection(selectedSkill);
+      return;
+    }
+
+    // Single practice test generation
+    const testKey = `${student.id}-${skill.skill_name}`;
+    setGeneratingTests(prev => new Set([...prev, testKey]));
+
+    try {
+      // Find student's class for context
+      const studentClass = classes.find(cls => 
+        cls.students && cls.students.includes(student.id)
+      );
+
+      const practiceTest = await generatePracticeTest({
+        studentName: student.name,
+        className: studentClass?.name || 'Unknown Class',
+        skillName: skill.skill_name,
+        grade: student.year || 'Grade 10',
+        subject: studentClass?.subject || 'Math',
+        classId: studentClass?.id
+      });
+
+      toast.success(`Practice test generated for ${skill.skill_name}`);
+      console.log('Generated practice test:', practiceTest);
+      
+      // TODO: Show practice test results or navigate to test view
+      
+    } catch (error) {
+      console.error('Error generating practice test:', error);
+      toast.error(`Failed to generate practice test: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setGeneratingTests(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(testKey);
+        return newSet;
+      });
+    }
+  };
+
+  // Check if a skill is selected in multi-selection mode
+  const isSkillSelected = (student: StudentWithSkills, skill: SkillScore) => {
+    return selectedSkills.some(s => s.id === `${student.id}-${skill.skill_name}`);
+  };
+
+  // Check if a skill is currently generating a test
+  const isSkillGenerating = (student: StudentWithSkills, skill: SkillScore) => {
+    return generatingTests.has(`${student.id}-${skill.skill_name}`);
   };
 
   const handleClassFilter = (selectedClass: ActiveClass | null) => {
@@ -357,17 +474,14 @@ export function StudentPerformanceOverview() {
 
   const handleCreatePracticeForSeveral = () => {
     console.log('Create practice exercise for several students clicked');
-    // TODO: Implement multi-student practice exercise creation
   };
 
   const handleCreatePracticeForOne = () => {
     console.log('Create practice exercise for one student clicked');
-    // TODO: Implement single student practice exercise creation
   };
 
   const handleShowStudentsSkillsForAllSubjects = () => {
     console.log('Show students skills for all subjects clicked');
-    // Reset to show all students with all skills
     setViewMode('subject');
     setSelectedClass(null);
     setSelectedSubject("all_subjects");
@@ -685,6 +799,23 @@ export function StudentPerformanceOverview() {
                     </TooltipContent>
                   </Tooltip>
                 </div>
+
+                {/* Multi-Select Toggle Button */}
+                <Tooltip delayDuration={0}>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant={isSelectionMode ? "default" : "outline"}
+                      size="icon"
+                      className="h-8 w-8 rounded-full"
+                      onClick={toggleSelectionMode}
+                    >
+                      <Layers className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>{isSelectionMode ? 'Exit' : 'Enter'} multi-select mode</p>
+                  </TooltipContent>
+                </Tooltip>
               </div>
             </TooltipProvider>
           </div>
@@ -937,6 +1068,23 @@ export function StudentPerformanceOverview() {
                   </TooltipContent>
                 </Tooltip>
               </div>
+
+              {/* Multi-Select Toggle Button */}
+              <Tooltip delayDuration={0}>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant={isSelectionMode ? "default" : "outline"}
+                    size="icon"
+                    className="h-8 w-8 rounded-full"
+                    onClick={toggleSelectionMode}
+                  >
+                    <Layers className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>{isSelectionMode ? 'Exit' : 'Enter'} multi-select mode</p>
+                </TooltipContent>
+              </Tooltip>
             </div>
           </TooltipProvider>
         </div>
@@ -1050,22 +1198,47 @@ export function StudentPerformanceOverview() {
                 </div>
                 
                 <div className="flex items-end gap-4">
-                  {student.lowestSkills.map((skill, index) => (
-                    <div key={index} className="flex flex-col items-center">
-                      <div className="h-10 text-xs text-slate-600 text-center mb-2 w-16 leading-tight flex items-center justify-center">
-                        <span className="line-clamp-2">{skill.skill_name}</span>
+                  {student.lowestSkills.map((skill, index) => {
+                    const isSelected = isSkillSelected(student, skill);
+                    const isGenerating = isSkillGenerating(student, skill);
+                    
+                    return (
+                      <div key={index} className="flex flex-col items-center">
+                        <div className="h-10 text-xs text-slate-600 text-center mb-2 w-16 leading-tight flex items-center justify-center">
+                          <span className="line-clamp-2">{skill.skill_name}</span>
+                        </div>
+                        <div className="relative">
+                          <div 
+                            className={`h-12 w-12 rounded-full bg-gradient-to-br ${getScoreColor(skill.score)} 
+                              flex items-center justify-center shadow-sm hover:shadow-md hover:scale-105 
+                              transition-all duration-200 cursor-pointer
+                              ${isSelected ? 'ring-2 ring-blue-500 ring-offset-2' : ''}
+                              ${isGenerating ? 'animate-pulse' : ''}`}
+                            onClick={() => handleSkillClick(student, skill)}
+                            title={isSelectionMode 
+                              ? `${isSelected ? 'Remove' : 'Add'} ${skill.skill_name} ${isSelected ? 'from' : 'to'} selection`
+                              : `Click to generate practice test for ${skill.skill_name}`
+                            }
+                          >
+                            {isGenerating ? (
+                              <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full" />
+                            ) : (
+                              <span className="text-xs font-bold text-white drop-shadow-sm">
+                                {skill.score}%
+                              </span>
+                            )}
+                          </div>
+                          
+                          {/* Selection indicator */}
+                          {isSelectionMode && isSelected && (
+                            <div className="absolute -top-1 -right-1 h-4 w-4 bg-blue-500 rounded-full flex items-center justify-center">
+                              <Check className="h-2.5 w-2.5 text-white" />
+                            </div>
+                          )}
+                        </div>
                       </div>
-                      <div 
-                        className={`h-12 w-12 rounded-full bg-gradient-to-br ${getScoreColor(skill.score)} 
-                          flex items-center justify-center shadow-sm hover:shadow-md hover:scale-105 
-                          transition-all duration-200`}
-                      >
-                        <span className="text-xs font-bold text-white drop-shadow-sm">
-                          {skill.score}%
-                        </span>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                   
                   {/* Fill remaining slots if less than 5 skills */}
                   {[...Array(Math.max(0, 5 - student.lowestSkills.length))].map((_, index) => (
