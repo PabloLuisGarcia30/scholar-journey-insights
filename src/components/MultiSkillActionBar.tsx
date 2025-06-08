@@ -2,7 +2,7 @@
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { X, FileText } from "lucide-react";
+import { X, FileText, Download, AlertCircle } from "lucide-react";
 import { useMultiSkillSelection } from "@/contexts/MultiSkillSelectionContext";
 import { generateMultiplePracticeTests } from "@/services/practiceTestService";
 import { generateTestPDF } from "@/utils/pdfGenerator";
@@ -16,6 +16,7 @@ interface MultiSkillActionBarProps {
 export function MultiSkillActionBar({ onGenerateTests }: MultiSkillActionBarProps) {
   const { selectedSkills, clearSelection, toggleSelectionMode, isSelectionMode } = useMultiSkillSelection();
   const [isGenerating, setIsGenerating] = useState(false);
+  const [downloadProgress, setDownloadProgress] = useState<{[key: string]: 'pending' | 'generating' | 'downloading' | 'complete' | 'error'}>({});
 
   // Show action bar whenever there are selected skills (regardless of selection mode)
   if (selectedSkills.length === 0) {
@@ -27,6 +28,13 @@ export function MultiSkillActionBar({ onGenerateTests }: MultiSkillActionBarProp
 
     setIsGenerating(true);
     
+    // Initialize progress tracking
+    const initialProgress: {[key: string]: 'pending' | 'generating' | 'downloading' | 'complete' | 'error'} = {};
+    selectedSkills.forEach(skill => {
+      initialProgress[skill.name] = 'pending';
+    });
+    setDownloadProgress(initialProgress);
+
     try {
       // Extract unique skills for generation
       const skillsToGenerate = selectedSkills.map(skill => ({
@@ -42,6 +50,15 @@ export function MultiSkillActionBar({ onGenerateTests }: MultiSkillActionBarProp
         subject: "Math"
       };
 
+      toast.success(`Starting generation of ${skillsToGenerate.length} practice tests...`);
+
+      // Update progress to generating
+      const generatingProgress = { ...initialProgress };
+      skillsToGenerate.forEach(skill => {
+        generatingProgress[skill.name] = 'generating';
+      });
+      setDownloadProgress(generatingProgress);
+
       const results = await generateMultiplePracticeTests(skillsToGenerate, baseRequest);
       
       const successCount = results.filter(r => r.status === 'completed').length;
@@ -50,52 +67,114 @@ export function MultiSkillActionBar({ onGenerateTests }: MultiSkillActionBarProp
       if (successCount > 0) {
         toast.success(`Successfully generated ${successCount} practice test${successCount !== 1 ? 's' : ''}`);
         
-        // Generate and download PDFs for successful tests
+        // Generate and download PDFs for successful tests with improved error handling
         const successfulResults = results.filter(r => r.status === 'completed' && r.testData);
+        let downloadedCount = 0;
         
         for (const result of successfulResults) {
           if (result.testData) {
-            // Create practice Student ID
-            const practiceStudentId = `PRAC-${Date.now().toString().slice(-6)}-${result.skillName.slice(0, 3).toUpperCase()}`;
-            
-            // Convert PracticeTestData to TestData format for PDF generation
-            const pdfTestData = {
-              examId: `PRACTICE-${Date.now()}-${result.skillName.replace(/\s+/g, '-')}`,
-              title: result.testData.title,
-              description: result.testData.description || '',
-              className: baseRequest.className,
-              timeLimit: result.testData.estimatedTime,
-              questions: result.testData.questions.map(q => ({
-                id: q.id,
-                type: q.type,
-                question: q.question,
-                options: q.options,
-                correctAnswer: undefined, // Don't include answers in printed version
-                points: q.points
-              })),
-              studentName: baseRequest.studentName,
-              studentId: practiceStudentId
-            };
-            
-            // Generate and download PDF
-            generateTestPDF(pdfTestData);
+            try {
+              // Update progress to downloading
+              setDownloadProgress(prev => ({
+                ...prev,
+                [result.skillName]: 'downloading'
+              }));
+
+              // Create practice Student ID
+              const practiceStudentId = `PRAC-${Date.now().toString().slice(-6)}-${result.skillName.slice(0, 3).toUpperCase()}`;
+              
+              // Convert PracticeTestData to TestData format for PDF generation
+              const pdfTestData = {
+                examId: `PRACTICE-${Date.now()}-${result.skillName.replace(/\s+/g, '-')}`,
+                title: result.testData.title,
+                description: result.testData.description || '',
+                className: baseRequest.className,
+                timeLimit: result.testData.estimatedTime,
+                questions: result.testData.questions.map(q => ({
+                  id: q.id,
+                  type: q.type,
+                  question: q.question,
+                  options: q.options,
+                  correctAnswer: undefined, // Don't include answers in printed version
+                  points: q.points
+                })),
+                studentName: baseRequest.studentName,
+                studentId: practiceStudentId
+              };
+              
+              // Generate and download PDF with error handling
+              console.log(`Generating PDF for skill: ${result.skillName}`);
+              await new Promise((resolve) => {
+                try {
+                  generateTestPDF(pdfTestData);
+                  console.log(`PDF generated successfully for skill: ${result.skillName}`);
+                  downloadedCount++;
+                  
+                  // Update progress to complete
+                  setDownloadProgress(prev => ({
+                    ...prev,
+                    [result.skillName]: 'complete'
+                  }));
+                  
+                  // Small delay to prevent browser blocking
+                  setTimeout(resolve, 500);
+                } catch (error) {
+                  console.error(`PDF generation failed for skill ${result.skillName}:`, error);
+                  setDownloadProgress(prev => ({
+                    ...prev,
+                    [result.skillName]: 'error'
+                  }));
+                  resolve(undefined);
+                }
+              });
+            } catch (error) {
+              console.error(`Failed to generate PDF for skill ${result.skillName}:`, error);
+              setDownloadProgress(prev => ({
+                ...prev,
+                [result.skillName]: 'error'
+              }));
+            }
           }
         }
         
-        if (successfulResults.length > 0) {
-          toast.success(`Downloaded ${successfulResults.length} practice test PDF${successfulResults.length !== 1 ? 's' : ''}`);
+        if (downloadedCount > 0) {
+          toast.success(`Downloaded ${downloadedCount} practice test PDF${downloadedCount !== 1 ? 's' : ''}! Check your downloads folder.`);
+        }
+
+        if (downloadedCount < successfulResults.length) {
+          const failedCount = successfulResults.length - downloadedCount;
+          toast.error(`${failedCount} PDF download${failedCount !== 1 ? 's' : ''} may have been blocked by your browser. Please check your popup settings and try again.`, {
+            action: {
+              label: "Help",
+              onClick: () => {
+                toast.info("If downloads are blocked:\n1. Look for a popup blocker icon in your browser\n2. Allow popups for this site\n3. Try using a different browser", {
+                  duration: 8000
+                });
+              }
+            }
+          });
         }
       }
       
       if (errorCount > 0) {
         toast.error(`Failed to generate ${errorCount} practice test${errorCount !== 1 ? 's' : ''}`);
+        // Mark failed tests in progress
+        results.filter(r => r.status === 'error').forEach(result => {
+          setDownloadProgress(prev => ({
+            ...prev,
+            [result.skillName]: 'error'
+          }));
+        });
       }
 
       console.log('Multi-test generation results:', results);
       
       // Clear selection after successful generation
       if (successCount > 0) {
-        clearSelection();
+        setTimeout(() => {
+          clearSelection();
+          setDownloadProgress({});
+        }, 2000);
       }
 
       // Call the provided callback if any
@@ -106,8 +185,30 @@ export function MultiSkillActionBar({ onGenerateTests }: MultiSkillActionBarProp
     } catch (error) {
       console.error('Error generating multiple practice tests:', error);
       toast.error(`Failed to generate practice tests: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      
+      // Mark all as error
+      const errorProgress = { ...downloadProgress };
+      Object.keys(errorProgress).forEach(key => {
+        errorProgress[key] = 'error';
+      });
+      setDownloadProgress(errorProgress);
     } finally {
       setIsGenerating(false);
+    }
+  };
+
+  const getProgressIcon = (status: 'pending' | 'generating' | 'downloading' | 'complete' | 'error') => {
+    switch (status) {
+      case 'generating':
+        return <div className="animate-spin h-3 w-3 border border-blue-600 border-t-transparent rounded-full" />;
+      case 'downloading':
+        return <Download className="h-3 w-3 text-blue-600 animate-bounce" />;
+      case 'complete':
+        return <div className="h-3 w-3 bg-green-600 rounded-full" />;
+      case 'error':
+        return <AlertCircle className="h-3 w-3 text-red-600" />;
+      default:
+        return <div className="h-3 w-3 border border-gray-300 rounded-full" />;
     }
   };
 
@@ -123,6 +224,17 @@ export function MultiSkillActionBar({ onGenerateTests }: MultiSkillActionBarProp
               {selectedSkills.map(skill => skill.name).join(', ')}
             </div>
           </div>
+          
+          {/* Progress indicators */}
+          {isGenerating && Object.keys(downloadProgress).length > 0 && (
+            <div className="flex items-center gap-1">
+              {Object.entries(downloadProgress).map(([skillName, status]) => (
+                <div key={skillName} className="flex items-center gap-1" title={`${skillName}: ${status}`}>
+                  {getProgressIcon(status)}
+                </div>
+              ))}
+            </div>
+          )}
           
           <div className="flex items-center gap-2">
             <Button
