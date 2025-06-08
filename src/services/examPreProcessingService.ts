@@ -1,4 +1,3 @@
-
 import { QuestionCacheService } from "./questionCacheService";
 import { OpenAIComplexGradingService } from "./openAIComplexGradingService";
 import { EnhancedLocalGradingService } from "./enhancedLocalGradingService";
@@ -265,15 +264,12 @@ export class ExamPreProcessingService {
     try {
       // Process simple questions with DistilBERT caching
       if (simplePatterns.length > 0) {
-        const simpleResults = await QuestionCacheService.preProcessCommonExam(
-          config.examId,
-          simplePatterns.map(p => ({
-            questionNumber: p.questionNumber,
-            correctAnswer: p.correctAnswer,
-            commonStudentAnswers: p.commonStudentAnswers
-          }))
-        );
-        distilBertProcessed += simpleResults.totalProcessed || 0;
+        const simpleResults = await this.preProcessSimpleQuestions(config.examId, simplePatterns);
+        distilBertProcessed += simpleResults.processed;
+        cacheHits += simpleResults.cached;
+        if (simpleResults.errors > 0) {
+          errors.push(`${simpleResults.errors} DistilBERT processing errors`);
+        }
       }
 
       // Process complex questions with OpenAI caching
@@ -312,6 +308,72 @@ export class ExamPreProcessingService {
       costSavings,
       errors
     };
+  }
+
+  private static async preProcessSimpleQuestions(
+    examId: string,
+    patterns: CommonAnswerPattern[]
+  ): Promise<{ processed: number; cached: number; errors: number }> {
+    let processed = 0;
+    let cached = 0;
+    let errors = 0;
+
+    for (const pattern of patterns) {
+      for (const studentAnswer of pattern.commonStudentAnswers) {
+        try {
+          // Check if already cached
+          const existingCache = await QuestionCacheService.getCachedQuestionResult(
+            examId,
+            pattern.questionNumber,
+            studentAnswer,
+            pattern.correctAnswer
+          );
+
+          if (existingCache) {
+            cached++;
+            continue;
+          }
+
+          // Create mock question and answer key for grading
+          const mockQuestion = {
+            questionNumber: pattern.questionNumber,
+            detectedAnswer: { selectedOption: studentAnswer }
+          };
+
+          const mockAnswerKey = {
+            question_number: pattern.questionNumber,
+            question_text: pattern.questionText,
+            correct_answer: pattern.correctAnswer,
+            points: 1,
+            exam_id: examId
+          };
+
+          // Grade with DistilBERT
+          const result = await EnhancedLocalGradingService.gradeQuestionWithDistilBert(
+            mockQuestion,
+            mockAnswerKey,
+            []
+          );
+
+          // Cache the result
+          await QuestionCacheService.setCachedQuestionResult(
+            examId,
+            pattern.questionNumber,
+            studentAnswer,
+            pattern.correctAnswer,
+            result
+          );
+
+          processed++;
+
+        } catch (error) {
+          console.error(`Simple question pre-processing failed for Q${pattern.questionNumber}:`, error);
+          errors++;
+        }
+      }
+    }
+
+    return { processed, cached, errors };
   }
 
   private static generateRecommendations(
