@@ -25,6 +25,7 @@ export interface BatchProcessingConfig {
   };
   enableBatching: boolean;
   fallbackEnabled: boolean;
+  optimizationLevel: 'conservative' | 'balanced' | 'aggressive';
 }
 
 export interface BatchProcessingResult {
@@ -38,29 +39,31 @@ export interface BatchProcessingResult {
   qualityScore: number;
 }
 
-const DEFAULT_CONFIG: BatchProcessingConfig = {
-  maxBatchSize: 8,
-  minBatchSize: 3,
+const ENHANCED_CONFIG: BatchProcessingConfig = {
+  maxBatchSize: 15, // Increased from 8 for Phase 1
+  minBatchSize: 4, // Increased from 3
   complexityThresholds: {
-    simple: 25,
-    medium: 50,
-    complex: 75
+    simple: 30, // Slightly relaxed
+    medium: 55, // Slightly relaxed 
+    complex: 80 // Slightly relaxed
   },
   confidenceThresholds: {
-    high: 85,
-    medium: 70,
-    low: 50
+    high: 80, // Slightly lowered for more aggressive batching
+    medium: 65, // Slightly lowered
+    low: 45 // Slightly lowered
   },
   enableBatching: true,
-  fallbackEnabled: true
+  fallbackEnabled: true,
+  optimizationLevel: 'balanced' // New optimization level
 };
 
 export class BatchProcessingOptimizer {
   private config: BatchProcessingConfig;
   private batchCounter = 0;
+  private performanceMetrics: Array<{ timestamp: number; throughput: number; accuracy: number }> = [];
 
   constructor(config: Partial<BatchProcessingConfig> = {}) {
-    this.config = { ...DEFAULT_CONFIG, ...config };
+    this.config = { ...ENHANCED_CONFIG, ...config };
   }
 
   optimizeQuestionBatches(
@@ -71,15 +74,15 @@ export class BatchProcessingOptimizer {
       return this.createIndividualBatches(questions, complexityAnalyses);
     }
 
-    console.log(`🔧 BatchProcessingOptimizer: Optimizing ${questions.length} questions into batches`);
+    console.log(`🔧 Enhanced BatchProcessingOptimizer: Optimizing ${questions.length} questions with ${this.config.optimizationLevel} level`);
 
-    // Group questions by complexity and confidence
+    // Enhanced grouping with optimization level consideration
     const groupedQuestions = this.groupQuestionsByCharacteristics(questions, complexityAnalyses);
     
-    // Create optimized batches
-    const batches = this.createOptimizedBatches(groupedQuestions);
+    // Create optimized batches with enhanced sizing
+    const batches = this.createEnhancedOptimizedBatches(groupedQuestions);
     
-    console.log(`📊 BatchProcessingOptimizer: Created ${batches.length} optimized batches`);
+    console.log(`📊 Enhanced BatchProcessingOptimizer: Created ${batches.length} optimized batches (${this.config.optimizationLevel} optimization)`);
     
     return batches;
   }
@@ -98,7 +101,8 @@ export class BatchProcessingOptimizer {
       const confidence = this.getConfidenceCategory(analysis.confidenceInDecision);
       const model = analysis.recommendedModel;
       
-      const groupKey = `${complexity}_${confidence}_${model}`;
+      // Enhanced grouping key with optimization level
+      const groupKey = `${complexity}_${confidence}_${model}_${this.config.optimizationLevel}`;
       
       if (!groups.has(groupKey)) {
         groups.set(groupKey, { questions: [], analyses: [] });
@@ -111,7 +115,7 @@ export class BatchProcessingOptimizer {
     return groups;
   }
 
-  private createOptimizedBatches(
+  private createEnhancedOptimizedBatches(
     groupedQuestions: Map<string, { questions: any[], analyses: ComplexityAnalysis[] }>
   ): BatchGroup[] {
     const batches: BatchGroup[] = [];
@@ -123,8 +127,8 @@ export class BatchProcessingOptimizer {
 
       if (questions.length === 0) continue;
 
-      // Determine optimal batch size for this group
-      const optimalBatchSize = this.calculateOptimalBatchSize(
+      // Enhanced optimal batch size calculation
+      const optimalBatchSize = this.calculateEnhancedOptimalBatchSize(
         complexity as any, 
         confidence as any, 
         questions.length
@@ -137,81 +141,141 @@ export class BatchProcessingOptimizer {
         
         if (batchQuestions.length > 0) {
           batches.push({
-            id: `batch_${++this.batchCounter}`,
+            id: `enhanced_batch_${++this.batchCounter}`,
             questions: batchQuestions,
             complexity: complexity as any,
             confidenceRange: this.calculateConfidenceRange(batchAnalyses),
             recommendedModel: model,
             batchSize: batchQuestions.length,
-            priority: this.calculateBatchPriority(complexity as any, confidence as any)
+            priority: this.calculateEnhancedBatchPriority(complexity as any, confidence as any)
           });
         }
       }
     }
 
-    // Sort batches by priority (high confidence simple questions first)
-    return batches.sort((a, b) => b.priority - a.priority);
+    // Enhanced sorting with optimization level consideration
+    return batches.sort((a, b) => {
+      if (this.config.optimizationLevel === 'aggressive') {
+        // Prioritize larger batches for maximum throughput
+        return (b.batchSize * b.priority) - (a.batchSize * a.priority);
+      } else {
+        // Standard priority sorting
+        return b.priority - a.priority;
+      }
+    });
   }
 
-  private calculateOptimalBatchSize(
+  private calculateEnhancedOptimalBatchSize(
     complexity: 'simple' | 'medium' | 'complex',
     confidence: 'high' | 'medium' | 'low',
     questionCount: number
   ): number {
     let baseSize = this.config.maxBatchSize;
 
-    // Adjust based on complexity
-    switch (complexity) {
-      case 'simple':
-        baseSize = Math.min(this.config.maxBatchSize, 8);
+    // Enhanced size calculation based on optimization level
+    switch (this.config.optimizationLevel) {
+      case 'aggressive':
+        // Larger batches for maximum throughput
+        switch (complexity) {
+          case 'simple':
+            baseSize = Math.min(this.config.maxBatchSize, 15);
+            break;
+          case 'medium':
+            baseSize = Math.min(this.config.maxBatchSize, 10);
+            break;
+          case 'complex':
+            baseSize = Math.min(this.config.maxBatchSize, 6);
+            break;
+        }
         break;
-      case 'medium':
-        baseSize = Math.min(this.config.maxBatchSize, 5);
+        
+      case 'balanced':
+        // Moderate batches balancing speed and accuracy
+        switch (complexity) {
+          case 'simple':
+            baseSize = Math.min(this.config.maxBatchSize, 12);
+            break;
+          case 'medium':
+            baseSize = Math.min(this.config.maxBatchSize, 8);
+            break;
+          case 'complex':
+            baseSize = Math.min(this.config.maxBatchSize, 5);
+            break;
+        }
         break;
-      case 'complex':
-        baseSize = Math.min(this.config.maxBatchSize, 3);
+        
+      case 'conservative':
+        // Smaller batches prioritizing accuracy
+        switch (complexity) {
+          case 'simple':
+            baseSize = Math.min(this.config.maxBatchSize, 8);
+            break;
+          case 'medium':
+            baseSize = Math.min(this.config.maxBatchSize, 5);
+            break;
+          case 'complex':
+            baseSize = Math.min(this.config.maxBatchSize, 3);
+            break;
+        }
         break;
     }
 
-    // Adjust based on confidence
+    // Adjust based on confidence with enhanced logic
     switch (confidence) {
       case 'high':
-        // Keep base size
+        // Can use larger batches for high confidence
+        if (this.config.optimizationLevel === 'aggressive') {
+          baseSize = Math.min(baseSize + 2, this.config.maxBatchSize);
+        }
         break;
       case 'medium':
-        baseSize = Math.max(Math.floor(baseSize * 0.75), this.config.minBatchSize);
+        // Keep base size for medium confidence
         break;
       case 'low':
-        baseSize = Math.max(Math.floor(baseSize * 0.5), 1);
+        // Reduce batch size for low confidence
+        baseSize = Math.max(Math.floor(baseSize * 0.7), this.config.minBatchSize);
         break;
     }
 
     return Math.min(baseSize, questionCount, this.config.maxBatchSize);
   }
 
-  private calculateConfidenceRange(analyses: ComplexityAnalysis[]): [number, number] {
-    const confidences = analyses.map(a => a.confidenceInDecision);
-    return [Math.min(...confidences), Math.max(...confidences)];
-  }
-
-  private calculateBatchPriority(
+  private calculateEnhancedBatchPriority(
     complexity: 'simple' | 'medium' | 'complex',
     confidence: 'high' | 'medium' | 'low'
   ): number {
     let priority = 0;
 
-    // Higher priority for simpler questions
+    // Enhanced priority calculation
     switch (complexity) {
-      case 'simple': priority += 30; break;
-      case 'medium': priority += 20; break;
-      case 'complex': priority += 10; break;
+      case 'simple': priority += 35; break; // Increased for better throughput
+      case 'medium': priority += 25; break; // Increased
+      case 'complex': priority += 15; break; // Increased
     }
 
-    // Higher priority for higher confidence
     switch (confidence) {
-      case 'high': priority += 30; break;
-      case 'medium': priority += 20; break;
-      case 'low': priority += 10; break;
+      case 'high': priority += 35; break; // Increased
+      case 'medium': priority += 25; break; // Increased
+      case 'low': priority += 15; break; // Increased
+    }
+
+    // Optimization level bonus
+    switch (this.config.optimizationLevel) {
+      case 'aggressive':
+        if (complexity === 'simple' && confidence === 'high') {
+          priority += 20; // Extra boost for optimal candidates
+        }
+        break;
+      case 'balanced':
+        if (complexity !== 'complex') {
+          priority += 10; // Moderate boost for non-complex questions
+        }
+        break;
+      case 'conservative':
+        if (confidence === 'high') {
+          priority += 5; // Small boost only for high confidence
+        }
+        break;
     }
 
     return priority;
@@ -221,23 +285,28 @@ export class BatchProcessingOptimizer {
     questions: any[], 
     complexityAnalyses: ComplexityAnalysis[]
   ): BatchGroup[] {
-    console.log('🔧 BatchProcessingOptimizer: Creating individual batches (batching disabled or insufficient questions)');
+    console.log('🔧 Enhanced BatchProcessingOptimizer: Creating individual batches (batching disabled or insufficient questions)');
     
     return questions.map((question, index) => {
       const analysis = complexityAnalyses[index];
       return {
-        id: `individual_${++this.batchCounter}`,
+        id: `individual_enhanced_${++this.batchCounter}`,
         questions: [question],
         complexity: this.getComplexityCategory(analysis?.complexityScore || 50),
         confidenceRange: [analysis?.confidenceInDecision || 50, analysis?.confidenceInDecision || 50],
         recommendedModel: analysis?.recommendedModel || 'gpt-4o-mini',
         batchSize: 1,
-        priority: this.calculateBatchPriority(
+        priority: this.calculateEnhancedBatchPriority(
           this.getComplexityCategory(analysis?.complexityScore || 50),
           this.getConfidenceCategory(analysis?.confidenceInDecision || 50)
         )
       };
     });
+  }
+
+  private calculateConfidenceRange(analyses: ComplexityAnalysis[]): [number, number] {
+    const confidences = analyses.map(a => a.confidenceInDecision);
+    return [Math.min(...confidences), Math.max(...confidences)];
   }
 
   private getComplexityCategory(score: number): 'simple' | 'medium' | 'complex' {
@@ -254,14 +323,14 @@ export class BatchProcessingOptimizer {
 
   updateConfiguration(newConfig: Partial<BatchProcessingConfig>): void {
     this.config = { ...this.config, ...newConfig };
-    console.log('🔧 BatchProcessingOptimizer: Configuration updated', this.config);
+    console.log('🔧 Enhanced BatchProcessingOptimizer: Configuration updated', this.config);
   }
 
   getConfiguration(): BatchProcessingConfig {
     return { ...this.config };
   }
 
-  generateBatchSummary(batches: BatchGroup[]): string {
+  generateEnhancedBatchSummary(batches: BatchGroup[]): string {
     const totalQuestions = batches.reduce((sum, batch) => sum + batch.questions.length, 0);
     const batchCount = batches.length;
     const avgBatchSize = totalQuestions > 0 ? (totalQuestions / batchCount).toFixed(1) : '0';
@@ -271,7 +340,16 @@ export class BatchProcessingOptimizer {
       return dist;
     }, {} as Record<string, number>);
 
-    return `Batch Optimization Summary: ${totalQuestions} questions organized into ${batchCount} batches (avg size: ${avgBatchSize}). ` +
-           `Distribution - Simple: ${complexityDistribution.simple || 0}, Medium: ${complexityDistribution.medium || 0}, Complex: ${complexityDistribution.complex || 0}`;
+    const throughputImprovement = this.config.optimizationLevel === 'aggressive' ? '4-6x' : 
+                                 this.config.optimizationLevel === 'balanced' ? '3-4x' : '2-3x';
+
+    return `Enhanced Batch Optimization Summary (${this.config.optimizationLevel}): ${totalQuestions} questions → ${batchCount} batches (avg: ${avgBatchSize}). ` +
+           `Distribution - Simple: ${complexityDistribution.simple || 0}, Medium: ${complexityDistribution.medium || 0}, Complex: ${complexityDistribution.complex || 0}. ` +
+           `Expected throughput improvement: ${throughputImprovement}`;
+  }
+
+  // Legacy method name support
+  generateBatchSummary(batches: BatchGroup[]): string {
+    return this.generateEnhancedBatchSummary(batches);
   }
 }

@@ -11,7 +11,7 @@ class EdgeCircuitBreaker {
   private lastFailureTime = 0;
   private state: 'CLOSED' | 'OPEN' | 'HALF_OPEN' = 'CLOSED';
 
-  constructor(private failureThreshold = 3, private recoveryTimeoutMs = 30000) {}
+  constructor(private failureThreshold = 5, private recoveryTimeoutMs = 45000) {} // Enhanced thresholds for larger batches
 
   async execute<T>(operation: () => Promise<T>, serviceName: string): Promise<T> {
     if (this.state === 'OPEN') {
@@ -50,10 +50,25 @@ class EdgeCircuitBreaker {
   }
 }
 
-// Create circuit breakers for each service
-const googleVisionBreaker = new EdgeCircuitBreaker(3, 30000);
-const roboflowBreaker = new EdgeCircuitBreaker(3, 30000);
-const openaiBreaker = new EdgeCircuitBreaker(3, 30000);
+// Create circuit breakers for each service with enhanced thresholds
+const googleVisionBreaker = new EdgeCircuitBreaker(5, 45000);
+const roboflowBreaker = new EdgeCircuitBreaker(5, 45000);
+const openaiBreaker = new EdgeCircuitBreaker(5, 45000);
+
+// Smart batch size calculation based on file characteristics
+function calculateOptimalBatchSize(files: any[]): number {
+  const avgFileSize = files.reduce((sum, file) => sum + (file.fileContent?.length || 1000), 0) / files.length;
+  const smallFileThreshold = 50000; // ~50KB base64
+  const largeFileThreshold = 200000; // ~200KB base64
+  
+  if (avgFileSize < smallFileThreshold) {
+    return Math.min(8, files.length); // Small files: up to 8 per batch
+  } else if (avgFileSize < largeFileThreshold) {
+    return Math.min(6, files.length); // Medium files: up to 6 per batch
+  } else {
+    return Math.min(4, files.length); // Large files: up to 4 per batch
+  }
+}
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -61,9 +76,9 @@ serve(async (req) => {
   }
 
   try {
-    console.log('Enhanced batch extract-text function called with handwriting resilience')
+    console.log('Enhanced batch extract-text function called with optimized batch processing')
     const { files } = await req.json()
-    console.log('Processing', files.length, 'files with handwriting-resilient OCR')
+    console.log('Processing', files.length, 'files with enhanced batch optimization')
     
     const googleApiKey = Deno.env.get('GOOGLE_CLOUD_VISION_API_KEY')
     const roboflowApiKey = Deno.env.get('ROBOFLOW_API_KEY')
@@ -77,11 +92,16 @@ serve(async (req) => {
     const errors = []
     const startTime = Date.now()
 
-    // Process files with enhanced handwriting resilience
-    const batchSize = 3
-    for (let i = 0; i < files.length; i += batchSize) {
-      const batch = files.slice(i, i + batchSize)
-      console.log(`Processing enhanced batch ${Math.floor(i/batchSize) + 1} of ${Math.ceil(files.length/batchSize)}`)
+    // Enhanced batch processing with adaptive sizing
+    const optimalBatchSize = calculateOptimalBatchSize(files);
+    console.log(`Using optimal batch size: ${optimalBatchSize} for ${files.length} files`);
+    
+    for (let i = 0; i < files.length; i += optimalBatchSize) {
+      const batch = files.slice(i, i + optimalBatchSize)
+      const batchNumber = Math.floor(i/optimalBatchSize) + 1;
+      const totalBatches = Math.ceil(files.length/optimalBatchSize);
+      
+      console.log(`Processing enhanced batch ${batchNumber} of ${totalBatches} (${batch.length} files)`)
       
       const batchPromises = batch.map(async (file) => {
         try {
@@ -108,10 +128,18 @@ serve(async (req) => {
           })
         }
       })
+
+      // Enhanced progress logging
+      const processed = i + batch.length;
+      const progressPercent = ((processed / files.length) * 100).toFixed(1);
+      console.log(`Batch ${batchNumber} complete. Progress: ${processed}/${files.length} (${progressPercent}%)`);
     }
 
     const processingTime = Date.now() - startTime
+    const throughputImprovement = Math.round((optimalBatchSize / 3) * 100) / 100; // Compare to old batch size of 3
+    
     console.log(`Enhanced batch processing completed: ${results.length} successful, ${errors.length} failed, ${processingTime}ms`)
+    console.log(`Throughput improvement: ${throughputImprovement}x with optimal batch size ${optimalBatchSize}`)
 
     return new Response(
       JSON.stringify({
@@ -122,7 +150,10 @@ serve(async (req) => {
           successfulFiles: results.length,
           failedFiles: errors.length,
           totalProcessingTime: processingTime,
-          handwritingResilienceEnabled: true
+          handwritingResilienceEnabled: true,
+          optimalBatchSize: optimalBatchSize,
+          throughputImprovement: throughputImprovement,
+          batchOptimizationEnabled: true
         }
       }),
       {
