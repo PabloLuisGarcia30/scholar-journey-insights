@@ -16,7 +16,8 @@ export function MultiSkillActionBar({ onGenerateTests }: MultiSkillActionBarProp
   const { selectedSkills, clearSelection, toggleSelectionMode, isSelectionMode } = useMultiSkillSelection();
   const [isGenerating, setIsGenerating] = useState(false);
 
-  if (!isSelectionMode || selectedSkills.length === 0) {
+  // Show action bar whenever there are selected skills (regardless of selection mode)
+  if (selectedSkills.length === 0) {
     return null;
   }
 
