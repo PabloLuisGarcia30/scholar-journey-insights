@@ -3,7 +3,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Zap, BookOpen } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Zap, BookOpen, MousePointer } from "lucide-react";
+import { useMultiSkillSelection } from "@/contexts/MultiSkillSelectionContext";
 
 interface StudentContentSkillsProps {
   groupedSkills: Record<string, any[]>;
@@ -26,6 +28,15 @@ export function StudentContentSkills({
   classContentSkills,
   onGeneratePracticeTest
 }: StudentContentSkillsProps) {
+  const { 
+    selectedSkills, 
+    isSelectionMode, 
+    toggleSelectionMode, 
+    toggleSkillSelection, 
+    canSelectMore,
+    maxSkills 
+  } = useMultiSkillSelection();
+
   // Filter skills for "Super Exercise" (all skills below 80%)
   const skillsForSuperExercise = comprehensiveSkillData.filter(skill => skill.score < 80);
 
@@ -40,6 +51,28 @@ export function StudentContentSkills({
 
   const getProgressColor = (score: number) => {
     return "bg-black";
+  };
+
+  const isSkillSelected = (skillName: string) => {
+    return selectedSkills.some(skill => skill.name === skillName);
+  };
+
+  const handleSkillSelection = (skill: any, event: React.MouseEvent) => {
+    event.stopPropagation();
+    toggleSkillSelection({
+      id: skill.id || skill.skill_name,
+      name: skill.skill_name,
+      score: skill.score,
+      type: 'content'
+    });
+  };
+
+  const handleSkillClick = (skill: any) => {
+    if (isSelectionMode) {
+      handleSkillSelection(skill, { stopPropagation: () => {} } as React.MouseEvent);
+    } else {
+      onGeneratePracticeTest(skill.skill_name);
+    }
   };
 
   // Enhanced loading component with realistic skeleton placeholders
@@ -103,17 +136,28 @@ export function StudentContentSkills({
         <CardTitle className="text-xl font-semibold text-slate-800">
           {classData?.subject || ''} Content-Specific Skills
         </CardTitle>
-        {isClassView && (
+        <div className="flex items-center gap-2">
           <Button
-            variant="destructive"
-            onClick={() => onGeneratePracticeTest('super-exercise-content')}
-            disabled={skillsForSuperExercise.length === 0}
-            className="bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 shadow-sm"
+            variant={isSelectionMode ? "default" : "outline"}
+            onClick={toggleSelectionMode}
+            className={isSelectionMode ? "bg-blue-600 hover:bg-blue-700" : ""}
           >
-            <Zap className="h-4 w-4 mr-2" />
-            Create a Super Exercise
+            <MousePointer className="h-4 w-4 mr-2" />
+            {isSelectionMode ? `Selected ${selectedSkills.length}/${maxSkills}` : 'Multi-Select'}
           </Button>
-        )}
+          
+          {isClassView && !isSelectionMode && (
+            <Button
+              variant="destructive"
+              onClick={() => onGeneratePracticeTest('super-exercise-content')}
+              disabled={skillsForSuperExercise.length === 0}
+              className="bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 shadow-sm"
+            >
+              <Zap className="h-4 w-4 mr-2" />
+              Create a Super Exercise
+            </Button>
+          )}
+        </div>
       </CardHeader>
       <CardContent className="p-6">
         {Object.keys(groupedSkills).length === 0 ? (
@@ -137,46 +181,74 @@ export function StudentContentSkills({
                   <div className="h-px bg-gradient-to-l from-slate-300 to-transparent flex-1"></div>
                 </div>
                 <div className="space-y-4">
-                  {skills.map((skill: any) => (
-                    <div 
-                      key={skill.id || skill.skill_name} 
-                      className="group p-4 rounded-lg border border-slate-200 bg-white hover:shadow-md transition-all duration-200 cursor-pointer"
-                      onClick={() => onGeneratePracticeTest(skill.skill_name)}
-                    >
-                      <div className="flex items-center justify-between mb-3">
-                        <h4 className="font-medium text-slate-900 group-hover:text-slate-700 transition-colors">
-                          {skill.skill_name}
-                        </h4>
-                        <div className="flex items-center gap-4">
-                          <span className={`font-semibold text-sm ${getScoreColor(skill.score)}`}>
-                            {skill.score}%
-                          </span>
-                          <Button 
-                            variant="outline" 
-                            size="sm"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onGeneratePracticeTest(skill.skill_name);
-                            }}
-                            className="text-xs font-medium border-slate-300 hover:bg-slate-50 hover:border-slate-400 transition-all duration-200"
-                          >
-                            <BookOpen className="h-3 w-3 mr-2" />
-                            Generate Practice Exercise
-                          </Button>
+                  {skills.map((skill: any) => {
+                    const isSelected = isSkillSelected(skill.skill_name);
+                    const canSelect = canSelectMore || isSelected;
+                    
+                    return (
+                      <div 
+                        key={skill.id || skill.skill_name} 
+                        className={`group relative p-4 rounded-lg border transition-all duration-200 cursor-pointer ${
+                          isSelected 
+                            ? 'border-blue-500 bg-blue-50 shadow-md' 
+                            : 'border-slate-200 bg-white hover:shadow-md hover:border-slate-300'
+                        } ${
+                          isSelectionMode && !canSelect 
+                            ? 'opacity-50 cursor-not-allowed' 
+                            : ''
+                        }`}
+                        onClick={() => handleSkillClick(skill)}
+                      >
+                        {isSelectionMode && (
+                          <div className="absolute top-3 right-3 z-10">
+                            <Checkbox
+                              checked={isSelected}
+                              disabled={!canSelect}
+                              onCheckedChange={() => handleSkillSelection(skill, { stopPropagation: () => {} } as React.MouseEvent)}
+                              className="h-5 w-5"
+                            />
+                          </div>
+                        )}
+                        
+                        <div className="flex items-center justify-between mb-3">
+                          <h4 className={`font-medium transition-colors ${
+                            isSelected ? 'text-blue-900' : 'text-slate-900 group-hover:text-slate-700'
+                          }`}>
+                            {skill.skill_name}
+                          </h4>
+                          <div className="flex items-center gap-4">
+                            <span className={`font-semibold text-sm ${getScoreColor(skill.score)}`}>
+                              {skill.score}%
+                            </span>
+                            {!isSelectionMode && (
+                              <Button 
+                                variant="outline" 
+                                size="sm"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onGeneratePracticeTest(skill.skill_name);
+                                }}
+                                className="text-xs font-medium border-slate-300 hover:bg-slate-50 hover:border-slate-400 transition-all duration-200"
+                              >
+                                <BookOpen className="h-3 w-3 mr-2" />
+                                Generate Practice Exercise
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                        <div className="relative">
+                          <Progress 
+                            value={skill.score} 
+                            className="h-2 bg-slate-100"
+                          />
+                          <div 
+                            className={`absolute top-0 left-0 h-2 rounded-full transition-all duration-300 ${getProgressColor(skill.score)}`}
+                            style={{ width: `${skill.score}%` }}
+                          />
                         </div>
                       </div>
-                      <div className="relative">
-                        <Progress 
-                          value={skill.score} 
-                          className="h-2 bg-slate-100"
-                        />
-                        <div 
-                          className={`absolute top-0 left-0 h-2 rounded-full transition-all duration-300 ${getProgressColor(skill.score)}`}
-                          style={{ width: `${skill.score}%` }}
-                        />
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             ))}

@@ -2,6 +2,8 @@
 import { useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PracticeTestGenerator } from "./PracticeTestGenerator";
+import { MultiPracticeTestResults } from "./MultiPracticeTestResults";
+import { MultiSkillActionBar } from "./MultiSkillActionBar";
 import { StudentProfileHeader } from "./StudentProfileHeader";
 import { StudentQuickStats } from "./StudentQuickStats";
 import { StudentTestResults } from "./StudentTestResults";
@@ -11,6 +13,9 @@ import { StudentProgressChart } from "./StudentProgressChart";
 import { useStudentProfileData } from "@/hooks/useStudentProfileData";
 import { useSkillData } from "@/hooks/useSkillData";
 import { calculateOverallGrade } from "@/utils/studentProfileUtils";
+import { MultiSkillSelectionProvider, useMultiSkillSelection } from "@/contexts/MultiSkillSelectionContext";
+import { generateMultiplePracticeTests, MultiPracticeTestResult } from "@/services/practiceTestService";
+import { toast } from "sonner";
 
 interface StudentProfileProps {
   studentId: string;
@@ -19,9 +24,14 @@ interface StudentProfileProps {
   onBack: () => void;
 }
 
-export function StudentProfile({ studentId, classId, className, onBack }: StudentProfileProps) {
+function StudentProfileContent({ studentId, classId, className, onBack }: StudentProfileProps) {
   const [showPracticeTest, setShowPracticeTest] = useState(false);
+  const [showMultiPracticeTests, setShowMultiPracticeTests] = useState(false);
   const [selectedSkill, setSelectedSkill] = useState<string | null>(null);
+  const [multiTestResults, setMultiTestResults] = useState<MultiPracticeTestResult[]>([]);
+  const [isGeneratingMultiTests, setIsGeneratingMultiTests] = useState(false);
+  
+  const { selectedSkills, clearSelection, toggleSelectionMode } = useMultiSkillSelection();
   
   // Fetch all data using custom hook
   const {
@@ -66,9 +76,75 @@ export function StudentProfile({ studentId, classId, className, onBack }: Studen
     setShowPracticeTest(true);
   };
 
+  const handleGenerateMultiPracticeTests = async () => {
+    if (selectedSkills.length === 0) {
+      toast.error("Please select at least one skill");
+      return;
+    }
+
+    setIsGeneratingMultiTests(true);
+    
+    try {
+      const results = await generateMultiplePracticeTests(
+        selectedSkills.map(skill => ({ name: skill.name, score: skill.score })),
+        {
+          studentName: student?.name || '',
+          className: className || classData?.name || `${classData?.subject} ${classData?.grade}` || 'Unknown Class',
+          grade: classData?.grade || 'Grade 10',
+          subject: classData?.subject || 'Math',
+          classId: classData?.id || classId
+        }
+      );
+
+      setMultiTestResults(results);
+      setShowMultiPracticeTests(true);
+      clearSelection();
+      toggleSelectionMode();
+      toast.success(`Generated ${results.filter(r => r.status === 'completed').length} practice tests successfully!`);
+    } catch (error) {
+      console.error('Error generating multiple practice tests:', error);
+      toast.error("Failed to generate practice tests. Please try again.");
+    } finally {
+      setIsGeneratingMultiTests(false);
+    }
+  };
+
+  const handleRegenerateSkill = async (skillName: string) => {
+    try {
+      const skillToRegenerate = selectedSkills.find(s => s.name === skillName) || 
+        { name: skillName, score: 0 };
+      
+      const results = await generateMultiplePracticeTests(
+        [{ name: skillToRegenerate.name, score: skillToRegenerate.score }],
+        {
+          studentName: student?.name || '',
+          className: className || classData?.name || `${classData?.subject} ${classData?.grade}` || 'Unknown Class',
+          grade: classData?.grade || 'Grade 10',
+          subject: classData?.subject || 'Math',
+          classId: classData?.id || classId
+        }
+      );
+
+      setMultiTestResults(prev => 
+        prev.map(result => 
+          result.skillName === skillName ? results[0] : result
+        )
+      );
+
+      toast.success("Practice test regenerated successfully!");
+    } catch (error) {
+      toast.error("Failed to regenerate practice test");
+    }
+  };
+
   const handleBackFromPracticeTest = () => {
     setShowPracticeTest(false);
     setSelectedSkill(null);
+  };
+
+  const handleBackFromMultiTests = () => {
+    setShowMultiPracticeTests(false);
+    setMultiTestResults([]);
   };
 
   if (showPracticeTest) {
@@ -81,6 +157,18 @@ export function StudentProfile({ studentId, classId, className, onBack }: Studen
         subject={classData?.subject || 'Math'}
         classId={classData?.id || classId}
         onBack={handleBackFromPracticeTest}
+      />
+    );
+  }
+
+  if (showMultiPracticeTests) {
+    return (
+      <MultiPracticeTestResults
+        results={multiTestResults}
+        studentName={student?.name || ''}
+        className={className || classData?.name || `${classData?.subject} ${classData?.grade}` || 'Unknown Class'}
+        onBack={handleBackFromMultiTests}
+        onRegenerateSkill={handleRegenerateSkill}
       />
     );
   }
@@ -216,6 +304,18 @@ export function StudentProfile({ studentId, classId, className, onBack }: Studen
           </>
         )}
       </Tabs>
+
+      <MultiSkillActionBar 
+        onGenerateTests={handleGenerateMultiPracticeTests}
+      />
     </div>
+  );
+}
+
+export function StudentProfile(props: StudentProfileProps) {
+  return (
+    <MultiSkillSelectionProvider>
+      <StudentProfileContent {...props} />
+    </MultiSkillSelectionProvider>
   );
 }

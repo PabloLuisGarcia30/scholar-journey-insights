@@ -26,6 +26,15 @@ export interface PracticeTestData {
   questions: PracticeTestQuestion[];
   totalPoints: number;
   estimatedTime: number;
+  skillName: string; // Added to track which skill this test targets
+}
+
+export interface MultiPracticeTestResult {
+  skillName: string;
+  skillScore: number;
+  status: 'pending' | 'generating' | 'completed' | 'error';
+  testData?: PracticeTestData;
+  error?: string;
 }
 
 export interface HistoricalQuestion {
@@ -111,5 +120,41 @@ export async function generatePracticeTest(request: GeneratePracticeTestRequest)
   }
 
   console.log('Successfully generated practice test:', data);
-  return data as PracticeTestData;
+  return { ...data, skillName: request.skillName } as PracticeTestData;
+}
+
+export async function generateMultiplePracticeTests(
+  skills: Array<{ name: string; score: number }>,
+  baseRequest: Omit<GeneratePracticeTestRequest, 'skillName'>
+): Promise<MultiPracticeTestResult[]> {
+  console.log('Generating practice tests for multiple skills:', skills.map(s => s.name));
+  
+  const results: MultiPracticeTestResult[] = skills.map(skill => ({
+    skillName: skill.name,
+    skillScore: skill.score,
+    status: 'pending' as const
+  }));
+
+  // Generate tests for each skill individually
+  for (let i = 0; i < skills.length; i++) {
+    const skill = skills[i];
+    results[i].status = 'generating';
+    
+    try {
+      const testData = await generatePracticeTest({
+        ...baseRequest,
+        skillName: skill.name
+      });
+      
+      results[i].status = 'completed';
+      results[i].testData = testData;
+      console.log(`Successfully generated practice test for skill: ${skill.name}`);
+    } catch (error) {
+      console.error(`Failed to generate practice test for skill ${skill.name}:`, error);
+      results[i].status = 'error';
+      results[i].error = error instanceof Error ? error.message : 'Unknown error';
+    }
+  }
+
+  return results;
 }
