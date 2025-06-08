@@ -1,6 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import { EnhancedQuestionClassifier, QuestionClassification, SimpleAnswerValidation } from "./enhancedQuestionClassifier";
 import { DistilBertLocalGradingService, DistilBertGradingResult } from "./distilBertLocalGrading";
+import { QuestionCacheService, QuestionCacheResult } from "./questionCacheService";
 
 export interface SkillMapping {
   skill_id: string;
@@ -188,10 +189,37 @@ export class EnhancedLocalGradingService {
   }
 
   static async gradeQuestionWithDistilBert(question: any, answerKey: any, skillMappings: SkillMapping[]): Promise<EnhancedLocalGradingResult> {
-    // Use enhanced classification to determine if question is simple enough for local grading
+    const studentAnswer = question.detectedAnswer?.selectedOption?.trim() || '';
+    const correctAnswer = answerKey.correct_answer?.trim() || '';
+    
+    // STEP 1: Check question-level cache first
+    try {
+      const cachedResult = await QuestionCacheService.getCachedQuestionResult(
+        answerKey.exam_id || 'unknown',
+        question.questionNumber,
+        studentAnswer,
+        correctAnswer
+      );
+
+      if (cachedResult) {
+        console.log(`⚡ Cache hit for Q${question.questionNumber}: ${cachedResult.originalGradingMethod}`);
+        return {
+          ...cachedResult,
+          skillMappings, // Update with current skill mappings
+          qualityFlags: {
+            ...cachedResult.qualityFlags,
+            cacheHit: true
+          }
+        };
+      }
+    } catch (error) {
+      console.warn('Cache lookup failed, proceeding with normal grading:', error);
+    }
+
+    // STEP 2: Use enhanced classification to determine if question is simple enough for local grading
     const classification = EnhancedQuestionClassifier.classifyQuestion(question, answerKey);
     
-    // FIXED: Complex questions should NEVER go to DistilBERT - send directly to OpenAI
+    // STEP 3: Complex questions should go to OpenAI
     if (!classification.shouldUseLocalGrading || !classification.isSimple) {
       console.log(`Question ${question.questionNumber}: Complex question detected, routing to OpenAI`);
       return {
@@ -214,11 +242,9 @@ export class EnhancedLocalGradingService {
       };
     }
 
-    // Only process SIMPLE questions with DistilBERT
+    // STEP 4: Process SIMPLE questions with DistilBERT
     console.log(`Question ${question.questionNumber}: Simple question detected, processing with DistilBERT`);
     
-    const studentAnswer = question.detectedAnswer?.selectedOption?.trim() || '';
-    const correctAnswer = answerKey.correct_answer?.trim() || '';
     const pointsPossible = answerKey.points || 1;
 
     try {
@@ -244,7 +270,7 @@ export class EnhancedLocalGradingService {
         gradingMethod = `distilbert_pattern_${classification.questionType}`;
       }
 
-      return {
+      const result: EnhancedLocalGradingResult = {
         questionNumber: question.questionNumber,
         isCorrect,
         pointsEarned,
@@ -265,6 +291,21 @@ export class EnhancedLocalGradingService {
           localAIProcessed: true
         }
       };
+
+      // STEP 5: Cache the result for future use
+      try {
+        await QuestionCacheService.setCachedQuestionResult(
+          answerKey.exam_id || 'unknown',
+          question.questionNumber,
+          studentAnswer,
+          correctAnswer,
+          result
+        );
+      } catch (cacheError) {
+        console.warn('Failed to cache question result:', cacheError);
+      }
+
+      return result;
 
     } catch (error) {
       console.error('DistilBERT grading failed for simple question, falling back to enhanced classification:', error);
@@ -424,9 +465,9 @@ export class EnhancedLocalGradingService {
     });
   }
 
-  // NEW: Main hybrid processing workflow
+  // NEW: Main hybrid processing workflow with caching
   static async processQuestionsWithHybridAIWorkflow(questions: any[], answerKeys: any[], examId: string) {
-    console.log('🤖🧠 Starting Hybrid AI Grading Workflow (DistilBERT + OpenAI)');
+    console.log('🤖🧠 Starting Hybrid AI Grading Workflow with Question-Level Caching');
     
     // STEP 1: Ensure AI skill identification is completed
     const hasAISkills = await this.ensureAISkillIdentification(examId);
@@ -452,13 +493,14 @@ export class EnhancedLocalGradingService {
       throw new Error('No skills were identified for this exam. Cannot proceed with skill-based grading.');
     }
 
-    // STEP 4: Process questions and separate simple vs complex
+    // STEP 4: Process questions and separate simple vs complex (with caching)
     const localResults: EnhancedLocalGradingResult[] = [];
     const complexQuestions = [];
     let locallyGradedCount = 0;
     let distilBertUsedCount = 0;
+    let cacheHitCount = 0;
     
-    console.log('🔍 Classifying questions for hybrid processing...');
+    console.log('🔍 Classifying questions for hybrid processing with caching...');
     
     for (const question of questions) {
       const answerKey = answerKeys.find(ak => ak.question_number === question.questionNumber);
@@ -477,15 +519,17 @@ export class EnhancedLocalGradingService {
         localResults.push(result);
         locallyGradedCount++;
         
-        if (result.distilBertResult) {
+        if (result.qualityFlags?.cacheHit) {
+          cacheHitCount++;
+        } else if (result.distilBertResult) {
           distilBertUsedCount++;
         }
       }
     }
 
-    console.log(`📊 Classification complete: ${locallyGradedCount} simple (local) + ${complexQuestions.length} complex (OpenAI)`);
+    console.log(`📊 Classification complete: ${locallyGradedCount} simple (${cacheHitCount} cached) + ${complexQuestions.length} complex (OpenAI)`);
 
-    // STEP 5: Process complex questions with OpenAI
+    // STEP 5: Process complex questions with OpenAI (with caching)
     const { OpenAIComplexGradingService } = await import('./openAIComplexGradingService');
     const openAIResults = await OpenAIComplexGradingService.gradeComplexQuestions(
       complexQuestions,
@@ -499,8 +543,12 @@ export class EnhancedLocalGradingService {
     const { HybridGradingResultsMerger } = await import('./hybridGradingResultsMerger');
     const hybridResults = HybridGradingResultsMerger.mergeResults(localResults, openAIResults);
 
+    // STEP 7: Generate caching statistics
+    const cacheStats = await QuestionCacheService.getQuestionCacheStats();
+
     console.log(`✅ Hybrid AI grading complete: ${hybridResults.totalScore.pointsEarned}/${hybridResults.totalScore.pointsPossible} (${hybridResults.totalScore.percentage}%)`);
     console.log(`💰 Cost efficiency: ${hybridResults.costAnalysis.processingBreakdown}`);
+    console.log(`📋 Cache performance: ${cacheHitCount}/${locallyGradedCount} hits (${((cacheHitCount/locallyGradedCount)*100).toFixed(1)}%)`);
 
     return {
       hybridResults,
@@ -509,9 +557,12 @@ export class EnhancedLocalGradingService {
         locallyGraded: locallyGradedCount,
         openAIGraded: openAIResults.length,
         distilBertUsed: distilBertUsedCount,
+        cacheHits: cacheHitCount,
+        cacheHitRate: locallyGradedCount > 0 ? (cacheHitCount / locallyGradedCount) * 100 : 0,
         skillMappingAvailable: true,
         aiSkillsIdentified: true,
         hybridProcessingComplete: true,
+        cachingEnabled: true,
         distilBertMetrics: {
           modelInfo: distilBertService.getModelInfo(),
           questionsProcessed: distilBertUsedCount,
@@ -523,7 +574,8 @@ export class EnhancedLocalGradingService {
             ? openAIResults.reduce((sum, r) => sum + r.confidence, 0) / openAIResults.length 
             : 0
         },
-        costAnalysis: hybridResults.costAnalysis
+        costAnalysis: hybridResults.costAnalysis,
+        cacheStats
       }
     };
   }
@@ -587,6 +639,7 @@ export class EnhancedLocalGradingService {
     
     const distilBertUsed = results.filter(r => r.distilBertResult).length;
     const semanticMatching = results.filter(r => r.distilBertResult?.method === 'semantic_matching').length;
+    const cacheHits = results.filter(r => r.qualityFlags?.cacheHit).length;
     
     const questionTypes = results.reduce((acc, r) => {
       if (r.questionClassification) {
@@ -596,6 +649,11 @@ export class EnhancedLocalGradingService {
     }, {} as Record<string, number>);
     
     let feedback = `🤖 DistilBERT local AI grading completed for ${total} questions. Score: ${correct}/${total} (${percentage}%)`;
+    
+    if (cacheHits > 0) {
+      const cacheRate = ((cacheHits / total) * 100).toFixed(1);
+      feedback += `. Cache hits: ${cacheHits}/${total} (${cacheRate}%)`;
+    }
     
     if (distilBertUsed > 0) {
       const distilBertRate = ((distilBertUsed / total) * 100).toFixed(1);

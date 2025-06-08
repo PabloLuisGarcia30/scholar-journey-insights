@@ -7,6 +7,7 @@ export { DistilBertLocalGradingService } from './distilBertLocalGrading';
 export { EnhancedQuestionClassifier } from './enhancedQuestionClassifier';
 export { OpenAIComplexGradingService } from './openAIComplexGradingService';
 export { HybridGradingResultsMerger } from './hybridGradingResultsMerger';
+export { QuestionCacheService } from './questionCacheService';
 
 export type { DocumentClassification, OcrMethod, AdaptiveOcrConfig, ProcessingMetrics } from './smartOcrService';
 export type { BatchJob, ProcessingQueue } from './batchProcessingService';
@@ -15,3 +16,4 @@ export type { DistilBertConfig, DistilBertGradingResult } from './distilBertLoca
 export type { QuestionClassification, SimpleAnswerValidation } from './enhancedQuestionClassifier';
 export type { OpenAIGradingResult, ComplexQuestionBatch } from './openAIComplexGradingService';
 export type { HybridGradingResults } from './hybridGradingResultsMerger';
+export type { QuestionCacheKey, QuestionCacheResult, QuestionCacheStats } from './questionCacheService';

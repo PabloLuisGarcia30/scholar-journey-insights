@@ -1,6 +1,6 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { EnhancedLocalGradingResult, SkillMapping } from "./enhancedLocalGradingService";
+import { QuestionCacheService } from "./questionCacheService";
 
 export interface OpenAIGradingResult {
   questionNumber: number;
@@ -34,77 +34,154 @@ export class OpenAIComplexGradingService {
       return [];
     }
 
-    console.log(`🧠 Sending ${complexQuestions.length} complex questions to OpenAI for grading...`);
+    console.log(`🧠 Checking cache for ${complexQuestions.length} complex questions...`);
     
-    try {
-      // Prepare the batch for OpenAI analysis
-      const batch: ComplexQuestionBatch = {
-        questions: complexQuestions,
-        answerKeys: answerKeys.filter(ak => 
-          complexQuestions.some(q => q.questionNumber === ak.question_number)
-        ),
-        examId,
-        studentName
-      };
+    // STEP 1: Check cache for complex questions
+    const cachedResults: EnhancedLocalGradingResult[] = [];
+    const uncachedQuestions = [];
+    const uncachedAnswerKeys = [];
 
-      // Call the analyze-test edge function for complex grading
-      const { data: aiResult, error } = await supabase.functions.invoke('analyze-test', {
-        body: {
-          files: [{
-            fileName: `complex_questions_batch_${Date.now()}.json`,
-            extractedText: JSON.stringify(batch.questions),
-            structuredData: batch.questions
-          }],
-          examId: batch.examId,
-          studentName: batch.studentName,
-          complexQuestionsOnly: true,
-          questionNumbers: complexQuestions.map(q => q.questionNumber)
-        }
-      });
-
-      if (error) {
-        console.error('Error calling OpenAI for complex grading:', error);
-        throw new Error(`OpenAI grading failed: ${error.message}`);
+    for (const question of complexQuestions) {
+      const answerKey = answerKeys.find(ak => ak.question_number === question.questionNumber);
+      if (!answerKey) {
+        uncachedQuestions.push(question);
+        continue;
       }
 
-      // Convert OpenAI results to EnhancedLocalGradingResult format
-      const enhancedResults = this.convertOpenAIResultsToEnhancedFormat(
-        aiResult,
-        complexQuestions,
-        answerKeys,
-        skillMappings
-      );
+      const studentAnswer = question.detectedAnswer?.selectedOption?.trim() || '';
+      const correctAnswer = answerKey.correct_answer?.trim() || '';
 
-      console.log(`✅ OpenAI successfully graded ${enhancedResults.length} complex questions`);
-      return enhancedResults;
+      try {
+        const cachedResult = await QuestionCacheService.getCachedQuestionResult(
+          examId,
+          question.questionNumber,
+          studentAnswer,
+          correctAnswer
+        );
 
-    } catch (error) {
-      console.error('Failed to grade complex questions with OpenAI:', error);
-      
-      // Return failed results for complex questions
-      return complexQuestions.map(question => {
-        const answerKey = answerKeys.find(ak => ak.question_number === question.questionNumber);
-        const questionSkillMappings = skillMappings[question.questionNumber] || [];
-        
-        return {
-          questionNumber: question.questionNumber,
-          isCorrect: false,
-          pointsEarned: 0,
-          pointsPossible: answerKey?.points || 1,
-          confidence: 0,
-          gradingMethod: 'openai_failed',
-          reasoning: `OpenAI grading failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
-          skillMappings: questionSkillMappings,
-          qualityFlags: {
-            hasMultipleMarks: question.detectedAnswer?.multipleMarksDetected || false,
-            reviewRequired: true,
-            bubbleQuality: question.detectedAnswer?.bubbleQuality || 'unknown',
-            confidenceAdjusted: true,
-            aiProcessingFailed: true
-          }
-        };
-      });
+        if (cachedResult) {
+          console.log(`⚡ Complex question cache hit: Q${question.questionNumber}`);
+          const questionSkillMappings = skillMappings[question.questionNumber] || [];
+          cachedResults.push({
+            ...cachedResult,
+            skillMappings: questionSkillMappings
+          });
+        } else {
+          uncachedQuestions.push(question);
+          uncachedAnswerKeys.push(answerKey);
+        }
+      } catch (error) {
+        console.warn(`Cache lookup failed for Q${question.questionNumber}:`, error);
+        uncachedQuestions.push(question);
+        uncachedAnswerKeys.push(answerKey);
+      }
     }
+
+    console.log(`📋 Cache results: ${cachedResults.length} cached, ${uncachedQuestions.length} need OpenAI processing`);
+
+    // STEP 2: Process uncached questions with OpenAI
+    let newOpenAIResults: EnhancedLocalGradingResult[] = [];
+    
+    if (uncachedQuestions.length > 0) {
+      console.log(`🧠 Sending ${uncachedQuestions.length} uncached complex questions to OpenAI...`);
+      
+      try {
+        // Prepare the batch for OpenAI analysis
+        const batch: ComplexQuestionBatch = {
+          questions: uncachedQuestions,
+          answerKeys: uncachedAnswerKeys,
+          examId,
+          studentName
+        };
+
+        // Call the analyze-test edge function for complex grading
+        const { data: aiResult, error } = await supabase.functions.invoke('analyze-test', {
+          body: {
+            files: [{
+              fileName: `complex_questions_batch_${Date.now()}.json`,
+              extractedText: JSON.stringify(batch.questions),
+              structuredData: batch.questions
+            }],
+            examId: batch.examId,
+            studentName: batch.studentName,
+            complexQuestionsOnly: true,
+            questionNumbers: uncachedQuestions.map(q => q.questionNumber)
+          }
+        });
+
+        if (error) {
+          console.error('Error calling OpenAI for complex grading:', error);
+          throw new Error(`OpenAI grading failed: ${error.message}`);
+        }
+
+        // Convert OpenAI results to EnhancedLocalGradingResult format
+        newOpenAIResults = this.convertOpenAIResultsToEnhancedFormat(
+          aiResult,
+          uncachedQuestions,
+          uncachedAnswerKeys,
+          skillMappings
+        );
+
+        // STEP 3: Cache the new OpenAI results
+        for (let i = 0; i < newOpenAIResults.length; i++) {
+          const result = newOpenAIResults[i];
+          const question = uncachedQuestions[i];
+          const answerKey = uncachedAnswerKeys[i];
+          
+          if (question && answerKey) {
+            const studentAnswer = question.detectedAnswer?.selectedOption?.trim() || '';
+            const correctAnswer = answerKey.correct_answer?.trim() || '';
+            
+            try {
+              await QuestionCacheService.setCachedQuestionResult(
+                examId,
+                question.questionNumber,
+                studentAnswer,
+                correctAnswer,
+                result
+              );
+            } catch (cacheError) {
+              console.warn(`Failed to cache OpenAI result for Q${question.questionNumber}:`, cacheError);
+            }
+          }
+        }
+
+        console.log(`✅ OpenAI successfully graded and cached ${newOpenAIResults.length} complex questions`);
+
+      } catch (error) {
+        console.error('Failed to grade complex questions with OpenAI:', error);
+        
+        // Return failed results for uncached complex questions
+        newOpenAIResults = uncachedQuestions.map(question => {
+          const answerKey = uncachedAnswerKeys.find(ak => ak.question_number === question.questionNumber);
+          const questionSkillMappings = skillMappings[question.questionNumber] || [];
+          
+          return {
+            questionNumber: question.questionNumber,
+            isCorrect: false,
+            pointsEarned: 0,
+            pointsPossible: answerKey?.points || 1,
+            confidence: 0,
+            gradingMethod: 'openai_failed',
+            reasoning: `OpenAI grading failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+            skillMappings: questionSkillMappings,
+            qualityFlags: {
+              hasMultipleMarks: question.detectedAnswer?.multipleMarksDetected || false,
+              reviewRequired: true,
+              bubbleQuality: question.detectedAnswer?.bubbleQuality || 'unknown',
+              confidenceAdjusted: true,
+              aiProcessingFailed: true
+            }
+          };
+        });
+      }
+    }
+
+    // STEP 4: Combine cached and new results
+    const allResults = [...cachedResults, ...newOpenAIResults];
+    console.log(`🎯 Complex grading complete: ${cachedResults.length} from cache + ${newOpenAIResults.length} from OpenAI = ${allResults.length} total`);
+    
+    return allResults;
   }
 
   private static convertOpenAIResultsToEnhancedFormat(
