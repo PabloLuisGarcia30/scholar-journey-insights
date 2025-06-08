@@ -1,4 +1,3 @@
-
 import { 
   EnhancedQuestionClassifier,
   QuestionClassification,
@@ -15,8 +14,14 @@ interface ClassificationMetrics {
   fallbackReason?: string;
 }
 
-interface OptimizedClassificationResult extends QuestionClassification {
+export interface OptimizedClassificationResult extends QuestionClassification {
   metrics: ClassificationMetrics;
+  questionAnalysis?: {
+    hasMultipleMarks: boolean;
+    reviewRequired: boolean;
+    bubbleQuality: string;
+    selectedAnswer: string;
+  };
 }
 
 export class OptimizedQuestionClassifier {
@@ -67,7 +72,8 @@ export class OptimizedQuestionClassifier {
           classificationTime: performance.now() - startTime,
           usedFastPath: true,
           confidence: cached.confidence
-        }
+        },
+        questionAnalysis: this.createQuestionAnalysis(question)
       };
     }
 
@@ -85,7 +91,8 @@ export class OptimizedQuestionClassifier {
           classificationTime: performance.now() - startTime,
           usedFastPath: true,
           confidence: fastPathResult.confidence
-        }
+        },
+        questionAnalysis: this.createQuestionAnalysis(question)
       };
     }
 
@@ -159,7 +166,7 @@ export class OptimizedQuestionClassifier {
       detectionMethod: `optimized_${detectionMethod}`,
       shouldUseLocalGrading: shouldUseLocal,
       fallbackReason: shouldUseLocal ? undefined : this.getFastPathFallbackReason(confidence, question.detectedAnswer),
-      answerPattern: this.createAnswerPattern(questionType, question, answerKey)
+      answerPattern: this.createAnswerPattern(questionType, question)
     };
   }
 
@@ -179,11 +186,8 @@ export class OptimizedQuestionClassifier {
 
   private static createAnswerPattern(
     questionType: QuestionClassification['questionType'], 
-    question: any, 
-    answerKey: any
+    question: any
   ): QuestionClassification['answerPattern'] {
-    const correctAnswer = answerKey.correct_answer?.toString().trim() || '';
-
     switch (questionType) {
       case 'multiple_choice':
         return {
@@ -201,15 +205,29 @@ export class OptimizedQuestionClassifier {
         return {
           type: 'numeric_range',
           expectedFormat: 'number',
-          variations: [correctAnswer]
+          variations: []
         };
       default:
         return {
           type: 'exact_match',
           expectedFormat: 'text',
-          variations: [correctAnswer]
+          variations: []
         };
     }
+  }
+
+  private static createQuestionAnalysis(question: any): {
+    hasMultipleMarks: boolean;
+    reviewRequired: boolean;
+    bubbleQuality: string;
+    selectedAnswer: string;
+  } {
+    return {
+      hasMultipleMarks: question.detectedAnswer?.multipleMarksDetected || false,
+      reviewRequired: question.detectedAnswer?.reviewFlag || false,
+      bubbleQuality: question.detectedAnswer?.bubbleQuality || 'unknown',
+      selectedAnswer: question.detectedAnswer?.selectedOption || 'no_answer'
+    };
   }
 
   private static generateCacheKey(question: any, answerKey: any): string {
@@ -247,7 +265,8 @@ export class OptimizedQuestionClassifier {
         usedFastPath: false,
         confidence: comprehensiveResult.confidence,
         fallbackReason: 'Used comprehensive analysis'
-      }
+      },
+      questionAnalysis: this.createQuestionAnalysis(question)
     };
   }
 

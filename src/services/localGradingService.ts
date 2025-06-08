@@ -29,7 +29,7 @@ interface QuestionClassification {
   };
 }
 
-import { OptimizedQuestionClassifier } from './optimizedQuestionClassifier';
+import { OptimizedQuestionClassifier, OptimizedClassificationResult } from './optimizedQuestionClassifier';
 import { ClassificationLogger } from './classificationLogger';
 
 export class LocalGradingService {
@@ -39,7 +39,7 @@ export class LocalGradingService {
 
   static classifyQuestion(question: any, answerKey: any): QuestionClassification {
     // Use optimized classifier with performance tracking
-    const result = OptimizedQuestionClassifier.classifyQuestionOptimized(question, answerKey);
+    const result: OptimizedClassificationResult = OptimizedQuestionClassifier.classifyQuestionOptimized(question, answerKey);
     
     // Log classification for analytics
     ClassificationLogger.logClassification(
