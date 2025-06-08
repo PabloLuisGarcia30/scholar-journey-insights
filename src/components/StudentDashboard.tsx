@@ -20,6 +20,11 @@ import {
   type ActiveClass
 } from "@/services/examService";
 import { StudentPerformanceOverview } from "@/components/StudentPerformanceOverview";
+import { MultiSkillActionBar } from "@/components/MultiSkillActionBar";
+import { generateMultiplePracticeTests, MultiPracticeTestResult } from "@/services/practiceTestService";
+import { PracticeTestGenerator } from "@/components/PracticeTestGenerator";
+import { MultiPracticeTestResults } from "@/components/MultiPracticeTestResults";
+import { useMultiSkillSelection } from "@/contexts/MultiSkillSelectionContext";
 
 interface StudentDashboardProps {
   onSelectStudent: (studentId: string, classId?: string, className?: string) => void;
@@ -31,6 +36,14 @@ export function StudentDashboard({ onSelectStudent }: StudentDashboardProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterClass, setFilterClass] = useState<string>('all');
   const [loading, setLoading] = useState(true);
+  const [showPracticeTest, setShowPracticeTest] = useState(false);
+  const [showMultiPracticeTests, setShowMultiPracticeTests] = useState(false);
+  const [selectedSkill, setSelectedSkill] = useState<string | null>(null);
+  const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
+  const [multiTestResults, setMultiTestResults] = useState<MultiPracticeTestResult[]>([]);
+  const [isGeneratingMultiTests, setIsGeneratingMultiTests] = useState(false);
+
+  const { selectedSkills, clearSelection, toggleSelectionMode } = useMultiSkillSelection();
 
   useEffect(() => {
     loadDashboardData();
@@ -54,6 +67,84 @@ export function StudentDashboard({ onSelectStudent }: StudentDashboardProps) {
     }
   };
 
+  const handleGeneratePracticeTest = (skillName: string, studentId?: string) => {
+    setSelectedSkill(skillName);
+    setSelectedStudentId(studentId || null);
+    setShowPracticeTest(true);
+  };
+
+  const handleGenerateMultiPracticeTests = async () => {
+    if (selectedSkills.length === 0) {
+      toast.error("Please select at least one skill");
+      return;
+    }
+
+    setIsGeneratingMultiTests(true);
+    
+    try {
+      const results = await generateMultiplePracticeTests(
+        selectedSkills.map(skill => ({ name: skill.name, score: skill.score })),
+        {
+          studentName: selectedSkills[0]?.studentName || 'Multiple Students',
+          className: 'Mixed Class Dashboard',
+          grade: 'Grade 10',
+          subject: 'Math',
+          classId: 'dashboard-multi'
+        }
+      );
+
+      setMultiTestResults(results);
+      setShowMultiPracticeTests(true);
+      clearSelection();
+      toggleSelectionMode();
+      toast.success(`Generated ${results.filter(r => r.status === 'completed').length} practice tests successfully!`);
+    } catch (error) {
+      console.error('Error generating multiple practice tests:', error);
+      toast.error("Failed to generate practice tests. Please try again.");
+    } finally {
+      setIsGeneratingMultiTests(false);
+    }
+  };
+
+  const handleRegenerateSkill = async (skillName: string) => {
+    try {
+      const skillToRegenerate = selectedSkills.find(s => s.name === skillName) || 
+        { name: skillName, score: 0 };
+      
+      const results = await generateMultiplePracticeTests(
+        [{ name: skillToRegenerate.name, score: skillToRegenerate.score }],
+        {
+          studentName: skillToRegenerate.studentName || 'Student',
+          className: 'Dashboard Practice',
+          grade: 'Grade 10',
+          subject: 'Math',
+          classId: 'dashboard-single'
+        }
+      );
+
+      setMultiTestResults(prev => 
+        prev.map(result => 
+          result.skillName === skillName ? results[0] : result
+        )
+      );
+
+      toast.success("Practice test regenerated successfully!");
+    } catch (error) {
+      toast.error("Failed to regenerate practice test");
+    }
+  };
+
+  const handleBackFromPracticeTest = () => {
+    setShowPracticeTest(false);
+    setSelectedSkill(null);
+    setSelectedStudentId(null);
+  };
+
+  const handleBackFromMultiTests = () => {
+    setShowMultiPracticeTests(false);
+    setMultiTestResults([]);
+  };
+
   const filteredStudents = students.filter(student => {
     const matchesSearch = student.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          (student.email && student.email.toLowerCase().includes(searchTerm.toLowerCase()));
@@ -66,6 +157,33 @@ export function StudentDashboard({ onSelectStudent }: StudentDashboardProps) {
     
     return matchesSearch && studentInClass;
   });
+
+  if (showPracticeTest) {
+    const selectedStudent = students.find(s => s.id === selectedStudentId);
+    return (
+      <PracticeTestGenerator
+        studentName={selectedStudent?.name || 'Student'}
+        className="Dashboard Practice"
+        skillName={selectedSkill}
+        grade="Grade 10"
+        subject="Math"
+        classId="dashboard"
+        onBack={handleBackFromPracticeTest}
+      />
+    );
+  }
+
+  if (showMultiPracticeTests) {
+    return (
+      <MultiPracticeTestResults
+        results={multiTestResults}
+        studentName="Multiple Students"
+        className="Dashboard Multi-Practice"
+        onBack={handleBackFromMultiTests}
+        onRegenerateSkill={handleRegenerateSkill}
+      />
+    );
+  }
 
   if (loading) {
     return (
@@ -139,8 +257,11 @@ export function StudentDashboard({ onSelectStudent }: StudentDashboardProps) {
         </Card>
       </div>
 
-      {/* Student Performance Overview */}
-      <StudentPerformanceOverview />
+      {/* Student Performance Overview with Practice Test Integration */}
+      <StudentPerformanceOverview 
+        onGeneratePracticeTest={handleGeneratePracticeTest}
+        onSelectStudent={onSelectStudent}
+      />
 
       {/* Student List */}
       <Card>
@@ -209,6 +330,11 @@ export function StudentDashboard({ onSelectStudent }: StudentDashboardProps) {
           )}
         </CardContent>
       </Card>
+
+      <MultiSkillActionBar 
+        onGenerateTests={handleGenerateMultiPracticeTests}
+        isGenerating={isGeneratingMultiTests}
+      />
     </div>
   );
 }

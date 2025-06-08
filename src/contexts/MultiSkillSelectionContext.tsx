@@ -6,6 +6,8 @@ interface SelectedSkill {
   name: string;
   score: number;
   type: 'content' | 'subject';
+  studentId?: string;
+  studentName?: string;
 }
 
 interface MultiSkillSelectionContextType {
