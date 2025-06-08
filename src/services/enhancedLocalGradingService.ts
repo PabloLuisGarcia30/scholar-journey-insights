@@ -187,7 +187,7 @@ export class EnhancedLocalGradingService {
     return skillMappings;
   }
 
-  static gradeQuestionWithDistilBert(question: any, answerKey: any, skillMappings: SkillMapping[]): Promise<EnhancedLocalGradingResult> {
+  static async gradeQuestionWithDistilBert(question: any, answerKey: any, skillMappings: SkillMapping[]): Promise<EnhancedLocalGradingResult> {
     // Use enhanced classification
     const classification = EnhancedQuestionClassifier.classifyQuestion(question, answerKey);
     
