@@ -262,9 +262,9 @@ export class EnhancedLocalGradingService {
       // Validate question score
       pointsEarned = ScoreValidationService.validateQuestionScore(pointsEarned, pointsPossible, question.questionNumber);
 
-      // Determine grading method with WASM indication
+      // Determine grading method with WASM indication - FIX: Use correct method name
       let gradingMethod = `distilbert_simple_${classification.questionType}`;
-      if (distilBertResult.wasmResult?.method === 'wasm_distilbert') {
+      if (distilBertResult.wasmResult?.method === 'wasm_distilbert_large') {
         gradingMethod = `wasm_distilbert_${classification.questionType}`;
       } else if (distilBertResult.method === 'semantic_matching') {
         gradingMethod = `distilbert_semantic_${classification.questionType}`;
