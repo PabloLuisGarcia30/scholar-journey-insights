@@ -27,3 +27,6 @@ verify_jwt = false
 
 [functions.cleanup-question-cache]
 verify_jwt = false
+
+[functions.grade-complex-question]
+verify_jwt = false
