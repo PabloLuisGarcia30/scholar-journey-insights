@@ -8,6 +8,7 @@ export { EnhancedQuestionClassifier } from './enhancedQuestionClassifier';
 export { OpenAIComplexGradingService } from './openAIComplexGradingService';
 export { HybridGradingResultsMerger } from './hybridGradingResultsMerger';
 export { QuestionCacheService } from './questionCacheService';
+export { ExamPreProcessingService } from './examPreProcessingService';
 
 export type { DocumentClassification, OcrMethod, AdaptiveOcrConfig, ProcessingMetrics } from './smartOcrService';
 export type { BatchJob, ProcessingQueue } from './batchProcessingService';
@@ -17,3 +18,4 @@ export type { QuestionClassification, SimpleAnswerValidation } from './enhancedQ
 export type { OpenAIGradingResult, ComplexQuestionBatch } from './openAIComplexGradingService';
 export type { HybridGradingResults } from './hybridGradingResultsMerger';
 export type { QuestionCacheKey, QuestionCacheResult, QuestionCacheStats } from './questionCacheService';
+export type { CommonAnswerPattern, ExamPreProcessingConfig, PreProcessingReport } from './examPreProcessingService';
