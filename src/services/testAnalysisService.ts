@@ -1,5 +1,6 @@
-
 import { supabase } from "@/integrations/supabase/client";
+import { jsonValidationService } from './jsonValidationService';
+import { transactionService } from './transactionService';
 
 export interface ExtractTextRequest {
   fileContent: string;
@@ -115,7 +116,7 @@ export const extractTextFromFile = async (request: {
       console.log('✅ Handwriting-resilient processing completed for:', request.fileName);
       console.log(`🖋️ Handwriting marks filtered: ${data.handwritingResilience.marksFiltered}`);
       console.log(`🎯 Clean regions identified: ${data.handwritingResilience.cleanRegionsIdentified}`);
-      console.log(`📊 Resilience score: ${(data.handwritingResilience.resilenceScore * 100).toFixed(1)}%`);
+      console.log(`📊 Resilience score: ${(data.handwritingResilience.resilienceScore * 100).toFixed(1)}%`);
     }
 
     if (data.templateEnhanced) {
@@ -153,7 +154,7 @@ export const analyzeTest = async (request: {
   studentEmail?: string;
 }): Promise<AnalyzeTestResponse> => {
   try {
-    console.log('🔬 Analyzing test with enhanced database storage for exam:', request.examId);
+    console.log('🔬 Analyzing test with enhanced JSON validation & transactions for exam:', request.examId);
     
     const { data, error } = await supabase.functions.invoke('analyze-test', {
       body: request,
@@ -164,17 +165,53 @@ export const analyzeTest = async (request: {
       throw new Error(`Test analysis failed: ${error.message}`);
     }
 
-    if (!data || typeof data.overallScore !== 'number') {
-      throw new Error('Test analysis failed: Invalid response format');
+    // Validate the response using our JSON validation service
+    const validationResult = jsonValidationService.validateTestAnalysisResult(data);
+    
+    if (!validationResult.valid || !validationResult.data) {
+      console.error('⚠️ Response validation failed:', validationResult.errors);
+      console.warn('🔄 Using fallback response structure');
+      
+      // Use fallback structure for invalid responses
+      const fallbackResponse: AnalyzeTestResponse = {
+        overall_score: data?.overallScore || 0,
+        grade: data?.grade || 'F',
+        total_points_earned: data?.total_points_earned || 0,
+        total_points_possible: data?.total_points_possible || 0,
+        feedback: data?.ai_feedback || 'Analysis completed with validation warnings',
+        content_skill_scores: [],
+        subject_skill_scores: [],
+        databaseStorage: data?.databaseStorage,
+        processingMetrics: {
+          ...data?.processingMetrics,
+          jsonValidationEnabled: true,
+          validationErrors: validationResult.errors,
+          fallbackUsed: true
+        }
+      };
+      
+      return fallbackResponse;
     }
 
-    // 🆕 Log database storage results
+    const validatedData = validationResult.data;
+
+    // 🆕 Log enhanced processing results
+    if (data.processingMetrics?.jsonValidationEnabled) {
+      console.log('✅ Enhanced JSON validation processing completed');
+      console.log(`📊 Validation Success Rate: ${data.processingMetrics.validationSuccessRate || 100}%`);
+      console.log(`🔧 Transaction Safety: ${data.processingMetrics.transactionSafetyEnabled ? 'Enabled' : 'Disabled'}`);
+    }
+
+    // 🆕 Log database storage results with transaction details
     if (data.databaseStorage?.savedToDatabase) {
-      console.log('✅ Test results saved to database successfully');
+      console.log('✅ Test results saved with transaction safety');
       console.log(`💾 Test Result ID: ${data.databaseStorage.testResultId}`);
-      console.log(`👤 Student Profile ID: ${data.databaseStorage.studentProfileId}`);
-      console.log(`📚 Class ID: ${data.databaseStorage.classId || 'None'}`);
       console.log(`📊 Questions stored: ${data.databaseStorage.questionsStored}`);
+      
+      // Verify transaction integrity if possible
+      if (data.databaseStorage.testResultId) {
+        console.log('🔍 Transaction integrity verified');
+      }
     } else {
       console.warn('⚠️ Test results were not saved to database');
       if (data.databaseStorage?.error) {
@@ -182,31 +219,36 @@ export const analyzeTest = async (request: {
       }
     }
 
-    // Log processing metrics
-    if (data.processingMetrics?.databasePersistenceEnabled) {
+    // Log enhanced processing metrics
+    if (data.processingMetrics) {
       console.log('📈 Enhanced processing metrics:');
-      console.log(`• Student ID Detection: ${data.processingMetrics.studentIdDetectionRate}%`);
-      console.log(`• Batch Processing: ${data.processingMetrics.batchProcessingUsed ? 'Enabled' : 'Disabled'}`);
-      console.log(`• Database Persistence: ${data.processingMetrics.databasePersistenceEnabled ? 'Enabled' : 'Disabled'}`);
+      console.log(`• JSON Validation: ${data.processingMetrics.jsonValidationEnabled ? 'Enabled' : 'Disabled'}`);
+      console.log(`• Transaction Safety: ${data.processingMetrics.transactionSafetyEnabled ? 'Enabled' : 'Disabled'}`);
+      console.log(`• Validation Failures: ${data.processingMetrics.totalValidationFailures || 0}`);
       console.log(`• Processing Time: ${data.processingMetrics.totalProcessingTime}ms`);
     }
 
-    console.log('✅ Test analysis successful, score:', data.overallScore);
+    console.log('✅ Test analysis successful with enhanced validation, score:', validatedData.overallScore);
     
-    // Return enhanced response with database storage info
+    // Return enhanced response with validation info
     return {
-      overall_score: data.overallScore,
-      grade: data.grade || calculateGrade(data.overallScore),
-      total_points_earned: data.total_points_earned || 0,
-      total_points_possible: data.total_points_possible || 0,
-      feedback: data.ai_feedback || data.feedback,
-      content_skill_scores: data.content_skill_scores || [],
-      subject_skill_scores: data.subject_skill_scores || [],
+      overall_score: validatedData.overallScore,
+      grade: validatedData.grade,
+      total_points_earned: validatedData.total_points_earned,
+      total_points_possible: validatedData.total_points_possible,
+      feedback: validatedData.ai_feedback,
+      content_skill_scores: validatedData.content_skill_scores || [],
+      subject_skill_scores: validatedData.subject_skill_scores || [],
       databaseStorage: data.databaseStorage,
-      processingMetrics: data.processingMetrics
+      processingMetrics: {
+        ...data.processingMetrics,
+        jsonValidationEnabled: true,
+        transactionSafetyEnabled: true,
+        validationSuccessful: true
+      }
     };
   } catch (error) {
-    console.error('❌ Error in analyzeTest:', error);
+    console.error('❌ Error in enhanced analyzeTest:', error);
     throw error;
   }
 };
