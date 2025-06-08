@@ -168,7 +168,7 @@ serve(async (req) => {
       ? `${basePrompt}\n\nIMPORTANT: Use these example questions from previous tests in this class as style templates. Generate NEW questions that follow similar patterns, formats, and difficulty levels:\n\n${historicalQuestions}\n\nCreate questions that match the style and complexity of these examples while covering the target skill area.`
       : basePrompt
 
-    console.log('Sending request to OpenAI GPT-4.1 with enhanced prompt including', historicalQuestions ? 'historical questions' : 'base prompt only')
+    console.log('Sending request to OpenAI GPT-4o-mini with enhanced prompt including', historicalQuestions ? 'historical questions' : 'base prompt only')
     
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
@@ -177,7 +177,7 @@ serve(async (req) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'gpt-4.1-2025-04-14',
+        model: 'gpt-4o-mini',
         messages: [
           {
             role: 'system',
@@ -219,7 +219,7 @@ RESPOND ONLY WITH THE JSON OBJECT - NO OTHER TEXT.`
       }),
     })
 
-    console.log('OpenAI GPT-4.1 response status:', response.status)
+    console.log('OpenAI GPT-4o-mini response status:', response.status)
 
     if (!response.ok) {
       const errorText = await response.text()
@@ -242,14 +242,14 @@ RESPOND ONLY WITH THE JSON OBJECT - NO OTHER TEXT.`
     }
 
     const result = await response.json()
-    console.log('OpenAI GPT-4.1 practice test generation completed successfully')
+    console.log('OpenAI GPT-4o-mini practice test generation completed successfully')
     const generatedContent = result.choices[0]?.message?.content || "{}"
     
     // Try to parse and validate the generated content
     let parsedTest
     try {
       parsedTest = extractJSON(generatedContent)
-      console.log('Successfully extracted JSON from GPT-4.1 response')
+      console.log('Successfully extracted JSON from GPT-4o-mini response')
       
       // Validate the structure
       if (!validateTestStructure(parsedTest)) {
@@ -265,7 +265,7 @@ RESPOND ONLY WITH THE JSON OBJECT - NO OTHER TEXT.`
         parsedTest.estimatedTime = Math.max(15, parsedTest.questions.length * 2)
       }
       
-      console.log('Successfully parsed and validated practice test with', parsedTest.questions?.length || 0, 'questions using GPT-4.1')
+      console.log('Successfully parsed and validated practice test with', parsedTest.questions?.length || 0, 'questions using GPT-4o-mini')
       if (historicalQuestions) {
         console.log('Practice test generated using historical question patterns from class')
       }
