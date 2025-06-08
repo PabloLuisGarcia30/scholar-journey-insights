@@ -1,4 +1,5 @@
-import { pipeline, FeatureExtractionPipeline } from '@huggingface/transformers';
+
+import { pipeline } from '@huggingface/transformers';
 import { QuestionClassification, SimpleAnswerValidation } from './enhancedQuestionClassifier';
 
 export interface DistilBertConfig {
@@ -22,7 +23,7 @@ export interface DistilBertGradingResult {
 
 export class DistilBertLocalGradingService {
   private static instance: DistilBertLocalGradingService;
-  private featureExtractor: FeatureExtractionPipeline | null = null;
+  private featureExtractor: any = null;
   private isLoading = false;
   private loadingPromise: Promise<void> | null = null;
 
@@ -64,7 +65,7 @@ export class DistilBertLocalGradingService {
           'feature-extraction',
           this.config.model,
           { device: 'webgpu' }
-        ) as FeatureExtractionPipeline;
+        );
         console.log('✅ DistilBERT loaded with WebGPU acceleration');
       } catch (webgpuError) {
         console.warn('⚠️ WebGPU not available, falling back to CPU');
@@ -72,7 +73,7 @@ export class DistilBertLocalGradingService {
           'feature-extraction',
           this.config.model,
           { device: 'cpu' }
-        ) as FeatureExtractionPipeline;
+        );
         device = 'cpu';
         console.log('✅ DistilBERT loaded with CPU');
       }
