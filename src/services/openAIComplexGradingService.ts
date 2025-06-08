@@ -40,14 +40,14 @@ export class OpenAIComplexGradingService {
     studentName: string,
     skillMappings: QuestionSkillMappings
   ): Promise<OpenAIGradingResult[]> {
-    console.log(`🚀 Enhanced OpenAI grading ${questions.length} complex questions with smart batching`);
+    console.log(`🚀 Enhanced OpenAI grading ${questions.length} complex questions with smart batching for student: ${studentName}`);
     
     // Use the enhanced batch grading service for improved performance
-    // Fix: Adjust arguments to match the expected method signature
+    // Fixed: Correct argument order to match method signature (questions, examId, studentName, priority)
     const jobId = await EnhancedBatchGradingService.createEnhancedBatchJob(
       questions,
-      answerKeys,
       examId,
+      studentName,
       'high' // Use high priority for complex grading
     );
 
@@ -99,6 +99,7 @@ export class OpenAIComplexGradingService {
             };
           });
 
+          console.log(`✅ Enhanced OpenAI grading completed for ${studentName}: ${results.length} questions processed`);
           resolve(results);
           
         } else if (job.status === 'failed') {
