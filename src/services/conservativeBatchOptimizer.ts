@@ -280,7 +280,7 @@ export class ConservativeBatchOptimizer {
       index: number;
     }>
   ): SkillAwareBatchGroup[] {
-    console.log(`🎯 Creating conservative batches for ${openAIQuestions.length} OpenAI questions`);
+    console.log(`🎯 Creating conservative batches with enhanced cross-question isolation for ${openAIQuestions.length} OpenAI questions`);
     
     const batches: SkillAwareBatchGroup[] = [];
 
@@ -291,9 +291,13 @@ export class ConservativeBatchOptimizer {
       const complexityGroups = this.groupByComplexityConservative(group);
       
       for (const [complexity, complexityGroup] of complexityGroups) {
-        const maxBatchSize = this.config.openAIBatchSizes[complexity as keyof typeof this.config.openAIBatchSizes];
+        // Reduced batch sizes for enhanced cross-question isolation
+        const maxBatchSize = Math.min(
+          this.config.openAIBatchSizes[complexity as keyof typeof this.config.openAIBatchSizes],
+          4 // Maximum 4 questions per batch for enhanced isolation
+        );
         
-        // Create small, conservative batches for OpenAI processing
+        // Create small, conservative batches for OpenAI processing with enhanced isolation
         for (let i = 0; i < complexityGroup.length; i += maxBatchSize) {
           const batchQuestions = complexityGroup.slice(i, i + maxBatchSize);
           
@@ -305,10 +309,12 @@ export class ConservativeBatchOptimizer {
             
             const qualityMetrics = this.calculateBatchQualityMetrics(questions, answerKeys, skills);
             
-            // Only create batch if it meets quality thresholds
-            if (this.meetQualityThresholds(qualityMetrics)) {
+            // Enhanced quality threshold for cross-question isolation
+            const enhancedQualityCheck = this.meetEnhancedQualityThresholds(qualityMetrics, batchQuestions.length);
+            
+            if (enhancedQualityCheck.meetsThreshold) {
               batches.push({
-                id: `conservative_openai_${++this.batchCounter}`,
+                id: `enhanced_conservative_openai_${++this.batchCounter}`,
                 questions,
                 answerKeys,
                 complexity: complexity as any,
@@ -320,12 +326,18 @@ export class ConservativeBatchOptimizer {
                 batchSize: questions.length,
                 priority: this.calculateConservativePriority(complexity as any, analyses),
                 processingMethod: batchQuestions.length === 1 ? 'openai_single' : 'openai_batch',
-                qualityMetrics
+                qualityMetrics: {
+                  ...qualityMetrics,
+                  crossQuestionIsolation: enhancedQualityCheck.isolationScore,
+                  skillAmbiguityScore: enhancedQualityCheck.skillAmbiguityScore
+                }
               });
             } else {
-              // Split into individual questions for maximum quality
+              // Split into individual questions for maximum isolation and quality
+              console.log(`🎯 Splitting batch due to enhanced quality requirements: ${enhancedQualityCheck.reason}`);
+              
               batchQuestions.forEach((questionData) => {
-                batches.push(this.createSingleQuestionBatch(
+                batches.push(this.createEnhancedSingleQuestionBatch(
                   questionData.question,
                   questionData.answerKey,
                   questionData.skills,
@@ -477,12 +489,63 @@ export class ConservativeBatchOptimizer {
     };
   }
 
-  private meetQualityThresholds(metrics: { skillAlignment: number; rubricConsistency: number; questionTypeCompatibility: number }): boolean {
-    return metrics.skillAlignment >= this.config.qualityThresholds.minSkillAlignment &&
-           metrics.rubricConsistency >= this.config.qualityThresholds.minRubricConsistency;
+  private meetEnhancedQualityThresholds(
+    metrics: { skillAlignment: number; rubricConsistency: number; questionTypeCompatibility: number },
+    batchSize: number
+  ): {
+    meetsThreshold: boolean;
+    reason: string;
+    isolationScore: number;
+    skillAmbiguityScore: number;
+  } {
+    // Enhanced thresholds for cross-question isolation
+    const enhancedSkillAlignment = this.config.qualityThresholds.minSkillAlignment + 0.1; // Higher threshold
+    const enhancedRubricConsistency = this.config.qualityThresholds.minRubricConsistency + 0.05;
+    
+    // Cross-question isolation score (higher for smaller batches)
+    const isolationScore = Math.max(0.5, 1.0 - (batchSize - 1) * 0.2);
+    
+    // Skill ambiguity score (better when skills are more aligned)
+    const skillAmbiguityScore = metrics.skillAlignment;
+    
+    // Basic quality checks
+    if (metrics.skillAlignment < enhancedSkillAlignment) {
+      return {
+        meetsThreshold: false,
+        reason: `Enhanced skill alignment too low (${metrics.skillAlignment} < ${enhancedSkillAlignment})`,
+        isolationScore,
+        skillAmbiguityScore
+      };
+    }
+    
+    if (metrics.rubricConsistency < enhancedRubricConsistency) {
+      return {
+        meetsThreshold: false,
+        reason: `Enhanced rubric consistency too low (${metrics.rubricConsistency} < ${enhancedRubricConsistency})`,
+        isolationScore,
+        skillAmbiguityScore
+      };
+    }
+    
+    // Enhanced isolation check - prefer smaller batches for better isolation
+    if (batchSize > 3 && isolationScore < 0.8) {
+      return {
+        meetsThreshold: false,
+        reason: `Batch too large for optimal cross-question isolation (${batchSize} questions)`,
+        isolationScore,
+        skillAmbiguityScore
+      };
+    }
+    
+    return {
+      meetsThreshold: true,
+      reason: 'Enhanced quality thresholds met for cross-question isolation',
+      isolationScore,
+      skillAmbiguityScore
+    };
   }
 
-  private createSingleQuestionBatch(
+  private createEnhancedSingleQuestionBatch(
     question: any,
     answerKey: any,
     skills: any[],
@@ -491,7 +554,7 @@ export class ConservativeBatchOptimizer {
     rubricType: string
   ): SkillAwareBatchGroup {
     return {
-      id: `single_question_${++this.batchCounter}`,
+      id: `enhanced_single_question_${++this.batchCounter}`,
       questions: [question],
       answerKeys: [answerKey],
       complexity: this.determineComplexity(null),
@@ -499,14 +562,16 @@ export class ConservativeBatchOptimizer {
       skillDomain,
       rubricType,
       confidenceRange: [1.0, 1.0],
-      recommendedModel: 'gpt-4o',
+      recommendedModel: 'gpt-4.1-2025-04-14', // Use highest quality model for single questions
       batchSize: 1,
       priority: 100,
       processingMethod: 'openai_single',
       qualityMetrics: {
         skillAlignment: 1.0,
         rubricConsistency: 1.0,
-        questionTypeCompatibility: 1.0
+        questionTypeCompatibility: 1.0,
+        crossQuestionIsolation: 1.0, // Perfect isolation for single questions
+        skillAmbiguityScore: 1.0
       }
     };
   }
@@ -650,7 +715,12 @@ export class ConservativeBatchOptimizer {
     const avgOpenAIBatchSize = openAIBatches.length > 0 ? 
       (openAIQuestions / openAIBatches.length).toFixed(1) : '0';
 
-    return `Hybrid Conservative Batching: ${totalQuestions} questions → ${localBatches.length} aggressive local (avg: ${avgLocalBatchSize}) + ${openAIBatches.length} conservative OpenAI (avg: ${avgOpenAIBatchSize}) batches. ` +
-           `Efficiency: ${localQuestions} local (${((localQuestions/totalQuestions)*100).toFixed(1)}%) for speed, ${openAIQuestions} OpenAI for quality.`;
+    // Enhanced metrics
+    const singleQuestionBatches = batches.filter(b => b.batchSize === 1).length;
+    const enhancedBatches = batches.filter(b => b.qualityMetrics.crossQuestionIsolation).length;
+
+    return `Enhanced Conservative Batching: ${totalQuestions} questions → ${localBatches.length} aggressive local (avg: ${avgLocalBatchSize}) + ${openAIBatches.length} conservative OpenAI (avg: ${avgOpenAIBatchSize}) batches. ` +
+           `Cross-question isolation: ${enhancedBatches}/${batches.length} batches enhanced, ${singleQuestionBatches} single-question batches for maximum quality. ` +
+           `Efficiency: ${localQuestions} local (${((localQuestions/totalQuestions)*100).toFixed(1)}%) for speed, ${openAIQuestions} OpenAI for quality with enhanced isolation.`;
   }
 }

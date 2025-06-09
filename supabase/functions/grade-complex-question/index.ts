@@ -70,11 +70,11 @@ serve(async (req) => {
 
     const requestBody = await req.json();
     
-    // Support both single question and batch processing
-    const isBatchMode = requestBody.batchMode || Array.isArray(requestBody.questions);
-    
-    if (isBatchMode) {
-      return await processBatchQuestions(requestBody, openAIApiKey);
+    // Support enhanced batch processing, skill escalation, and single question processing
+    if (requestBody.escalationMode) {
+      return await processSkillEscalation(requestBody, openAIApiKey);
+    } else if (requestBody.batchMode || Array.isArray(requestBody.questions)) {
+      return await processEnhancedBatchQuestions(requestBody, openAIApiKey);
     } else {
       return await processSingleQuestion(requestBody, openAIApiKey);
     }
@@ -88,8 +88,8 @@ serve(async (req) => {
   }
 });
 
-async function processBatchQuestions(requestBody: any, openAIApiKey: string) {
-  const { questions, batchPrompt, examId, rubric } = requestBody;
+async function processEnhancedBatchQuestions(requestBody: any, openAIApiKey: string) {
+  const { questions, enhancedBatchPrompt, examId, rubric } = requestBody;
   
   if (!questions || !Array.isArray(questions)) {
     return new Response(
@@ -98,7 +98,11 @@ async function processBatchQuestions(requestBody: any, openAIApiKey: string) {
     );
   }
 
-  const enhancedPrompt = batchPrompt || createEnhancedBatchPrompt(questions, rubric);
+  // Use enhanced prompt if provided, otherwise fall back to standard batch prompt
+  const finalPrompt = enhancedBatchPrompt || createEnhancedBatchPrompt(questions, rubric);
+  const questionDelimiter = '---END QUESTION---';
+
+  console.log(`🎯 Processing enhanced batch: ${questions.length} questions with cross-question leakage prevention`);
 
   try {
     const result = await circuitBreaker.execute(async () => {
@@ -113,15 +117,15 @@ async function processBatchQuestions(requestBody: any, openAIApiKey: string) {
           messages: [
             {
               role: 'system',
-              content: 'You are an expert educational grading assistant. Always respond with valid JSON matching the requested format.'
+              content: 'You are an expert educational grading assistant. Process each question independently and avoid cross-question contamination. Always respond with valid JSON matching the requested format.'
             },
             {
               role: 'user',
-              content: enhancedPrompt
+              content: finalPrompt
             }
           ],
-          temperature: 0.3,
-          max_tokens: 2000,
+          temperature: 0.2, // Lower temperature for more consistent batch processing
+          max_tokens: 3000,
           response_format: { type: "json_object" }
         }),
       });
@@ -145,13 +149,14 @@ async function processBatchQuestions(requestBody: any, openAIApiKey: string) {
       gradingResults = JSON.parse(content);
     } catch (parseError) {
       console.error('Failed to parse OpenAI response:', content);
-      throw new Error('Invalid JSON response from OpenAI');
+      // Attempt delimiter-based parsing as fallback
+      gradingResults = parseWithDelimiters(content, questionDelimiter, questions.length);
     }
 
-    // Validate and sanitize batch results
-    const sanitizedResults = validateAndSanitizeBatchResults(gradingResults, questions);
+    // Validate and sanitize enhanced batch results
+    const sanitizedResults = validateAndSanitizeEnhancedBatchResults(gradingResults, questions);
 
-    console.log(`✅ Batch grading completed: ${questions.length} questions processed`);
+    console.log(`✅ Enhanced batch grading completed: ${questions.length} questions processed with leakage prevention`);
 
     return new Response(
       JSON.stringify({
@@ -159,13 +164,15 @@ async function processBatchQuestions(requestBody: any, openAIApiKey: string) {
         results: sanitizedResults.results || sanitizedResults,
         usage: result.usage,
         batchSize: questions.length,
-        processingTime: Date.now()
+        processingTime: Date.now(),
+        enhancedProcessing: true,
+        crossQuestionLeakagePrevention: true
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
   } catch (error) {
-    console.error('Batch processing failed:', error);
+    console.error('Enhanced batch processing failed:', error);
     
     // Fallback: Create basic results for each question
     const fallbackResults = questions.map((q: any, index: number) => ({
@@ -173,9 +180,11 @@ async function processBatchQuestions(requestBody: any, openAIApiKey: string) {
       isCorrect: false,
       pointsEarned: 0,
       confidence: 0.3,
-      reasoning: `Batch processing failed: ${error.message}. Manual review required.`,
+      reasoning: `Enhanced batch processing failed: ${error.message}. Manual review required.`,
       complexityScore: 0.5,
-      reasoningDepth: 'medium'
+      reasoningDepth: 'medium',
+      matchedSkills: [],
+      skillConfidence: 0.3
     }));
 
     return new Response(
@@ -183,6 +192,113 @@ async function processBatchQuestions(requestBody: any, openAIApiKey: string) {
         success: false,
         error: error.message,
         results: fallbackResults,
+        fallbackUsed: true,
+        enhancedProcessing: false
+      }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+}
+
+async function processSkillEscalation(requestBody: any, openAIApiKey: string) {
+  const {
+    questionNumber,
+    questionText,
+    studentAnswer,
+    availableSkills,
+    escalationPrompt,
+    model = 'gpt-4.1-2025-04-14'
+  } = requestBody;
+
+  console.log(`🎯 Processing skill escalation for Q${questionNumber} using ${model}`);
+
+  try {
+    const result = await circuitBreaker.execute(async () => {
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${openAIApiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model,
+          messages: [
+            {
+              role: 'system',
+              content: 'You are an expert educational assessment specialist. Resolve skill matching ambiguity with precision and confidence.'
+            },
+            {
+              role: 'user',
+              content: escalationPrompt
+            }
+          ],
+          temperature: 0.1, // Very low temperature for consistent skill resolution
+          max_tokens: 1000,
+          response_format: { type: "json_object" }
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Skill escalation API error:', errorText);
+        throw new Error(`Skill escalation failed: ${response.status}`);
+      }
+
+      return await response.json();
+    });
+
+    const content = result.choices?.[0]?.message?.content;
+    if (!content) {
+      throw new Error('No response from skill escalation');
+    }
+
+    let skillResult;
+    try {
+      skillResult = JSON.parse(content);
+    } catch (parseError) {
+      console.error('Failed to parse skill escalation response:', content);
+      throw new Error('Invalid skill escalation response format');
+    }
+
+    // Validate escalated skills
+    const validatedResult = {
+      matchedSkills: Array.isArray(skillResult.matchedSkills) 
+        ? skillResult.matchedSkills.filter((skill: string) => availableSkills.includes(skill)).slice(0, 2)
+        : [availableSkills[0] || 'General'],
+      confidence: Math.max(0, Math.min(1, Number(skillResult.confidence) || 0.8)),
+      reasoning: String(skillResult.reasoning || 'Skill escalation completed'),
+      primarySkill: skillResult.primarySkill || skillResult.matchedSkills?.[0] || 'General'
+    };
+
+    console.log(`✅ Skill escalation completed for Q${questionNumber}: ${validatedResult.matchedSkills.join(', ')}`);
+
+    return new Response(
+      JSON.stringify({
+        success: true,
+        skillEscalation: validatedResult,
+        usage: result.usage,
+        model,
+        escalated: true
+      }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+
+  } catch (error) {
+    console.error('Skill escalation processing failed:', error);
+    
+    // Fallback skill assignment
+    const fallbackResult = {
+      matchedSkills: [availableSkills[0] || 'General'],
+      confidence: 0.6,
+      reasoning: `Skill escalation failed: ${error.message}. Using fallback assignment.`,
+      primarySkill: availableSkills[0] || 'General'
+    };
+
+    return new Response(
+      JSON.stringify({
+        success: false,
+        error: error.message,
+        skillEscalation: fallbackResult,
         fallbackUsed: true
       }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -293,10 +409,31 @@ async function processSingleQuestion(requestBody: any, openAIApiKey: string) {
 
 function createEnhancedBatchPrompt(questions: any[], rubric?: string): string {
   const questionCount = questions.length;
+  const delimiter = '---END QUESTION---';
   
-  return `Grade ${questionCount} test questions with detailed analysis. Provide accurate scoring and reasoning for each.
+  return `Grade ${questionCount} test questions with enhanced cross-question isolation. Process each question INDEPENDENTLY.
 
-REQUIRED OUTPUT FORMAT (JSON object):
+CRITICAL PROCESSING RULES:
+1. Each question is separated by "${delimiter}"
+2. Do NOT let answers from one question influence another
+3. Process questions as completely separate tasks
+4. Match skills ONLY from the provided list for each question
+5. Maintain strict question boundaries
+
+${rubric ? `GRADING RUBRIC:\n${rubric}\n` : ''}
+
+QUESTIONS TO GRADE (PROCESS INDEPENDENTLY):
+${questions.map((q, index) => {
+  const skillContext = q.skillContext ? `\nAvailable Skills: ${q.skillContext}` : '';
+  return `Question ${index + 1} (Q${q.questionNumber || index + 1}):
+Question Text: ${q.questionText || 'Question text not available'}
+Student Answer: "${q.studentAnswer || 'No answer detected'}"
+Correct Answer: "${q.correctAnswer || 'Not specified'}"
+Points Possible: ${q.pointsPossible || 1}${skillContext}
+Instructions: Match answer strictly to provided skills. Do not infer additional skills.`;
+}).join(`\n${delimiter}\n`)}
+
+REQUIRED OUTPUT FORMAT (JSON object with results array):
 {
   "results": [
     {
@@ -304,68 +441,47 @@ REQUIRED OUTPUT FORMAT (JSON object):
       "isCorrect": true,
       "pointsEarned": 2,
       "confidence": 0.95,
-      "reasoning": "Detailed explanation of grading decision",
+      "reasoning": "Detailed explanation focusing on this question only",
       "complexityScore": 0.6,
-      "reasoningDepth": "medium"
+      "reasoningDepth": "medium",
+      "matchedSkills": ["skill1"],
+      "skillConfidence": 0.9
     }
   ]
 }
 
-${rubric ? `GRADING RUBRIC:\n${rubric}\n` : ''}
-
-QUESTIONS TO GRADE:
-${questions.map((q, index) => {
-  return `Q${q.questionNumber || index + 1}: ${q.questionText || 'Question text not available'}
-Student Answer: "${q.studentAnswer || 'No answer detected'}"
-Correct Answer: "${q.correctAnswer || 'Not specified'}"
-Points Possible: ${q.pointsPossible || 1}
-${q.skillContext ? `Skills: ${q.skillContext}` : ''}
----`;
-}).join('\n')}
-
-GRADING INSTRUCTIONS:
-- Provide accurate and fair grading for each question
-- Award full points for completely correct answers
-- Consider partial credit for partially correct responses
-- Analyze the complexity and reasoning depth of each question
-- Provide confidence scores based on answer clarity
-- Give detailed but concise reasoning for each grading decision
-
-Respond with ONLY the JSON object containing results for all ${questionCount} questions.`;
+CRITICAL: Return exactly ${questionCount} results. Process each question independently without cross-contamination.`;
 }
 
-function createSingleQuestionPrompt(requestBody: any): string {
-  const { questionText, studentAnswer, correctAnswer, pointsPossible, questionNumber, studentName, skillContext } = requestBody;
-  
-  return `You are an expert grading assistant for complex questions. Analyze the student's answer and provide detailed feedback.
+function parseWithDelimiters(content: string, delimiter: string, expectedCount: number): any {
+  const blocks = content.split(delimiter);
+  const results = [];
 
-Question: ${questionText}
-Correct Answer: ${correctAnswer}
-Student Answer: ${studentAnswer}
-Points Possible: ${pointsPossible}
-Student: ${studentName}
-Skills Context: ${skillContext}
+  for (let i = 0; i < Math.min(blocks.length, expectedCount); i++) {
+    const block = blocks[i].trim();
+    const result = {
+      questionNumber: i + 1,
+      isCorrect: block.toLowerCase().includes('correct'),
+      pointsEarned: block.match(/points?[:\s]*(\d+)/i)?.[1] ? parseInt(block.match(/points?[:\s]*(\d+)/i)[1]) : 0,
+      confidence: 0.7,
+      reasoning: `Delimiter-based parsing: ${block.substring(0, 100)}...`,
+      complexityScore: 0.5,
+      reasoningDepth: 'medium',
+      matchedSkills: [],
+      skillConfidence: 0.5
+    };
+    results.push(result);
+  }
 
-Please evaluate this answer and respond with a JSON object containing:
-{
-  "isCorrect": boolean,
-  "pointsEarned": number (0 to ${pointsPossible}),
-  "confidence": number (0.0 to 1.0),
-  "reasoning": string (detailed explanation of grading decision),
-  "complexityScore": number (0.0 to 1.0, how complex this question is),
-  "reasoningDepth": string ("shallow", "medium", or "deep")
+  return { results };
 }
 
-Consider partial credit for partially correct answers. Be thorough in your reasoning.`;
-}
-
-function validateAndSanitizeBatchResults(results: any, questions: any[]): any {
+function validateAndSanitizeEnhancedBatchResults(results: any, questions: any[]): any {
   if (!results || !results.results) {
-    // If results is an array directly, wrap it
     if (Array.isArray(results)) {
       results = { results };
     } else {
-      throw new Error('Invalid results format from OpenAI');
+      throw new Error('Invalid enhanced results format from OpenAI');
     }
   }
 
@@ -378,13 +494,16 @@ function validateAndSanitizeBatchResults(results: any, questions: any[]): any {
       isCorrect: Boolean(result.isCorrect),
       pointsEarned: Math.max(0, Math.min(pointsPossible, Number(result.pointsEarned) || 0)),
       confidence: Math.max(0, Math.min(1, Number(result.confidence) || 0.5)),
-      reasoning: String(result.reasoning || 'Batch processing result'),
+      reasoning: String(result.reasoning || 'Enhanced batch processing result'),
       complexityScore: Math.max(0, Math.min(1, Number(result.complexityScore) || 0.5)),
       reasoningDepth: ['shallow', 'medium', 'deep'].includes(result.reasoningDepth) 
         ? result.reasoningDepth 
-        : 'medium'
+        : 'medium',
+      matchedSkills: Array.isArray(result.matchedSkills) ? result.matchedSkills : [],
+      skillConfidence: Math.max(0, Math.min(1, Number(result.skillConfidence) || 0.7))
     };
   });
 
   return { results: sanitizedResults };
 }
+

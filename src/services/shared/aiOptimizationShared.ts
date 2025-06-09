@@ -37,6 +37,13 @@ export interface AIOptimizationConfig {
   gpt41Cost: number;
   enableAdaptiveThresholds: boolean;
   validationMode: boolean;
+  // Enhanced batch processing features
+  crossQuestionLeakagePrevention: boolean;
+  questionDelimiter: string;
+  maxQuestionsPerBatch: number;
+  skillAmbiguityResolution: boolean;
+  maxSkillsPerQuestion: number;
+  skillEscalationThreshold: number;
 }
 
 // Default configuration - can be overridden
@@ -47,8 +54,253 @@ export const DEFAULT_CONFIG: AIOptimizationConfig = {
   gpt4oMiniCost: 0.00015,
   gpt41Cost: 0.003,
   enableAdaptiveThresholds: false,
-  validationMode: false
+  validationMode: false,
+  // Enhanced features
+  crossQuestionLeakagePrevention: true,
+  questionDelimiter: '\n---END QUESTION---\n',
+  maxQuestionsPerBatch: 8, // Reduced for better isolation
+  skillAmbiguityResolution: true,
+  maxSkillsPerQuestion: 2,
+  skillEscalationThreshold: 0.7
 };
+
+export interface EnhancedBatchPrompt {
+  delimiter: string;
+  questions: Array<{
+    questionNumber: number;
+    questionText: string;
+    studentAnswer: string;
+    availableSkills: string[];
+    instructions: string;
+  }>;
+  batchInstructions: string;
+}
+
+export class EnhancedBatchProcessor {
+  private config: AIOptimizationConfig;
+
+  constructor(config: AIOptimizationConfig = DEFAULT_CONFIG) {
+    this.config = { ...DEFAULT_CONFIG, ...config };
+  }
+
+  createEnhancedBatchPrompt(
+    questions: any[],
+    answerKeys: any[],
+    skillMappings: any[]
+  ): EnhancedBatchPrompt {
+    const delimiter = this.config.questionDelimiter;
+    
+    const enhancedQuestions = questions.slice(0, this.config.maxQuestionsPerBatch).map((question, index) => {
+      const answerKey = answerKeys[index];
+      const questionSkills = skillMappings.filter(sm => sm.question_number === question.questionNumber);
+      const availableSkills = questionSkills.map(sm => sm.skill_name);
+
+      return {
+        questionNumber: question.questionNumber,
+        questionText: answerKey?.question_text || `Question ${question.questionNumber}`,
+        studentAnswer: question.detectedAnswer?.selectedOption || 'No answer detected',
+        availableSkills,
+        instructions: this.createQuestionInstructions(availableSkills, answerKey)
+      };
+    });
+
+    return {
+      delimiter,
+      questions: enhancedQuestions,
+      batchInstructions: this.createBatchInstructions(enhancedQuestions.length)
+    };
+  }
+
+  private createQuestionInstructions(availableSkills: string[], answerKey: any): string {
+    const instructions = [
+      `Match the answer strictly to the provided skills: ${availableSkills.join(', ')}`,
+      'Do not infer additional skills beyond those listed',
+      `Maximum ${this.config.maxSkillsPerQuestion} skills per question`,
+      'Focus on the PRIMARY skill being assessed'
+    ];
+
+    if (answerKey?.question_type) {
+      instructions.push(`Question type: ${answerKey.question_type}`);
+    }
+
+    return instructions.join('. ');
+  }
+
+  private createBatchInstructions(questionCount: number): string {
+    return `BATCH PROCESSING INSTRUCTIONS:
+1. Process each question INDEPENDENTLY - do not let context from one question affect another
+2. Each question is separated by "${this.config.questionDelimiter}"
+3. Return results for exactly ${questionCount} questions in order
+4. Use only the skills provided for each specific question
+5. Maintain strict question boundaries - no cross-question contamination
+6. If skill matching is ambiguous, indicate low confidence for escalation
+
+CRITICAL: Treat each question as a completely separate analysis task.`;
+  }
+
+  formatBatchPrompt(enhancedPrompt: EnhancedBatchPrompt): string {
+    const questionBlocks = enhancedPrompt.questions.map((q, index) => `
+Question ${index + 1} (Q${q.questionNumber}):
+Question Text: ${q.questionText}
+Student Answer: ${q.studentAnswer}
+Available Skills: ${q.availableSkills.join(', ')}
+Instructions: ${q.instructions}
+    `).join(enhancedPrompt.delimiter);
+
+    return `${enhancedPrompt.batchInstructions}
+
+${questionBlocks}
+
+REQUIRED OUTPUT FORMAT (JSON array with ${enhancedPrompt.questions.length} results):
+[
+  {
+    "questionNumber": 1,
+    "isCorrect": true,
+    "pointsEarned": 1,
+    "confidence": 0.95,
+    "reasoning": "Detailed grading explanation",
+    "matchedSkills": ["skill1"],
+    "skillConfidence": 0.9,
+    "complexityScore": 0.6
+  }
+]
+
+Return EXACTLY ${enhancedPrompt.questions.length} results in the array.`;
+  }
+
+  parseBatchedResponse(
+    gptResponse: string,
+    expectedQuestions: number,
+    delimiter: string
+  ): Array<{
+    questionNumber: number;
+    isCorrect: boolean;
+    pointsEarned: number;
+    confidence: number;
+    reasoning: string;
+    matchedSkills: string[];
+    skillConfidence: number;
+    complexityScore: number;
+    parseError?: string;
+  }> {
+    try {
+      // Try to parse as JSON first
+      const parsed = JSON.parse(gptResponse);
+      if (Array.isArray(parsed) && parsed.length === expectedQuestions) {
+        return parsed.map(result => this.validateQuestionResult(result));
+      }
+    } catch (jsonError) {
+      console.warn('JSON parsing failed, attempting delimiter-based parsing');
+    }
+
+    // Fallback to delimiter-based parsing
+    return this.parseWithDelimiters(gptResponse, delimiter, expectedQuestions);
+  }
+
+  private parseWithDelimiters(
+    response: string,
+    delimiter: string,
+    expectedQuestions: number
+  ): any[] {
+    const blocks = response.split(delimiter);
+    const results = [];
+
+    for (let i = 0; i < Math.min(blocks.length, expectedQuestions); i++) {
+      try {
+        const block = blocks[i].trim();
+        const result = this.extractResultFromBlock(block, i + 1);
+        results.push(result);
+      } catch (error) {
+        console.error(`Failed to parse block ${i + 1}:`, error);
+        results.push(this.createErrorResult(i + 1, error.message));
+      }
+    }
+
+    // Fill missing results with error placeholders
+    while (results.length < expectedQuestions) {
+      results.push(this.createErrorResult(results.length + 1, 'Missing result from batch response'));
+    }
+
+    return results;
+  }
+
+  private extractResultFromBlock(block: string, questionNumber: number): any {
+    // Extract key information using regex patterns
+    const patterns = {
+      isCorrect: /(?:correct|accurate):\s*(true|false)/i,
+      pointsEarned: /points?\s*earned?:\s*(\d+(?:\.\d+)?)/i,
+      confidence: /confidence:\s*(\d+(?:\.\d+)?)/i,
+      skills: /matched?\s*skills?:\s*\[(.*?)\]/i,
+      reasoning: /reasoning:\s*["']?(.*?)["']?(?:\n|$)/i
+    };
+
+    const result = {
+      questionNumber,
+      isCorrect: this.extractBoolean(block, patterns.isCorrect),
+      pointsEarned: this.extractNumber(block, patterns.pointsEarned, 0),
+      confidence: this.extractNumber(block, patterns.confidence, 0.5),
+      reasoning: this.extractString(block, patterns.reasoning, 'Batch processing result'),
+      matchedSkills: this.extractSkills(block, patterns.skills),
+      skillConfidence: 0.7,
+      complexityScore: 0.5
+    };
+
+    return this.validateQuestionResult(result);
+  }
+
+  private extractBoolean(text: string, pattern: RegExp): boolean {
+    const match = text.match(pattern);
+    return match ? match[1].toLowerCase() === 'true' : false;
+  }
+
+  private extractNumber(text: string, pattern: RegExp, defaultValue: number): number {
+    const match = text.match(pattern);
+    return match ? Math.max(0, parseFloat(match[1])) : defaultValue;
+  }
+
+  private extractString(text: string, pattern: RegExp, defaultValue: string): string {
+    const match = text.match(pattern);
+    return match ? match[1].trim() : defaultValue;
+  }
+
+  private extractSkills(text: string, pattern: RegExp): string[] {
+    const match = text.match(pattern);
+    if (!match) return [];
+    
+    return match[1]
+      .split(',')
+      .map(skill => skill.trim().replace(/['"]/g, ''))
+      .filter(skill => skill.length > 0)
+      .slice(0, this.config.maxSkillsPerQuestion);
+  }
+
+  private validateQuestionResult(result: any): any {
+    return {
+      questionNumber: result.questionNumber || 0,
+      isCorrect: Boolean(result.isCorrect),
+      pointsEarned: Math.max(0, Number(result.pointsEarned) || 0),
+      confidence: Math.max(0, Math.min(1, Number(result.confidence) || 0.5)),
+      reasoning: String(result.reasoning || 'Batch processing result'),
+      matchedSkills: Array.isArray(result.matchedSkills) ? result.matchedSkills : [],
+      skillConfidence: Math.max(0, Math.min(1, Number(result.skillConfidence) || 0.7)),
+      complexityScore: Math.max(0, Math.min(1, Number(result.complexityScore) || 0.5))
+    };
+  }
+
+  private createErrorResult(questionNumber: number, error: string): any {
+    return {
+      questionNumber,
+      isCorrect: false,
+      pointsEarned: 0,
+      confidence: 0.3,
+      reasoning: `Parse error: ${error}`,
+      matchedSkills: [],
+      skillConfidence: 0.3,
+      complexityScore: 0.5,
+      parseError: error
+    };
+  }
+}
 
 export class SharedQuestionComplexityAnalyzer {
   private config: AIOptimizationConfig;
@@ -217,11 +469,7 @@ export class SimplifiedFallbackAnalyzer {
   }
 
   // Simplified decision tree for fallback logic
-  shouldFallbackToGPT41(gpt4oMiniResult: any, originalComplexity: ComplexityAnalysis): {
-    shouldFallback: boolean;
-    reason: string;
-    confidence: number;
-  } {
+  shouldFallbackToGPT41(gpt4oMiniResult: any, originalComplexity: ComplexityAnalysis) {
     // Clear failure cases (high confidence fallback)
     if (!gpt4oMiniResult) {
       return { shouldFallback: true, reason: 'No result returned', confidence: 100 };
@@ -343,7 +591,13 @@ export class ConfigurationManager {
       gpt4oMiniCost: parseFloat(process.env?.GPT4O_MINI_COST || '0.00015'),
       gpt41Cost: parseFloat(process.env?.GPT41_COST || '0.003'),
       enableAdaptiveThresholds: process.env?.AI_ADAPTIVE_THRESHOLDS === 'true',
-      validationMode: process.env?.AI_VALIDATION_MODE === 'true'
+      validationMode: process.env?.AI_VALIDATION_MODE === 'true',
+      crossQuestionLeakagePrevention: true,
+      questionDelimiter: '\n---END QUESTION---\n',
+      maxQuestionsPerBatch: 8, // Reduced for better isolation
+      skillAmbiguityResolution: true,
+      maxSkillsPerQuestion: 2,
+      skillEscalationThreshold: 0.7
     };
   }
 

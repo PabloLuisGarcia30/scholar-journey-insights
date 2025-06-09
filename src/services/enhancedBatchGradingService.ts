@@ -6,6 +6,8 @@ import { AnswerKeyMatchingService, AnswerKeyValidationResult } from './answerKey
 import { ConservativeBatchOptimizer, SkillAwareBatchGroup } from './conservativeBatchOptimizer';
 import { WasmDistilBertService } from './wasmDistilBertService';
 import { ComplexityAnalysis } from './shared/aiOptimizationShared';
+import { SkillAmbiguityResolver, SkillAmbiguityResult } from './skillAmbiguityResolver';
+import { EnhancedBatchProcessor } from './shared/aiOptimizationShared';
 
 export interface EnhancedBatchJob {
   id: string;
@@ -711,29 +713,58 @@ export class EnhancedBatchGradingService {
 
   private static async processOpenAIBatch(questions: any[], answerKeys: any[], examId: string): Promise<BatchGradingResult[]> {
     try {
+      // Get skill mappings for enhanced processing
+      const { data: skillMappings } = await supabase
+        .from('exam_skill_mappings')
+        .select('*')
+        .eq('exam_id', examId);
+
+      // Create enhanced batch prompt with cross-question leakage prevention
+      const enhancedPrompt = this.enhancedBatchProcessor.createEnhancedBatchPrompt(
+        questions,
+        answerKeys,
+        skillMappings || []
+      );
+
+      const formattedPrompt = this.enhancedBatchProcessor.formatBatchPrompt(enhancedPrompt);
+
+      console.log(`🎯 Processing OpenAI batch with enhanced cross-question isolation: ${questions.length} questions`);
+
       const { data, error } = await supabase.functions.invoke('grade-complex-question', {
         body: {
           batchMode: true,
+          enhancedBatchPrompt: formattedPrompt,
           questions: questions.map((q, index) => ({
             questionNumber: q.questionNumber,
             questionText: answerKeys[index]?.question_text || `Question ${q.questionNumber}`,
             studentAnswer: q.detectedAnswer?.selectedOption?.trim() || '',
             correctAnswer: answerKeys[index]?.correct_answer?.trim() || '',
             pointsPossible: answerKeys[index]?.points || 1,
-            skillContext: 'Conservative OpenAI batch processing'
+            skillContext: (skillMappings || [])
+              .filter(sm => sm.question_number === q.questionNumber)
+              .map(s => s.skill_name)
+              .join(', ')
           })),
           examId,
-          rubric: 'Standard academic grading rubric with partial credit consideration'
+          rubric: 'Enhanced academic grading with skill-aware assessment and cross-question isolation'
         }
       });
 
       if (error) {
-        throw new Error(`OpenAI batch API error: ${error.message}`);
+        throw new Error(`Enhanced OpenAI batch API error: ${error.message}`);
       }
 
       const results = data.results || [];
       
-      return results.map((result: any, index: number) => ({
+      // Process skill ambiguity resolution if enabled
+      const processedResults = await this.processSkillAmbiguityResolution(
+        results,
+        questions,
+        answerKeys,
+        skillMappings || []
+      );
+
+      return processedResults.map((result: any, index: number) => ({
         questionNumber: result.questionNumber || index + 1,
         isCorrect: result.isCorrect,
         pointsEarned: result.pointsEarned,
@@ -747,9 +778,55 @@ export class EnhancedBatchGradingService {
       }));
 
     } catch (error) {
-      console.error('OpenAI batch processing failed:', error);
+      console.error('Enhanced OpenAI batch processing failed:', error);
       throw error;
     }
+  }
+
+  private static async processSkillAmbiguityResolution(
+    results: any[],
+    questions: any[],
+    answerKeys: any[],
+    skillMappings: any[]
+  ): Promise<any[]> {
+    console.log('🎯 Processing skill ambiguity resolution for batch results');
+
+    const skillQuestions = results.map((result, index) => {
+      const question = questions[index];
+      const answerKey = answerKeys[index];
+      const questionSkills = skillMappings
+        .filter(sm => sm.question_number === question.questionNumber)
+        .map(sm => sm.skill_name);
+
+      return {
+        questionNumber: result.questionNumber || index + 1,
+        questionText: answerKey?.question_text || `Question ${question.questionNumber}`,
+        studentAnswer: question.detectedAnswer?.selectedOption || '',
+        availableSkills: questionSkills,
+        detectedSkills: result.matchedSkills || [],
+        confidence: result.skillConfidence || result.confidence || 0.7
+      };
+    });
+
+    // Process skill ambiguity resolution
+    const skillResults: SkillAmbiguityResult[] = await this.skillAmbiguityResolver.processQuestionSkills(skillQuestions);
+
+    // Merge skill resolution results back into grading results
+    return results.map((result, index) => {
+      const skillResult = skillResults[index];
+      
+      if (skillResult && skillResult.escalated) {
+        console.log(`🎯 Question ${result.questionNumber} skills escalated: ${skillResult.matchedSkills.join(', ')}`);
+      }
+
+      return {
+        ...result,
+        matchedSkills: skillResult?.matchedSkills || result.matchedSkills || [],
+        skillConfidence: skillResult?.confidence || result.skillConfidence || 0.7,
+        skillEscalated: skillResult?.escalated || false,
+        skillReasoning: skillResult?.reasoning || 'Standard skill processing'
+      };
+    });
   }
 
   private static calculateTimeRemaining(job: EnhancedBatchJob, processedQuestions: number, totalQuestions: number): number {
@@ -953,6 +1030,59 @@ export class EnhancedBatchGradingService {
         localBatchRatio: totalBatches > 0 ? totalLocalBatches / totalBatches : 0,
         estimatedCostSavings: totalSavings,
         processingSpeedGain: 2.5 // Estimated speed improvement from aggressive local batching
+      }
+    };
+  }
+
+  static enableEnhancedProcessing(): void {
+    this.concurrencyConfig.localAI.maxConcurrent = 10; // Aggressive for local
+    this.concurrencyConfig.openAI.maxConcurrent = 2;   // Conservative for OpenAI
+    this.concurrencyConfig.openAI.rateLimitBuffer = 1500;
+    this.concurrencyConfig.circuitBreaker.failureThreshold = 2;
+    
+    // Enable enhanced features
+    this.enhancedBatchProcessor = new EnhancedBatchProcessor({
+      simpleThreshold: 25,
+      complexThreshold: 60,
+      fallbackConfidenceThreshold: 70,
+      gpt4oMiniCost: 0.00015,
+      gpt41Cost: 0.003,
+      enableAdaptiveThresholds: false,
+      validationMode: false,
+      crossQuestionLeakagePrevention: true,
+      questionDelimiter: '\n---END QUESTION---\n',
+      maxQuestionsPerBatch: 6, // Reduced for better isolation
+      skillAmbiguityResolution: true,
+      maxSkillsPerQuestion: 2,
+      skillEscalationThreshold: 0.7
+    });
+
+    this.skillAmbiguityResolver = new SkillAmbiguityResolver({
+      maxSkillsPerQuestion: 2,
+      minSkillsRequired: 1,
+      ambiguityThreshold: 0.7,
+      escalationModel: 'gpt-4.1-2025-04-14'
+    });
+    
+    console.log('🎯 Enhanced processing enabled - cross-question leakage prevention + skill ambiguity resolution');
+  }
+
+  static getEnhancedMetrics(): {
+    batchProcessor: any;
+    skillResolver: any;
+    enhancedFeatures: {
+      crossQuestionLeakagePrevention: boolean;
+      skillAmbiguityResolution: boolean;
+      enhancedBatchProcessing: boolean;
+    };
+  } {
+    return {
+      batchProcessor: this.enhancedBatchProcessor.config || {},
+      skillResolver: this.skillAmbiguityResolver.getConfiguration(),
+      enhancedFeatures: {
+        crossQuestionLeakagePrevention: true,
+        skillAmbiguityResolution: true,
+        enhancedBatchProcessing: true
       }
     };
   }
