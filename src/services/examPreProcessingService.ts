@@ -274,20 +274,19 @@ export class ExamPreProcessingService {
 
       // Process complex questions with OpenAI caching
       if (complexPatterns.length > 0) {
-        const complexResults = await OpenAIComplexGradingService.preProcessCommonExamQuestions(
-          config.examId,
-          complexPatterns.map(p => ({
-            questionNumber: p.questionNumber,
-            questionText: p.questionText,
-            correctAnswer: p.correctAnswer,
-            commonStudentAnswers: p.commonStudentAnswers,
-            isComplex: true
-          }))
-        );
+        const complexQuestions = complexPatterns.map(p => ({
+          questionNumber: p.questionNumber,
+          questionText: p.questionText,
+          correctAnswer: p.correctAnswer,
+          commonStudentAnswers: p.commonStudentAnswers,
+          isComplex: true
+        }));
+
+        const complexResults = await OpenAIComplexGradingService.preProcessCommonExamQuestions(complexQuestions);
         openAIProcessed += complexResults.processed;
         cacheHits += complexResults.cached;
-        if (complexResults.errors > 0) {
-          errors.push(`${complexResults.errors} OpenAI processing errors`);
+        if (complexResults.errors.length > 0) {
+          errors.push(`${complexResults.errors.length} OpenAI processing errors`);
         }
       }
 

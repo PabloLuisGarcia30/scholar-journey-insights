@@ -193,15 +193,21 @@ export class EnhancedBatchGradingService {
       this.notifyJobUpdate(job);
 
       // Log performance metrics
-      PerformanceMonitoringService.recordBatchProcessingMetrics({
-        jobId,
-        totalQuestions: job.questions.length,
-        successfulQuestions: job.results.length,
-        failedQuestions: job.errors.length,
-        processingTimeMs: job.completedAt - job.startedAt!,
-        successRate: job.results.length / job.questions.length,
-        avgBatchTime: job.processingMetrics.avgBatchTime
-      });
+      PerformanceMonitoringService.recordBatchProcessingMetrics(
+        'enhanced_batch_processing',
+        job.completedAt - job.startedAt!,
+        job.status === 'completed',
+        job.questions.length,
+        {
+          jobId,
+          totalQuestions: job.questions.length,
+          successfulQuestions: job.results.length,
+          failedQuestions: job.errors.length,
+          processingTimeMs: job.completedAt - job.startedAt!,
+          successRate: job.results.length / job.questions.length,
+          avgBatchTime: job.processingMetrics.avgBatchTime
+        }
+      );
 
     } catch (error) {
       job.status = 'failed';
