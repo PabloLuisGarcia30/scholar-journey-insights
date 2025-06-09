@@ -29,6 +29,16 @@ export interface ModelRoutingDecision {
   reasoning: string;
 }
 
+export interface AIOptimizationConfig {
+  simpleThreshold: number;
+  complexThreshold: number;
+  fallbackConfidenceThreshold: number;
+  gpt4oMiniCost: number;
+  gpt41Cost: number;
+  enableAdaptiveThresholds: boolean;
+  validationMode: boolean;
+}
+
 // Default configuration - can be overridden
 export const DEFAULT_CONFIG: AIOptimizationConfig = {
   simpleThreshold: 25,
