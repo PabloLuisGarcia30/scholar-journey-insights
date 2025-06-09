@@ -1,5 +1,8 @@
 
 import { useState } from "react";
+import { ArrowLeft } from "lucide-react";
+import { Link } from "react-router-dom";
+import { Button } from "@/components/ui/button";
 import { StudentSearch } from "@/components/StudentSearch";
 import { LearnerProfileDisplay } from "@/components/LearnerProfileDisplay";
 
@@ -24,6 +27,17 @@ const StudentLearnerProfile = () => {
       ) : (
         <div className="p-6">
           <div className="mb-8">
+            <Button 
+              variant="ghost" 
+              asChild
+              className="mb-6"
+            >
+              <Link to="/">
+                <ArrowLeft className="h-4 w-4 mr-2" />
+                Back to Homepage
+              </Link>
+            </Button>
+            
             <h1 className="text-3xl font-bold text-foreground mb-2">Student Learner Profiles</h1>
             <p className="text-muted-foreground">Select a student to view their learning style profile</p>
           </div>
