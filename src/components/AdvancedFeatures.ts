@@ -3,3 +3,4 @@
 export { BatchProcessingManager } from './BatchProcessingManager';
 export { PerformanceDashboard } from './PerformanceDashboard';
 export { EnterpriseFeatures } from './EnterpriseFeatures';
+export { SystemDashboard } from './SystemDashboard';
