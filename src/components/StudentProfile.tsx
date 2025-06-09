@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PracticeTestGenerator } from "./PracticeTestGenerator";
@@ -10,6 +9,7 @@ import { StudentTestResults } from "./StudentTestResults";
 import { StudentContentSkills } from "./StudentContentSkills";
 import { StudentSubjectSkills } from "./StudentSubjectSkills";
 import { StudentProgressChart } from "./StudentProgressChart";
+import { LearningStyleBySubject } from "./LearningStyleBySubject";
 import { useStudentProfileData } from "@/hooks/useStudentProfileData";
 import { useSkillData } from "@/hooks/useSkillData";
 import { calculateOverallGrade } from "@/utils/studentProfileUtils";
@@ -49,6 +49,7 @@ export function StudentProfile({ studentId, classId, className, onBack }: Studen
     classContentSkillsLoading,
     classSubjectSkills,
     classSubjectSkillsLoading,
+    enrolledClasses,
     isClassView,
     isGrade10MathClass,
     isGrade10ScienceClass
@@ -233,6 +234,7 @@ export function StudentProfile({ studentId, classId, className, onBack }: Studen
               <TabsTrigger value="strengths">Content-Specific Skills</TabsTrigger>
               <TabsTrigger value="specific-strengths">Subject Specific Skill Mastery</TabsTrigger>
               <TabsTrigger value="progress">Progress Trend</TabsTrigger>
+              <TabsTrigger value="learning-profile">Subject Learning Profile</TabsTrigger>
             </>
           ) : (
             <>
@@ -281,6 +283,13 @@ export function StudentProfile({ studentId, classId, className, onBack }: Studen
                 testResults={testResults}
                 isClassView={isClassView}
                 student={student}
+              />
+            </TabsContent>
+
+            <TabsContent value="learning-profile">
+              <LearningStyleBySubject
+                studentName={student?.name || ''}
+                enrolledClasses={enrolledClasses}
               />
             </TabsContent>
           </>
