@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -19,7 +18,7 @@ import {
   Database
 } from 'lucide-react';
 import { scalabilityMonitor, ScalabilityStats } from '@/services/scalabilityMonitoringService';
-import { BatchProcessingService } from '@/services/batchProcessingService';
+import { enhancedBatchService } from '@/services/enhancedBatchProcessingService';
 import { CacheAnalytics } from './CacheAnalytics';
 
 export const SystemDashboard: React.FC = () => {
@@ -34,7 +33,7 @@ export const SystemDashboard: React.FC = () => {
       try {
         const [scalabilityStats, queueStats, activeAlerts] = await Promise.all([
           scalabilityMonitor.getScalabilityStats(),
-          BatchProcessingService.getQueueStatus(),
+          enhancedBatchService.getQueueStatus(),
           scalabilityMonitor.getActiveAlerts()
         ]);
 
