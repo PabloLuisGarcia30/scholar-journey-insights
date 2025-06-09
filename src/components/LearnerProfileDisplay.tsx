@@ -20,8 +20,8 @@ const getLearningStyles = (studentName: string) => {
       { type: "Reading/Writing", strength: 72, color: "hsl(142, 76%, 36%)" },
       { type: "Kinaesthetic", strength: 45, color: "hsl(25, 95%, 53%)" },
       { type: "Auditory Learner", strength: 38, color: "hsl(0, 84%, 60%)" },
-      { type: "Social Learner", strength: 65, color: "hsl(330, 81%, 60%)" },
-      { type: "Solitary Learner", strength: 82, color: "hsl(239, 84%, 67%)" },
+      { type: "Social Learner", strength: 65, color: "hsl(280, 81%, 60%)" },
+      { type: "Solitary Learner", strength: 82, color: "hsl(45, 84%, 55%)" },
     ],
     default: [
       { type: "Visual Learner", strength: 70, color: "hsl(221, 83%, 53%)" },
@@ -29,8 +29,8 @@ const getLearningStyles = (studentName: string) => {
       { type: "Reading/Writing", strength: 75, color: "hsl(142, 76%, 36%)" },
       { type: "Kinaesthetic", strength: 55, color: "hsl(25, 95%, 53%)" },
       { type: "Logical Learner", strength: 65, color: "hsl(262, 83%, 58%)" },
-      { type: "Social Learner", strength: 80, color: "hsl(330, 81%, 60%)" },
-      { type: "Solitary Learner", strength: 45, color: "hsl(239, 84%, 67%)" },
+      { type: "Social Learner", strength: 80, color: "hsl(280, 81%, 60%)" },
+      { type: "Solitary Learner", strength: 45, color: "hsl(45, 84%, 55%)" },
     ]
   };
   
