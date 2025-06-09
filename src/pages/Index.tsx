@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { StudentDashboard } from "@/components/StudentDashboard";
 import { StudentSearch } from "@/components/StudentSearch";
@@ -11,7 +10,7 @@ import { SidebarProvider } from "@/components/ui/sidebar";
 const Index = () => {
   const [selectedStudent, setSelectedStudent] = useState<string | null>(null);
   const [selectedClass, setSelectedClass] = useState<{ id: string; name: string } | null>(null);
-  const [activeView, setActiveView] = useState<'dashboard' | 'search' | 'classes' | 'analytics' | 'portals' | 'student-lesson-tracker'>('dashboard');
+  const [activeView, setActiveView] = useState<'dashboard' | 'search' | 'classes' | 'analytics' | 'portals' | 'student-lesson-tracker' | 'learner-profiles'>('dashboard');
 
   const handleSelectStudent = (studentId: string, classId?: string, className?: string) => {
     setSelectedStudent(studentId);
@@ -50,6 +49,8 @@ const Index = () => {
         return <div className="p-6"><StudentPortals /></div>;
       case 'student-lesson-tracker':
         return <div className="p-6"><h2 className="text-2xl font-bold">Student Lesson Tracker</h2><p className="text-gray-600 mt-2">Coming soon...</p></div>;
+      case 'learner-profiles':
+        return <div className="p-6"><h2 className="text-2xl font-bold">Learner Profiles</h2><p className="text-gray-600 mt-2">Coming soon...</p></div>;
       default:
         return <StudentDashboard onSelectStudent={handleSelectStudent} />;
     }
