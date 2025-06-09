@@ -1,3 +1,4 @@
+
 import { supabase } from "@/integrations/supabase/client";
 import { PerformanceOptimizationService } from './performanceOptimizationService';
 import { OptimizedQuestionClassifier } from './optimizedQuestionClassifier';
@@ -730,11 +731,34 @@ export class EnhancedBatchGradingService {
 
       console.log(`🎯 Processing OpenAI batch with pre-classified skills: ${questions.length} questions`);
 
-      // Create enhanced batch prompt with pre-classified skills
+      // Convert skill mappings to the format expected by createEnhancedBatchPrompt
+      const skillMappingsArray: any[] = [];
+      if (preClassifiedSkills) {
+        preClassifiedSkills.questionMappings.forEach((skills, questionNumber) => {
+          skills.contentSkills.forEach(skill => {
+            skillMappingsArray.push({
+              question_number: questionNumber,
+              skill_name: skill.name,
+              skill_type: 'content',
+              skill_weight: skill.weight
+            });
+          });
+          skills.subjectSkills.forEach(skill => {
+            skillMappingsArray.push({
+              question_number: questionNumber,
+              skill_name: skill.name,
+              skill_type: 'subject',
+              skill_weight: skill.weight
+            });
+          });
+        });
+      }
+
+      // Create enhanced batch prompt with converted skill mappings
       const enhancedPrompt = this.enhancedBatchProcessor.createEnhancedBatchPrompt(
         questions,
         answerKeys,
-        preClassifiedSkills
+        skillMappingsArray
       );
 
       const formattedPrompt = this.enhancedBatchProcessor.formatBatchPrompt(enhancedPrompt);
