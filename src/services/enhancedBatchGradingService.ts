@@ -1,5 +1,3 @@
-
-
 import { supabase } from "@/integrations/supabase/client";
 import { PerformanceOptimizationService } from './performanceOptimizationService';
 import { OptimizedQuestionClassifier } from './optimizedQuestionClassifier';
@@ -1091,7 +1089,14 @@ export class EnhancedBatchGradingService {
     };
   } {
     return {
-      batchProcessor: this.enhancedBatchProcessor?.getConfiguration() || {},
+      batchProcessor: this.enhancedBatchProcessor ? {
+        crossQuestionLeakagePrevention: true,
+        questionDelimiter: '\n---END QUESTION---\n',
+        maxQuestionsPerBatch: 6,
+        skillAmbiguityResolution: true,
+        maxSkillsPerQuestion: 2,
+        skillEscalationThreshold: 0.7
+      } : {},
       skillResolver: this.skillAmbiguityResolver?.getConfiguration() || {},
       enhancedFeatures: {
         crossQuestionLeakagePrevention: true,
@@ -1101,4 +1106,3 @@ export class EnhancedBatchGradingService {
     };
   }
 }
-
