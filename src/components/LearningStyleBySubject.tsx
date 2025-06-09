@@ -6,6 +6,7 @@ import { ActiveClass } from "@/services/examService";
 interface LearningStyleBySubjectProps {
   studentName: string;
   enrolledClasses: ActiveClass[];
+  currentSubject?: string;
 }
 
 // Mock subject-specific learning style data
@@ -57,20 +58,38 @@ const getSubjectSpecificLearningStyles = (studentName: string, subject: string) 
   return studentProfiles[subject as keyof typeof studentProfiles] || profiles.default.Math;
 };
 
-export function LearningStyleBySubject({ studentName, enrolledClasses }: LearningStyleBySubjectProps) {
+export function LearningStyleBySubject({ studentName, enrolledClasses, currentSubject }: LearningStyleBySubjectProps) {
   if (!enrolledClasses || enrolledClasses.length === 0) {
     return (
       <Card>
         <CardHeader>
-          <CardTitle>Learning Style Profile per Subject</CardTitle>
+          <CardTitle>
+            {currentSubject ? `Learning Style Profile for ${currentSubject}` : "Learning Style Profile per Subject"}
+          </CardTitle>
           <p className="text-muted-foreground">No enrolled classes found for this student</p>
         </CardHeader>
       </Card>
     );
   }
 
+  // Filter classes by current subject if provided
+  const filteredClasses = currentSubject 
+    ? enrolledClasses.filter(classItem => classItem.subject === currentSubject)
+    : enrolledClasses;
+
+  if (currentSubject && filteredClasses.length === 0) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Learning Style Profile for {currentSubject}</CardTitle>
+          <p className="text-muted-foreground">No {currentSubject} classes found for this student</p>
+        </CardHeader>
+      </Card>
+    );
+  }
+
   // Group classes by subject
-  const subjectGroups = enrolledClasses.reduce((acc, classItem) => {
+  const subjectGroups = filteredClasses.reduce((acc, classItem) => {
     const subject = classItem.subject;
     if (!acc[subject]) {
       acc[subject] = [];
@@ -79,6 +98,51 @@ export function LearningStyleBySubject({ studentName, enrolledClasses }: Learnin
     return acc;
   }, {} as Record<string, ActiveClass[]>);
 
+  // For single subject view (when currentSubject is provided), show simplified layout
+  if (currentSubject && Object.keys(subjectGroups).length === 1) {
+    const subject = currentSubject;
+    const classes = subjectGroups[subject];
+    const learningStyles = getSubjectSpecificLearningStyles(studentName, subject);
+    const dominantStyle = learningStyles.reduce((prev, current) => 
+      (prev.strength > current.strength) ? prev : current
+    );
+
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Learning Style Profile for {subject}</CardTitle>
+          <div className="flex items-center justify-between">
+            <p className="text-muted-foreground">
+              {classes.map(c => `${c.name} (${c.grade})`).join(', ')}
+            </p>
+            <div className="flex items-center gap-2 px-3 py-1 bg-secondary rounded-full">
+              <div 
+                className="w-3 h-3 rounded-full"
+                style={{ backgroundColor: dominantStyle.color }}
+              />
+              <span className="text-sm font-medium text-secondary-foreground">
+                Strongest: {dominantStyle.type} ({dominantStyle.strength}%)
+              </span>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+            {learningStyles.map((style, index) => (
+              <LearningStyleCircle
+                key={`${subject}-${index}`}
+                type={style.type}
+                strength={style.strength}
+                color={style.color}
+              />
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // Default multi-subject view (for backward compatibility)
   return (
     <Card>
       <CardHeader>

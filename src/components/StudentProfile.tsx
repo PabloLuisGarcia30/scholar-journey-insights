@@ -290,6 +290,7 @@ export function StudentProfile({ studentId, classId, className, onBack }: Studen
               <LearningStyleBySubject
                 studentName={student?.name || ''}
                 enrolledClasses={enrolledClasses}
+                currentSubject={classData?.subject}
               />
             </TabsContent>
           </>
