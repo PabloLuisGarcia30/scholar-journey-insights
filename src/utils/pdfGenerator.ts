@@ -46,7 +46,7 @@ export const generateTestPDF = (testData: TestData) => {
   // Function to add header to any page
   const addPageHeader = (isFirstPage = false) => {
     // Header background - exact match to HTML
-    pdf.setFillColor(...colors.headerBlue);
+    pdf.setFillColor(colors.headerBlue[0], colors.headerBlue[1], colors.headerBlue[2]);
     pdf.rect(margin, margin - 5, pageWidth - 2 * margin, 28, 'F');
     
     // Header content with exact spacing and typography
@@ -115,11 +115,11 @@ export const generateTestPDF = (testData: TestData) => {
   // Student info section with light background (only if no studentName provided)
   if (!testData.studentName) {
     // Light gray background matching HTML
-    pdf.setFillColor(...colors.lightGray);
+    pdf.setFillColor(colors.lightGray[0], colors.lightGray[1], colors.lightGray[2]);
     pdf.rect(margin, yPosition, pageWidth - 2 * margin, 28, 'F');
     
     // Border matching HTML
-    pdf.setDrawColor(...colors.mediumGray);
+    pdf.setDrawColor(colors.mediumGray[0], colors.mediumGray[1], colors.mediumGray[2]);
     pdf.setLineWidth(0.5);
     pdf.rect(margin, yPosition, pageWidth - 2 * margin, 28, 'S');
     
@@ -155,31 +155,31 @@ export const generateTestPDF = (testData: TestData) => {
     }
     
     // Question header with light gray background - exact HTML match
-    pdf.setFillColor(...colors.lightGray);
+    pdf.setFillColor(colors.lightGray[0], colors.lightGray[1], colors.lightGray[2]);
     pdf.rect(margin, yPosition, pageWidth - 2 * margin, 18, 'F');
     
     // Question header border
-    pdf.setDrawColor(...colors.borderGray);
+    pdf.setDrawColor(colors.borderGray[0], colors.borderGray[1], colors.borderGray[2]);
     pdf.setLineWidth(0.5);
     pdf.rect(margin, yPosition, pageWidth - 2 * margin, 18, 'S');
     
     // Question number (10pt, blue)
     pdf.setFontSize(10);
     pdf.setFont(undefined, 'bold');
-    pdf.setTextColor(...colors.headerBlue);
+    pdf.setTextColor(colors.headerBlue[0], colors.headerBlue[1], colors.headerBlue[2]);
     pdf.text(`${index + 1}.`, margin + 4, yPosition + 12);
     
     // Question type in center (8pt, gray)
     const typeText = `[${question.type.replace('-', ' ').toUpperCase()}]`;
     pdf.setFontSize(8);
     pdf.setFont(undefined, 'normal');
-    pdf.setTextColor(...colors.textGray);
+    pdf.setTextColor(colors.textGray[0], colors.textGray[1], colors.textGray[2]);
     const typeWidth = pdf.getTextWidth(typeText);
     pdf.text(typeText, (pageWidth - typeWidth) / 2, yPosition + 12);
     
     // Points on the right (8pt, red, bold)
     pdf.setFontSize(8);
-    pdf.setTextColor(...colors.redPoints);
+    pdf.setTextColor(colors.redPoints[0], colors.redPoints[1], colors.redPoints[2]);
     pdf.setFont(undefined, 'bold');
     const pointsText = `${question.points}pt`;
     pdf.text(pointsText, pageWidth - margin - pdf.getTextWidth(pointsText) - 4, yPosition + 12);
@@ -228,7 +228,7 @@ export const generateTestPDF = (testData: TestData) => {
       // Answer section with red label
       yPosition += 6;
       pdf.setFontSize(8);
-      pdf.setTextColor(...colors.redPoints);
+      pdf.setTextColor(colors.redPoints[0], colors.redPoints[1], colors.redPoints[2]);
       pdf.setFont(undefined, 'bold');
       pdf.text('Answer:', margin + 15, yPosition);
       
@@ -270,7 +270,7 @@ export const generateTestPDF = (testData: TestData) => {
       // Answer section
       yPosition += 6;
       pdf.setFontSize(8);
-      pdf.setTextColor(...colors.redPoints);
+      pdf.setTextColor(colors.redPoints[0], colors.redPoints[1], colors.redPoints[2]);
       pdf.setFont(undefined, 'bold');
       pdf.text('Answer:', margin + 15, yPosition);
       
@@ -283,12 +283,12 @@ export const generateTestPDF = (testData: TestData) => {
     } else if (question.type === 'short-answer') {
       // Answer label (8pt, gray)
       pdf.setFontSize(8);
-      pdf.setTextColor(...colors.textGray);
+      pdf.setTextColor(colors.textGray[0], colors.textGray[1], colors.textGray[2]);
       pdf.text('Answer:', margin + 10, yPosition);
       yPosition += 8;
       
       // Answer lines with exact styling
-      pdf.setDrawColor(...colors.lineGray);
+      pdf.setDrawColor(colors.lineGray[0], colors.lineGray[1], colors.lineGray[2]);
       pdf.setLineWidth(0.3);
       pdf.line(margin + 10, yPosition, pageWidth - margin - 10, yPosition);
       yPosition += 14;
@@ -297,12 +297,12 @@ export const generateTestPDF = (testData: TestData) => {
     } else if (question.type === 'essay') {
       // Answer label (8pt, gray)
       pdf.setFontSize(8);
-      pdf.setTextColor(...colors.textGray);
+      pdf.setTextColor(colors.textGray[0], colors.textGray[1], colors.textGray[2]);
       pdf.text('Answer:', margin + 10, yPosition);
       yPosition += 8;
       
       // Multiple answer lines with exact spacing
-      pdf.setDrawColor(...colors.lineGray);
+      pdf.setDrawColor(colors.lineGray[0], colors.lineGray[1], colors.lineGray[2]);
       pdf.setLineWidth(0.3);
       for (let i = 0; i < 3; i++) {
         pdf.line(margin + 10, yPosition, pageWidth - margin - 10, yPosition);
@@ -321,7 +321,7 @@ export const generateTestPDF = (testData: TestData) => {
   for (let i = 1; i <= pageCount; i++) {
     pdf.setPage(i);
     pdf.setFontSize(8);
-    pdf.setTextColor(...colors.textGray);
+    pdf.setTextColor(colors.textGray[0], colors.textGray[1], colors.textGray[2]);
     
     // Page number
     pdf.text(`${i}/${pageCount}`, pageWidth - margin - 15, pageHeight - 15);
@@ -384,7 +384,7 @@ export const generateConsolidatedTestPDF = (testData: TestData, studentNames: st
   // Function to add header with student name
   const addPageHeader = (studentName: string) => {
     // Header background - exact match to HTML
-    pdf.setFillColor(...colors.headerBlue);
+    pdf.setFillColor(colors.headerBlue[0], colors.headerBlue[1], colors.headerBlue[2]);
     pdf.rect(margin, margin - 5, pageWidth - 2 * margin, 28, 'F');
     
     // Student name on left (14pt)
@@ -432,30 +432,30 @@ export const generateConsolidatedTestPDF = (testData: TestData, studentNames: st
       }
       
       // Question header with light gray background
-      pdf.setFillColor(...colors.lightGray);
+      pdf.setFillColor(colors.lightGray[0], colors.lightGray[1], colors.lightGray[2]);
       pdf.rect(margin, yPosition, pageWidth - 2 * margin, 18, 'F');
       
-      pdf.setDrawColor(...colors.borderGray);
+      pdf.setDrawColor(colors.borderGray[0], colors.borderGray[1], colors.borderGray[2]);
       pdf.setLineWidth(0.5);
       pdf.rect(margin, yPosition, pageWidth - 2 * margin, 18, 'S');
       
       // Question number (10pt, blue)
       pdf.setFontSize(10);
       pdf.setFont(undefined, 'bold');
-      pdf.setTextColor(...colors.headerBlue);
+      pdf.setTextColor(colors.headerBlue[0], colors.headerBlue[1], colors.headerBlue[2]);
       pdf.text(`${index + 1}.`, margin + 4, yPosition + 12);
       
       // Question type in center (8pt, gray)
       const typeText = `[${question.type.replace('-', ' ').toUpperCase()}]`;
       pdf.setFontSize(8);
       pdf.setFont(undefined, 'normal');
-      pdf.setTextColor(...colors.textGray);
+      pdf.setTextColor(colors.textGray[0], colors.textGray[1], colors.textGray[2]);
       const typeWidth = pdf.getTextWidth(typeText);
       pdf.text(typeText, (pageWidth - typeWidth) / 2, yPosition + 12);
       
       // Points on the right (8pt, red, bold)
       pdf.setFontSize(8);
-      pdf.setTextColor(...colors.redPoints);
+      pdf.setTextColor(colors.redPoints[0], colors.redPoints[1], colors.redPoints[2]);
       pdf.setFont(undefined, 'bold');
       const pointsText = `${question.points}pt`;
       pdf.text(pointsText, pageWidth - margin - pdf.getTextWidth(pointsText) - 4, yPosition + 12);
@@ -496,7 +496,7 @@ export const generateConsolidatedTestPDF = (testData: TestData, studentNames: st
         
         yPosition += 6;
         pdf.setFontSize(8);
-        pdf.setTextColor(...colors.redPoints);
+        pdf.setTextColor(colors.redPoints[0], colors.redPoints[1], colors.redPoints[2]);
         pdf.setFont(undefined, 'bold');
         pdf.text('Answer:', margin + 15, yPosition);
         
@@ -533,7 +533,7 @@ export const generateConsolidatedTestPDF = (testData: TestData, studentNames: st
         
         yPosition += 6;
         pdf.setFontSize(8);
-        pdf.setTextColor(...colors.redPoints);
+        pdf.setTextColor(colors.redPoints[0], colors.redPoints[1], colors.redPoints[2]);
         pdf.setFont(undefined, 'bold');
         pdf.text('Answer:', margin + 15, yPosition);
         
@@ -544,11 +544,11 @@ export const generateConsolidatedTestPDF = (testData: TestData, studentNames: st
         yPosition += 15;
       } else if (question.type === 'short-answer') {
         pdf.setFontSize(8);
-        pdf.setTextColor(...colors.textGray);
+        pdf.setTextColor(colors.textGray[0], colors.textGray[1], colors.textGray[2]);
         pdf.text('Answer:', margin + 10, yPosition);
         yPosition += 8;
         
-        pdf.setDrawColor(...colors.lineGray);
+        pdf.setDrawColor(colors.lineGray[0], colors.lineGray[1], colors.lineGray[2]);
         pdf.setLineWidth(0.3);
         pdf.line(margin + 10, yPosition, pageWidth - margin - 10, yPosition);
         yPosition += 14;
@@ -556,11 +556,11 @@ export const generateConsolidatedTestPDF = (testData: TestData, studentNames: st
         yPosition += 8;
       } else if (question.type === 'essay') {
         pdf.setFontSize(8);
-        pdf.setTextColor(...colors.textGray);
+        pdf.setTextColor(colors.textGray[0], colors.textGray[1], colors.textGray[2]);
         pdf.text('Answer:', margin + 10, yPosition);
         yPosition += 8;
         
-        pdf.setDrawColor(...colors.lineGray);
+        pdf.setDrawColor(colors.lineGray[0], colors.lineGray[1], colors.lineGray[2]);
         pdf.setLineWidth(0.3);
         for (let i = 0; i < 3; i++) {
           pdf.line(margin + 10, yPosition, pageWidth - margin - 10, yPosition);
@@ -579,7 +579,7 @@ export const generateConsolidatedTestPDF = (testData: TestData, studentNames: st
   for (let i = 1; i <= pageCount; i++) {
     pdf.setPage(i);
     pdf.setFontSize(8);
-    pdf.setTextColor(...colors.textGray);
+    pdf.setTextColor(colors.textGray[0], colors.textGray[1], colors.textGray[2]);
     pdf.text(`${i}/${pageCount}`, pageWidth - margin - 15, pageHeight - 15);
     
     const examFooterText = `${testData.title} - ${testData.examId}`;
