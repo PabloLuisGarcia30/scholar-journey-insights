@@ -9,6 +9,7 @@ import StudentUpload from './pages/StudentUpload';
 import CreateQuizLink from './pages/CreateQuizLink';
 import StudentQuiz from './pages/StudentQuiz';
 import StudentLessonTracker from './pages/StudentLessonTracker';
+import StudentLearnerProfile from './pages/StudentLearnerProfile';
 import NotFound from './pages/NotFound';
 import { Toaster } from '@/components/ui/toaster';
 import './App.css';
@@ -29,6 +30,7 @@ function App() {
               <Route path="/create-quiz-link" element={<CreateQuizLink />} />
               <Route path="/student-quiz/:token" element={<StudentQuiz />} />
               <Route path="/student-lesson-tracker" element={<StudentLessonTracker />} />
+              <Route path="/student-learner-profile" element={<StudentLearnerProfile />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
             <Toaster />

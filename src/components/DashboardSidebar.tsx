@@ -1,5 +1,6 @@
 
-import { BookOpen, ChartBar, GraduationCap, Calendar, Users, Upload, TestTube, Link, Globe } from "lucide-react";
+import { BarChart3, Users, GraduationCap, Calendar, Brain, Home } from "lucide-react";
+import { Link, useLocation } from "react-router-dom";
 import {
   Sidebar,
   SidebarContent,
@@ -9,60 +10,93 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-  SidebarTrigger,
-  useSidebar,
 } from "@/components/ui/sidebar";
-import { Link as RouterLink } from "react-router-dom";
 
 interface DashboardSidebarProps {
   activeView: 'dashboard' | 'search' | 'classes' | 'analytics' | 'portals' | 'student-lesson-tracker';
   onViewChange: (view: 'dashboard' | 'search' | 'classes' | 'analytics' | 'portals' | 'student-lesson-tracker') => void;
 }
 
-const navigationItems = [
-  { id: 'dashboard', title: 'Dashboard', icon: ChartBar },
-  { id: 'search', title: 'Students', icon: GraduationCap },
-  { id: 'classes', title: 'Classes', icon: Users },
-  { id: 'analytics', title: 'Analytics', icon: BookOpen },
-  { id: 'portals', title: 'Student Portals', icon: Globe },
-  { id: 'student-lesson-tracker', title: 'Student Lesson Tracker', icon: Calendar },
-];
-
-const teacherTools = [
-  { title: 'Upload Test', href: '/upload-test', icon: Upload },
-  { title: 'Test Creator', href: '/test-creator', icon: TestTube },
-  { title: 'Create Quiz Link', href: '/create-quiz-link', icon: Link },
-];
-
 export function DashboardSidebar({ activeView, onViewChange }: DashboardSidebarProps) {
-  const { state } = useSidebar();
-  const isCollapsed = state === "collapsed";
+  const location = useLocation();
+
+  const navigationItems = [
+    {
+      title: "Dashboard",
+      icon: Home,
+      onClick: () => onViewChange('dashboard'),
+      isActive: activeView === 'dashboard'
+    },
+    {
+      title: "Student Directory",
+      icon: Users,
+      onClick: () => onViewChange('search'),
+      isActive: activeView === 'search'
+    },
+    {
+      title: "Classes",
+      icon: GraduationCap,
+      onClick: () => onViewChange('classes'),
+      isActive: activeView === 'classes'
+    },
+    {
+      title: "Analytics",
+      icon: BarChart3,
+      onClick: () => onViewChange('analytics'),
+      isActive: activeView === 'analytics'
+    },
+    {
+      title: "Student Portals",
+      icon: Calendar,
+      onClick: () => onViewChange('portals'),
+      isActive: activeView === 'portals'
+    }
+  ];
+
+  const externalLinks = [
+    {
+      title: "Test Creator",
+      href: "/test-creator"
+    },
+    {
+      title: "Upload Test",
+      href: "/upload-test"
+    },
+    {
+      title: "Student Upload",
+      href: "/student-upload"
+    },
+    {
+      title: "Create Quiz Link",
+      href: "/create-quiz-link"
+    },
+    {
+      title: "Lesson Tracker",
+      href: "/student-lesson-tracker"
+    },
+    {
+      title: "Learner Profiles",
+      href: "/student-learner-profile",
+      icon: Brain
+    }
+  ];
 
   return (
-    <Sidebar collapsible="icon">
-      <div className="p-4 border-b">
-        <SidebarTrigger className="mb-2" />
-        {!isCollapsed && (
-          <div className="flex items-center gap-2">
-            <GraduationCap className="h-6 w-6 text-blue-600" />
-            <h1 className="text-lg font-bold text-gray-900">EduTracker</h1>
-          </div>
-        )}
-      </div>
-
+    <Sidebar className="border-r bg-white">
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel>Navigation</SidebarGroupLabel>
+          <SidebarGroupLabel>Main Navigation</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {navigationItems.map((item) => (
-                <SidebarMenuItem key={item.id}>
-                  <SidebarMenuButton 
-                    onClick={() => onViewChange(item.id as any)}
-                    className={`w-full ${activeView === item.id ? 'bg-blue-100 text-blue-700 font-medium' : 'hover:bg-gray-100'}`}
+                <SidebarMenuItem key={item.title}>
+                  <SidebarMenuButton
+                    onClick={item.onClick}
+                    isActive={item.isActive}
+                    className="w-full justify-start"
                   >
                     <item.icon className="mr-2 h-4 w-4" />
-                    {!isCollapsed && <span>{item.title}</span>}
+                    {item.title}
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
@@ -71,16 +105,22 @@ export function DashboardSidebar({ activeView, onViewChange }: DashboardSidebarP
         </SidebarGroup>
 
         <SidebarGroup>
-          <SidebarGroupLabel>Teacher Tools</SidebarGroupLabel>
+          <SidebarGroupLabel>Tools & Features</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {teacherTools.map((link) => (
+              {externalLinks.map((link) => (
                 <SidebarMenuItem key={link.title}>
-                  <SidebarMenuButton asChild className="w-full hover:bg-gray-100">
-                    <RouterLink to={link.href}>
-                      <link.icon className="mr-2 h-4 w-4" />
-                      {!isCollapsed && <span>{link.title}</span>}
-                    </RouterLink>
+                  <SidebarMenuButton asChild>
+                    <Link 
+                      to={link.href}
+                      className={`w-full justify-start ${
+                        location.pathname === link.href ? 'bg-accent text-accent-foreground' : ''
+                      }`}
+                    >
+                      {link.icon && <link.icon className="mr-2 h-4 w-4" />}
+                      {!link.icon && <div className="mr-2 h-4 w-4" />}
+                      {link.title}
+                    </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
