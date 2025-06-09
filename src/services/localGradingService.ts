@@ -6,6 +6,12 @@ interface LocalGradingResult {
   confidence: number;
   gradingMethod: 'local_question_based' | 'local_confident' | 'local_enhanced' | 'requires_ai';
   reasoning?: string;
+  skillMappings?: Array<{
+    skill_id: string;
+    skill_name: string;
+    skill_type: 'content' | 'subject';
+    skill_weight: number;
+  }>;
   qualityFlags?: {
     hasMultipleMarks: boolean;
     reviewRequired: boolean;
@@ -29,9 +35,20 @@ interface QuestionClassification {
   };
 }
 
+interface LocalSkillScore {
+  skill_name: string;
+  skill_type: 'content' | 'subject';
+  points_earned: number;
+  points_possible: number;
+  score: number;
+  questions_attempted: number;
+  questions_correct: number;
+}
+
 import { OptimizedQuestionClassifier, OptimizedClassificationResult } from './optimizedQuestionClassifier';
 import { ClassificationLogger } from './classificationLogger';
 import { AnswerKeyMatchingService } from './answerKeyMatchingService';
+import { ExamSkillPreClassificationService } from './examSkillPreClassificationService';
 
 export class LocalGradingService {
   private static readonly HIGH_CONFIDENCE_THRESHOLD = 0.85;
@@ -125,7 +142,12 @@ export class LocalGradingService {
     return reasons.length > 0 ? reasons.join(', ') : 'Quality threshold not met';
   }
 
-  static gradeQuestion(question: any, answerKey: any): LocalGradingResult {
+  static gradeQuestion(question: any, answerKey: any, skillMappings?: Array<{
+    skill_id: string;
+    skill_name: string;
+    skill_type: 'content' | 'subject';
+    skill_weight: number;
+  }>): LocalGradingResult {
     const classification = this.classifyQuestion(question, answerKey);
     
     if (!classification.shouldUseLocalGrading) {
@@ -137,6 +159,7 @@ export class LocalGradingService {
         confidence: 0,
         gradingMethod: 'requires_ai',
         reasoning: classification.fallbackReason,
+        skillMappings,
         qualityFlags: classification.questionAnalysis ? {
           hasMultipleMarks: classification.questionAnalysis.hasMultipleMarks,
           reviewRequired: classification.questionAnalysis.reviewRequired,
@@ -176,6 +199,7 @@ export class LocalGradingService {
       confidence: classification.confidence,
       gradingMethod,
       reasoning: this.generateQuestionBasedReasoning(studentAnswer, correctAnswer, question.detectedAnswer),
+      skillMappings,
       qualityFlags
     };
   }
@@ -206,6 +230,163 @@ export class LocalGradingService {
     return reasoning;
   }
 
+  // NEW: Process questions with skill pre-classification integration
+  static async processQuestionsWithSkills(questions: any[], answerKeys: any[], examId: string): Promise<{
+    localResults: LocalGradingResult[];
+    aiRequiredQuestions: any[];
+    skillScores: LocalSkillScore[];
+    summary: {
+      totalQuestions: number;
+      locallyGraded: number;
+      requiresAI: number;
+      localAccuracy: number;
+      skillMappingAvailable: boolean;
+      skillCoverage: number;
+      enhancedMetrics: {
+        questionBasedGraded: number;
+        highConfidenceGraded: number;
+        mediumConfidenceGraded: number;
+        enhancedThresholdGraded: number;
+        multipleMarksDetected: number;
+        reviewFlagged: number;
+        bubbleQualityDistribution: Record<string, number>;
+        formatValidationFailures: number;
+        skillMappedQuestions: number;
+      };
+    };
+  }> {
+    console.log('🎯 Processing questions with skill pre-classification integration');
+
+    // STEP 1: Ensure skill pre-classification is available
+    const hasSkills = await ExamSkillPreClassificationService.checkAIIdentifiedSkillMappings(examId);
+    if (!hasSkills) {
+      console.warn('No pre-classified skills found, triggering skill identification...');
+      const skillResult = await ExamSkillPreClassificationService.triggerSkillPreClassification(examId);
+      if (skillResult.status !== 'completed') {
+        console.warn('Skill pre-classification failed, proceeding without skills');
+        return this.processQuestions(questions, answerKeys);
+      }
+    }
+
+    // STEP 2: Get pre-classified skills
+    const preClassifiedSkills = await ExamSkillPreClassificationService.getPreClassifiedSkills(examId);
+    
+    const localResults: LocalGradingResult[] = [];
+    const aiRequiredQuestions: any[] = [];
+    let locallyGradedCount = 0;
+    
+    // Enhanced metrics tracking
+    let questionBasedCount = 0;
+    let highConfidenceCount = 0;
+    let mediumConfidenceCount = 0;
+    let enhancedThresholdCount = 0;
+    let multipleMarksCount = 0;
+    let reviewFlaggedCount = 0;
+    let formatValidationFailures = 0;
+    let skillMappedQuestions = 0;
+    const bubbleQualityDist: Record<string, number> = {};
+
+    for (const question of questions) {
+      const answerKey = answerKeys.find(ak => ak.question_number === question.questionNumber);
+      
+      if (!answerKey) {
+        console.warn(`⚠️ No answer key found for question ${question.questionNumber}`);
+        aiRequiredQuestions.push(question);
+        continue;
+      }
+
+      // Get skill mappings for this question
+      const questionSkills = preClassifiedSkills?.questionMappings.get(question.questionNumber);
+      const skillMappings = questionSkills ? [
+        ...questionSkills.contentSkills.map(skill => ({
+          skill_id: skill.id,
+          skill_name: skill.name,
+          skill_type: 'content' as const,
+          skill_weight: skill.weight
+        })),
+        ...questionSkills.subjectSkills.map(skill => ({
+          skill_id: skill.id,
+          skill_name: skill.name,
+          skill_type: 'subject' as const,
+          skill_weight: skill.weight
+        }))
+      ] : undefined;
+
+      if (skillMappings && skillMappings.length > 0) {
+        skillMappedQuestions++;
+      }
+
+      const result = this.gradeQuestion(question, answerKey, skillMappings);
+      
+      // Track format validation failures
+      if (result.gradingMethod === 'requires_ai' && 
+          result.reasoning?.includes('Invalid answer format')) {
+        formatValidationFailures++;
+      }
+      
+      if (result.gradingMethod === 'requires_ai') {
+        aiRequiredQuestions.push(question);
+      } else {
+        localResults.push(result);
+        locallyGradedCount++;
+        
+        // Track enhanced metrics
+        if (result.gradingMethod === 'local_question_based') {
+          questionBasedCount++;
+        } else if (result.gradingMethod === 'local_confident') {
+          highConfidenceCount++;
+        } else if (result.gradingMethod === 'local_enhanced') {
+          enhancedThresholdCount++;
+        }
+        
+        if (result.qualityFlags?.hasMultipleMarks) {
+          multipleMarksCount++;
+        }
+        
+        if (result.qualityFlags?.reviewRequired) {
+          reviewFlaggedCount++;
+        }
+        
+        if (result.qualityFlags?.bubbleQuality) {
+          const quality = result.qualityFlags.bubbleQuality;
+          bubbleQualityDist[quality] = (bubbleQualityDist[quality] || 0) + 1;
+        }
+      }
+    }
+
+    // Calculate skill scores
+    const skillScores = this.calculateSkillScores(localResults);
+
+    // Calculate skill coverage
+    const skillCoverage = questions.length > 0 ? (skillMappedQuestions / questions.length) * 100 : 0;
+
+    return {
+      localResults,
+      aiRequiredQuestions,
+      skillScores,
+      summary: {
+        totalQuestions: questions.length,
+        locallyGraded: locallyGradedCount,
+        requiresAI: aiRequiredQuestions.length,
+        localAccuracy: locallyGradedCount / questions.length,
+        skillMappingAvailable: !!preClassifiedSkills,
+        skillCoverage,
+        enhancedMetrics: {
+          questionBasedGraded: questionBasedCount,
+          highConfidenceGraded: highConfidenceCount,
+          mediumConfidenceGraded: mediumConfidenceCount,
+          enhancedThresholdGraded: enhancedThresholdCount,
+          multipleMarksDetected: multipleMarksCount,
+          reviewFlagged: reviewFlaggedCount,
+          bubbleQualityDistribution: bubbleQualityDist,
+          formatValidationFailures,
+          skillMappedQuestions
+        }
+      }
+    };
+  }
+
+  // Updated original method to maintain backward compatibility
   static processQuestions(questions: any[], answerKeys: any[]): {
     localResults: LocalGradingResult[];
     aiRequiredQuestions: any[];
@@ -222,7 +403,7 @@ export class LocalGradingService {
         multipleMarksDetected: number;
         reviewFlagged: number;
         bubbleQualityDistribution: Record<string, number>;
-        formatValidationFailures: number; // NEW: Track format validation failures
+        formatValidationFailures: number;
       };
     };
   } {
@@ -237,7 +418,7 @@ export class LocalGradingService {
     let enhancedThresholdCount = 0;
     let multipleMarksCount = 0;
     let reviewFlaggedCount = 0;
-    let formatValidationFailures = 0; // NEW: Track format validation failures
+    let formatValidationFailures = 0;
     const bubbleQualityDist: Record<string, number> = {};
 
     for (const question of questions) {
@@ -303,10 +484,52 @@ export class LocalGradingService {
           multipleMarksDetected: multipleMarksCount,
           reviewFlagged: reviewFlaggedCount,
           bubbleQualityDistribution: bubbleQualityDist,
-          formatValidationFailures // NEW: Include format validation failures
+          formatValidationFailures
         }
       }
     };
+  }
+
+  // NEW: Calculate skill scores from graded results
+  static calculateSkillScores(localResults: LocalGradingResult[]): LocalSkillScore[] {
+    const skillScores: { [skillName: string]: LocalSkillScore } = {};
+
+    for (const result of localResults) {
+      if (!result.skillMappings) continue;
+
+      for (const skillMapping of result.skillMappings) {
+        const skillKey = `${skillMapping.skill_type}:${skillMapping.skill_name}`;
+        
+        if (!skillScores[skillKey]) {
+          skillScores[skillKey] = {
+            skill_name: skillMapping.skill_name,
+            skill_type: skillMapping.skill_type,
+            points_earned: 0,
+            points_possible: 0,
+            score: 0,
+            questions_attempted: 0,
+            questions_correct: 0
+          };
+        }
+
+        const weightedPoints = result.pointsPossible * skillMapping.skill_weight;
+        const weightedEarned = result.pointsEarned * skillMapping.skill_weight;
+
+        skillScores[skillKey].points_possible += weightedPoints;
+        skillScores[skillKey].points_earned += weightedEarned;
+        skillScores[skillKey].questions_attempted += 1;
+        
+        if (result.isCorrect) {
+          skillScores[skillKey].questions_correct += 1;
+        }
+      }
+    }
+
+    // Calculate final scores
+    return Object.values(skillScores).map(skill => ({
+      ...skill,
+      score: skill.points_possible > 0 ? (skill.points_earned / skill.points_possible) * 100 : 0
+    }));
   }
 
   static generateLocalFeedback(results: LocalGradingResult[]): string {
@@ -317,11 +540,16 @@ export class LocalGradingService {
     const multipleMarks = results.filter(r => r.qualityFlags?.hasMultipleMarks).length;
     const reviewFlagged = results.filter(r => r.qualityFlags?.reviewRequired).length;
     const questionBased = results.filter(r => r.gradingMethod === 'local_question_based').length;
+    const skillMapped = results.filter(r => r.skillMappings && r.skillMappings.length > 0).length;
     
     let feedback = `Question-based automated grading completed for ${total} multiple choice questions. Score: ${correct}/${total} (${percentage}%)`;
     
     if (questionBased > 0) {
       feedback += `. ${questionBased} questions graded using enhanced question-based analysis`;
+    }
+
+    if (skillMapped > 0) {
+      feedback += `. ${skillMapped} questions have skill mappings for detailed analytics`;
     }
     
     if (multipleMarks > 0) {
@@ -339,6 +567,12 @@ export class LocalGradingService {
     overallQuality: string;
     recommendations: string[];
     qualityDistribution: Record<string, number>;
+    skillCoverage?: {
+      totalQuestions: number;
+      skillMappedQuestions: number;
+      coveragePercentage: number;
+      skillTypes: Record<string, number>;
+    };
   } {
     const qualityDist: Record<string, number> = {};
     const recommendations: string[] = [];
@@ -382,11 +616,35 @@ export class LocalGradingService {
     if (multipleMarks > 0) {
       recommendations.push(`${multipleMarks} questions had multiple bubbles marked - may indicate erasures or mistakes`);
     }
+
+    // Calculate skill coverage
+    const skillMappedQuestions = results.filter(r => r.skillMappings && r.skillMappings.length > 0).length;
+    const skillTypes: Record<string, number> = {};
+    
+    results.forEach(result => {
+      if (result.skillMappings) {
+        result.skillMappings.forEach(skill => {
+          skillTypes[skill.skill_type] = (skillTypes[skill.skill_type] || 0) + 1;
+        });
+      }
+    });
+
+    const skillCoverage = {
+      totalQuestions: results.length,
+      skillMappedQuestions,
+      coveragePercentage: results.length > 0 ? (skillMappedQuestions / results.length) * 100 : 0,
+      skillTypes
+    };
+
+    if (skillCoverage.coveragePercentage < 50) {
+      recommendations.push('Consider running skill pre-classification to improve analytics');
+    }
     
     return {
       overallQuality,
       recommendations,
-      qualityDistribution: qualityDist
+      qualityDistribution: qualityDist,
+      skillCoverage
     };
   }
 
@@ -397,7 +655,6 @@ export class LocalGradingService {
       analytics: ClassificationLogger.getClassificationAnalytics(),
       answerKeyMatching: {
         cacheSize: AnswerKeyMatchingService['answerKeyCache']?.size || 0,
-        // Additional answer key matching metrics could be added here
       }
     };
   }
@@ -405,8 +662,9 @@ export class LocalGradingService {
   // New method to optimize performance
   static optimizePerformance() {
     OptimizedQuestionClassifier.optimizeCache(1000);
-    AnswerKeyMatchingService.optimizeCache(50); // NEW: Optimize answer key cache
+    AnswerKeyMatchingService.optimizeCache(50);
     ClassificationLogger.clearLogs();
+    ExamSkillPreClassificationService.clearCache(); // Clear skill mapping cache
     console.log('🚀 Local grading service performance optimized');
   }
 }
