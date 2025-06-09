@@ -115,7 +115,9 @@ export class CacheResponseService {
     );
 
     if (cached) {
-      return cached.response || cached;
+      // Fix: Access the correct properties from QuestionCacheResult
+      // The cached result is already the grading result, not nested under 'response'
+      return cached as T;
     }
 
     const result = await generateFunction(questionText);
