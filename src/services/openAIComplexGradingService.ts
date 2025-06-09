@@ -1,364 +1,254 @@
-import { PerformanceMonitoringService } from "./performanceMonitoringService";
-import { withRetry, RetryableError } from "./retryService";
-
 export interface OpenAIGradingResult {
   questionNumber: number;
   isCorrect: boolean;
   pointsEarned: number;
   pointsPossible: number;
+  feedback: string;
   confidence: number;
-  reasoning: string;
-  gradingMethod: string;
-  metadata?: Record<string, any>;
+  gradingMethod: 'openai_api' | 'openai_batch' | 'error';
 }
 
 export interface ComplexQuestionBatch {
   id: string;
   questions: any[];
   status: 'pending' | 'processing' | 'completed' | 'failed';
+  createdAt: number;
+  startedAt?: number;
+  completedAt?: number;
   results: OpenAIGradingResult[];
-  errors: Array<{ questionIndex: number; error: string; recoverable: boolean }>;
-  processingTime: number;
-  costEstimate: number;
-}
-
-export interface EnhancedBatchProcessingResult {
-  successfulResults: OpenAIGradingResult[];
-  errors: Array<{ batch: any[]; error: any; recoverable: boolean }>;
-  totalProcessed: number;
-  successRate: number;
-  processingTimeMs: number;
-  batchMetrics: {
+  progress: number;
+  estimatedCompletionTime: number;
+  priority: 'low' | 'normal' | 'high';
+  errors: {
+    timestamp: number;
+    errorType: string;
+    errorMessage: string;
+    questionNumber: number;
+  }[];
+  processingMetrics: {
     totalBatches: number;
     successfulBatches: number;
     failedBatches: number;
-    avgBatchProcessingTime: number;
-    costEfficiency: number;
+    avgBatchTime: number;
+    costEstimate: number;
+    filesPerSecond: number;
   };
 }
 
 export class OpenAIComplexGradingService {
-  private static batches: Map<string, ComplexQuestionBatch> = new Map();
-  private static readonly BATCH_SIZE = 6;
-  private static readonly MAX_RETRIES = 3;
-  private static readonly RETRY_DELAY = 2000;
-  private static readonly COST_PER_REQUEST = 0.003;
+  private static activeBatches: Map<string, ComplexQuestionBatch> = new Map();
+  private static batchSubscribers: Map<string, ((batch: ComplexQuestionBatch) => void)[]> = new Map();
+
+  static async gradeComplexQuestions(questions: any[]): Promise<OpenAIGradingResult[]> {
+    console.log(`Grading ${questions.length} complex questions`);
+    
+    const results: OpenAIGradingResult[] = [];
+    
+    for (const question of questions) {
+      try {
+        await new Promise(resolve => setTimeout(resolve, 500)); // Simulate processing
+        
+        const result: OpenAIGradingResult = {
+          questionNumber: question.questionNumber || results.length + 1,
+          isCorrect: Math.random() > 0.3,
+          pointsEarned: Math.floor(Math.random() * (question.pointsPossible || 10)),
+          pointsPossible: question.pointsPossible || 10,
+          feedback: `AI feedback for question ${results.length + 1}`,
+          confidence: Math.random() * 0.3 + 0.7,
+          gradingMethod: 'openai_api'
+        };
+        
+        results.push(result);
+      } catch (error) {
+        console.error(`Error grading question ${question.questionNumber}:`, error);
+        
+        const errorResult: OpenAIGradingResult = {
+          questionNumber: question.questionNumber || results.length + 1,
+          isCorrect: false,
+          pointsEarned: 0,
+          pointsPossible: question.pointsPossible || 10,
+          feedback: 'Error occurred during grading',
+          confidence: 0,
+          gradingMethod: 'error'
+        };
+        
+        results.push(errorResult);
+      }
+    }
+    
+    return results;
+  }
+
+  static async preProcessCommonExamQuestions(questions: any[]): Promise<any[]> {
+    console.log(`Pre-processing ${questions.length} common exam questions`);
+    
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    return questions.map((question, index) => ({
+      ...question,
+      preprocessed: true,
+      commonPatterns: ['standard_format', 'clear_instructions'],
+      optimizedForGrading: true,
+      estimatedGradingTime: Math.random() * 300 + 60,
+      complexity: Math.random() > 0.5 ? 'medium' : 'simple',
+      preprocessingTimestamp: new Date().toISOString()
+    }));
+  }
 
   static async createBatch(questions: any[]): Promise<string> {
-    const batchId = `openai_batch_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const batchId = `batch_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     
+    // Simulate batch creation
     const batch: ComplexQuestionBatch = {
       id: batchId,
-      questions,
+      questions: questions.map((q, index) => ({
+        ...q,
+        questionNumber: index + 1,
+        pointsPossible: q.pointsPossible || 10
+      })),
       status: 'pending',
+      createdAt: Date.now(),
       results: [],
-      errors: [],
-      processingTime: 0,
-      costEstimate: questions.length * this.COST_PER_REQUEST
+      progress: 0,
+      estimatedCompletionTime: Date.now() + (questions.length * 30000), // 30s per question
+      priority: 'normal',
+      processingMetrics: {
+        totalBatches: 1,
+        successfulBatches: 0,
+        failedBatches: 0,
+        avgBatchTime: 0,
+        costEstimate: questions.length * 0.001,
+        filesPerSecond: 0
+      }
     };
 
-    this.batches.set(batchId, batch);
-    console.log(`🚀 Created OpenAI batch: ${batchId} with ${questions.length} questions`);
-
-    // Start processing
-    this.processBatchWithEnhancedHandling(batchId).catch(error => {
-      console.error(`OpenAI batch ${batchId} failed:`, error);
-    });
-
+    this.activeBatches.set(batchId, batch);
+    this.startBatchProcessing(batchId);
+    
     return batchId;
   }
 
-  private static async processBatchWithEnhancedHandling(batchId: string): Promise<void> {
-    const batch = this.batches.get(batchId);
+  static async checkBatchStatus(batchId: string): Promise<ComplexQuestionBatch | null> {
+    return this.activeBatches.get(batchId) || null;
+  }
+
+  static async retrieveBatchResults(batchId: string): Promise<OpenAIGradingResult[]> {
+    const batch = this.activeBatches.get(batchId);
+    if (!batch) {
+      throw new Error(`Batch ${batchId} not found`);
+    }
+    
+    if (batch.status !== 'completed') {
+      throw new Error(`Batch ${batchId} is not completed yet. Status: ${batch.status}`);
+    }
+    
+    return batch.results;
+  }
+
+  private static async startBatchProcessing(batchId: string): Promise<void> {
+    const batch = this.activeBatches.get(batchId);
     if (!batch) return;
 
-    batch.status = 'processing';
-    const startTime = Date.now();
-
     try {
-      // Create smart batches for parallel processing
-      const smartBatches = this.createSmartBatches(batch.questions);
+      batch.status = 'processing';
+      batch.startedAt = Date.now();
 
-      console.log(`📦 Processing ${smartBatches.length} smart batches for OpenAI batch ${batchId}`);
+      const totalQuestions = batch.questions.length;
+      const results: OpenAIGradingResult[] = [];
 
-      // Enhanced parallel batch processing with Promise.allSettled
-      const batchPromises = smartBatches.map((questionBatch, index) => 
-        this.processSingleBatch(questionBatch, index)
-      );
+      for (let i = 0; i < totalQuestions; i++) {
+        const question = batch.questions[i];
+        
+        // Simulate processing time
+        await new Promise(resolve => setTimeout(resolve, 2000 + Math.random() * 3000));
+        
+        const result: OpenAIGradingResult = {
+          questionNumber: i + 1,
+          isCorrect: Math.random() > 0.25,
+          pointsEarned: Math.floor(Math.random() * (question.pointsPossible || 10)),
+          pointsPossible: question.pointsPossible || 10,
+          feedback: `Detailed AI feedback for question ${i + 1}`,
+          confidence: Math.random() * 0.3 + 0.7,
+          gradingMethod: 'openai_batch'
+        };
 
-      const allResults = await Promise.allSettled(batchPromises);
+        results.push(result);
+        batch.results = results;
+        batch.progress = ((i + 1) / totalQuestions) * 100;
 
-      // Enhanced result handling and error categorization
-      const processedResult = this.processEnhancedBatchResults(allResults, smartBatches);
-
-      // Update batch with enhanced results
-      batch.results = processedResult.successfulResults;
-      batch.errors = processedResult.errors.map(e => ({
-        questionIndex: -1,
-        error: e.error?.message || String(e.error),
-        recoverable: e.recoverable
-      }));
-
-      // Determine final status
-      if (processedResult.errors.length === 0) {
-        batch.status = 'completed';
-        console.log(`✅ OpenAI batch ${batchId} completed successfully: ${batch.results.length} questions processed`);
-      } else if (processedResult.successfulResults.length > 0) {
-        batch.status = 'completed'; // Partial success
-        console.warn(`⚠️ OpenAI batch ${batchId} completed with ${processedResult.errors.length} errors, ${batch.results.length} successful`);
-      } else {
-        batch.status = 'failed';
-        console.error(`❌ OpenAI batch ${batchId} failed completely`);
+        // Notify subscribers of progress
+        this.notifySubscribers(batchId, batch);
       }
 
-      batch.processingTime = Date.now() - startTime;
+      batch.status = 'completed';
+      batch.completedAt = Date.now();
+      batch.progress = 100;
 
-      // Log enhanced performance metrics
-      PerformanceMonitoringService.recordMetric('openai_batch_processing', batch.processingTime, batch.status === 'completed', {
-        batchId,
-        questionsProcessed: batch.results.length,
-        errors: batch.errors.length,
-        costEstimate: batch.costEstimate,
-        enhancedProcessing: true
-      });
+      // Update metrics
+      batch.processingMetrics.successfulBatches = 1;
+      batch.processingMetrics.avgBatchTime = batch.completedAt - (batch.startedAt || batch.createdAt);
 
-      console.log(`📊 OpenAI batch processing summary for ${batchId}:`, {
-        totalQuestions: batch.questions.length,
-        successfulQuestions: batch.results.length,
-        failedQuestions: batch.errors.length,
-        successRate: `${(processedResult.successRate * 100).toFixed(1)}%`,
-        processingTime: `${(batch.processingTime / 1000).toFixed(1)}s`,
-        costEstimate: `$${batch.costEstimate.toFixed(4)}`
-      });
-
+      this.notifySubscribers(batchId, batch);
+      
     } catch (error) {
+      console.error(`Error processing batch ${batchId}:`, error);
       batch.status = 'failed';
       batch.errors.push({
-        questionIndex: -1,
-        error: `Batch processing failed: ${error.message}`,
-        recoverable: false
+        timestamp: Date.now(),
+        errorType: 'processing_error',
+        errorMessage: error instanceof Error ? error.message : 'Unknown error',
+        questionNumber: batch.results.length + 1
       });
-      batch.processingTime = Date.now() - startTime;
-      console.error(`💥 OpenAI batch ${batchId} failed with critical error:`, error);
-    }
-  }
-
-  private static async processSingleBatch(questions: any[], batchIndex: number): Promise<OpenAIGradingResult[]> {
-    return withRetry(
-      async () => {
-        console.log(`🔄 Processing OpenAI batch ${batchIndex + 1} with ${questions.length} questions`);
-        
-        // Simulate OpenAI API processing
-        const processingTime = 3000 + (questions.length * 800); // Longer processing for complex questions
-        await new Promise(resolve => setTimeout(resolve, processingTime));
-
-        // Simulate higher accuracy for OpenAI processing
-        const results: OpenAIGradingResult[] = questions.map((question, index) => ({
-          questionNumber: question.questionNumber || index + 1,
-          isCorrect: Math.random() > 0.1, // 90% accuracy for OpenAI
-          pointsEarned: Math.random() > 0.1 ? 1 : 0,
-          pointsPossible: 1,
-          confidence: 0.90 + (Math.random() * 0.1), // Higher confidence
-          gradingMethod: 'openai_complex_processing',
-          reasoning: `OpenAI complex reasoning for Q${question.questionNumber || index + 1}: Advanced analysis using GPT-4 with detailed understanding of the problem context and solution methodology.`,
-          metadata: {
-            batchIndex,
-            processingTime,
-            apiVersion: 'gpt-4',
-            complexity: 'high'
-          }
-        }));
-
-        console.log(`✅ OpenAI batch ${batchIndex + 1} completed: ${results.length} questions processed`);
-        return results;
-      },
-      {
-        maxAttempts: this.MAX_RETRIES,
-        baseDelay: this.RETRY_DELAY,
-        maxDelay: 15000,
-        backoffMultiplier: 2,
-        timeoutMs: 45000
-      }
-    );
-  }
-
-  private static processEnhancedBatchResults(
-    allResults: PromiseSettledResult<OpenAIGradingResult[]>[],
-    smartBatches: any[][]
-  ): EnhancedBatchProcessingResult {
-    const successfulResults: OpenAIGradingResult[] = [];
-    const errors: Array<{ batch: any[]; error: any; recoverable: boolean }> = [];
-    let totalProcessingTime = 0;
-
-    allResults.forEach((result, index) => {
-      if (result.status === 'fulfilled') {
-        successfulResults.push(...result.value); // Flatten the array
-        totalProcessingTime += result.value.reduce((sum, r) => sum + (r.metadata?.processingTime || 0), 0);
-      } else {
-        const error = this.categorizeOpenAIError(result.reason, index, smartBatches[index]);
-        errors.push(error);
-        
-        console.warn(`⚠️ OpenAI batch ${index + 1} failed:`, {
-          errorMessage: error.error?.message || String(error.error),
-          questionsInBatch: error.batch.length,
-          recoverable: error.recoverable
-        });
-      }
-    });
-
-    // Enhanced error logging with detailed analysis
-    if (errors.length > 0) {
-      const errorSummary = this.generateOpenAIErrorSummary(errors);
-      console.warn(`🚨 OpenAI processing errors summary:`, errorSummary);
-    }
-
-    const totalProcessed = successfulResults.length;
-    const successRate = totalProcessed / smartBatches.reduce((sum, batch) => sum + batch.length, 0);
-    const avgBatchProcessingTime = allResults.filter(r => r.status === 'fulfilled').length > 0 ? 
-      totalProcessingTime / allResults.filter(r => r.status === 'fulfilled').length : 0;
-
-    const batchMetrics = {
-      totalBatches: smartBatches.length,
-      successfulBatches: allResults.filter(r => r.status === 'fulfilled').length,
-      failedBatches: errors.length,
-      avgBatchProcessingTime,
-      costEfficiency: totalProcessed > 0 ? (totalProcessed * this.COST_PER_REQUEST) / totalProcessed : 0
-    };
-
-    return {
-      successfulResults,
-      errors,
-      totalProcessed,
-      successRate,
-      processingTimeMs: avgBatchProcessingTime,
-      batchMetrics
-    };
-  }
-
-  private static categorizeOpenAIError(
-    error: any,
-    batchIndex: number,
-    batch: any[]
-  ): { batch: any[]; error: any; recoverable: boolean } {
-    let recoverable = true;
-    const errorMessage = error?.message || String(error);
-
-    // Categorize OpenAI-specific error types
-    if (errorMessage.includes('rate limit') || errorMessage.includes('429')) {
-      recoverable = true; // Rate limits are always recoverable
-    } else if (errorMessage.includes('timeout') || errorMessage.includes('TIMEOUT')) {
-      recoverable = true; // Timeouts can be retried
-    } else if (errorMessage.includes('API key') || errorMessage.includes('authentication')) {
-      recoverable = false; // Auth issues need manual intervention
-    } else if (errorMessage.includes('token limit') || errorMessage.includes('context length')) {
-      recoverable = false; // Token limits require content modification
-    } else if (errorMessage.includes('500') || errorMessage.includes('502') || errorMessage.includes('503')) {
-      recoverable = true; // Server errors are usually temporary
-    }
-
-    return {
-      batch,
-      error,
-      recoverable
-    };
-  }
-
-  private static generateOpenAIErrorSummary(errors: Array<{ batch: any[]; error: any; recoverable: boolean }>) {
-    const errorTypes: Record<string, number> = {};
-    let recoverableErrors = 0;
-    let criticalErrors = 0;
-    let totalAffectedQuestions = 0;
-
-    errors.forEach(error => {
-      const errorMessage = error.error?.message || String(error.error);
       
-      // Categorize error type for summary
-      let errorType = 'unknown';
-      if (errorMessage.includes('rate limit')) errorType = 'rate_limit';
-      else if (errorMessage.includes('timeout')) errorType = 'timeout';
-      else if (errorMessage.includes('API key')) errorType = 'authentication';
-      else if (errorMessage.includes('token limit')) errorType = 'token_limit';
-      else if (errorMessage.includes('500')) errorType = 'server_error';
+      batch.processingMetrics.failedBatches = 1;
+      this.notifySubscribers(batchId, batch);
+    }
+  }
 
-      errorTypes[errorType] = (errorTypes[errorType] || 0) + 1;
-
-      if (error.recoverable) {
-        recoverableErrors++;
-      } else {
-        criticalErrors++;
+  private static notifySubscribers(batchId: string, batch: ComplexQuestionBatch): void {
+    const callbacks = this.batchSubscribers.get(batchId) || [];
+    callbacks.forEach(callback => {
+      try {
+        callback(batch);
+      } catch (error) {
+        console.error('Error in batch subscriber callback:', error);
       }
-
-      totalAffectedQuestions += error.batch.length;
     });
-
-    return {
-      totalErrors: errors.length,
-      errorBreakdown: errorTypes,
-      recoverableErrors,
-      criticalErrors,
-      mostCommonError: Object.entries(errorTypes).sort(([,a], [,b]) => b - a)[0]?.[0] || 'none',
-      affectedQuestions: totalAffectedQuestions,
-      recommendedActions: this.generateOpenAIRecommendations(errorTypes)
-    };
   }
 
-  private static generateOpenAIRecommendations(errorTypes: Record<string, number>): string[] {
-    const recommendations: string[] = [];
-
-    if (errorTypes.rate_limit > 0) {
-      recommendations.push('Implement rate limiting and request spacing for OpenAI API calls');
+  static subscribeToBatch(batchId: string, callback: (batch: ComplexQuestionBatch) => void): void {
+    if (!this.batchSubscribers.has(batchId)) {
+      this.batchSubscribers.set(batchId, []);
     }
-    if (errorTypes.timeout > 0) {
-      recommendations.push('Increase timeout values or reduce batch sizes for complex questions');
-    }
-    if (errorTypes.authentication > 0) {
-      recommendations.push('Verify OpenAI API key configuration and permissions');
-    }
-    if (errorTypes.token_limit > 0) {
-      recommendations.push('Implement content truncation or question splitting for long inputs');
-    }
-    if (errorTypes.server_error > 0) {
-      recommendations.push('Implement exponential backoff for server error recovery');
-    }
-
-    return recommendations;
+    this.batchSubscribers.get(batchId)!.push(callback);
   }
 
-  private static createSmartBatches(questions: any[]): any[][] {
-    const batches: any[][] = [];
-    
-    for (let i = 0; i < questions.length; i += this.BATCH_SIZE) {
-      batches.push(questions.slice(i, i + this.BATCH_SIZE));
-    }
-
-    return batches;
+  static unsubscribeFromBatch(batchId: string): void {
+    this.batchSubscribers.delete(batchId);
   }
 
-  static getBatch(batchId: string): ComplexQuestionBatch | undefined {
-    return this.batches.get(batchId);
-  }
-
-  static getAllBatches(): ComplexQuestionBatch[] {
-    return Array.from(this.batches.values());
-  }
-
-  static getProcessingStats(): {
-    totalBatches: number;
-    activeBatches: number;
-    completedBatches: number;
-    failedBatches: number;
-    averageProcessingTime: number;
-    totalCostEstimate: number;
+  static getBatchStatus(): {
+    active: number;
+    completed: number;
+    failed: number;
   } {
-    const allBatches = this.getAllBatches();
-    
+    const batches = Array.from(this.activeBatches.values());
     return {
-      totalBatches: allBatches.length,
-      activeBatches: allBatches.filter(b => b.status === 'processing').length,
-      completedBatches: allBatches.filter(b => b.status === 'completed').length,
-      failedBatches: allBatches.filter(b => b.status === 'failed').length,
-      averageProcessingTime: allBatches.reduce((sum, b) => sum + b.processingTime, 0) / allBatches.length || 0,
-      totalCostEstimate: allBatches.reduce((sum, b) => sum + b.costEstimate, 0)
+      active: batches.filter(b => b.status === 'processing').length,
+      completed: batches.filter(b => b.status === 'completed').length,
+      failed: batches.filter(b => b.status === 'failed').length
     };
+  }
+
+  static clearCompletedBatches(): void {
+    const completedBatches = Array.from(this.activeBatches.entries())
+      .filter(([_, batch]) => batch.status === 'completed' || batch.status === 'failed');
+    
+    completedBatches.forEach(([batchId]) => {
+      this.activeBatches.delete(batchId);
+      this.batchSubscribers.delete(batchId);
+    });
+    
+    console.log(`Cleared ${completedBatches.length} completed batches`);
   }
 }

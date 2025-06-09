@@ -1,11 +1,10 @@
-
 import React, { useState, useCallback } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { SmartOcrService, DocumentClassification, OcrMethod, AdaptiveOcrConfig } from "@/services/smartOcrService";
+import { SmartOcrService, DocumentClassification, OcrMethodType, AdaptiveOcrConfig } from "@/services/smartOcrService";
 import { PerformanceMonitoringService } from "@/services/performanceMonitoringService";
 import { OpenAIComplexGradingService } from "@/services/openAIComplexGradingService";
 import { EnhancedQuestionClassifier, SimpleAnswerValidation } from "@/services/enhancedQuestionClassifier";
@@ -32,8 +31,19 @@ const measureOperation = async <T,>(operation: string, fn: () => Promise<T>): Pr
 const UploadTest: React.FC = () => {
   const [files, setFiles] = useState<File[]>([]);
   const [documentType, setDocumentType] = useState<DocumentClassification | null>(null);
-  const [ocrMethod, setOcrMethod] = useState<OcrMethod>('adaptive');
+  const [ocrMethod, setOcrMethod] = useState<OcrMethodType>('adaptive');
   const [adaptiveConfig, setAdaptiveConfig] = useState<AdaptiveOcrConfig>({
+    primaryMethod: {
+      name: 'google_vision',
+      confidence: 0.9,
+      processingTime: 2000,
+      accuracy: 0.85,
+      cost: 0.01
+    },
+    fallbackMethods: [],
+    confidenceThreshold: 0.7,
+    enableCrossValidation: true,
+    adaptiveLearning: true,
     useGoogleVision: true,
     useRoboflow: true,
     threshold: 0.7
@@ -160,7 +170,7 @@ const UploadTest: React.FC = () => {
           <CardTitle>Upload Documents</CardTitle>
         </CardHeader>
         <CardContent>
-          <div {...getRootProps()} className={`dropzone ${isDragActive ? 'active' : ''}`}>
+          <div {...getRootProps()} className={`dropzone border-2 border-dashed p-6 text-center cursor-pointer ${isDragActive ? 'border-blue-500 bg-blue-50' : 'border-gray-300'}`}>
             <input {...getInputProps()} />
             {
               isDragActive ?
@@ -168,7 +178,7 @@ const UploadTest: React.FC = () => {
                 <p>Drag 'n' drop some files here, or click to select files</p>
             }
           </div>
-          <aside>
+          <aside className="mt-4">
             <h4>Files</h4>
             <ul>
               {files.map(file => (
@@ -210,7 +220,7 @@ const UploadTest: React.FC = () => {
             id="ocrMethod"
             className="block w-full p-2 border rounded mb-2"
             value={ocrMethod}
-            onChange={(e) => setOcrMethod(e.target.value as OcrMethod)}
+            onChange={(e) => setOcrMethod(e.target.value as OcrMethodType)}
           >
             <option value="google_vision">Google Vision</option>
             <option value="roboflow">Roboflow</option>

@@ -13,12 +13,17 @@ export interface OcrMethod {
   cost: number;
 }
 
+export type OcrMethodType = 'google_vision' | 'roboflow' | 'tesseract' | 'adaptive';
+
 export interface AdaptiveOcrConfig {
   primaryMethod: OcrMethod;
   fallbackMethods: OcrMethod[];
   confidenceThreshold: number;
   enableCrossValidation: boolean;
   adaptiveLearning: boolean;
+  useGoogleVision: boolean;
+  useRoboflow: boolean;
+  threshold: number;
 }
 
 export interface ProcessingMetrics {
@@ -34,7 +39,7 @@ export class SmartOcrService {
   private static performanceHistory: Map<string, ProcessingMetrics[]> = new Map();
   private static adaptiveConfidenceThresholds: Map<string, number> = new Map();
 
-  static async classifyDocument(file: File): Promise<DocumentClassification> {
+  static async analyzeDocument(file: File): Promise<DocumentClassification> {
     // Analyze file characteristics
     const characteristics: string[] = [];
     let documentType: DocumentClassification['type'] = 'unknown';
@@ -77,6 +82,53 @@ export class SmartOcrService {
       characteristics,
       recommendedMethods
     };
+  }
+
+  static async extractTextFromImage(file: File, method: OcrMethodType): Promise<string> {
+    // Mock implementation for demonstration
+    console.log(`Extracting text using ${method} from ${file.name}`);
+    
+    // Simulate processing time
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    
+    return `Extracted text from ${file.name} using ${method}:\n\nSample exam text content...`;
+  }
+
+  static async extractTextFromImageAdaptive(file: File, config: AdaptiveOcrConfig): Promise<string> {
+    // Mock implementation for demonstration
+    console.log(`Extracting text using adaptive method from ${file.name}`, config);
+    
+    // Simulate processing time
+    await new Promise(resolve => setTimeout(resolve, 3000));
+    
+    return `Adaptive extracted text from ${file.name}:\n\nAdvanced OCR processing results...`;
+  }
+
+  static async generateExamQuestions(file: File): Promise<any[]> {
+    // Mock implementation
+    console.log(`Generating exam questions from ${file.name}`);
+    
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    
+    return [
+      { id: 1, text: "What is the capital of France?", type: "multiple_choice", options: ["Paris", "London", "Berlin", "Madrid"], correct: "Paris" },
+      { id: 2, text: "Solve: 2x + 5 = 15", type: "short_answer", correct: "x = 5" },
+      { id: 3, text: "Explain photosynthesis", type: "essay", correct: "Process by which plants convert light energy into chemical energy" }
+    ];
+  }
+
+  static async gradeExam(questions: any[]): Promise<any[]> {
+    // Mock implementation
+    console.log(`Grading exam with ${questions.length} questions`);
+    
+    await new Promise(resolve => setTimeout(resolve, 1500));
+    
+    return questions.map((question, index) => ({
+      questionId: question.id,
+      isCorrect: Math.random() > 0.3, // 70% chance of being correct
+      score: Math.random() * 100,
+      feedback: `Feedback for question ${index + 1}`
+    }));
   }
 
   private static getRecommendedMethods(type: DocumentClassification['type'], characteristics: string[]): OcrMethod[] {
@@ -140,7 +192,10 @@ export class SmartOcrService {
       fallbackMethods,
       confidenceThreshold: currentThreshold,
       enableCrossValidation: classification.confidence < 0.8,
-      adaptiveLearning: true
+      adaptiveLearning: true,
+      useGoogleVision: true,
+      useRoboflow: true,
+      threshold: 0.7
     };
   }
 
@@ -216,7 +271,7 @@ export class SmartOcrService {
     estimatedAccuracy: number;
     costEstimate: number;
   }> {
-    const classification = await this.classifyDocument(file);
+    const classification = await this.analyzeDocument(file);
     const fileKey = `${classification.type}_${Math.floor(file.size / 1024)}KB`;
     const config = this.generateAdaptiveConfig(classification, fileKey);
     const insights = this.getPerformanceInsights(classification.type);
