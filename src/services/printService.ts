@@ -1,4 +1,3 @@
-
 import { Question, TestData } from '@/utils/pdfGenerator';
 
 export interface StudentTestData extends TestData {
@@ -70,14 +69,6 @@ export const generateTestHTML = (testData: TestData | StudentTestData): string =
             border: 1px solid #cbd5e1;
             padding: 4pt;
             margin-bottom: 4pt;
-          }
-          
-          .answer-box {
-            border: 1px solid #000;
-            width: 30pt;
-            height: 12pt;
-            display: inline-block;
-            margin-left: 8pt;
           }
           
           .answer-lines {
@@ -198,14 +189,6 @@ export const generateTestHTML = (testData: TestData | StudentTestData): string =
             border: 1px solid #cbd5e1;
             padding: 6px;
             margin-bottom: 6px;
-          }
-          
-          .answer-box {
-            border: 1px solid #000;
-            width: 40px;
-            height: 16px;
-            display: inline-block;
-            margin-left: 10px;
           }
           
           .answer-lines {
@@ -337,12 +320,7 @@ const generateQuestionHTML = (question: Question, index: number): string => {
       `;
     }).join('');
     
-    answerSection = `
-      ${optionsHTML}
-      <div style="margin-top: 6pt; font-size: 8pt; color: #dc2626; font-weight: bold;">
-        Answer: <span class="answer-box"></span>
-      </div>
-    `;
+    answerSection = optionsHTML;
   } else if (question.type === 'true-false') {
     answerSection = `
       <div style="margin: 3pt 0; display: flex; align-items: center;">
@@ -354,9 +332,6 @@ const generateQuestionHTML = (question: Question, index: number): string => {
         <span class="option-circle"></span>
         <span class="option-letter">B.</span>
         <span style="font-size: 9pt;">False</span>
-      </div>
-      <div style="margin-top: 6pt; font-size: 8pt; color: #dc2626; font-weight: bold;">
-        Answer: <span class="answer-box"></span>
       </div>
     `;
   } else if (question.type === 'short-answer') {
