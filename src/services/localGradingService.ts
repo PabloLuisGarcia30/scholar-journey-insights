@@ -257,14 +257,29 @@ export class LocalGradingService {
   }> {
     console.log('🎯 Processing questions with skill pre-classification integration');
 
-    // STEP 1: Ensure skill pre-classification is available
-    const hasSkills = await ExamSkillPreClassificationService.checkAIIdentifiedSkillMappings(examId);
-    if (!hasSkills) {
-      console.warn('No pre-classified skills found, triggering skill identification...');
+    // STEP 1: Check if skill pre-classification exists
+    const skillStatus = await ExamSkillPreClassificationService.getPreClassificationStatus(examId);
+    
+    if (!skillStatus.exists || skillStatus.status !== 'completed') {
+      console.log('🔄 Triggering skill pre-classification...');
       const skillResult = await ExamSkillPreClassificationService.triggerSkillPreClassification(examId);
+      
       if (skillResult.status !== 'completed') {
         console.warn('Skill pre-classification failed, proceeding without skills');
-        return this.processQuestions(questions, answerKeys);
+        const basicResult = this.processQuestions(questions, answerKeys);
+        return {
+          ...basicResult,
+          skillScores: [],
+          summary: {
+            ...basicResult.summary,
+            skillMappingAvailable: false,
+            skillCoverage: 0,
+            enhancedMetrics: {
+              ...basicResult.summary.enhancedMetrics,
+              skillMappedQuestions: 0
+            }
+          }
+        };
       }
     }
 
@@ -390,6 +405,7 @@ export class LocalGradingService {
   static processQuestions(questions: any[], answerKeys: any[]): {
     localResults: LocalGradingResult[];
     aiRequiredQuestions: any[];
+    skillScores: LocalSkillScore[];
     summary: {
       totalQuestions: number;
       locallyGraded: number;
@@ -468,9 +484,13 @@ export class LocalGradingService {
       }
     }
 
+    // Calculate skill scores from locally graded results
+    const skillScores = this.calculateSkillScores(localResults);
+
     return {
       localResults,
       aiRequiredQuestions,
+      skillScores,
       summary: {
         totalQuestions: questions.length,
         locallyGraded: locallyGradedCount,
