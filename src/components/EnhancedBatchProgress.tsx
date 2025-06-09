@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
@@ -96,19 +95,19 @@ export const EnhancedBatchProgress: React.FC<EnhancedBatchProgressProps> = ({
         <div className="grid grid-cols-3 gap-4">
           <div className="text-center">
             <div className="text-lg font-semibold text-green-600">
-              {job.processingMetrics.complexityDistribution.simple}
+              {job.processingMetrics.complexityDistribution?.simple || 0}
             </div>
             <div className="text-xs text-gray-500">Simple (Local AI)</div>
           </div>
           <div className="text-center">
             <div className="text-lg font-semibold text-blue-600">
-              {job.processingMetrics.complexityDistribution.medium}
+              {job.processingMetrics.complexityDistribution?.medium || 0}
             </div>
             <div className="text-xs text-gray-500">Medium (Batched)</div>
           </div>
           <div className="text-center">
             <div className="text-lg font-semibold text-purple-600">
-              {job.processingMetrics.complexityDistribution.complex}
+              {job.processingMetrics.complexityDistribution?.complex || 0}
             </div>
             <div className="text-xs text-gray-500">Complex (AI)</div>
           </div>
@@ -129,7 +128,7 @@ export const EnhancedBatchProgress: React.FC<EnhancedBatchProgressProps> = ({
           <div className="flex items-center gap-2">
             <Target className="h-4 w-4 text-gray-500" />
             <div>
-              <div className="text-sm font-medium">{job.processingMetrics.batchesCreated}</div>
+              <div className="text-sm font-medium">{job.processingMetrics.batchesCreated || 0}</div>
               <div className="text-xs text-gray-500">Smart Batches</div>
             </div>
           </div>
@@ -137,7 +136,7 @@ export const EnhancedBatchProgress: React.FC<EnhancedBatchProgressProps> = ({
           <div className="flex items-center gap-2">
             <Zap className="h-4 w-4 text-gray-500" />
             <div>
-              <div className="text-sm font-medium">{job.processingMetrics.totalApiCalls}</div>
+              <div className="text-sm font-medium">{job.processingMetrics.totalApiCalls || 0}</div>
               <div className="text-xs text-gray-500">API Calls</div>
             </div>
           </div>
@@ -171,7 +170,7 @@ export const EnhancedBatchProgress: React.FC<EnhancedBatchProgressProps> = ({
             </div>
             <div className="text-red-700 text-xs">
               {job.errors.slice(0, 2).map((error, index) => (
-                <div key={index}>• {error}</div>
+                <div key={index}>• {error.errorMessage || 'Unknown error'}</div>
               ))}
               {job.errors.length > 2 && (
                 <div>• ... and {job.errors.length - 2} more</div>

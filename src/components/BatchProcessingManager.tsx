@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Upload, Play, Pause, Square, Clock, AlertCircle, CheckCircle, FileText } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -234,7 +233,7 @@ export const BatchProcessingManager: React.FC<BatchProcessingManagerProps> = ({
                 
                 {job.errors.length > 0 && (
                   <div className="mt-2 text-sm text-red-600">
-                    {job.errors.length} error(s) encountered
+                    {job.errors.length} error(s): {job.errors[0]?.errorMessage || 'Unknown error'}
                   </div>
                 )}
               </div>
@@ -279,7 +278,7 @@ export const BatchProcessingManager: React.FC<BatchProcessingManagerProps> = ({
                 
                 {job.errors.length > 0 && (
                   <div className="mt-2 text-sm text-red-600">
-                    {job.errors.length} error(s): {job.errors[0]}
+                    {job.errors.length} error(s): {job.errors[0]?.errorMessage || 'Unknown error'}
                   </div>
                 )}
               </div>
