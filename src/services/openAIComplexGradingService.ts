@@ -1,261 +1,650 @@
-export interface OpenAIGradingResult {
-  questionNumber: number;
-  isCorrect: boolean;
-  pointsEarned: number;
-  pointsPossible: number;
-  feedback: string;
-  confidence: number;
-  gradingMethod: 'openai_api' | 'openai_batch' | 'error';
+import { supabase } from "@/integrations/supabase/client";
+import { QuestionCacheService, QuestionCacheResult } from "./questionCacheService";
+import { SkillMapping, QuestionSkillMappings, EnhancedLocalGradingResult } from "./enhancedLocalGradingService";
+import { QuestionBatchOptimizer, QuestionBatch } from "./questionBatchOptimizer";
+import { EnhancedBatchGradingService } from "./enhancedBatchGradingService";
+
+export interface OpenAIGradingResult extends EnhancedLocalGradingResult {
+  openAIUsage?: {
+    promptTokens: number;
+    completionTokens: number;
+    totalTokens: number;
+    estimatedCost: number;
+  };
+  complexityScore?: number;
+  reasoningDepth?: 'shallow' | 'medium' | 'deep';
 }
 
 export interface ComplexQuestionBatch {
-  id: string;
   questions: any[];
-  status: 'pending' | 'processing' | 'completed' | 'failed';
-  createdAt: number;
-  startedAt?: number;
-  completedAt?: number;
-  results: OpenAIGradingResult[];
-  progress: number;
-  estimatedCompletionTime: number;
-  priority: 'low' | 'normal' | 'high';
-  errors: {
-    timestamp: number;
-    errorType: string;
-    errorMessage: string;
-    questionNumber: number;
-  }[];
-  processingMetrics: {
-    totalBatches: number;
-    successfulBatches: number;
-    failedBatches: number;
-    avgBatchTime: number;
-    costEstimate: number;
-    filesPerSecond: number;
-  };
+  totalEstimatedCost: number;
+  averageComplexity: number;
+  priorityQuestions: number[];
 }
 
 export class OpenAIComplexGradingService {
-  private static activeBatches: Map<string, ComplexQuestionBatch> = new Map();
-  private static batchSubscribers: Map<string, ((batch: ComplexQuestionBatch) => void)[]> = new Map();
+  private static readonly MAX_BATCH_SIZE = 4; // Reduced from 25 for conservative approach
+  private static readonly CONSERVATIVE_BATCH_SIZE = true;
+  private static readonly COST_PER_1K_TOKENS = 0.002;
+  private static readonly CACHE_ENABLED = true;
+  private static batchOptimizer = new QuestionBatchOptimizer({
+    baseBatchSize: 3,    // Reduced from 15
+    maxBatchSize: 4,     // Reduced from 25
+    adaptiveSizing: false // Disabled for consistent quality
+  });
 
-  static async gradeComplexQuestions(questions: any[]): Promise<OpenAIGradingResult[]> {
-    console.log(`Grading ${questions.length} complex questions`);
+  static async gradeComplexQuestions(
+    questions: any[],
+    answerKeys: any[],
+    examId: string,
+    studentName: string,
+    skillMappings: QuestionSkillMappings
+  ): Promise<OpenAIGradingResult[]> {
+    console.log(`🎯 Conservative OpenAI grading ${questions.length} complex questions with quality-first batching for student: ${studentName}`);
     
-    const results: OpenAIGradingResult[] = [];
-    
-    for (const question of questions) {
-      try {
-        await new Promise(resolve => setTimeout(resolve, 500)); // Simulate processing
+    // PHASE 2: Pass pre-validated answer keys to maintain context
+    const jobId = await EnhancedBatchGradingService.createEnhancedBatchJob(
+      questions,
+      examId,
+      studentName,
+      'urgent', // Use urgent priority for conservative processing
+      answerKeys // PHASE 1: Pass the pre-validated answer keys
+    );
+
+    // Poll for job completion with conservative timeout
+    return new Promise((resolve, reject) => {
+      const checkInterval = setInterval(() => {
+        const job = EnhancedBatchGradingService.getJob(jobId);
         
-        const result: OpenAIGradingResult = {
-          questionNumber: question.questionNumber || results.length + 1,
-          isCorrect: Math.random() > 0.3,
-          pointsEarned: Math.floor(Math.random() * (question.pointsPossible || 10)),
-          pointsPossible: question.pointsPossible || 10,
-          feedback: `AI feedback for question ${results.length + 1}`,
-          confidence: Math.random() * 0.3 + 0.7,
-          gradingMethod: 'openai_api'
-        };
-        
-        results.push(result);
-      } catch (error) {
-        console.error(`Error grading question ${question.questionNumber}:`, error);
-        
-        const errorResult: OpenAIGradingResult = {
-          questionNumber: question.questionNumber || results.length + 1,
-          isCorrect: false,
-          pointsEarned: 0,
-          pointsPossible: question.pointsPossible || 10,
-          feedback: 'Error occurred during grading',
-          confidence: 0,
-          gradingMethod: 'error'
-        };
-        
-        results.push(errorResult);
-      }
-    }
-    
-    return results;
+        if (!job) {
+          clearInterval(checkInterval);
+          reject(new Error('Conservative grading job not found'));
+          return;
+        }
+
+        if (job.status === 'completed') {
+          clearInterval(checkInterval);
+          
+          // Convert enhanced batch results to OpenAI grading results
+          const results: OpenAIGradingResult[] = job.results.map((result, index) => {
+            const question = questions[index];
+            const questionSkillMappings = skillMappings[question.questionNumber] || [];
+            
+            return {
+              questionNumber: result.questionNumber,
+              isCorrect: result.isCorrect,
+              pointsEarned: result.pointsEarned,
+              pointsPossible: result.pointsPossible,
+              confidence: result.confidence,
+              gradingMethod: result.gradingMethod === 'openai_batch' ? 'conservative_openai_batch' : result.gradingMethod,
+              reasoning: result.reasoning,
+              skillMappings: questionSkillMappings,
+              complexityScore: result.complexityScore,
+              reasoningDepth: result.reasoningDepth,
+              openAIUsage: {
+                promptTokens: Math.floor(200 / questions.length),
+                completionTokens: Math.floor(300 / questions.length),
+                totalTokens: Math.floor(500 / questions.length),
+                estimatedCost: job.processingMetrics.costEstimate / questions.length
+              },
+              qualityFlags: {
+                hasMultipleMarks: question.detectedAnswer?.multipleMarksDetected || false,
+                reviewRequired: question.detectedAnswer?.reviewFlag || false,
+                bubbleQuality: question.detectedAnswer?.bubbleQuality || 'unknown',
+                confidenceAdjusted: result.confidence < 0.8, // Higher threshold for conservative mode
+                openAIProcessed: result.gradingMethod !== 'local_ai',
+                batchProcessed: result.gradingMethod === 'openai_batch',
+                enhancedProcessing: true,
+                conservativeProcessing: true, // New flag for conservative mode
+                qualityFirst: true,
+                preValidatedAnswerKeys: true
+              }
+            };
+          });
+
+          console.log(`✅ Conservative OpenAI grading completed for ${studentName}: ${results.length} questions processed with quality-first approach`);
+          resolve(results);
+          
+        } else if (job.status === 'failed') {
+          clearInterval(checkInterval);
+          reject(new Error(`Conservative batch grading failed: ${job.errors.join(', ')}`));
+        }
+      }, 2000); // Check every 2 seconds (less frequent for conservative approach)
+
+      // Extended timeout for conservative processing
+      setTimeout(() => {
+        clearInterval(checkInterval);
+        reject(new Error('Conservative batch grading timeout - quality processing may take longer'));
+      }, 600000); // 10 minutes timeout
+    });
   }
 
-  static async preProcessCommonExamQuestions(questions: any[]): Promise<{ processed: any[], cached: number, errors: any[] }> {
-    console.log(`Pre-processing ${questions.length} common exam questions`);
+  private static async processBatchQuestions(
+    questions: any[],
+    answerKeys: any[],
+    skillMappings: any[],
+    examId: string,
+    studentName: string
+  ): Promise<OpenAIGradingResult[]> {
+    // Create batch prompt for multiple questions
+    const batchPrompt = this.createBatchGradingPrompt(questions, answerKeys, skillMappings, studentName);
     
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    const processed = questions.map((question, index) => ({
-      ...question,
-      preprocessed: true,
-      commonPatterns: ['standard_format', 'clear_instructions'],
-      optimizedForGrading: true,
-      estimatedGradingTime: Math.random() * 300 + 60,
-      complexity: Math.random() > 0.5 ? 'medium' : 'simple',
-      preprocessingTimestamp: new Date().toISOString()
-    }));
-
-    return {
-      processed,
-      cached: processed.length,
-      errors: []
-    };
-  }
-
-  static async createBatch(questions: any[]): Promise<string> {
-    const batchId = `batch_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    
-    // Simulate batch creation
-    const batch: ComplexQuestionBatch = {
-      id: batchId,
-      questions: questions.map((q, index) => ({
-        ...q,
-        questionNumber: index + 1,
-        pointsPossible: q.pointsPossible || 10
-      })),
-      status: 'pending',
-      createdAt: Date.now(),
-      results: [],
-      progress: 0,
-      estimatedCompletionTime: Date.now() + (questions.length * 30000), // 30s per question
-      priority: 'normal',
-      errors: [], // Add the missing errors property
-      processingMetrics: {
-        totalBatches: 1,
-        successfulBatches: 0,
-        failedBatches: 0,
-        avgBatchTime: 0,
-        costEstimate: questions.length * 0.001,
-        filesPerSecond: 0
-      }
-    };
-
-    this.activeBatches.set(batchId, batch);
-    this.startBatchProcessing(batchId);
-    
-    return batchId;
-  }
-
-  static async checkBatchStatus(batchId: string): Promise<ComplexQuestionBatch | null> {
-    return this.activeBatches.get(batchId) || null;
-  }
-
-  static async retrieveBatchResults(batchId: string): Promise<OpenAIGradingResult[]> {
-    const batch = this.activeBatches.get(batchId);
-    if (!batch) {
-      throw new Error(`Batch ${batchId} not found`);
-    }
-    
-    if (batch.status !== 'completed') {
-      throw new Error(`Batch ${batchId} is not completed yet. Status: ${batch.status}`);
-    }
-    
-    return batch.results;
-  }
-
-  private static async startBatchProcessing(batchId: string): Promise<void> {
-    const batch = this.activeBatches.get(batchId);
-    if (!batch) return;
-
     try {
-      batch.status = 'processing';
-      batch.startedAt = Date.now();
+      const { data, error } = await supabase.functions.invoke('grade-complex-question', {
+        body: {
+          batchMode: true,
+          questions: questions.map((q, index) => ({
+            questionNumber: q.questionNumber,
+            questionText: answerKeys[index]?.question_text || `Question ${q.questionNumber}`,
+            studentAnswer: q.detectedAnswer?.selectedOption?.trim() || '',
+            correctAnswer: answerKeys[index]?.correct_answer?.trim() || '',
+            pointsPossible: answerKeys[index]?.points || 1,
+            skillContext: skillMappings.filter(sm => sm.question_number === q.questionNumber)
+              .map(s => s.skill_name).join(', ')
+          })),
+          studentName,
+          batchPrompt
+        }
+      });
 
-      const totalQuestions = batch.questions.length;
+      if (error) {
+        throw new Error(`Batch grading API error: ${error.message}`);
+      }
+
+      const batchResults = data.results || [];
       const results: OpenAIGradingResult[] = [];
 
-      for (let i = 0; i < totalQuestions; i++) {
-        const question = batch.questions[i];
-        
-        // Simulate processing time
-        await new Promise(resolve => setTimeout(resolve, 2000 + Math.random() * 3000));
-        
-        const result: OpenAIGradingResult = {
-          questionNumber: i + 1,
-          isCorrect: Math.random() > 0.25,
-          pointsEarned: Math.floor(Math.random() * (question.pointsPossible || 10)),
-          pointsPossible: question.pointsPossible || 10,
-          feedback: `Detailed AI feedback for question ${i + 1}`,
-          confidence: Math.random() * 0.3 + 0.7,
-          gradingMethod: 'openai_batch'
-        };
+      // Process batch results
+      for (let i = 0; i < questions.length; i++) {
+        const question = questions[i];
+        const answerKey = answerKeys[i];
+        const result = batchResults[i];
+        const questionSkillMappings = skillMappings.filter(sm => sm.question_number === question.questionNumber);
 
-        results.push(result);
-        batch.results = results;
-        batch.progress = ((i + 1) / totalQuestions) * 100;
+        if (result) {
+          const gradingResult: OpenAIGradingResult = {
+            questionNumber: question.questionNumber,
+            isCorrect: result.isCorrect,
+            pointsEarned: Math.min(Math.max(result.pointsEarned || 0, 0), answerKey?.points || 1),
+            pointsPossible: answerKey?.points || 1,
+            confidence: result.confidence || 0.8,
+            gradingMethod: 'openai_batch_reasoning',
+            reasoning: result.reasoning || 'Batch processing result',
+            skillMappings: questionSkillMappings,
+            openAIUsage: {
+              promptTokens: Math.floor((data.usage?.promptTokens || 0) / questions.length),
+              completionTokens: Math.floor((data.usage?.completionTokens || 0) / questions.length),
+              totalTokens: Math.floor((data.usage?.totalTokens || 0) / questions.length),
+              estimatedCost: ((data.usage?.totalTokens || 0) / questions.length) * this.COST_PER_1K_TOKENS / 1000
+            },
+            complexityScore: result.complexityScore || 0.7,
+            reasoningDepth: result.reasoningDepth || 'medium',
+            qualityFlags: {
+              hasMultipleMarks: question.detectedAnswer?.multipleMarksDetected || false,
+              reviewRequired: question.detectedAnswer?.reviewFlag || false,
+              bubbleQuality: question.detectedAnswer?.bubbleQuality || 'unknown',
+              confidenceAdjusted: result.confidence < 0.7,
+              openAIProcessed: true,
+              batchProcessed: true
+            }
+          };
 
-        // Notify subscribers of progress
-        this.notifySubscribers(batchId, batch);
+          results.push(gradingResult);
+
+          // Cache the result
+          if (this.CACHE_ENABLED) {
+            try {
+              await QuestionCacheService.setCachedQuestionResult(
+                examId,
+                question.questionNumber,
+                question.detectedAnswer?.selectedOption?.trim() || '',
+                answerKey?.correct_answer?.trim() || '',
+                gradingResult
+              );
+            } catch (cacheError) {
+              console.warn('Failed to cache batch result:', cacheError);
+            }
+          }
+        } else {
+          // Fallback for missing result
+          results.push(this.createFallbackResult(
+            question, 
+            answerKey, 
+            questionSkillMappings, 
+            'Batch result missing'
+          ));
+        }
       }
 
-      batch.status = 'completed';
-      batch.completedAt = Date.now();
-      batch.progress = 100;
+      return results;
 
-      // Update metrics
-      batch.processingMetrics.successfulBatches = 1;
-      batch.processingMetrics.avgBatchTime = batch.completedAt - (batch.startedAt || batch.createdAt);
-
-      this.notifySubscribers(batchId, batch);
-      
     } catch (error) {
-      console.error(`Error processing batch ${batchId}:`, error);
-      batch.status = 'failed';
-      batch.errors.push({
-        timestamp: Date.now(),
-        errorType: 'processing_error',
-        errorMessage: error instanceof Error ? error.message : 'Unknown error',
-        questionNumber: batch.results.length + 1
+      console.error('Batch processing failed:', error);
+      throw error;
+    }
+  }
+
+  private static createBatchGradingPrompt(
+    questions: any[],
+    answerKeys: any[],
+    skillMappings: any[],
+    studentName: string
+  ): string {
+    const questionCount = questions.length;
+    
+    return `Grade ${questionCount} test questions for student ${studentName}. Analyze each question and provide detailed results.
+
+REQUIRED OUTPUT FORMAT (JSON array):
+[
+  {
+    "questionNumber": 1,
+    "isCorrect": true,
+    "pointsEarned": 2,
+    "confidence": 0.95,
+    "reasoning": "Detailed explanation of grading decision",
+    "complexityScore": 0.6,
+    "reasoningDepth": "medium"
+  }
+]
+
+QUESTIONS TO GRADE:
+${questions.map((q, index) => {
+  const answerKey = answerKeys[index];
+  const questionSkills = skillMappings.filter(sm => sm.question_number === q.questionNumber);
+  
+  return `Q${q.questionNumber}: ${answerKey?.question_text || 'Question text not available'}
+Student Answer: "${q.detectedAnswer?.selectedOption || 'No answer detected'}"
+Correct Answer: "${answerKey?.correct_answer || 'Not specified'}"
+Points Possible: ${answerKey?.points || 1}
+Skills Being Assessed: ${questionSkills.map(s => s.skill_name).join(', ') || 'General'}
+---`;
+}).join('\n')}
+
+GRADING INSTRUCTIONS:
+- Provide accurate and fair grading for each question
+- Award full points for completely correct answers
+- Consider partial credit for partially correct responses
+- Analyze the complexity and reasoning depth of each question
+- Provide confidence scores based on answer clarity
+- Give detailed but concise reasoning for each grading decision
+
+Respond with ONLY the JSON array containing results for all ${questionCount} questions.`;
+  }
+
+  private static async gradeComplexQuestionWithOpenAI(
+    question: any,
+    answerKey: any,
+    skillMappings: SkillMapping[],
+    studentName: string
+  ): Promise<OpenAIGradingResult> {
+    const studentAnswer = question.detectedAnswer?.selectedOption?.trim() || '';
+    const correctAnswer = answerKey.correct_answer?.trim() || '';
+    const pointsPossible = answerKey.points || 1;
+
+    try {
+      // Call OpenAI grading edge function
+      const { data, error } = await supabase.functions.invoke('grade-complex-question', {
+        body: {
+          questionText: answerKey.question_text || `Question ${question.questionNumber}`,
+          studentAnswer,
+          correctAnswer,
+          pointsPossible,
+          questionNumber: question.questionNumber,
+          studentName,
+          skillContext: skillMappings.map(s => s.skill_name).join(', ')
+        }
       });
-      
-      batch.processingMetrics.failedBatches = 1;
-      this.notifySubscribers(batchId, batch);
-    }
-  }
 
-  private static notifySubscribers(batchId: string, batch: ComplexQuestionBatch): void {
-    const callbacks = this.batchSubscribers.get(batchId) || [];
-    callbacks.forEach(callback => {
-      try {
-        callback(batch);
-      } catch (error) {
-        console.error('Error in batch subscriber callback:', error);
+      if (error) {
+        console.error('OpenAI grading error:', error);
+        return this.createFallbackResult(question, answerKey, skillMappings, 'OpenAI API error');
       }
-    });
-  }
 
-  static subscribeToBatch(batchId: string, callback: (batch: ComplexQuestionBatch) => void): void {
-    if (!this.batchSubscribers.has(batchId)) {
-      this.batchSubscribers.set(batchId, []);
+      const isCorrect = data.isCorrect;
+      const pointsEarned = Math.min(Math.max(data.pointsEarned || 0, 0), pointsPossible);
+      
+      return {
+        questionNumber: question.questionNumber,
+        isCorrect,
+        pointsEarned,
+        pointsPossible,
+        confidence: data.confidence || 0.8,
+        gradingMethod: 'openai_complex_reasoning',
+        reasoning: data.reasoning || 'OpenAI complex reasoning analysis',
+        skillMappings,
+        openAIUsage: {
+          promptTokens: data.usage?.promptTokens || 0,
+          completionTokens: data.usage?.completionTokens || 0,
+          totalTokens: data.usage?.totalTokens || 0,
+          estimatedCost: (data.usage?.totalTokens || 0) * this.COST_PER_1K_TOKENS / 1000
+        },
+        complexityScore: data.complexityScore || 0.7,
+        reasoningDepth: data.reasoningDepth || 'medium',
+        qualityFlags: {
+          hasMultipleMarks: question.detectedAnswer?.multipleMarksDetected || false,
+          reviewRequired: question.detectedAnswer?.reviewFlag || false,
+          bubbleQuality: question.detectedAnswer?.bubbleQuality || 'unknown',
+          confidenceAdjusted: data.confidence < 0.7,
+          openAIProcessed: true,
+          complexQuestion: true
+        }
+      };
+
+    } catch (error) {
+      console.error('OpenAI grading failed:', error);
+      return this.createFallbackResult(question, answerKey, skillMappings, `OpenAI processing failed: ${error.message}`);
     }
-    this.batchSubscribers.get(batchId)!.push(callback);
   }
 
-  static unsubscribeFromBatch(batchId: string): void {
-    this.batchSubscribers.delete(batchId);
-  }
-
-  static getBatchStatus(): {
-    active: number;
-    completed: number;
-    failed: number;
-  } {
-    const batches = Array.from(this.activeBatches.values());
+  private static createFallbackResult(
+    question: any,
+    answerKey: any,
+    skillMappings: SkillMapping[],
+    errorReason: string
+  ): OpenAIGradingResult {
     return {
-      active: batches.filter(b => b.status === 'processing').length,
-      completed: batches.filter(b => b.status === 'completed').length,
-      failed: batches.filter(b => b.status === 'failed').length
+      questionNumber: question.questionNumber,
+      isCorrect: false,
+      pointsEarned: 0,
+      pointsPossible: answerKey.points || 1,
+      confidence: 0.3,
+      gradingMethod: 'openai_fallback',
+      reasoning: `OpenAI grading unavailable: ${errorReason}. Manual review recommended.`,
+      skillMappings,
+      qualityFlags: {
+        hasMultipleMarks: question.detectedAnswer?.multipleMarksDetected || false,
+        reviewRequired: true,
+        bubbleQuality: question.detectedAnswer?.bubbleQuality || 'unknown',
+        confidenceAdjusted: true,
+        openAIProcessed: false,
+        requiresManualReview: true
+      }
     };
   }
 
-  static clearCompletedBatches(): void {
-    const completedBatches = Array.from(this.activeBatches.entries())
-      .filter(([_, batch]) => batch.status === 'completed' || batch.status === 'failed');
+  static async preProcessCommonExamQuestions(
+    examId: string,
+    commonAnswerPatterns: Array<{
+      questionNumber: number;
+      questionText: string;
+      correctAnswer: string;
+      commonStudentAnswers: string[];
+      isComplex: boolean;
+    }>
+  ): Promise<{ processed: number; cached: number; errors: number }> {
+    console.log(`🔄 Pre-processing ${commonAnswerPatterns.length} common OpenAI questions for exam: ${examId}`);
     
-    completedBatches.forEach(([batchId]) => {
-      this.activeBatches.delete(batchId);
-      this.batchSubscribers.delete(batchId);
+    let processed = 0;
+    let cached = 0;
+    let errors = 0;
+
+    for (const pattern of commonAnswerPatterns) {
+      if (!pattern.isComplex) continue; // Skip simple questions
+
+      for (const studentAnswer of pattern.commonStudentAnswers) {
+        try {
+          // Check if already cached
+          const existingCache = await QuestionCacheService.getCachedQuestionResult(
+            examId,
+            pattern.questionNumber,
+            studentAnswer,
+            pattern.correctAnswer
+          );
+
+          if (existingCache) {
+            cached++;
+            continue;
+          }
+
+          // Create mock question and answer key for grading
+          const mockQuestion = {
+            questionNumber: pattern.questionNumber,
+            detectedAnswer: { selectedOption: studentAnswer }
+          };
+
+          const mockAnswerKey = {
+            question_number: pattern.questionNumber,
+            question_text: pattern.questionText,
+            correct_answer: pattern.correctAnswer,
+            points: 1,
+            exam_id: examId
+          };
+
+          // Grade with OpenAI
+          const result = await this.gradeComplexQuestionWithOpenAI(
+            mockQuestion,
+            mockAnswerKey,
+            [], // No skill mappings for pre-processing
+            'Pre-processing Student'
+          );
+
+          // Cache the result
+          await QuestionCacheService.setCachedQuestionResult(
+            examId,
+            pattern.questionNumber,
+            studentAnswer,
+            pattern.correctAnswer,
+            result
+          );
+
+          processed++;
+          
+          // Add small delay to avoid rate limiting
+          await new Promise(resolve => setTimeout(resolve, 100));
+
+        } catch (error) {
+          console.error(`Pre-processing failed for Q${pattern.questionNumber}:`, error);
+          errors++;
+        }
+      }
+    }
+
+    console.log(`✅ OpenAI pre-processing complete: ${processed} processed, ${cached} already cached, ${errors} errors`);
+    return { processed, cached, errors };
+  }
+
+  static analyzeBatchComplexity(questions: any[], answerKeys: any[]): ComplexQuestionBatch {
+    const complexityScores = questions.map(q => {
+      const answerKey = answerKeys.find(ak => ak.question_number === q.questionNumber);
+      return this.calculateQuestionComplexity(q, answerKey);
     });
+
+    const averageComplexity = complexityScores.reduce((sum, score) => sum + score, 0) / complexityScores.length;
+    const totalEstimatedCost = complexityScores.reduce((sum, score) => sum + (score * 0.01), 0); // Rough cost estimate
     
-    console.log(`Cleared ${completedBatches.length} completed batches`);
+    const priorityQuestions = questions
+      .map((q, index) => ({ questionNumber: q.questionNumber, complexity: complexityScores[index] }))
+      .filter(q => q.complexity > 0.7)
+      .map(q => q.questionNumber);
+
+    return {
+      questions,
+      totalEstimatedCost,
+      averageComplexity,
+      priorityQuestions
+    };
+  }
+
+  private static calculateQuestionComplexity(question: any, answerKey: any): number {
+    let complexity = 0.5; // Base complexity
+
+    // Analyze question text
+    const questionText = answerKey?.question_text || '';
+    if (questionText.length > 200) complexity += 0.1;
+    if (questionText.includes('explain') || questionText.includes('analyze')) complexity += 0.2;
+    if (questionText.includes('compare') || questionText.includes('evaluate')) complexity += 0.2;
+
+    // Analyze answer complexity
+    const correctAnswer = answerKey?.correct_answer || '';
+    if (correctAnswer.length > 50) complexity += 0.1;
+    if (correctAnswer.includes('because') || correctAnswer.includes('therefore')) complexity += 0.1;
+
+    return Math.min(complexity, 1.0);
+  }
+
+  static generateCostReport(results: OpenAIGradingResult[]): {
+    totalCost: number;
+    totalTokens: number;
+    averageCostPerQuestion: number;
+    costBreakdown: { [method: string]: number };
+    batchEfficiencyGains: {
+      totalQuestions: number;
+      batchedQuestions: number;
+      estimatedSingleCallCost: number;
+      actualBatchCost: number;
+      costSavingsPercent: number;
+    };
+  } {
+    let totalCost = 0;
+    let totalTokens = 0;
+    let batchedQuestions = 0;
+    const costBreakdown: { [method: string]: number } = {};
+
+    for (const result of results) {
+      const cost = result.openAIUsage?.estimatedCost || 0;
+      const tokens = result.openAIUsage?.totalTokens || 0;
+      
+      totalCost += cost;
+      totalTokens += tokens;
+      
+      if (result.qualityFlags?.batchProcessed) {
+        batchedQuestions++;
+      }
+      
+      const method = result.gradingMethod;
+      costBreakdown[method] = (costBreakdown[method] || 0) + cost;
+    }
+
+    // Calculate efficiency gains from batching
+    const estimatedSingleCallCost = results.length * 0.01; // Rough estimate
+    const costSavingsPercent = totalCost > 0 ? ((estimatedSingleCallCost - totalCost) / estimatedSingleCallCost) * 100 : 0;
+
+    return {
+      totalCost,
+      totalTokens,
+      averageCostPerQuestion: results.length > 0 ? totalCost / results.length : 0,
+      costBreakdown,
+      batchEfficiencyGains: {
+        totalQuestions: results.length,
+        batchedQuestions,
+        estimatedSingleCallCost,
+        actualBatchCost: totalCost,
+        costSavingsPercent: Math.max(0, costSavingsPercent)
+      }
+    };
+  }
+
+  static generateEnhancedCostReport(results: OpenAIGradingResult[]): {
+    totalCost: number;
+    totalTokens: number;
+    averageCostPerQuestion: number;
+    costBreakdown: { [method: string]: number };
+    enhancedBatchEfficiency: {
+      totalQuestions: number;
+      localAIQuestions: number;
+      batchedQuestions: number;
+      estimatedSingleCallCost: number;
+      actualBatchCost: number;
+      costSavingsPercent: number;
+      timeEfficiencyGain: number;
+    };
+  } {
+    let totalCost = 0;
+    let totalTokens = 0;
+    let localAIQuestions = 0;
+    let batchedQuestions = 0;
+    const costBreakdown: { [method: string]: number } = {};
+
+    for (const result of results) {
+      const cost = result.openAIUsage?.estimatedCost || 0;
+      const tokens = result.openAIUsage?.totalTokens || 0;
+      
+      totalCost += cost;
+      totalTokens += tokens;
+      
+      if (result.gradingMethod === 'local_ai') {
+        localAIQuestions++;
+      } else if (result.qualityFlags?.batchProcessed) {
+        batchedQuestions++;
+      }
+      
+      const method = result.gradingMethod;
+      costBreakdown[method] = (costBreakdown[method] || 0) + cost;
+    }
+
+    // Calculate efficiency gains
+    const estimatedSingleCallCost = results.length * 0.01; // Previous single-call estimate
+    const costSavingsPercent = totalCost > 0 ? ((estimatedSingleCallCost - totalCost) / estimatedSingleCallCost) * 100 : 0;
+    const timeEfficiencyGain = localAIQuestions * 0.8 + batchedQuestions * 0.6; // Estimated time savings
+
+    return {
+      totalCost,
+      totalTokens,
+      averageCostPerQuestion: results.length > 0 ? totalCost / results.length : 0,
+      costBreakdown,
+      enhancedBatchEfficiency: {
+        totalQuestions: results.length,
+        localAIQuestions,
+        batchedQuestions,
+        estimatedSingleCallCost,
+        actualBatchCost: totalCost,
+        costSavingsPercent: Math.max(0, costSavingsPercent),
+        timeEfficiencyGain
+      }
+    };
+  }
+
+  static generateConservativeCostReport(results: OpenAIGradingResult[]): {
+    totalCost: number;
+    totalTokens: number;
+    averageCostPerQuestion: number;
+    costBreakdown: { [method: string]: number };
+    conservativeEfficiency: {
+      totalQuestions: number;
+      conservativeBatchedQuestions: number;
+      qualityScore: number;
+      accuracyImprovement: number;
+      processingTimeIncrease: number;
+    };
+  } {
+    let totalCost = 0;
+    let totalTokens = 0;
+    let conservativeBatchedQuestions = 0;
+    let qualityScoreSum = 0;
+    const costBreakdown: { [method: string]: number } = {};
+
+    for (const result of results) {
+      const cost = result.openAIUsage?.estimatedCost || 0;
+      const tokens = result.openAIUsage?.totalTokens || 0;
+      
+      totalCost += cost;
+      totalTokens += tokens;
+      qualityScoreSum += result.confidence;
+      
+      if (result.qualityFlags?.conservativeProcessing) {
+        conservativeBatchedQuestions++;
+      }
+      
+      const method = result.gradingMethod;
+      costBreakdown[method] = (costBreakdown[method] || 0) + cost;
+    }
+
+    const avgQualityScore = results.length > 0 ? qualityScoreSum / results.length : 0;
+    const estimatedAccuracyImprovement = (avgQualityScore - 0.75) * 100; // Baseline vs conservative
+    const estimatedTimeIncrease = 40; // Conservative processing takes ~40% longer
+
+    return {
+      totalCost,
+      totalTokens,
+      averageCostPerQuestion: results.length > 0 ? totalCost / results.length : 0,
+      costBreakdown,
+      conservativeEfficiency: {
+        totalQuestions: results.length,
+        conservativeBatchedQuestions,
+        qualityScore: avgQualityScore,
+        accuracyImprovement: Math.max(0, estimatedAccuracyImprovement),
+        processingTimeIncrease: estimatedTimeIncrease
+      }
+    };
   }
 }

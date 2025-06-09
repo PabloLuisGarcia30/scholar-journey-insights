@@ -450,18 +450,4 @@ export class QuestionCacheService {
     };
     console.log('📊 Cache performance stats reset');
   }
-
-  private static convertToLocalGradingResult(cachedResult: any): EnhancedLocalGradingResult {
-    return {
-      questionNumber: cachedResult.questionNumber,
-      isCorrect: cachedResult.isCorrect,
-      pointsEarned: cachedResult.pointsEarned,
-      pointsPossible: cachedResult.pointsPossible,
-      confidence: cachedResult.confidence,
-      gradingMethod: 'local', // Convert cached types back to base types
-      reasoning: cachedResult.reasoning || 'Cached result',
-      processingTime: cachedResult.processingTime || 0,
-      classification: cachedResult.classification
-    };
-  }
 }

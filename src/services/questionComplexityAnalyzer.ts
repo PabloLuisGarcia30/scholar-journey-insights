@@ -1,3 +1,4 @@
+
 // This file now delegates to the shared implementation and optimized classifier
 import { 
   SharedQuestionComplexityAnalyzer,
@@ -26,9 +27,9 @@ export class QuestionComplexityAnalyzer {
     console.log('🧪 Question Complexity Analyzer: Validation mode enabled');
   }
 
-  static async analyzeQuestion(question: any, answerKey: any): Promise<ComplexityAnalysis> {
+  static analyzeQuestion(question: any, answerKey: any): ComplexityAnalysis {
     // Use optimized classifier for initial classification
-    const optimizedResult = await OptimizedQuestionClassifier.classifyQuestionOptimized(question, answerKey);
+    const optimizedResult = OptimizedQuestionClassifier.classifyQuestionOptimized(question, answerKey);
     
     // Log for analytics
     ClassificationLogger.logClassification(
@@ -59,7 +60,7 @@ export class QuestionComplexityAnalyzer {
           answerClarity: optimizedResult.confidence * 100,
           selectedAnswer: question.detectedAnswer?.selectedOption || 'no_answer'
         },
-        reasoning: [`Fast-path classification: ${optimizedResult.metrics.fallbackReason || 'fast_path'}`, `High confidence ${optimizedResult.questionType} question`],
+        reasoning: [`Fast-path classification: ${optimizedResult.detectionMethod}`, `High confidence ${optimizedResult.questionType} question`],
         confidenceInDecision: optimizedResult.confidence
       };
     }
@@ -68,16 +69,13 @@ export class QuestionComplexityAnalyzer {
     return this.sharedAnalyzer.analyzeQuestion(question, answerKey);
   }
 
-  static async batchAnalyzeQuestions(questions: any[], answerKeys: any[]): Promise<ComplexityAnalysis[]> {
+  static batchAnalyzeQuestions(questions: any[], answerKeys: any[]): ComplexityAnalysis[] {
     console.log('🎯 Batch analyzing', questions.length, 'questions with optimized classifier');
     
-    const results = [];
-    for (const question of questions) {
+    return questions.map(question => {
       const answerKey = answerKeys.find(ak => ak.question_number === question.questionNumber);
-      const analysis = await this.analyzeQuestion(question, answerKey);
-      results.push(analysis);
-    }
-    return results;
+      return this.analyzeQuestion(question, answerKey);
+    });
   }
 
   static getModelDistribution(analyses: ComplexityAnalysis[]): { 
@@ -121,12 +119,13 @@ export class QuestionComplexityAnalyzer {
   // New optimization methods
   static getOptimizationMetrics() {
     return {
-      classifier: { performanceMetrics: 'Available' },
+      classifier: OptimizedQuestionClassifier.getPerformanceMetrics(),
       analytics: ClassificationLogger.getClassificationAnalytics()
     };
   }
 
   static optimizePerformance() {
+    OptimizedQuestionClassifier.optimizeCache(1500);
     console.log('🚀 Question Complexity Analyzer performance optimized');
   }
 }
