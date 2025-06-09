@@ -4,10 +4,11 @@ import { useDropzone } from 'react-dropzone';
 import { Upload, FileText, X, Play, CheckCircle, AlertCircle } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { extractTextFromFile, analyzeTest } from '@/services/testAnalysisService';
+import { TimeEstimationService, TimeEstimate } from '@/services/timeEstimationService';
+import EnhancedProcessingProgress from '@/components/EnhancedProcessingProgress';
 
 interface UploadedFile {
   file: File;
@@ -33,8 +34,12 @@ const UploadTest = () => {
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingProgress, setProcessingProgress] = useState(0);
+  const [currentStage, setCurrentStage] = useState<'upload' | 'extracting' | 'analyzing' | 'complete'>('upload');
   const [testResults, setTestResults] = useState<TestResult[]>([]);
   const [processingStats, setProcessingStats] = useState<any>(null);
+  const [timeEstimate, setTimeEstimate] = useState<TimeEstimate | null>(null);
+  const [processingStartTime, setProcessingStartTime] = useState<number | undefined>();
+  const [processedFileCount, setProcessedFileCount] = useState(0);
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
     const newFiles = acceptedFiles.map(file => ({
@@ -43,7 +48,13 @@ const UploadTest = () => {
       status: 'pending' as const
     }));
     
-    setUploadedFiles(prev => [...prev, ...newFiles]);
+    setUploadedFiles(prev => {
+      const allFiles = [...prev, ...newFiles];
+      // Calculate time estimate whenever files change
+      const estimate = TimeEstimationService.estimateProcessingTime(allFiles.map(f => f.file));
+      setTimeEstimate(estimate);
+      return allFiles;
+    });
     
     if (acceptedFiles.length > 1) {
       toast.success(`${acceptedFiles.length} test files added for batch processing`);
@@ -62,7 +73,17 @@ const UploadTest = () => {
   });
 
   const removeFile = (fileId: string) => {
-    setUploadedFiles(prev => prev.filter(f => f.id !== fileId));
+    setUploadedFiles(prev => {
+      const filtered = prev.filter(f => f.id !== fileId);
+      // Recalculate estimate when files are removed
+      if (filtered.length > 0) {
+        const estimate = TimeEstimationService.estimateProcessingTime(filtered.map(f => f.file));
+        setTimeEstimate(estimate);
+      } else {
+        setTimeEstimate(null);
+      }
+      return filtered;
+    });
   };
 
   const processAllTests = async () => {
@@ -73,7 +94,10 @@ const UploadTest = () => {
 
     setIsProcessing(true);
     setProcessingProgress(0);
+    setCurrentStage('upload');
     setTestResults([]);
+    setProcessedFileCount(0);
+    setProcessingStartTime(Date.now());
 
     const startTime = Date.now();
     const totalFiles = uploadedFiles.length;
@@ -104,6 +128,8 @@ const UploadTest = () => {
               f.id === uploadedFile.id ? { ...f, status: 'processing' } : f
             ));
 
+            setCurrentStage('extracting');
+
             // Extract text with all optimizations enabled
             const fileContent = await new Promise<string>((resolve, reject) => {
               const reader = new FileReader();
@@ -126,6 +152,8 @@ const UploadTest = () => {
                 status: 'completed'
               } : f
             ));
+
+            setCurrentStage('analyzing');
 
             // Analyze the test
             const analysisResult = await analyzeTest({
@@ -171,6 +199,7 @@ const UploadTest = () => {
         
         batchResults.forEach((result, index) => {
           processedCount++;
+          setProcessedFileCount(processedCount);
           setProcessingProgress((processedCount / totalFiles) * 100);
           
           if (result.status === 'fulfilled') {
@@ -178,6 +207,8 @@ const UploadTest = () => {
           }
         });
       }
+
+      setCurrentStage('complete');
 
       const totalTime = Date.now() - startTime;
       const successCount = results.length;
@@ -355,15 +386,16 @@ const UploadTest = () => {
                 )}
               </Button>
               
-              {isProcessing && (
-                <div className="space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span>Processing progress</span>
-                    <span>{Math.round(processingProgress)}%</span>
-                  </div>
-                  <Progress value={processingProgress} className="h-2" />
-                </div>
-              )}
+              {/* Enhanced Processing Progress */}
+              <EnhancedProcessingProgress
+                isProcessing={isProcessing}
+                progress={processingProgress}
+                currentStage={currentStage}
+                timeEstimate={timeEstimate}
+                processedFiles={processedFileCount}
+                totalFiles={uploadedFiles.length}
+                processingStartTime={processingStartTime}
+              />
             </div>
           </CardContent>
         </Card>
