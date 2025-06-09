@@ -1006,3 +1006,26 @@ export const createContentSkill = async (skillData: {
   console.log('Content skill created successfully:', data);
   return data;
 };
+
+export const getStudentEnrolledClasses = async (studentId: string): Promise<ActiveClass[]> => {
+  try {
+    console.log('Fetching enrolled classes for student:', studentId);
+    
+    const { data, error } = await supabase
+      .from('active_classes')
+      .select('*')
+      .contains('students', [studentId])
+      .order('subject');
+
+    if (error) {
+      console.error('Error fetching enrolled classes:', error);
+      throw new Error(`Failed to fetch enrolled classes: ${error.message}`);
+    }
+
+    console.log('Found enrolled classes:', data?.length || 0);
+    return data || [];
+  } catch (error) {
+    console.error('Error in getStudentEnrolledClasses:', error);
+    throw error;
+  }
+};

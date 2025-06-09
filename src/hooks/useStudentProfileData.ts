@@ -1,4 +1,3 @@
-
 import { useQuery } from "@tanstack/react-query";
 import { useEffect } from "react";
 import { 
@@ -12,7 +11,8 @@ import {
   getContentSkillsBySubjectAndGrade,
   getSubjectSkillsBySubjectAndGrade,
   linkClassToContentSkills,
-  linkClassToSubjectSkills
+  linkClassToSubjectSkills,
+  getStudentEnrolledClasses
 } from "@/services/examService";
 import { mockPabloContentSkillScores } from "@/data/mockStudentData";
 import { supabase } from "@/integrations/supabase/client";
@@ -200,6 +200,13 @@ export function useStudentProfileData({ studentId, classId, className }: UseStud
     }
   }, [classData, classId]);
 
+  // 🆕 NEW: Fetch enrolled classes for the student
+  const { data: enrolledClasses = [], isLoading: enrolledClassesLoading } = useQuery({
+    queryKey: ['studentEnrolledClasses', studentId],
+    queryFn: () => getStudentEnrolledClasses(studentId),
+    enabled: !!studentId,
+  });
+
   console.log('🔄 useStudentProfileData summary:', {
     studentId,
     studentName: student?.name,
@@ -207,6 +214,7 @@ export function useStudentProfileData({ studentId, classId, className }: UseStud
     testResultsCount: testResults.length,
     contentSkillScoresCount: contentSkillScores.length,
     subjectSkillScoresCount: subjectSkillScores.length,
+    enrolledClassesCount: enrolledClasses.length,
     classId,
     className
   });
@@ -227,6 +235,8 @@ export function useStudentProfileData({ studentId, classId, className }: UseStud
     classContentSkillsLoading,
     classSubjectSkills,
     classSubjectSkillsLoading,
+    enrolledClasses,
+    enrolledClassesLoading,
     isPabloLuisGarcia,
     isClassView,
     isGrade10MathClass,

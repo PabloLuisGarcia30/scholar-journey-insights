@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { LearningStyleCircle } from "@/components/LearningStyleCircle";
+import { LearningStyleBySubject } from "@/components/LearningStyleBySubject";
 import { useStudentProfileData } from "@/hooks/useStudentProfileData";
 
 interface LearnerProfileDisplayProps {
@@ -38,7 +39,7 @@ const getLearningStyles = (studentName: string) => {
 };
 
 export function LearnerProfileDisplay({ studentId, onBack }: LearnerProfileDisplayProps) {
-  const { student, studentLoading } = useStudentProfileData({ studentId });
+  const { student, studentLoading, enrolledClasses } = useStudentProfileData({ studentId });
 
   if (studentLoading) {
     return (
@@ -125,11 +126,11 @@ export function LearnerProfileDisplay({ studentId, onBack }: LearnerProfileDispl
           </CardContent>
         </Card>
 
-        {/* Learning Styles Grid */}
-        <Card>
+        {/* Overall Learning Styles Grid */}
+        <Card className="mb-8">
           <CardHeader>
-            <CardTitle>Learning Style Profile</CardTitle>
-            <p className="text-muted-foreground">Understanding how this student learns best</p>
+            <CardTitle>Overall Learning Style Profile</CardTitle>
+            <p className="text-muted-foreground">General learning preferences across all subjects</p>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
@@ -144,6 +145,12 @@ export function LearnerProfileDisplay({ studentId, onBack }: LearnerProfileDispl
             </div>
           </CardContent>
         </Card>
+
+        {/* NEW: Learning Style Profile per Subject */}
+        <LearningStyleBySubject 
+          studentName={student.name}
+          enrolledClasses={enrolledClasses}
+        />
       </div>
     </div>
   );
