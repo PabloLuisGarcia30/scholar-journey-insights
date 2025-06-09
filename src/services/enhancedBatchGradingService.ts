@@ -299,10 +299,19 @@ export class EnhancedBatchGradingService {
   ): Promise<string> {
     const jobId = `hybrid_grading_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     
-    console.log(`🚀 Creating hybrid batch job: ${jobId} for exam: ${examId}`);
-    console.log(`📊 Hybrid settings: Aggressive local batching + Conservative OpenAI processing`);
+    console.log(`🚀 Creating enhanced batch job with pre-classified skills: ${jobId} for exam: ${examId}`);
 
     try {
+      // Get pre-classified skills for this exam
+      const { ExamSkillPreClassificationService } = await import('./examSkillPreClassificationService');
+      const preClassifiedSkills = await ExamSkillPreClassificationService.getPreClassifiedSkills(examId);
+      
+      if (!preClassifiedSkills) {
+        console.warn(`⚠️ No pre-classified skills found for exam ${examId}. Consider running skill pre-classification first.`);
+      } else {
+        console.log(`✅ Using pre-classified skills for ${preClassifiedSkills.questionMappings.size} questions`);
+      }
+
       const complexityDistribution = { simple: 0, medium: 0, complex: 0 };
       
       const answerKeysForAnalysis = preValidatedAnswerKeys || 
@@ -350,14 +359,14 @@ export class EnhancedBatchGradingService {
 
       this.jobs.set(jobId, job);
       
-      console.log(`📊 Hybrid job created with complexity distribution:`, complexityDistribution);
+      console.log(`📊 Enhanced job created with pre-classified skills support:`, complexityDistribution);
 
       this.processHybridBatchJob(jobId);
       
       return jobId;
 
     } catch (error) {
-      console.error(`❌ Failed to create hybrid batch job:`, error);
+      console.error(`❌ Failed to create enhanced batch job:`, error);
       throw error;
     }
   }
@@ -715,40 +724,45 @@ export class EnhancedBatchGradingService {
 
   private static async processOpenAIBatch(questions: any[], answerKeys: any[], examId: string): Promise<BatchGradingResult[]> {
     try {
-      // Get skill mappings for enhanced processing
-      const { data: skillMappings } = await supabase
-        .from('exam_skill_mappings')
-        .select('*')
-        .eq('exam_id', examId);
+      // Get pre-classified skill mappings for enhanced processing
+      const { ExamSkillPreClassificationService } = await import('./examSkillPreClassificationService');
+      const preClassifiedSkills = await ExamSkillPreClassificationService.getPreClassifiedSkills(examId);
 
-      // Create enhanced batch prompt with cross-question leakage prevention
+      console.log(`🎯 Processing OpenAI batch with pre-classified skills: ${questions.length} questions`);
+
+      // Create enhanced batch prompt with pre-classified skills
       const enhancedPrompt = this.enhancedBatchProcessor.createEnhancedBatchPrompt(
         questions,
         answerKeys,
-        skillMappings || []
+        [], // No longer fetch from database - use pre-classified
+        preClassifiedSkills
       );
 
       const formattedPrompt = this.enhancedBatchProcessor.formatBatchPrompt(enhancedPrompt);
-
-      console.log(`🎯 Processing OpenAI batch with enhanced cross-question isolation: ${questions.length} questions`);
 
       const { data, error } = await supabase.functions.invoke('grade-complex-question', {
         body: {
           batchMode: true,
           enhancedBatchPrompt: formattedPrompt,
-          questions: questions.map((q, index) => ({
-            questionNumber: q.questionNumber,
-            questionText: answerKeys[index]?.question_text || `Question ${q.questionNumber}`,
-            studentAnswer: q.detectedAnswer?.selectedOption?.trim() || '',
-            correctAnswer: answerKeys[index]?.correct_answer?.trim() || '',
-            pointsPossible: answerKeys[index]?.points || 1,
-            skillContext: (skillMappings || [])
-              .filter(sm => sm.question_number === q.questionNumber)
-              .map(s => s.skill_name)
-              .join(', ')
-          })),
+          questions: questions.map((q, index) => {
+            const questionSkills = preClassifiedSkills?.questionMappings.get(q.questionNumber);
+            const skillContext = questionSkills ? [
+              ...questionSkills.contentSkills.map(s => s.name),
+              ...questionSkills.subjectSkills.map(s => s.name)
+            ].join(', ') : 'No pre-classified skills available';
+
+            return {
+              questionNumber: q.questionNumber,
+              questionText: answerKeys[index]?.question_text || `Question ${q.questionNumber}`,
+              studentAnswer: q.detectedAnswer?.selectedOption?.trim() || '',
+              correctAnswer: answerKeys[index]?.correct_answer?.trim() || '',
+              pointsPossible: answerKeys[index]?.points || 1,
+              skillContext,
+              preClassifiedSkills: questionSkills || { contentSkills: [], subjectSkills: [] }
+            };
+          }),
           examId,
-          rubric: 'Enhanced academic grading with skill-aware assessment and cross-question isolation'
+          rubric: 'Enhanced academic grading with pre-classified skills and cross-question isolation'
         }
       });
 
@@ -758,15 +772,8 @@ export class EnhancedBatchGradingService {
 
       const results = data.results || [];
       
-      // Process skill ambiguity resolution if enabled
-      const processedResults = await this.processSkillAmbiguityResolution(
-        results,
-        questions,
-        answerKeys,
-        skillMappings || []
-      );
-
-      return processedResults.map((result: any, index: number) => ({
+      // No need for skill ambiguity resolution - using pre-classified skills
+      return results.map((result: any, index: number) => ({
         questionNumber: result.questionNumber || index + 1,
         isCorrect: result.isCorrect,
         pointsEarned: result.pointsEarned,
@@ -780,7 +787,7 @@ export class EnhancedBatchGradingService {
       }));
 
     } catch (error) {
-      console.error('Enhanced OpenAI batch processing failed:', error);
+      console.error('Enhanced OpenAI batch processing with pre-classified skills failed:', error);
       throw error;
     }
   }

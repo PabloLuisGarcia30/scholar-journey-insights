@@ -1,3 +1,4 @@
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
@@ -12,7 +13,7 @@ serve(async (req) => {
   }
 
   try {
-    console.log('One-time exam skill analysis function called with score validation');
+    console.log('Enhanced class-scoped exam skill analysis function called');
     
     const { examId } = await req.json();
     
@@ -51,27 +52,85 @@ serve(async (req) => {
       );
     }
 
-    console.log('Step 2: Fetching exam data and available skills');
+    console.log('Step 2: Fetching exam data and class-specific skills');
     
-    // Fetch exam data and answer keys
-    const [examRes, answerKeysRes, contentSkillsRes, subjectSkillsRes] = await Promise.all([
-      supabase.from('exams').select('*, classes:active_classes(*)').eq('exam_id', examId).maybeSingle(),
-      supabase.from('answer_keys').select('*').eq('exam_id', examId).order('question_number'),
-      supabase.from('content_skills').select('*'),
-      supabase.from('subject_skills').select('*')
-    ]);
+    // Fetch exam data with class information
+    const { data: examData, error: examError } = await supabase
+      .from('exams')
+      .select('*, classes:active_classes(*)')
+      .eq('exam_id', examId)
+      .maybeSingle();
 
-    if (examRes.error || !examRes.data) {
-      throw new Error(`Exam fetch failed: ${examRes.error?.message || 'Exam not found'}`);
+    if (examError || !examData) {
+      throw new Error(`Exam fetch failed: ${examError?.message || 'Exam not found'}`);
     }
 
-    const examData = examRes.data;
-    const answerKeys = answerKeysRes.data || [];
-    const contentSkills = contentSkillsRes.data || [];
-    const subjectSkills = subjectSkillsRes.data || [];
+    if (!examData.class_id) {
+      throw new Error('Exam must be associated with a class for skill pre-classification');
+    }
 
-    console.log('Found exam:', examData.title, 'with', answerKeys.length, 'questions');
-    console.log('Available skills:', contentSkills.length, 'content,', subjectSkills.length, 'subject');
+    // Fetch answer keys
+    const { data: answerKeys, error: answerKeysError } = await supabase
+      .from('answer_keys')
+      .select('*')
+      .eq('exam_id', examId)
+      .order('question_number');
+
+    if (answerKeysError) {
+      throw new Error(`Answer keys fetch failed: ${answerKeysError.message}`);
+    }
+
+    // Fetch class-specific content skills
+    const { data: classContentSkills, error: contentSkillsError } = await supabase
+      .from('class_content_skills')
+      .select(`
+        content_skill_id,
+        content_skills:content_skill_id (
+          id,
+          skill_name,
+          topic,
+          skill_description,
+          subject,
+          grade
+        )
+      `)
+      .eq('class_id', examData.class_id);
+
+    if (contentSkillsError) {
+      throw new Error(`Class content skills fetch failed: ${contentSkillsError.message}`);
+    }
+
+    // Fetch class-specific subject skills
+    const { data: classSubjectSkills, error: subjectSkillsError } = await supabase
+      .from('class_subject_skills')
+      .select(`
+        subject_skill_id,
+        subject_skills:subject_skill_id (
+          id,
+          skill_name,
+          skill_description,
+          subject,
+          grade
+        )
+      `)
+      .eq('class_id', examData.class_id);
+
+    if (subjectSkillsError) {
+      throw new Error(`Class subject skills fetch failed: ${subjectSkillsError.message}`);
+    }
+
+    const availableContentSkills = classContentSkills?.map(cs => cs.content_skills).filter(Boolean) || [];
+    const availableSubjectSkills = classSubjectSkills?.map(ss => ss.subject_skills).filter(Boolean) || [];
+
+    console.log('Found class-specific skills:', {
+      contentSkills: availableContentSkills.length,
+      subjectSkills: availableSubjectSkills.length,
+      classId: examData.class_id
+    });
+
+    if (availableContentSkills.length === 0 && availableSubjectSkills.length === 0) {
+      throw new Error('No skills found for this class. Please ensure skills are linked to the class first.');
+    }
 
     // Create or update analysis record
     const { data: analysisRecord } = await supabase
@@ -79,40 +138,50 @@ serve(async (req) => {
       .upsert({
         exam_id: examId,
         analysis_status: 'in_progress',
-        total_questions: answerKeys.length,
+        total_questions: answerKeys?.length || 0,
         analysis_started_at: new Date().toISOString()
       }, { onConflict: 'exam_id' })
       .select()
       .single();
 
-    console.log('Step 3: Performing AI skill mapping analysis');
+    console.log('Step 3: Performing class-scoped AI skill mapping analysis');
 
-    // Prepare skills data for AI
-    const contentSkillsText = contentSkills.map(skill => 
+    // Prepare class-specific skills data for AI with IDs for validation
+    const contentSkillsText = availableContentSkills.map(skill => 
       `ID:${skill.id} | ${skill.skill_name} | ${skill.topic} | ${skill.skill_description}`
     ).join('\n');
     
-    const subjectSkillsText = subjectSkills.map(skill => 
+    const subjectSkillsText = availableSubjectSkills.map(skill => 
       `ID:${skill.id} | ${skill.skill_name} | ${skill.skill_description}`
     ).join('\n');
 
+    // Create skill ID validation sets
+    const validContentSkillIds = new Set(availableContentSkills.map(s => s.id));
+    const validSubjectSkillIds = new Set(availableSubjectSkills.map(s => s.id));
+
     // Prepare questions for analysis
-    const questionsText = answerKeys.map(ak => 
+    const questionsText = answerKeys?.map(ak => 
       `Q${ak.question_number}: ${ak.question_text} (Type: ${ak.question_type})`
-    ).join('\n');
+    ).join('\n') || '';
 
-    const systemPrompt = `You are an educational skill mapping expert. Analyze each question and map it to relevant content and subject skills.
+    const systemPrompt = `You are an educational skill mapping expert. Analyze each question and map it ONLY to relevant content and subject skills from the provided class-specific skill lists.
 
-AVAILABLE CONTENT SKILLS:
+CRITICAL CONSTRAINTS:
+- You MUST ONLY use skills from the provided lists below
+- You CANNOT create new skills or suggest skills not in these lists
+- Each skill mapping MUST use the exact skill ID provided
+- If no suitable skill exists in the lists, mark as "no_suitable_skill"
+
+CLASS-SPECIFIC CONTENT SKILLS (ONLY use these IDs):
 ${contentSkillsText}
 
-AVAILABLE SUBJECT SKILLS:
+CLASS-SPECIFIC SUBJECT SKILLS (ONLY use these IDs):
 ${subjectSkillsText}
 
 For each question, identify:
-1. Which content skills it tests (1-3 most relevant)
-2. Which subject skills it tests (1-2 most relevant)
-3. Weight for each skill (0.1-1.0 based on how central the skill is to the question)
+1. Which content skills it tests (0-2 most relevant from the list above)
+2. Which subject skills it tests (0-2 most relevant from the list above)
+3. Weight for each skill (0.1-1.0 based on relevance)
 4. Confidence in the mapping (0.1-1.0)
 
 Return JSON format:
@@ -121,26 +190,29 @@ Return JSON format:
     {
       "question_number": 1,
       "content_skills": [
-        {"skill_id": "uuid", "skill_name": "name", "weight": 0.8, "confidence": 0.9}
+        {"skill_id": "exact-uuid-from-list", "skill_name": "exact-name-from-list", "weight": 0.8, "confidence": 0.9}
       ],
       "subject_skills": [
-        {"skill_id": "uuid", "skill_name": "name", "weight": 1.0, "confidence": 0.95}
-      ]
+        {"skill_id": "exact-uuid-from-list", "skill_name": "exact-name-from-list", "weight": 1.0, "confidence": 0.95}
+      ],
+      "no_suitable_skills": false
     }
   ],
   "summary": {
     "total_questions_mapped": 10,
     "content_skills_used": 5,
-    "subject_skills_used": 3
+    "subject_skills_used": 3,
+    "questions_without_suitable_skills": 0
   }
 }`;
 
-    const userPrompt = `Map these questions to skills for exam: ${examData.title}
+    const userPrompt = `Map these questions to class-specific skills for exam: ${examData.title}
+Class: ${examData.classes?.name || 'Unknown'} (${examData.classes?.subject} ${examData.classes?.grade})
 
 QUESTIONS:
 ${questionsText}
 
-Provide complete skill mapping for all questions.`;
+IMPORTANT: Only use skill IDs and names from the provided lists. Do not create new skills.`;
 
     const aiPayload = {
       model: "gpt-4.1-2025-04-14",
@@ -176,23 +248,25 @@ Provide complete skill mapping for all questions.`;
       throw new Error('AI returned invalid skill mapping format');
     }
 
-    console.log('Step 4: Storing skill mappings with validation in database');
+    console.log('Step 4: Validating and storing class-scoped skill mappings');
 
-    // Store skill mappings with validation
+    // Validate skill mappings against class skill pools
     const mappingInserts = [];
     let contentSkillsFound = 0;
     let subjectSkillsFound = 0;
+    let invalidSkillsRejected = 0;
     
     for (const mapping of skillMappings.mappings || []) {
-      // Insert content skill mappings with weight validation
+      // Validate and insert content skill mappings
       for (const contentSkill of mapping.content_skills || []) {
-        // Validate skill weight (cap at 2.0)
+        if (!validContentSkillIds.has(contentSkill.skill_id)) {
+          console.warn(`Rejected invalid content skill ID: ${contentSkill.skill_id} for Q${mapping.question_number}`);
+          invalidSkillsRejected++;
+          continue;
+        }
+        
         const validatedWeight = Math.min(Math.max(contentSkill.weight || 1.0, 0), 2.0);
         const validatedConfidence = Math.min(Math.max(contentSkill.confidence || 1.0, 0), 1.0);
-        
-        if (validatedWeight !== (contentSkill.weight || 1.0)) {
-          console.warn(`Content skill weight adjusted from ${contentSkill.weight} to ${validatedWeight} for Q${mapping.question_number}`);
-        }
         
         mappingInserts.push({
           exam_id: examId,
@@ -206,15 +280,16 @@ Provide complete skill mapping for all questions.`;
         contentSkillsFound++;
       }
       
-      // Insert subject skill mappings with weight validation
+      // Validate and insert subject skill mappings
       for (const subjectSkill of mapping.subject_skills || []) {
-        // Validate skill weight (cap at 2.0)
+        if (!validSubjectSkillIds.has(subjectSkill.skill_id)) {
+          console.warn(`Rejected invalid subject skill ID: ${subjectSkill.skill_id} for Q${mapping.question_number}`);
+          invalidSkillsRejected++;
+          continue;
+        }
+        
         const validatedWeight = Math.min(Math.max(subjectSkill.weight || 1.0, 0), 2.0);
         const validatedConfidence = Math.min(Math.max(subjectSkill.confidence || 1.0, 0), 1.0);
-        
-        if (validatedWeight !== (subjectSkill.weight || 1.0)) {
-          console.warn(`Subject skill weight adjusted from ${subjectSkill.weight} to ${validatedWeight} for Q${mapping.question_number}`);
-        }
         
         mappingInserts.push({
           exam_id: examId,
@@ -229,7 +304,7 @@ Provide complete skill mapping for all questions.`;
       }
     }
 
-    // Insert all mappings
+    // Insert validated mappings
     if (mappingInserts.length > 0) {
       const { error: mappingsError } = await supabase
         .from('exam_skill_mappings')
@@ -250,22 +325,33 @@ Provide complete skill mapping for all questions.`;
         content_skills_found: contentSkillsFound,
         subject_skills_found: subjectSkillsFound,
         analysis_completed_at: new Date().toISOString(),
-        ai_analysis_data: skillMappings
+        ai_analysis_data: {
+          ...skillMappings,
+          validation_stats: {
+            invalid_skills_rejected: invalidSkillsRejected,
+            class_id: examData.class_id,
+            available_content_skills: availableContentSkills.length,
+            available_subject_skills: availableSubjectSkills.length
+          }
+        }
       })
       .eq('id', analysisRecord.id);
 
-    console.log('Skill analysis with validation completed successfully');
+    console.log('Class-scoped skill analysis completed successfully');
     console.log(`Mapped ${skillMappings.mappings?.length || 0} questions with ${contentSkillsFound} content skills and ${subjectSkillsFound} subject skills`);
+    console.log(`Rejected ${invalidSkillsRejected} invalid skill suggestions`);
 
     return new Response(
       JSON.stringify({
         status: 'completed',
         exam_id: examId,
-        total_questions: answerKeys.length,
+        class_id: examData.class_id,
+        total_questions: answerKeys?.length || 0,
         mapped_questions: skillMappings.mappings?.length || 0,
         content_skills_found: contentSkillsFound,
         subject_skills_found: subjectSkillsFound,
-        validation_applied: true,
+        invalid_skills_rejected: invalidSkillsRejected,
+        class_scoped_validation: true,
         skill_mappings: skillMappings
       }),
       {
@@ -275,7 +361,7 @@ Provide complete skill mapping for all questions.`;
     );
 
   } catch (error) {
-    console.error('Error in analyze-exam-skills function:', error);
+    console.error('Error in class-scoped analyze-exam-skills function:', error);
     
     // Update analysis record with error
     try {

@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 
 export interface SkillAmbiguityResult {
@@ -36,23 +35,25 @@ export class SkillAmbiguityResolver {
     questionNumber: number,
     questionText: string,
     studentAnswer: string,
-    availableSkills: string[],
+    preClassifiedSkills: { contentSkills: any[]; subjectSkills: any[] },
     detectedSkills: string[],
     confidence: number
   ): { isAmbiguous: boolean; reason: string } {
-    // Check if too many skills detected
-    if (detectedSkills.length > this.config.maxSkillsPerQuestion) {
+    // With pre-classified skills, we primarily validate against the pre-classification
+    const totalPreClassifiedSkills = preClassifiedSkills.contentSkills.length + preClassifiedSkills.subjectSkills.length;
+    
+    if (totalPreClassifiedSkills === 0) {
       return {
         isAmbiguous: true,
-        reason: `Too many skills detected (${detectedSkills.length} > ${this.config.maxSkillsPerQuestion})`
+        reason: 'No pre-classified skills available for this question'
       };
     }
 
-    // Check if no skills detected
-    if (detectedSkills.length < this.config.minSkillsRequired) {
+    // Check if detected skills exceed pre-classified skills significantly
+    if (detectedSkills.length > totalPreClassifiedSkills + 1) {
       return {
         isAmbiguous: true,
-        reason: `Too few skills detected (${detectedSkills.length} < ${this.config.minSkillsRequired})`
+        reason: `Detected skills (${detectedSkills.length}) exceed pre-classified skills (${totalPreClassifiedSkills})`
       };
     }
 
@@ -64,30 +65,28 @@ export class SkillAmbiguityResolver {
       };
     }
 
-    // Check if detected skills are not in available skills
-    const invalidSkills = detectedSkills.filter(skill => !availableSkills.includes(skill));
-    if (invalidSkills.length > 0) {
-      return {
-        isAmbiguous: true,
-        reason: `Invalid skills detected: ${invalidSkills.join(', ')}`
-      };
-    }
-
-    return { isAmbiguous: false, reason: 'Skills clearly matched' };
+    return { isAmbiguous: false, reason: 'Skills align with pre-classification' };
   }
 
   async escalateAmbiguousSkillMatch(
     questionNumber: number,
     questionText: string,
     studentAnswer: string,
-    availableSkills: string[],
+    preClassifiedSkills: { contentSkills: any[]; subjectSkills: any[] },
     originalDetection: string[]
   ): Promise<SkillAmbiguityResult> {
     try {
-      const escalationPrompt = this.createEscalationPrompt(
+      // Use pre-classified skills as the authority for skill matching
+      const availableSkills = [
+        ...preClassifiedSkills.contentSkills.map(s => s.name),
+        ...preClassifiedSkills.subjectSkills.map(s => s.name)
+      ];
+
+      const escalationPrompt = this.createEscalationPromptWithPreClassification(
         questionText,
         studentAnswer,
         availableSkills,
+        preClassifiedSkills,
         originalDetection
       );
 
@@ -97,7 +96,7 @@ export class SkillAmbiguityResolver {
           questionNumber,
           questionText,
           studentAnswer,
-          availableSkills,
+          preClassifiedSkills,
           escalationPrompt,
           model: this.config.escalationModel
         }
@@ -105,73 +104,78 @@ export class SkillAmbiguityResolver {
 
       if (error) {
         console.error('Skill escalation failed:', error);
-        return this.createFallbackResult(questionNumber, originalDetection, availableSkills);
+        return this.createFallbackResultWithPreClassification(questionNumber, originalDetection, preClassifiedSkills);
       }
 
       const result = data.skillEscalation || {};
       
       return {
         questionNumber,
-        matchedSkills: result.matchedSkills || originalDetection,
-        confidence: result.confidence || 0.5,
-        isAmbiguous: false, // Resolved through escalation
+        matchedSkills: result.matchedSkills || availableSkills,
+        confidence: result.confidence || 0.8,
+        isAmbiguous: false,
         escalated: true,
-        reasoning: result.reasoning || 'Escalated skill matching completed',
+        reasoning: result.reasoning || 'Escalated with pre-classified skills authority',
         originalSkills: originalDetection
       };
 
     } catch (error) {
       console.error('Skill escalation error:', error);
-      return this.createFallbackResult(questionNumber, originalDetection, availableSkills);
+      return this.createFallbackResultWithPreClassification(questionNumber, originalDetection, preClassifiedSkills);
     }
   }
 
-  private createEscalationPrompt(
+  private createEscalationPromptWithPreClassification(
     questionText: string,
     studentAnswer: string,
     availableSkills: string[],
+    preClassifiedSkills: { contentSkills: any[]; subjectSkills: any[] },
     originalDetection: string[]
   ): string {
-    return `SKILL MATCHING ESCALATION - Resolve Ambiguous Skill Assignment
+    return `SKILL MATCHING ESCALATION WITH PRE-CLASSIFIED AUTHORITY
 
 Question: ${questionText}
 Student Answer: ${studentAnswer}
-Available Skills: ${availableSkills.join(', ')}
-Initial Detection: ${originalDetection.join(', ')}
+
+PRE-CLASSIFIED SKILLS (AUTHORITY):
+Content Skills: ${preClassifiedSkills.contentSkills.map(s => s.name).join(', ')}
+Subject Skills: ${preClassifiedSkills.subjectSkills.map(s => s.name).join(', ')}
+
+Original Detection: ${originalDetection.join(', ')}
 
 INSTRUCTIONS:
-1. Analyze the question and student answer carefully
-2. Match ONLY to skills from the Available Skills list
-3. Select the MOST RELEVANT skills (maximum ${this.config.maxSkillsPerQuestion})
-4. Provide high confidence reasoning for your selection
-5. If multiple skills apply equally, choose the PRIMARY skill being assessed
+1. Use the pre-classified skills as the primary authority
+2. The pre-classified skills were determined by expert analysis
+3. Only deviate from pre-classified skills if there's strong evidence
+4. Provide confidence based on alignment with pre-classification
 
 REQUIRED OUTPUT FORMAT (JSON):
 {
   "matchedSkills": ["skill1", "skill2"],
   "confidence": 0.95,
-  "reasoning": "Detailed explanation of skill selection",
-  "primarySkill": "most_relevant_skill"
-}
-
-Focus on ACCURACY over quantity. Select skills that are DIRECTLY assessed by this specific question.`;
+  "reasoning": "Detailed explanation using pre-classified skills as authority",
+  "alignsWithPreClassification": true
+}`;
   }
 
-  private createFallbackResult(
+  private createFallbackResultWithPreClassification(
     questionNumber: number,
     originalSkills: string[],
-    availableSkills: string[]
+    preClassifiedSkills: { contentSkills: any[]; subjectSkills: any[] }
   ): SkillAmbiguityResult {
-    // Conservative fallback: select first available skill or most common skill
-    const fallbackSkill = availableSkills.length > 0 ? [availableSkills[0]] : ['General'];
+    // Use pre-classified skills as fallback
+    const fallbackSkills = [
+      ...preClassifiedSkills.contentSkills.map(s => s.name),
+      ...preClassifiedSkills.subjectSkills.map(s => s.name)
+    ];
     
     return {
       questionNumber,
-      matchedSkills: fallbackSkill,
-      confidence: 0.6,
+      matchedSkills: fallbackSkills.length > 0 ? fallbackSkills : ['General'],
+      confidence: 0.7,
       isAmbiguous: false,
       escalated: true,
-      reasoning: 'Fallback skill assignment due to escalation failure',
+      reasoning: 'Fallback using pre-classified skills authority',
       originalSkills
     };
   }
@@ -180,7 +184,7 @@ Focus on ACCURACY over quantity. Select skills that are DIRECTLY assessed by thi
     questionNumber: number;
     questionText: string;
     studentAnswer: string;
-    availableSkills: string[];
+    preClassifiedSkills: { contentSkills: any[]; subjectSkills: any[] };
     detectedSkills: string[];
     confidence: number;
   }>): Promise<SkillAmbiguityResult[]> {
@@ -191,7 +195,7 @@ Focus on ACCURACY over quantity. Select skills that are DIRECTLY assessed by thi
         question.questionNumber,
         question.questionText,
         question.studentAnswer,
-        question.availableSkills,
+        question.preClassifiedSkills,
         question.detectedSkills,
         question.confidence
       );
@@ -203,7 +207,7 @@ Focus on ACCURACY over quantity. Select skills that are DIRECTLY assessed by thi
           question.questionNumber,
           question.questionText,
           question.studentAnswer,
-          question.availableSkills,
+          question.preClassifiedSkills,
           question.detectedSkills
         );
         
@@ -233,4 +237,3 @@ Focus on ACCURACY over quantity. Select skills that are DIRECTLY assessed by thi
     return { ...this.config };
   }
 }
-
