@@ -79,9 +79,13 @@ export function LearningStyleCircle({ type, strength, color }: LearningStyleCirc
               className="transition-all duration-500 ease-in-out"
             />
           </svg>
-          {/* Percentage in center */}
+          {/* Percentage in center - only visible on hover */}
           <div className="absolute inset-0 flex items-center justify-center">
-            <span className="text-sm font-bold text-foreground">{strength}%</span>
+            <span className={`text-sm font-bold text-foreground transition-opacity duration-300 ${
+              isHovered ? 'opacity-100' : 'opacity-0'
+            }`}>
+              {strength}%
+            </span>
           </div>
         </div>
 
