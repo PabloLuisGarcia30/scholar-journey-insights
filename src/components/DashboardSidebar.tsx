@@ -13,8 +13,8 @@ import {
 } from "@/components/ui/sidebar";
 
 interface DashboardSidebarProps {
-  activeView: 'dashboard' | 'search' | 'classes' | 'analytics' | 'portals' | 'student-lesson-tracker';
-  onViewChange: (view: 'dashboard' | 'search' | 'classes' | 'analytics' | 'portals' | 'student-lesson-tracker') => void;
+  activeView: 'dashboard' | 'search' | 'classes' | 'analytics' | 'portals' | 'student-lesson-tracker' | 'learner-profiles';
+  onViewChange: (view: 'dashboard' | 'search' | 'classes' | 'analytics' | 'portals' | 'student-lesson-tracker' | 'learner-profiles') => void;
 }
 
 export function DashboardSidebar({ activeView, onViewChange }: DashboardSidebarProps) {
@@ -50,6 +50,12 @@ export function DashboardSidebar({ activeView, onViewChange }: DashboardSidebarP
       icon: Calendar,
       onClick: () => onViewChange('portals'),
       isActive: activeView === 'portals'
+    },
+    {
+      title: "Learner Profiles",
+      href: "/student-learner-profile",
+      icon: Brain,
+      isActive: location.pathname === '/student-learner-profile'
     }
   ];
 
@@ -73,11 +79,6 @@ export function DashboardSidebar({ activeView, onViewChange }: DashboardSidebarP
     {
       title: "Lesson Tracker",
       href: "/student-lesson-tracker"
-    },
-    {
-      title: "Learner Profiles",
-      href: "/student-learner-profile",
-      icon: Brain
     }
   ];
 
@@ -94,9 +95,24 @@ export function DashboardSidebar({ activeView, onViewChange }: DashboardSidebarP
                     onClick={item.onClick}
                     isActive={item.isActive}
                     className="w-full justify-start"
+                    asChild={!!item.href}
                   >
-                    <item.icon className="mr-2 h-4 w-4" />
-                    {item.title}
+                    {item.href ? (
+                      <Link 
+                        to={item.href}
+                        className={`w-full justify-start ${
+                          item.isActive ? 'bg-accent text-accent-foreground' : ''
+                        }`}
+                      >
+                        <item.icon className="mr-2 h-4 w-4" />
+                        {item.title}
+                      </Link>
+                    ) : (
+                      <>
+                        <item.icon className="mr-2 h-4 w-4" />
+                        {item.title}
+                      </>
+                    )}
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
@@ -117,8 +133,7 @@ export function DashboardSidebar({ activeView, onViewChange }: DashboardSidebarP
                         location.pathname === link.href ? 'bg-accent text-accent-foreground' : ''
                       }`}
                     >
-                      {link.icon && <link.icon className="mr-2 h-4 w-4" />}
-                      {!link.icon && <div className="mr-2 h-4 w-4" />}
+                      <div className="mr-2 h-4 w-4" />
                       {link.title}
                     </Link>
                   </SidebarMenuButton>
