@@ -1,5 +1,5 @@
 
-// Barrel export for advanced services
+// Barrel export for advanced services including new caching services
 export { PerformanceMonitoringService } from './performanceMonitoringService';
 export { SmartOcrService } from './smartOcrService';
 export { BatchProcessingService } from './batchProcessingService';
@@ -11,6 +11,11 @@ export { QuestionCacheService } from './questionCacheService';
 export { ExamPreProcessingService } from './examPreProcessingService';
 export { ExamSkillPreClassificationService } from './examSkillPreClassificationService';
 
+// New caching services
+export { SkillAwareCacheService } from './skillAwareCacheService';
+export { CacheResponseService } from './cacheResponseService';
+export { CacheLoggingService } from './cacheLoggingService';
+
 export type { DocumentClassification, OcrMethod, AdaptiveOcrConfig, ProcessingMetrics } from './smartOcrService';
 export type { BatchJob, ProcessingQueue } from './batchProcessingService';
 export type { PerformanceMetric, SystemHealthMetrics, PerformanceReport } from './performanceMonitoringService';
@@ -21,3 +26,8 @@ export type { HybridGradingResults } from './hybridGradingResultsMerger';
 export type { QuestionCacheKey, QuestionCacheResult, QuestionCacheStats } from './questionCacheService';
 export type { CommonAnswerPattern, ExamPreProcessingConfig, PreProcessingReport } from './examPreProcessingService';
 export type { SkillPreClassificationResult, SkillMappingCache } from './examSkillPreClassificationService';
+
+// New caching types
+export type { SkillAwareCacheKey, SkillAwareCacheResult, SkillCacheStats } from './skillAwareCacheService';
+export type { CacheResponseConfig } from './cacheResponseService';
+export type { CacheLogEvent } from './cacheLoggingService';

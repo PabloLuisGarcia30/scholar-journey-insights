@@ -1,4 +1,3 @@
-
 interface LocalGradingResult {
   questionNumber: number;
   isCorrect: boolean;
@@ -50,6 +49,7 @@ import { OptimizedQuestionClassifier, OptimizedClassificationResult } from './op
 import { ClassificationLogger } from './classificationLogger';
 import { AnswerKeyMatchingService } from './answerKeyMatchingService';
 import { ExamSkillPreClassificationService } from './examSkillPreClassificationService';
+import { CacheResponseService } from './cacheResponseService';
 
 export class LocalGradingService {
   private static readonly HIGH_CONFIDENCE_THRESHOLD = 0.85;
@@ -254,10 +254,12 @@ export class LocalGradingService {
         bubbleQualityDistribution: Record<string, number>;
         formatValidationFailures: number;
         skillMappedQuestions: number;
+        cacheHitRate: number;
+        skillAwareCacheUsage: number;
       };
     };
   }> {
-    console.log('🎯 Processing questions with class-specific skill pre-classification integration');
+    console.log('🎯 Processing questions with enhanced skill-aware caching integration');
 
     // STEP 1: Ensure skill pre-classification exists and uses class-specific skills
     const skillStatus = await ExamSkillPreClassificationService.getPreClassificationStatus(examId);
@@ -279,7 +281,9 @@ export class LocalGradingService {
             classSpecificSkills: false,
             enhancedMetrics: {
               ...basicResult.summary.enhancedMetrics,
-              skillMappedQuestions: 0
+              skillMappedQuestions: 0,
+              cacheHitRate: 0,
+              skillAwareCacheUsage: 0
             }
           }
         };
@@ -302,7 +306,9 @@ export class LocalGradingService {
           classSpecificSkills: false,
           enhancedMetrics: {
             ...basicResult.summary.enhancedMetrics,
-            skillMappedQuestions: 0
+            skillMappedQuestions: 0,
+            cacheHitRate: 0,
+            skillAwareCacheUsage: 0
           }
         }
       };
@@ -312,7 +318,7 @@ export class LocalGradingService {
     const aiRequiredQuestions: any[] = [];
     let locallyGradedCount = 0;
     
-    // Enhanced metrics tracking
+    // Enhanced metrics tracking including cache performance
     let questionBasedCount = 0;
     let highConfidenceCount = 0;
     let mediumConfidenceCount = 0;
@@ -321,6 +327,8 @@ export class LocalGradingService {
     let reviewFlaggedCount = 0;
     let formatValidationFailures = 0;
     let skillMappedQuestions = 0;
+    let cacheHits = 0;
+    let skillAwareCacheUsage = 0;
     const bubbleQualityDist: Record<string, number> = {};
 
     for (const question of questions) {
@@ -351,42 +359,81 @@ export class LocalGradingService {
 
       if (skillMappings && skillMappings.length > 0) {
         skillMappedQuestions++;
-      }
-
-      const result = this.gradeQuestion(question, answerKey, skillMappings);
-      
-      // Track format validation failures
-      if (result.gradingMethod === 'requires_ai' && 
-          result.reasoning?.includes('Invalid answer format')) {
-        formatValidationFailures++;
-      }
-      
-      if (result.gradingMethod === 'requires_ai') {
-        aiRequiredQuestions.push(question);
+        
+        // Try skill-aware caching for grading
+        try {
+          const cachedResult = await CacheResponseService.fetchOrGenerateGradingResponse(
+            examId,
+            question.questionNumber,
+            question.detectedAnswer?.selectedOption || '',
+            answerKey.correct_answer,
+            skillMappings,
+            async () => this.gradeQuestion(question, answerKey, skillMappings),
+            'local_grading_with_skills'
+          );
+          
+          if (cachedResult && cachedResult.cacheHit) {
+            cacheHits++;
+            skillAwareCacheUsage++;
+          }
+          
+          const result = cachedResult || this.gradeQuestion(question, answerKey, skillMappings);
+          
+          // Track format validation failures
+          if (result.gradingMethod === 'requires_ai' && 
+              result.reasoning?.includes('Invalid answer format')) {
+            formatValidationFailures++;
+          }
+          
+          if (result.gradingMethod === 'requires_ai') {
+            aiRequiredQuestions.push(question);
+          } else {
+            localResults.push(result);
+            locallyGradedCount++;
+            
+            // Track enhanced metrics
+            if (result.gradingMethod === 'local_question_based') {
+              questionBasedCount++;
+            } else if (result.gradingMethod === 'local_confident') {
+              highConfidenceCount++;
+            } else if (result.gradingMethod === 'local_enhanced') {
+              enhancedThresholdCount++;
+            }
+            
+            if (result.qualityFlags?.hasMultipleMarks) {
+              multipleMarksCount++;
+            }
+            
+            if (result.qualityFlags?.reviewRequired) {
+              reviewFlaggedCount++;
+            }
+            
+            if (result.qualityFlags?.bubbleQuality) {
+              const quality = result.qualityFlags.bubbleQuality;
+              bubbleQualityDist[quality] = (bubbleQualityDist[quality] || 0) + 1;
+            }
+          }
+        } catch (error) {
+          console.error(`Error processing question ${question.questionNumber} with skill-aware cache:`, error);
+          // Fallback to regular grading
+          const result = this.gradeQuestion(question, answerKey, skillMappings);
+          
+          if (result.gradingMethod === 'requires_ai') {
+            aiRequiredQuestions.push(question);
+          } else {
+            localResults.push(result);
+            locallyGradedCount++;
+          }
+        }
       } else {
-        localResults.push(result);
-        locallyGradedCount++;
+        // Process without skill mappings
+        const result = this.gradeQuestion(question, answerKey);
         
-        // Track enhanced metrics
-        if (result.gradingMethod === 'local_question_based') {
-          questionBasedCount++;
-        } else if (result.gradingMethod === 'local_confident') {
-          highConfidenceCount++;
-        } else if (result.gradingMethod === 'local_enhanced') {
-          enhancedThresholdCount++;
-        }
-        
-        if (result.qualityFlags?.hasMultipleMarks) {
-          multipleMarksCount++;
-        }
-        
-        if (result.qualityFlags?.reviewRequired) {
-          reviewFlaggedCount++;
-        }
-        
-        if (result.qualityFlags?.bubbleQuality) {
-          const quality = result.qualityFlags.bubbleQuality;
-          bubbleQualityDist[quality] = (bubbleQualityDist[quality] || 0) + 1;
+        if (result.gradingMethod === 'requires_ai') {
+          aiRequiredQuestions.push(question);
+        } else {
+          localResults.push(result);
+          locallyGradedCount++;
         }
       }
     }
@@ -394,13 +441,15 @@ export class LocalGradingService {
     // Calculate skill scores from class-specific mappings
     const skillScores = this.calculateSkillScores(localResults);
 
-    // Calculate skill coverage
+    // Calculate skill coverage and cache performance
     const skillCoverage = questions.length > 0 ? (skillMappedQuestions / questions.length) * 100 : 0;
+    const cacheHitRate = skillMappedQuestions > 0 ? (cacheHits / skillMappedQuestions) * 100 : 0;
 
     // Check if class-specific skills were used
     const classSpecificSkills = !!preClassifiedSkills && preClassifiedSkills.questionMappings.size > 0;
 
-    console.log(`✅ Class-specific skill integration complete: ${skillMappedQuestions}/${questions.length} questions mapped`);
+    console.log(`✅ Enhanced skill-aware integration complete: ${skillMappedQuestions}/${questions.length} questions mapped`);
+    console.log(`📋 Cache performance: ${cacheHits}/${skillMappedQuestions} skill-aware cache hits (${cacheHitRate.toFixed(1)}%)`);
 
     return {
       localResults,
@@ -423,7 +472,9 @@ export class LocalGradingService {
           reviewFlagged: reviewFlaggedCount,
           bubbleQualityDistribution: bubbleQualityDist,
           formatValidationFailures,
-          skillMappedQuestions
+          skillMappedQuestions,
+          cacheHitRate,
+          skillAwareCacheUsage
         }
       }
     };
@@ -696,23 +747,25 @@ export class LocalGradingService {
     };
   }
 
-  // New method to get performance metrics
+  // New method to get comprehensive performance metrics including cache
   static getOptimizationMetrics() {
     return {
       classifier: OptimizedQuestionClassifier.getPerformanceMetrics(),
       analytics: ClassificationLogger.getClassificationAnalytics(),
       answerKeyMatching: {
         cacheSize: AnswerKeyMatchingService['answerKeyCache']?.size || 0,
-      }
+      },
+      cache: CacheResponseService.getCacheAnalytics()
     };
   }
 
-  // New method to optimize performance
+  // Enhanced optimization with cache management
   static optimizePerformance() {
     OptimizedQuestionClassifier.optimizeCache(1000);
     AnswerKeyMatchingService.optimizeCache(50);
     ClassificationLogger.clearLogs();
-    ExamSkillPreClassificationService.clearCache(); // Clear skill mapping cache
-    console.log('🚀 Local grading service performance optimized');
+    ExamSkillPreClassificationService.clearCache();
+    // Note: Cache services manage their own optimization
+    console.log('🚀 Local grading service performance optimized with skill-aware caching');
   }
 }
