@@ -33,11 +33,11 @@ export function LearningStyleCircle({ type, strength, color }: LearningStyleCirc
   };
 
   const getIntensityColor = (strength: number) => {
-    if (strength >= 80) return "text-green-600";
-    if (strength >= 70) return "text-blue-600";
-    if (strength >= 60) return "text-yellow-600";
-    if (strength >= 50) return "text-orange-600";
-    return "text-red-600";
+    if (strength >= 80) return "text-foreground font-semibold";
+    if (strength >= 70) return "text-foreground";
+    if (strength >= 60) return "text-muted-foreground";
+    if (strength >= 50) return "text-muted-foreground";
+    return "text-muted-foreground";
   };
 
   const getGradientColors = (strength: number) => {
