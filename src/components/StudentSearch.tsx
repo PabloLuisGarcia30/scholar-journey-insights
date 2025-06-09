@@ -5,21 +5,29 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { GraduationCap } from "lucide-react";
+import { GraduationCap, AlertTriangle, Settings } from "lucide-react";
 import { AddStudentDialog } from "@/components/AddStudentDialog";
+import { StudentIdManagement } from "@/components/StudentIdManagement";
 import { getAllActiveStudents, type ActiveStudent } from "@/services/examService";
+import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
 interface StudentSearchProps {
   onSelectStudent: (studentId: string) => void;
 }
 
+interface StudentWithIdStatus extends ActiveStudent {
+  hasStudentId?: boolean;
+  studentIdFromProfile?: string;
+}
+
 export function StudentSearch({ onSelectStudent }: StudentSearchProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const [filterMajor, setFilterMajor] = useState<string>('all');
-  const [filteredStudents, setFilteredStudents] = useState<ActiveStudent[]>([]);
-  const [allStudents, setAllStudents] = useState<ActiveStudent[]>([]);
+  const [filteredStudents, setFilteredStudents] = useState<StudentWithIdStatus[]>([]);
+  const [allStudents, setAllStudents] = useState<StudentWithIdStatus[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showManagement, setShowManagement] = useState(false);
 
   useEffect(() => {
     loadStudents();
@@ -28,9 +36,31 @@ export function StudentSearch({ onSelectStudent }: StudentSearchProps) {
   const loadStudents = async () => {
     try {
       setLoading(true);
+      
+      // Get all active students
       const students = await getAllActiveStudents();
-      setAllStudents(students);
-      setFilteredStudents(students);
+      
+      // Get student profiles to check for Student IDs
+      const { data: profiles, error } = await supabase
+        .from('student_profiles')
+        .select('student_name, student_id');
+
+      if (error) {
+        console.error('Error fetching student profiles:', error);
+      }
+
+      // Map students with Student ID status
+      const studentsWithStatus: StudentWithIdStatus[] = students.map(student => {
+        const profile = profiles?.find(p => p.student_name === student.name);
+        return {
+          ...student,
+          hasStudentId: !!profile?.student_id,
+          studentIdFromProfile: profile?.student_id || undefined
+        };
+      });
+
+      setAllStudents(studentsWithStatus);
+      setFilteredStudents(studentsWithStatus);
     } catch (error) {
       console.error('Error loading students:', error);
       toast.error('Failed to load students');
@@ -53,7 +83,8 @@ export function StudentSearch({ onSelectStudent }: StudentSearchProps) {
     let filtered = allStudents.filter(student =>
       student.name.toLowerCase().includes(term.toLowerCase()) ||
       (student.email && student.email.toLowerCase().includes(term.toLowerCase())) ||
-      (student.major && student.major.toLowerCase().includes(term.toLowerCase()))
+      (student.major && student.major.toLowerCase().includes(term.toLowerCase())) ||
+      (student.studentIdFromProfile && student.studentIdFromProfile.toLowerCase().includes(term.toLowerCase()))
     );
 
     if (majorFilter !== 'all') {
@@ -81,7 +112,25 @@ export function StudentSearch({ onSelectStudent }: StudentSearchProps) {
     return 'At Risk';
   };
 
+  const getStudentIdBadge = (student: StudentWithIdStatus) => {
+    if (student.hasStudentId && student.studentIdFromProfile) {
+      return (
+        <Badge variant="outline" className="text-green-600 border-green-300 bg-green-50">
+          ID: {student.studentIdFromProfile}
+        </Badge>
+      );
+    } else {
+      return (
+        <Badge variant="outline" className="text-orange-600 border-orange-300 bg-orange-50">
+          <AlertTriangle className="h-3 w-3 mr-1" />
+          No ID
+        </Badge>
+      );
+    }
+  };
+
   const majors = [...new Set(allStudents.map(student => student.major).filter(Boolean))];
+  const studentsWithoutIds = allStudents.filter(student => !student.hasStudentId).length;
 
   if (loading) {
     return (
@@ -89,6 +138,22 @@ export function StudentSearch({ onSelectStudent }: StudentSearchProps) {
         <div className="flex items-center justify-center py-12">
           <div className="text-lg text-gray-600">Loading students...</div>
         </div>
+      </div>
+    );
+  }
+
+  if (showManagement) {
+    return (
+      <div className="p-6">
+        <div className="mb-4">
+          <button 
+            onClick={() => setShowManagement(false)}
+            className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+          >
+            ← Back to Student Directory
+          </button>
+        </div>
+        <StudentIdManagement />
       </div>
     );
   }
@@ -101,7 +166,18 @@ export function StudentSearch({ onSelectStudent }: StudentSearchProps) {
             <h1 className="text-3xl font-bold text-gray-900">Student Directory</h1>
             <p className="text-gray-600">Search and manage student profiles</p>
           </div>
-          <AddStudentDialog onStudentAdded={handleStudentAdded} />
+          <div className="flex gap-2">
+            {studentsWithoutIds > 0 && (
+              <button
+                onClick={() => setShowManagement(true)}
+                className="flex items-center gap-2 px-4 py-2 text-orange-600 bg-orange-50 border border-orange-200 rounded-lg hover:bg-orange-100 transition-colors"
+              >
+                <Settings className="h-4 w-4" />
+                Manage IDs ({studentsWithoutIds} missing)
+              </button>
+            )}
+            <AddStudentDialog onStudentAdded={handleStudentAdded} />
+          </div>
         </div>
       </div>
 
@@ -109,7 +185,7 @@ export function StudentSearch({ onSelectStudent }: StudentSearchProps) {
         <div className="flex gap-4 mb-4">
           <Input
             type="text"
-            placeholder="Search by name, email, or major..."
+            placeholder="Search by name, email, major, or Student ID..."
             value={searchTerm}
             onChange={(e) => handleSearch(e.target.value)}
             className="max-w-md"
@@ -128,6 +204,11 @@ export function StudentSearch({ onSelectStudent }: StudentSearchProps) {
         </div>
         <p className="text-sm text-gray-500 mt-2">
           Showing {filteredStudents.length} of {allStudents.length} students
+          {studentsWithoutIds > 0 && (
+            <span className="ml-2 text-orange-600">
+              • {studentsWithoutIds} students need Student IDs
+            </span>
+          )}
         </p>
       </div>
 
@@ -148,11 +229,14 @@ export function StudentSearch({ onSelectStudent }: StudentSearchProps) {
                 <div className="flex-1 min-w-0">
                   <h3 className="font-semibold text-gray-900 truncate">{student.name}</h3>
                   <p className="text-sm text-gray-600 truncate">{student.email || 'No email'}</p>
-                  <div className="flex items-center gap-2 mt-2">
+                  <div className="flex items-center gap-2 mt-2 flex-wrap">
                     {student.year && <Badge variant="outline">{student.year}</Badge>}
                     <Badge variant="outline" className={getStatusColor(student.gpa)}>
                       {getStatusText(student.gpa)}
                     </Badge>
+                  </div>
+                  <div className="mt-2">
+                    {getStudentIdBadge(student)}
                   </div>
                   <div className="mt-2">
                     {student.major && <p className="text-sm text-gray-600">{student.major}</p>}
