@@ -1,10 +1,15 @@
 
 export interface QuestionClassification {
-  questionType: 'multiple_choice' | 'short_answer' | 'essay' | 'true_false' | 'fill_in_blank';
+  questionType: 'multiple_choice' | 'short_answer' | 'essay' | 'true_false' | 'fill_in_blank' | 'numeric';
   confidence: number;
   complexity: 'simple' | 'medium' | 'complex';
   estimatedGradingTime: number;
   requiresHumanReview: boolean;
+  shouldUseLocalGrading: boolean;
+  isSimple: boolean;
+  fallbackReason?: string;
+  detectionMethod?: string;
+  answerPattern?: string;
   metadata?: {
     subject?: string;
     topic?: string;
@@ -18,6 +23,7 @@ export interface SimpleAnswerValidation {
   explanation: string;
   suggestedCorrection?: string;
   validationMethod: 'pattern_match' | 'keyword_analysis' | 'fuzzy_match';
+  matchType?: string;
 }
 
 export class EnhancedQuestionClassifier {
@@ -26,10 +32,12 @@ export class EnhancedQuestionClassifier {
     true_false: /\b(true|false|correct|incorrect)\b/i,
     short_answer: /\b(calculate|solve|find|what is|how much)\b/i,
     essay: /\b(explain|describe|discuss|analyze|compare|contrast)\b/i,
-    fill_in_blank: /_{3,}|\[.*\]|\(\s*\)/
+    fill_in_blank: /_{3,}|\[.*\]|\(\s*\)/,
+    numeric: /\b(\d+\.?\d*|\$\d+|percent|%)\b/i
   };
 
-  static async classifyQuestion(questionText: string): Promise<QuestionClassification> {
+  static classifyQuestion(question: any, answerKey?: any): QuestionClassification {
+    const questionText = question?.questionText || question?.text || '';
     const text = questionText.toLowerCase().trim();
     
     // Determine question type
@@ -48,6 +56,8 @@ export class EnhancedQuestionClassifier {
     const complexity = this.determineComplexity(text);
     const estimatedGradingTime = this.estimateGradingTime(questionType, complexity);
     const requiresHumanReview = complexity === 'complex' || questionType === 'essay';
+    const isSimple = complexity === 'simple' && ['multiple_choice', 'true_false', 'numeric'].includes(questionType);
+    const shouldUseLocalGrading = isSimple && confidence > 0.7;
 
     return {
       questionType,
@@ -55,6 +65,10 @@ export class EnhancedQuestionClassifier {
       complexity,
       estimatedGradingTime,
       requiresHumanReview,
+      shouldUseLocalGrading,
+      isSimple,
+      detectionMethod: 'pattern_matching',
+      answerPattern: 'standard',
       metadata: {
         subject: 'unknown',
         topic: 'general',
@@ -76,26 +90,32 @@ export class EnhancedQuestionClassifier {
         confidence: 0.9,
         complexity: 'simple',
         estimatedGradingTime: 30,
-        requiresHumanReview: false
+        requiresHumanReview: false,
+        shouldUseLocalGrading: true,
+        isSimple: true
       },
       {
         questionType: 'essay',
         confidence: 0.8,
         complexity: 'complex',
         estimatedGradingTime: 300,
-        requiresHumanReview: true
+        requiresHumanReview: true,
+        shouldUseLocalGrading: false,
+        isSimple: false
       },
       {
         questionType: 'short_answer',
         confidence: 0.85,
         complexity: 'medium',
         estimatedGradingTime: 60,
-        requiresHumanReview: false
+        requiresHumanReview: false,
+        shouldUseLocalGrading: false,
+        isSimple: false
       }
     ];
   }
 
-  static async validateSimpleAnswer(studentAnswer: string, correctAnswer: string): Promise<SimpleAnswerValidation> {
+  static validateSimpleAnswer(studentAnswer: string, correctAnswer: string, answerPattern?: string): SimpleAnswerValidation {
     const student = studentAnswer.toLowerCase().trim();
     const correct = correctAnswer.toLowerCase().trim();
 
@@ -105,7 +125,8 @@ export class EnhancedQuestionClassifier {
         isValid: true,
         confidence: 1.0,
         explanation: 'Exact match with correct answer',
-        validationMethod: 'pattern_match'
+        validationMethod: 'pattern_match',
+        matchType: 'exact'
       };
     }
 
@@ -116,7 +137,8 @@ export class EnhancedQuestionClassifier {
         isValid: true,
         confidence: similarity,
         explanation: 'Close match with minor variations',
-        validationMethod: 'fuzzy_match'
+        validationMethod: 'fuzzy_match',
+        matchType: 'fuzzy'
       };
     }
 
@@ -125,7 +147,8 @@ export class EnhancedQuestionClassifier {
       confidence: similarity,
       explanation: 'Does not match the expected answer',
       suggestedCorrection: correctAnswer,
-      validationMethod: 'fuzzy_match'
+      validationMethod: 'fuzzy_match',
+      matchType: 'no_match'
     };
   }
 
@@ -170,7 +193,8 @@ export class EnhancedQuestionClassifier {
       true_false: 10,
       short_answer: 60,
       essay: 300,
-      fill_in_blank: 30
+      fill_in_blank: 30,
+      numeric: 45
     };
 
     const multiplier = {

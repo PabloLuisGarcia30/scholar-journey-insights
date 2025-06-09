@@ -374,7 +374,8 @@ export class EnhancedLocalGradingService {
       'true_false': 'True/False',
       'fill_in_blank': 'Fill-in-the-blank',
       'numeric': 'Numeric',
-      'complex': 'Complex'
+      'short_answer': 'Short Answer',
+      'essay': 'Essay'
     };
 
     let reasoning = `Enhanced local grading (${questionTypeMap[classification.questionType]}): `;
@@ -558,13 +559,7 @@ export class EnhancedLocalGradingService {
       ];
     });
 
-    const openAIResults = await OpenAIComplexGradingService.gradeComplexQuestions(
-      complexQuestions,
-      answerKeys,
-      examId,
-      questions[0]?.detectedStudentName || 'Unknown Student',
-      aiIdentifiedSkills
-    );
+    const openAIResults = await OpenAIComplexGradingService.gradeComplexQuestions(complexQuestions);
 
     // STEP 6: Merge results using the hybrid results merger
     const { HybridGradingResultsMerger } = await import('./hybridGradingResultsMerger');

@@ -238,6 +238,43 @@ export class PerformanceMonitoringService {
     }
   }
 
+  static recordBatchProcessingMetrics(
+    operation: string, 
+    duration: number, 
+    success: boolean, 
+    batchSize: number, 
+    metadata?: any
+  ): void {
+    const metric: PerformanceMetric = {
+      id: `batch-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      operation,
+      duration,
+      success,
+      timestamp: new Date(),
+      metadata: {
+        ...metadata,
+        batchSize,
+        batchProcessing: true
+      }
+    };
+
+    this.metrics.push(metric);
+    
+    // Keep only last 10000 metrics to prevent memory issues
+    if (this.metrics.length > 10000) {
+      this.metrics = this.metrics.slice(-5000);
+    }
+
+    // Log significant performance issues
+    if (duration > 30000) { // 30 seconds for batch operations
+      console.warn(`Slow batch operation detected: ${operation} took ${duration}ms for ${batchSize} items`);
+    }
+
+    if (!success) {
+      console.error(`Failed batch operation: ${operation}`, metadata);
+    }
+  }
+
   private static getRecentMetrics(timeWindowMs: number): PerformanceMetric[] {
     const cutoff = new Date(Date.now() - timeWindowMs);
     return this.metrics.filter(metric => metric.timestamp >= cutoff);

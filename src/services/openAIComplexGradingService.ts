@@ -79,12 +79,12 @@ export class OpenAIComplexGradingService {
     return results;
   }
 
-  static async preProcessCommonExamQuestions(questions: any[]): Promise<any[]> {
+  static async preProcessCommonExamQuestions(questions: any[]): Promise<{ processed: any[], cached: number, errors: any[] }> {
     console.log(`Pre-processing ${questions.length} common exam questions`);
     
     await new Promise(resolve => setTimeout(resolve, 1000));
     
-    return questions.map((question, index) => ({
+    const processed = questions.map((question, index) => ({
       ...question,
       preprocessed: true,
       commonPatterns: ['standard_format', 'clear_instructions'],
@@ -93,6 +93,12 @@ export class OpenAIComplexGradingService {
       complexity: Math.random() > 0.5 ? 'medium' : 'simple',
       preprocessingTimestamp: new Date().toISOString()
     }));
+
+    return {
+      processed,
+      cached: processed.length,
+      errors: []
+    };
   }
 
   static async createBatch(questions: any[]): Promise<string> {
@@ -112,6 +118,7 @@ export class OpenAIComplexGradingService {
       progress: 0,
       estimatedCompletionTime: Date.now() + (questions.length * 30000), // 30s per question
       priority: 'normal',
+      errors: [], // Add the missing errors property
       processingMetrics: {
         totalBatches: 1,
         successfulBatches: 0,
