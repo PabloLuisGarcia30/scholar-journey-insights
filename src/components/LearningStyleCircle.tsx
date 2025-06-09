@@ -15,8 +15,8 @@ export function LearningStyleCircle({ type, strength, color }: LearningStyleCirc
     const descriptions = {
       "Visual Learner": "Learns best through images, diagrams, and visual aids",
       "Auditory Learner": "Learns best through listening and verbal instruction",
-      "Reading/Writing Learner": "Learns best through reading and written materials",
-      "Kinaesthetic Learner": "Learns best through hands-on activities and movement",
+      "Reading/Writing": "Learns best through reading and written materials",
+      "Kinaesthetic": "Learns best through hands-on activities and movement",
       "Logical Learner": "Learns best through reasoning and systematic approaches",
       "Social Learner": "Learns best in group settings and through collaboration",
       "Solitary Learner": "Learns best through individual study and reflection"
@@ -40,51 +40,53 @@ export function LearningStyleCircle({ type, strength, color }: LearningStyleCirc
     return "text-red-600";
   };
 
+  const radius = 32;
+  const circumference = 2 * Math.PI * radius;
+  const strokeDasharray = circumference;
+  const strokeDashoffset = circumference - (strength / 100) * circumference;
+
   return (
     <Card 
-      className="transition-all duration-300 hover:shadow-lg cursor-pointer border-0 bg-white/70 backdrop-blur-sm"
+      className="transition-all duration-300 hover:shadow-lg cursor-pointer border border-border hover:border-primary/20"
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
-      <CardContent className="p-6 text-center">
+      <CardContent className="p-4 text-center">
         {/* Circular Progress */}
-        <div className="relative w-24 h-24 mx-auto mb-4">
-          <svg className="w-24 h-24 transform -rotate-90" viewBox="0 0 100 100">
+        <div className="relative w-20 h-20 mx-auto mb-3">
+          <svg className="w-20 h-20 transform -rotate-90" viewBox="0 0 80 80">
             {/* Background circle */}
             <circle
-              cx="50"
-              cy="50"
-              r="40"
+              cx="40"
+              cy="40"
+              r={radius}
               stroke="currentColor"
-              strokeWidth="8"
+              strokeWidth="6"
               fill="transparent"
-              className="text-gray-200"
+              className="text-muted"
             />
             {/* Progress circle */}
             <circle
-              cx="50"
-              cy="50"
-              r="40"
-              stroke="currentColor"
-              strokeWidth="8"
+              cx="40"
+              cy="40"
+              r={radius}
+              stroke={color}
+              strokeWidth="6"
               fill="transparent"
-              strokeDasharray={`${2 * Math.PI * 40}`}
-              strokeDashoffset={`${2 * Math.PI * 40 * (1 - strength / 100)}`}
-              className={color.replace('bg-', 'text-')}
+              strokeDasharray={strokeDasharray}
+              strokeDashoffset={strokeDashoffset}
               strokeLinecap="round"
-              style={{
-                transition: 'stroke-dashoffset 0.5s ease-in-out',
-              }}
+              className="transition-all duration-500 ease-in-out"
             />
           </svg>
           {/* Percentage in center */}
           <div className="absolute inset-0 flex items-center justify-center">
-            <span className="text-lg font-bold text-gray-800">{strength}%</span>
+            <span className="text-sm font-bold text-foreground">{strength}%</span>
           </div>
         </div>
 
         {/* Learning Style Info */}
-        <h3 className="font-semibold text-gray-900 mb-2 text-sm leading-tight">
+        <h3 className="font-medium text-foreground mb-1 text-sm leading-tight">
           {type}
         </h3>
         
@@ -94,17 +96,20 @@ export function LearningStyleCircle({ type, strength, color }: LearningStyleCirc
 
         {/* Description on hover */}
         <div className={`transition-all duration-300 overflow-hidden ${
-          isHovered ? 'max-h-20 opacity-100' : 'max-h-0 opacity-0'
+          isHovered ? 'max-h-16 opacity-100' : 'max-h-0 opacity-0'
         }`}>
-          <p className="text-xs text-gray-600 leading-tight">
+          <p className="text-xs text-muted-foreground leading-tight">
             {getDescription(type)}
           </p>
         </div>
 
         {/* Colored indicator dot */}
-        <div className={`w-3 h-3 ${color} rounded-full mx-auto mt-2 ${
-          isHovered ? 'scale-125' : 'scale-100'
-        } transition-transform duration-200`} />
+        <div 
+          className={`w-2 h-2 rounded-full mx-auto mt-2 transition-transform duration-200 ${
+            isHovered ? 'scale-125' : 'scale-100'
+          }`}
+          style={{ backgroundColor: color }}
+        />
       </CardContent>
     </Card>
   );
