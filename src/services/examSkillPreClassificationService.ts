@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 
 export interface SkillPreClassificationResult {
@@ -322,6 +321,10 @@ export class ExamSkillPreClassificationService {
           .maybeSingle();
 
         if (analysis) {
+          // Safely access validation_stats with proper type checking
+          const analysisData = analysis.ai_analysis_data as any;
+          const validationStats = analysisData?.validation_stats || {};
+          
           return {
             examId,
             status: analysis.analysis_status as any,
@@ -329,8 +332,8 @@ export class ExamSkillPreClassificationService {
             mappedQuestions: analysis.mapped_questions,
             contentSkillsFound: analysis.content_skills_found,
             subjectSkillsFound: analysis.subject_skills_found,
-            invalidSkillsRejected: analysis.ai_analysis_data?.validation_stats?.invalid_skills_rejected || 0,
-            classId: analysis.ai_analysis_data?.validation_stats?.class_id || '',
+            invalidSkillsRejected: validationStats.invalid_skills_rejected || 0,
+            classId: validationStats.class_id || '',
             error: analysis.error_message
           };
         }

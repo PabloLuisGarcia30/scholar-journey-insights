@@ -734,7 +734,6 @@ export class EnhancedBatchGradingService {
       const enhancedPrompt = this.enhancedBatchProcessor.createEnhancedBatchPrompt(
         questions,
         answerKeys,
-        [], // No longer fetch from database - use pre-classified
         preClassifiedSkills
       );
 
@@ -796,22 +795,21 @@ export class EnhancedBatchGradingService {
     results: any[],
     questions: any[],
     answerKeys: any[],
-    skillMappings: any[]
+    preClassifiedSkills: any
   ): Promise<any[]> {
     console.log('🎯 Processing skill ambiguity resolution for batch results');
 
     const skillQuestions = results.map((result, index) => {
       const question = questions[index];
       const answerKey = answerKeys[index];
-      const questionSkills = skillMappings
-        .filter(sm => sm.question_number === question.questionNumber)
-        .map(sm => sm.skill_name);
+      const questionSkills = preClassifiedSkills?.questionMappings.get(question.questionNumber) || 
+        { contentSkills: [], subjectSkills: [] };
 
       return {
         questionNumber: result.questionNumber || index + 1,
         questionText: answerKey?.question_text || `Question ${question.questionNumber}`,
         studentAnswer: question.detectedAnswer?.selectedOption || '',
-        availableSkills: questionSkills,
+        preClassifiedSkills: questionSkills,
         detectedSkills: result.matchedSkills || [],
         confidence: result.skillConfidence || result.confidence || 0.7
       };
