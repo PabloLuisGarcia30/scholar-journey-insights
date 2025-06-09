@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 
@@ -83,7 +82,7 @@ export function LearningStyleCircle({ type, strength, color }: LearningStyleCirc
 
   // Create gradient ID unique to this component instance and intensity
   const intensity = getIntensity(strength);
-  const gradientId = `gradient-${type.replace(/\s+/g, '-').toLowerCase()}-${intensity.toLowerCase()}`;
+  const gradientId = `gradient-${type.replace(/\s+/g, '-').toLowerCase()}-${intensity.toLowerCase()}-${Math.random().toString(36).substr(2, 9)}`;
   const gradientColors = getGradientColors(strength);
 
   return (
@@ -103,23 +102,36 @@ export function LearningStyleCircle({ type, strength, color }: LearningStyleCirc
                 <stop offset="100%" stopColor={gradientColors.color3} />
               </linearGradient>
             </defs>
-            {/* Gradient-filled circle */}
+            {/* Gradient-filled circle with fallback color */}
             <circle
               cx="40"
               cy="40"
               r="32"
               fill={`url(#${gradientId})`}
-              className="transition-all duration-500 ease-in-out"
               style={{ 
                 filter: isHovered ? 'brightness(1.1)' : 'brightness(1)',
                 transform: isHovered ? 'scale(1.05)' : 'scale(1)',
-                transformOrigin: 'center'
+                transformOrigin: 'center',
+                // Fallback color in case gradient fails
+                fillOpacity: 1
               }}
+              className="transition-all duration-500 ease-in-out"
+            />
+            {/* Fallback circle in case SVG gradient fails */}
+            <circle
+              cx="40"
+              cy="40"
+              r="32"
+              fill={gradientColors.color1}
+              style={{ 
+                display: 'none'
+              }}
+              className="fallback-circle"
             />
           </svg>
           {/* Percentage in center */}
           <div className="absolute inset-0 flex items-center justify-center">
-            <span className="text-sm font-bold text-white">
+            <span className="text-sm font-bold text-white drop-shadow-sm">
               {strength}%
             </span>
           </div>
