@@ -40,10 +40,8 @@ export function LearningStyleCircle({ type, strength, color }: LearningStyleCirc
     return "text-red-600";
   };
 
-  const radius = 32;
-  const circumference = 2 * Math.PI * radius;
-  const strokeDasharray = circumference;
-  const strokeDashoffset = circumference - (strength / 100) * circumference;
+  // Create gradient ID unique to this component instance
+  const gradientId = `gradient-${type.replace(/\s+/g, '-').toLowerCase()}`;
 
   return (
     <Card 
@@ -52,38 +50,33 @@ export function LearningStyleCircle({ type, strength, color }: LearningStyleCirc
       onMouseLeave={() => setIsHovered(false)}
     >
       <CardContent className="p-4 text-center">
-        {/* Circular Progress */}
+        {/* Gradient Circle */}
         <div className="relative w-20 h-20 mx-auto mb-3">
-          <svg className="w-20 h-20 transform -rotate-90" viewBox="0 0 80 80">
-            {/* Background circle */}
+          <svg className="w-20 h-20" viewBox="0 0 80 80">
+            <defs>
+              <linearGradient id={gradientId} x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stopColor="#10b981" />
+                <stop offset="50%" stopColor="#3b82f6" />
+                <stop offset="100%" stopColor="#8b5cf6" />
+              </linearGradient>
+            </defs>
+            {/* Gradient-filled circle */}
             <circle
               cx="40"
               cy="40"
-              r={radius}
-              stroke="currentColor"
-              strokeWidth="6"
-              fill="transparent"
-              className="text-muted"
-            />
-            {/* Progress circle */}
-            <circle
-              cx="40"
-              cy="40"
-              r={radius}
-              stroke={color}
-              strokeWidth="6"
-              fill="transparent"
-              strokeDasharray={strokeDasharray}
-              strokeDashoffset={strokeDashoffset}
-              strokeLinecap="round"
+              r="32"
+              fill={`url(#${gradientId})`}
               className="transition-all duration-500 ease-in-out"
+              style={{ 
+                filter: isHovered ? 'brightness(1.1)' : 'brightness(1)',
+                transform: isHovered ? 'scale(1.05)' : 'scale(1)',
+                transformOrigin: 'center'
+              }}
             />
           </svg>
-          {/* Percentage in center - only visible on hover */}
+          {/* Percentage in center */}
           <div className="absolute inset-0 flex items-center justify-center">
-            <span className={`text-sm font-bold text-foreground transition-opacity duration-300 ${
-              isHovered ? 'opacity-100' : 'opacity-0'
-            }`}>
+            <span className="text-sm font-bold text-white">
               {strength}%
             </span>
           </div>
