@@ -526,25 +526,12 @@ const TestCreator = () => {
         questions,
       };
 
-      const { generateConsolidatedTestHTML } = await import('@/services/printService');
-      const htmlContent = generateConsolidatedTestHTML(testData, studentNames);
-      
-      // Create a blob with the HTML content
-      const blob = new Blob([htmlContent], { type: 'text/html' });
-      const url = URL.createObjectURL(blob);
-      
-      // Create a temporary link to download the file
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `${testTitle.replace(/\s+/g, '_')}_${studentNames.length}_Students.html`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
+      const { generateConsolidatedTestPDF } = await import('@/utils/pdfGenerator');
+      generateConsolidatedTestPDF(testData, studentNames);
 
       toast({
         title: "Success!",
-        description: `Downloaded test for ${studentNames.length} students. Open the HTML file in your browser to print.`,
+        description: `Downloaded PDF test for ${studentNames.length} students. The PDF is ready to print.`,
       });
       
       setIsDownloadDialogOpen(false);
