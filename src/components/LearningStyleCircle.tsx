@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 
@@ -129,8 +130,10 @@ export function LearningStyleCircle({ type, strength, color }: LearningStyleCirc
               className="fallback-circle"
             />
           </svg>
-          {/* Percentage in center */}
-          <div className="absolute inset-0 flex items-center justify-center">
+          {/* Percentage in center - only visible on hover */}
+          <div className={`absolute inset-0 flex items-center justify-center transition-opacity duration-300 ${
+            isHovered ? 'opacity-100' : 'opacity-0'
+          }`}>
             <span className="text-sm font-bold text-white drop-shadow-sm">
               {strength}%
             </span>
@@ -138,7 +141,7 @@ export function LearningStyleCircle({ type, strength, color }: LearningStyleCirc
         </div>
 
         {/* Learning Style Info */}
-        <h3 className="font-semibold text-card-foreground mb-1 text-sm leading-tight">
+        <h3 className="font-semibold text-foreground mb-1 text-sm leading-tight">
           {type}
         </h3>
         
