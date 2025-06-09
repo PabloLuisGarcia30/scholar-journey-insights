@@ -13,7 +13,7 @@ serve(async (req) => {
   }
 
   try {
-    console.log('Enhanced class-scoped exam skill analysis function called');
+    console.log('Enhanced class-specific exam skill analysis function called');
     
     const { examId } = await req.json();
     
@@ -52,9 +52,9 @@ serve(async (req) => {
       );
     }
 
-    console.log('Step 2: Fetching exam data and class-specific skills');
+    console.log('Step 2: Fetching exam data and ensuring class association');
     
-    // Fetch exam data with class information
+    // Fetch exam data with class information - CRITICAL for class-specific skills
     const { data: examData, error: examError } = await supabase
       .from('exams')
       .select('*, classes:active_classes(*)')
@@ -66,21 +66,12 @@ serve(async (req) => {
     }
 
     if (!examData.class_id) {
-      throw new Error('Exam must be associated with a class for skill pre-classification');
+      throw new Error('Exam must be associated with a class for class-specific skill pre-classification');
     }
 
-    // Fetch answer keys
-    const { data: answerKeys, error: answerKeysError } = await supabase
-      .from('answer_keys')
-      .select('*')
-      .eq('exam_id', examId)
-      .order('question_number');
+    console.log('Step 3: Prioritizing class-specific skills over standard curriculum');
 
-    if (answerKeysError) {
-      throw new Error(`Answer keys fetch failed: ${answerKeysError.message}`);
-    }
-
-    // Fetch class-specific content skills
+    // STEP 3a: Fetch class-specific content skills FIRST (highest priority)
     const { data: classContentSkills, error: contentSkillsError } = await supabase
       .from('class_content_skills')
       .select(`
@@ -100,7 +91,7 @@ serve(async (req) => {
       throw new Error(`Class content skills fetch failed: ${contentSkillsError.message}`);
     }
 
-    // Fetch class-specific subject skills
+    // STEP 3b: Fetch class-specific subject skills FIRST (highest priority)
     const { data: classSubjectSkills, error: subjectSkillsError } = await supabase
       .from('class_subject_skills')
       .select(`
@@ -119,17 +110,61 @@ serve(async (req) => {
       throw new Error(`Class subject skills fetch failed: ${subjectSkillsError.message}`);
     }
 
-    const availableContentSkills = classContentSkills?.map(cs => cs.content_skills).filter(Boolean) || [];
-    const availableSubjectSkills = classSubjectSkills?.map(ss => ss.subject_skills).filter(Boolean) || [];
+    // Extract the actual skill objects
+    const classSpecificContentSkills = classContentSkills?.map(cs => cs.content_skills).filter(Boolean) || [];
+    const classSpecificSubjectSkills = classSubjectSkills?.map(ss => ss.subject_skills).filter(Boolean) || [];
 
     console.log('Found class-specific skills:', {
-      contentSkills: availableContentSkills.length,
-      subjectSkills: availableSubjectSkills.length,
-      classId: examData.class_id
+      contentSkills: classSpecificContentSkills.length,
+      subjectSkills: classSpecificSubjectSkills.length,
+      classId: examData.class_id,
+      className: examData.classes?.name || 'Unknown'
     });
 
+    // STEP 3c: Fallback to standard curriculum skills if class has no custom skills
+    let availableContentSkills = classSpecificContentSkills;
+    let availableSubjectSkills = classSpecificSubjectSkills;
+    let usingFallbackSkills = false;
+
+    if (classSpecificContentSkills.length === 0 && classSpecificSubjectSkills.length === 0) {
+      console.log('No class-specific skills found, falling back to standard curriculum skills');
+      usingFallbackSkills = true;
+
+      // Fetch standard curriculum skills as fallback
+      const { data: standardContentSkills } = await supabase
+        .from('content_skills')
+        .select('*')
+        .eq('subject', examData.classes?.subject || 'Math')
+        .eq('grade', examData.classes?.grade || 'Grade 10');
+
+      const { data: standardSubjectSkills } = await supabase
+        .from('subject_skills')
+        .select('*')
+        .eq('subject', examData.classes?.subject || 'Math')
+        .eq('grade', examData.classes?.grade || 'Grade 10');
+
+      availableContentSkills = standardContentSkills || [];
+      availableSubjectSkills = standardSubjectSkills || [];
+
+      console.log('Using standard curriculum skills as fallback:', {
+        contentSkills: availableContentSkills.length,
+        subjectSkills: availableSubjectSkills.length
+      });
+    }
+
     if (availableContentSkills.length === 0 && availableSubjectSkills.length === 0) {
-      throw new Error('No skills found for this class. Please ensure skills are linked to the class first.');
+      throw new Error('No skills found for this class or standard curriculum. Please ensure skills are properly configured.');
+    }
+
+    // Fetch answer keys
+    const { data: answerKeys, error: answerKeysError } = await supabase
+      .from('answer_keys')
+      .select('*')
+      .eq('exam_id', examId)
+      .order('question_number');
+
+    if (answerKeysError) {
+      throw new Error(`Answer keys fetch failed: ${answerKeysError.message}`);
     }
 
     // Create or update analysis record
@@ -144,11 +179,11 @@ serve(async (req) => {
       .select()
       .single();
 
-    console.log('Step 3: Performing class-scoped AI skill mapping analysis');
+    console.log('Step 4: Performing class-specific AI skill mapping analysis');
 
     // Prepare class-specific skills data for AI with IDs for validation
     const contentSkillsText = availableContentSkills.map(skill => 
-      `ID:${skill.id} | ${skill.skill_name} | ${skill.topic} | ${skill.skill_description}`
+      `ID:${skill.id} | ${skill.skill_name} | ${skill.topic || 'General'} | ${skill.skill_description}`
     ).join('\n');
     
     const subjectSkillsText = availableSubjectSkills.map(skill => 
@@ -164,18 +199,19 @@ serve(async (req) => {
       `Q${ak.question_number}: ${ak.question_text} (Type: ${ak.question_type})`
     ).join('\n') || '';
 
-    const systemPrompt = `You are an educational skill mapping expert. Analyze each question and map it ONLY to relevant content and subject skills from the provided class-specific skill lists.
+    const systemPrompt = `You are an educational skill mapping expert. Analyze each question and map it ONLY to relevant content and subject skills from the provided ${usingFallbackSkills ? 'standard curriculum' : 'class-specific'} skill lists.
 
 CRITICAL CONSTRAINTS:
 - You MUST ONLY use skills from the provided lists below
 - You CANNOT create new skills or suggest skills not in these lists
 - Each skill mapping MUST use the exact skill ID provided
 - If no suitable skill exists in the lists, mark as "no_suitable_skill"
+- This analysis is for ${examData.classes?.name || 'Unknown Class'} (${examData.classes?.subject} ${examData.classes?.grade})
 
-CLASS-SPECIFIC CONTENT SKILLS (ONLY use these IDs):
+${usingFallbackSkills ? 'STANDARD CURRICULUM' : 'CLASS-SPECIFIC'} CONTENT SKILLS (ONLY use these IDs):
 ${contentSkillsText}
 
-CLASS-SPECIFIC SUBJECT SKILLS (ONLY use these IDs):
+${usingFallbackSkills ? 'STANDARD CURRICULUM' : 'CLASS-SPECIFIC'} SUBJECT SKILLS (ONLY use these IDs):
 ${subjectSkillsText}
 
 For each question, identify:
@@ -206,13 +242,13 @@ Return JSON format:
   }
 }`;
 
-    const userPrompt = `Map these questions to class-specific skills for exam: ${examData.title}
+    const userPrompt = `Map these questions to ${usingFallbackSkills ? 'standard curriculum' : 'class-specific'} skills for exam: ${examData.title}
 Class: ${examData.classes?.name || 'Unknown'} (${examData.classes?.subject} ${examData.classes?.grade})
 
 QUESTIONS:
 ${questionsText}
 
-IMPORTANT: Only use skill IDs and names from the provided lists. Do not create new skills.`;
+IMPORTANT: Only use skill IDs and names from the provided ${usingFallbackSkills ? 'standard curriculum' : 'class-specific'} lists. Do not create new skills.`;
 
     const aiPayload = {
       model: "gpt-4.1-2025-04-14",
@@ -248,9 +284,9 @@ IMPORTANT: Only use skill IDs and names from the provided lists. Do not create n
       throw new Error('AI returned invalid skill mapping format');
     }
 
-    console.log('Step 4: Validating and storing class-scoped skill mappings');
+    console.log('Step 5: Validating and storing class-specific skill mappings');
 
-    // Validate skill mappings against class skill pools
+    // Validate skill mappings against class-specific skill pools
     const mappingInserts = [];
     let contentSkillsFound = 0;
     let subjectSkillsFound = 0;
@@ -330,6 +366,9 @@ IMPORTANT: Only use skill IDs and names from the provided lists. Do not create n
           validation_stats: {
             invalid_skills_rejected: invalidSkillsRejected,
             class_id: examData.class_id,
+            class_name: examData.classes?.name || 'Unknown',
+            used_class_specific_skills: !usingFallbackSkills,
+            used_fallback_skills: usingFallbackSkills,
             available_content_skills: availableContentSkills.length,
             available_subject_skills: availableSubjectSkills.length
           }
@@ -337,8 +376,9 @@ IMPORTANT: Only use skill IDs and names from the provided lists. Do not create n
       })
       .eq('id', analysisRecord.id);
 
-    console.log('Class-scoped skill analysis completed successfully');
+    console.log('Class-specific skill analysis completed successfully');
     console.log(`Mapped ${skillMappings.mappings?.length || 0} questions with ${contentSkillsFound} content skills and ${subjectSkillsFound} subject skills`);
+    console.log(`Using ${usingFallbackSkills ? 'standard curriculum' : 'class-specific'} skills for ${examData.classes?.name || 'Unknown Class'}`);
     console.log(`Rejected ${invalidSkillsRejected} invalid skill suggestions`);
 
     return new Response(
@@ -346,6 +386,9 @@ IMPORTANT: Only use skill IDs and names from the provided lists. Do not create n
         status: 'completed',
         exam_id: examId,
         class_id: examData.class_id,
+        class_name: examData.classes?.name || 'Unknown',
+        used_class_specific_skills: !usingFallbackSkills,
+        used_fallback_skills: usingFallbackSkills,
         total_questions: answerKeys?.length || 0,
         mapped_questions: skillMappings.mappings?.length || 0,
         content_skills_found: contentSkillsFound,
@@ -361,7 +404,7 @@ IMPORTANT: Only use skill IDs and names from the provided lists. Do not create n
     );
 
   } catch (error) {
-    console.error('Error in class-scoped analyze-exam-skills function:', error);
+    console.error('Error in class-specific analyze-exam-skills function:', error);
     
     // Update analysis record with error
     try {

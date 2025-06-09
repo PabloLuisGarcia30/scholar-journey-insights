@@ -1,3 +1,4 @@
+
 interface LocalGradingResult {
   questionNumber: number;
   isCorrect: boolean;
@@ -230,8 +231,8 @@ export class LocalGradingService {
     return reasoning;
   }
 
-  // NEW: Process questions with skill pre-classification integration
-  static async processQuestionsWithSkills(questions: any[], answerKeys: any[], examId: string): Promise<{
+  // UPDATED: Process questions with class-specific skill pre-classification integration
+  static async processQuestionsWithSkills(questions: any[], answerKeys: any[], examId: string, classId?: string): Promise<{
     localResults: LocalGradingResult[];
     aiRequiredQuestions: any[];
     skillScores: LocalSkillScore[];
@@ -242,6 +243,7 @@ export class LocalGradingService {
       localAccuracy: number;
       skillMappingAvailable: boolean;
       skillCoverage: number;
+      classSpecificSkills: boolean;
       enhancedMetrics: {
         questionBasedGraded: number;
         highConfidenceGraded: number;
@@ -255,13 +257,13 @@ export class LocalGradingService {
       };
     };
   }> {
-    console.log('🎯 Processing questions with skill pre-classification integration');
+    console.log('🎯 Processing questions with class-specific skill pre-classification integration');
 
-    // STEP 1: Check if skill pre-classification exists
+    // STEP 1: Ensure skill pre-classification exists and uses class-specific skills
     const skillStatus = await ExamSkillPreClassificationService.getPreClassificationStatus(examId);
     
     if (!skillStatus.exists || skillStatus.status !== 'completed') {
-      console.log('🔄 Triggering skill pre-classification...');
+      console.log('🔄 Triggering class-specific skill pre-classification...');
       const skillResult = await ExamSkillPreClassificationService.triggerSkillPreClassification(examId);
       
       if (skillResult.status !== 'completed') {
@@ -274,6 +276,7 @@ export class LocalGradingService {
             ...basicResult.summary,
             skillMappingAvailable: false,
             skillCoverage: 0,
+            classSpecificSkills: false,
             enhancedMetrics: {
               ...basicResult.summary.enhancedMetrics,
               skillMappedQuestions: 0
@@ -283,9 +286,28 @@ export class LocalGradingService {
       }
     }
 
-    // STEP 2: Get pre-classified skills
+    // STEP 2: Get class-specific pre-classified skills
     const preClassifiedSkills = await ExamSkillPreClassificationService.getPreClassifiedSkills(examId);
     
+    if (!preClassifiedSkills) {
+      console.warn('No pre-classified skills available');
+      const basicResult = this.processQuestions(questions, answerKeys);
+      return {
+        ...basicResult,
+        skillScores: [],
+        summary: {
+          ...basicResult.summary,
+          skillMappingAvailable: false,
+          skillCoverage: 0,
+          classSpecificSkills: false,
+          enhancedMetrics: {
+            ...basicResult.summary.enhancedMetrics,
+            skillMappedQuestions: 0
+          }
+        }
+      };
+    }
+
     const localResults: LocalGradingResult[] = [];
     const aiRequiredQuestions: any[] = [];
     let locallyGradedCount = 0;
@@ -310,8 +332,8 @@ export class LocalGradingService {
         continue;
       }
 
-      // Get skill mappings for this question
-      const questionSkills = preClassifiedSkills?.questionMappings.get(question.questionNumber);
+      // Get class-specific skill mappings for this question
+      const questionSkills = preClassifiedSkills.questionMappings.get(question.questionNumber);
       const skillMappings = questionSkills ? [
         ...questionSkills.contentSkills.map(skill => ({
           skill_id: skill.id,
@@ -369,11 +391,16 @@ export class LocalGradingService {
       }
     }
 
-    // Calculate skill scores
+    // Calculate skill scores from class-specific mappings
     const skillScores = this.calculateSkillScores(localResults);
 
     // Calculate skill coverage
     const skillCoverage = questions.length > 0 ? (skillMappedQuestions / questions.length) * 100 : 0;
+
+    // Check if class-specific skills were used
+    const classSpecificSkills = !!preClassifiedSkills && preClassifiedSkills.questionMappings.size > 0;
+
+    console.log(`✅ Class-specific skill integration complete: ${skillMappedQuestions}/${questions.length} questions mapped`);
 
     return {
       localResults,
@@ -384,8 +411,9 @@ export class LocalGradingService {
         locallyGraded: locallyGradedCount,
         requiresAI: aiRequiredQuestions.length,
         localAccuracy: locallyGradedCount / questions.length,
-        skillMappingAvailable: !!preClassifiedSkills,
+        skillMappingAvailable: classSpecificSkills,
         skillCoverage,
+        classSpecificSkills,
         enhancedMetrics: {
           questionBasedGraded: questionBasedCount,
           highConfidenceGraded: highConfidenceCount,
@@ -569,7 +597,7 @@ export class LocalGradingService {
     }
 
     if (skillMapped > 0) {
-      feedback += `. ${skillMapped} questions have skill mappings for detailed analytics`;
+      feedback += `. ${skillMapped} questions have class-specific skill mappings for detailed analytics`;
     }
     
     if (multipleMarks > 0) {

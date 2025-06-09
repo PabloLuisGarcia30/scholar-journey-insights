@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { EnhancedQuestionClassifier, QuestionClassification, SimpleAnswerValidation } from "./enhancedQuestionClassifier";
 import { DistilBertLocalGradingService, DistilBertGradingResult } from "./distilBertLocalGrading";
@@ -116,20 +115,20 @@ class ScoreValidationService {
 
 export class EnhancedLocalGradingService {
 
-  // UPDATED: Use ExamSkillPreClassificationService instead of direct database queries
+  // UPDATED: Use ExamSkillPreClassificationService with class-specific skill integration
   static async ensureAISkillIdentification(examId: string): Promise<boolean> {
     return ExamSkillPreClassificationService.triggerSkillPreClassification(examId)
       .then(result => result.status === 'completed');
   }
 
-  // UPDATED: Use ExamSkillPreClassificationService for skill mappings
+  // UPDATED: Get class-specific skill mappings using pre-classification service
   static async getAIIdentifiedSkillMappings(examId: string): Promise<QuestionSkillMappings> {
-    console.log('Fetching AI-identified skill mappings using pre-classification service for exam:', examId);
+    console.log('Fetching class-specific AI-identified skill mappings for exam:', examId);
     
     const skillMappingCache = await ExamSkillPreClassificationService.getPreClassifiedSkills(examId);
     
     if (!skillMappingCache) {
-      console.warn('No pre-classified skills available');
+      console.warn('No class-specific pre-classified skills available');
       return {};
     }
 
@@ -155,7 +154,7 @@ export class EnhancedLocalGradingService {
       ];
     });
 
-    console.log('✓ Loaded AI-identified skills for', Object.keys(skillMappings).length, 'questions via pre-classification service');
+    console.log('✓ Loaded class-specific AI-identified skills for', Object.keys(skillMappings).length, 'questions via pre-classification service');
     return skillMappings;
   }
 
@@ -440,26 +439,26 @@ export class EnhancedLocalGradingService {
     });
   }
 
-  // UPDATED: Main hybrid processing workflow with enhanced skill pre-classification
+  // UPDATED: Main hybrid processing workflow with class-specific skill pre-classification
   static async processQuestionsWithHybridAIWorkflow(questions: any[], answerKeys: any[], examId: string) {
-    console.log('🤖🧠 Starting Enhanced Hybrid AI Grading Workflow with Skill Pre-Classification');
+    console.log('🤖🧠 Starting Enhanced Hybrid AI Grading Workflow with Class-Specific Skill Pre-Classification');
     
-    // STEP 1: Use ExamSkillPreClassificationService to ensure skill pre-classification
-    console.log('🎯 Checking skill pre-classification status...');
+    // STEP 1: Use ExamSkillPreClassificationService to ensure class-specific skill pre-classification
+    console.log('🎯 Checking class-specific skill pre-classification status...');
     const skillStatus = await ExamSkillPreClassificationService.getPreClassificationStatus(examId);
     
     if (!skillStatus.exists || skillStatus.status !== 'completed') {
-      console.log('🔄 Triggering skill pre-classification...');
+      console.log('🔄 Triggering class-specific skill pre-classification...');
       const skillResult = await ExamSkillPreClassificationService.triggerSkillPreClassification(examId);
       
       if (skillResult.status !== 'completed') {
-        console.error('❌ Skill pre-classification failed:', skillResult.error);
-        throw new Error(`Skill pre-classification failed: ${skillResult.error || 'Unknown error'}`);
+        console.error('❌ Class-specific skill pre-classification failed:', skillResult.error);
+        throw new Error(`Class-specific skill pre-classification failed: ${skillResult.error || 'Unknown error'}`);
       }
       
-      console.log('✅ Skill pre-classification completed successfully');
+      console.log('✅ Class-specific skill pre-classification completed successfully');
     } else {
-      console.log('✅ Skill pre-classification already completed');
+      console.log('✅ Class-specific skill pre-classification already completed');
     }
 
     // STEP 2: Initialize DistilBERT model for local grading
@@ -471,15 +470,15 @@ export class EnhancedLocalGradingService {
       console.warn('⚠️ DistilBERT initialization failed, will use pattern matching for simple questions:', error);
     }
 
-    // STEP 3: Get pre-classified skills using the service
+    // STEP 3: Get class-specific pre-classified skills using the service
     const preClassifiedSkills = await ExamSkillPreClassificationService.getPreClassifiedSkills(examId);
     
     if (!preClassifiedSkills || preClassifiedSkills.questionMappings.size === 0) {
-      console.error('❌ No pre-classified skills found after identification process.');
-      throw new Error('No skills were identified for this exam. Cannot proceed with skill-based grading.');
+      console.error('❌ No class-specific pre-classified skills found after identification process.');
+      throw new Error('No class-specific skills were identified for this exam. Cannot proceed with skill-based grading.');
     }
 
-    console.log(`📊 Loaded ${preClassifiedSkills.questionMappings.size} question skill mappings from cache`);
+    console.log(`📊 Loaded ${preClassifiedSkills.questionMappings.size} question class-specific skill mappings from cache`);
 
     // STEP 4: Process questions and separate simple vs complex (with caching)
     const localResults: EnhancedLocalGradingResult[] = [];
@@ -488,7 +487,7 @@ export class EnhancedLocalGradingService {
     let distilBertUsedCount = 0;
     let cacheHitCount = 0;
     
-    console.log('🔍 Classifying questions for hybrid processing with caching...');
+    console.log('🔍 Classifying questions for hybrid processing with class-specific skills and caching...');
     
     for (const question of questions) {
       const answerKey = answerKeys.find(ak => ak.question_number === question.questionNumber);
@@ -498,7 +497,7 @@ export class EnhancedLocalGradingService {
         continue;
       }
 
-      // Get skill mappings for this question from pre-classified skills
+      // Get class-specific skill mappings for this question from pre-classified skills
       const questionSkills = preClassifiedSkills.questionMappings.get(question.questionNumber);
       const skillMappings: SkillMapping[] = questionSkills ? [
         ...questionSkills.contentSkills.map(skill => ({
@@ -533,12 +532,12 @@ export class EnhancedLocalGradingService {
       }
     }
 
-    console.log(`📊 Classification complete: ${locallyGradedCount} simple (${cacheHitCount} cached) + ${complexQuestions.length} complex (OpenAI)`);
+    console.log(`📊 Classification complete: ${locallyGradedCount} simple (${cacheHitCount} cached) + ${complexQuestions.length} complex (OpenAI) using class-specific skills`);
 
-    // STEP 5: Process complex questions with OpenAI (with caching)
+    // STEP 5: Process complex questions with OpenAI (with class-specific caching)
     const { OpenAIComplexGradingService } = await import('./openAIComplexGradingService');
     
-    // Convert skill mappings for OpenAI service
+    // Convert class-specific skill mappings for OpenAI service
     const aiIdentifiedSkills: QuestionSkillMappings = {};
     preClassifiedSkills.questionMappings.forEach((skills, questionNumber) => {
       aiIdentifiedSkills[questionNumber] = [
@@ -571,14 +570,14 @@ export class EnhancedLocalGradingService {
     const { HybridGradingResultsMerger } = await import('./hybridGradingResultsMerger');
     const hybridResults = HybridGradingResultsMerger.mergeResults(localResults, openAIResults);
 
-    // STEP 7: Generate enhanced statistics with skill pre-classification metrics
+    // STEP 7: Generate enhanced statistics with class-specific skill pre-classification metrics
     const cacheStats = await QuestionCacheService.getQuestionCacheStats();
     const skillCacheStats = ExamSkillPreClassificationService.getCacheStats();
 
-    console.log(`✅ Enhanced Hybrid AI grading complete: ${hybridResults.totalScore.pointsEarned}/${hybridResults.totalScore.pointsPossible} (${hybridResults.totalScore.percentage}%)`);
+    console.log(`✅ Enhanced Hybrid AI grading complete with class-specific skills: ${hybridResults.totalScore.pointsEarned}/${hybridResults.totalScore.pointsPossible} (${hybridResults.totalScore.percentage}%)`);
     console.log(`💰 Cost efficiency: ${hybridResults.costAnalysis.processingBreakdown}`);
     console.log(`📋 Cache performance: ${cacheHitCount}/${locallyGradedCount} hits (${((cacheHitCount/locallyGradedCount)*100).toFixed(1)}%)`);
-    console.log(`🎯 Skill coverage: ${preClassifiedSkills.questionMappings.size}/${questions.length} questions (${((preClassifiedSkills.questionMappings.size/questions.length)*100).toFixed(1)}%)`);
+    console.log(`🎯 Class-specific skill coverage: ${preClassifiedSkills.questionMappings.size}/${questions.length} questions (${((preClassifiedSkills.questionMappings.size/questions.length)*100).toFixed(1)}%)`);
 
     return {
       hybridResults,
@@ -591,6 +590,7 @@ export class EnhancedLocalGradingService {
         cacheHitRate: locallyGradedCount > 0 ? (cacheHitCount / locallyGradedCount) * 100 : 0,
         skillMappingAvailable: true,
         aiSkillsIdentified: true,
+        classSpecificSkills: true,
         hybridProcessingComplete: true,
         cachingEnabled: true,
         skillPreClassificationUsed: true,
@@ -658,7 +658,7 @@ export class EnhancedLocalGradingService {
 
     if (skillMapped > 0) {
       const skillCoverage = ((skillMapped / total) * 100).toFixed(1);
-      feedback += `. Skill mappings: ${skillMapped}/${total} (${skillCoverage}%)`;
+      feedback += `. Class-specific skill mappings: ${skillMapped}/${total} (${skillCoverage}%)`;
     }
     
     if (multipleMarks > 0) {
@@ -720,6 +720,6 @@ export class EnhancedLocalGradingService {
   static generateHybridFeedback(hybridResults: any): string {
     const { HybridGradingResultsMerger } = require('./hybridGradingResultsMerger');
     return HybridGradingResultsMerger.generateHybridFeedback || 
-           `🤖🧠 Enhanced Hybrid AI grading completed: ${hybridResults.localResults?.length || 0} local + ${hybridResults.openAIResults?.length || 0} OpenAI processed with skill pre-classification`;
+           `🤖🧠 Enhanced Hybrid AI grading completed with class-specific skills: ${hybridResults.localResults?.length || 0} local + ${hybridResults.openAIResults?.length || 0} OpenAI processed`;
   }
 }
