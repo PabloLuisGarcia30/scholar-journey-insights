@@ -1,8 +1,8 @@
-
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { LearningStyleProgressBar } from "@/components/LearningStyleProgressBar";
 import { LearningStyleBySubject } from "@/components/LearningStyleBySubject";
 import { useStudentProfileData } from "@/hooks/useStudentProfileData";
@@ -126,23 +126,25 @@ export function LearnerProfileDisplay({ studentId, onBack }: LearnerProfileDispl
           </CardContent>
         </Card>
 
-        {/* Overall Learning Styles Grid - NOW WITH PROGRESS BARS */}
+        {/* Overall Learning Styles - NOW SCROLLABLE SINGLE COLUMN */}
         <Card className="mb-8">
           <CardHeader>
             <CardTitle>Overall Learning Style Profile</CardTitle>
             <p className="text-muted-foreground">General learning preferences across all subjects</p>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {learningStyles.map((style, index) => (
-                <LearningStyleProgressBar
-                  key={index}
-                  type={style.type}
-                  strength={style.strength}
-                  color={style.color}
-                />
-              ))}
-            </div>
+            <ScrollArea className="h-96 w-full">
+              <div className="space-y-4 pr-4">
+                {learningStyles.map((style, index) => (
+                  <LearningStyleProgressBar
+                    key={index}
+                    type={style.type}
+                    strength={style.strength}
+                    color={style.color}
+                  />
+                ))}
+              </div>
+            </ScrollArea>
           </CardContent>
         </Card>
 
