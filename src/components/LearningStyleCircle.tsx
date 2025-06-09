@@ -33,10 +33,10 @@ export function LearningStyleCircle({ type, strength, color }: LearningStyleCirc
   };
 
   const getIntensityColor = (strength: number) => {
-    if (strength >= 80) return "text-foreground font-semibold";
-    if (strength >= 70) return "text-foreground";
-    if (strength >= 60) return "text-muted-foreground";
-    if (strength >= 50) return "text-muted-foreground";
+    if (strength >= 80) return "text-primary font-semibold";
+    if (strength >= 70) return "text-primary font-medium";
+    if (strength >= 60) return "text-secondary-foreground font-medium";
+    if (strength >= 50) return "text-muted-foreground font-medium";
     return "text-muted-foreground";
   };
 
@@ -126,7 +126,7 @@ export function LearningStyleCircle({ type, strength, color }: LearningStyleCirc
         </div>
 
         {/* Learning Style Info */}
-        <h3 className="font-semibold text-foreground mb-1 text-sm leading-tight">
+        <h3 className="font-semibold text-card-foreground mb-1 text-sm leading-tight">
           {type}
         </h3>
         

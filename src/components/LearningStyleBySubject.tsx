@@ -100,7 +100,7 @@ export function LearningStyleBySubject({ studentName, enrolledClasses }: Learnin
                 {/* Subject Header */}
                 <div className="flex items-center justify-between">
                   <div>
-                    <h3 className="text-xl font-semibold text-foreground">{subject}</h3>
+                    <h3 className="text-xl font-semibold text-card-foreground">{subject}</h3>
                     <p className="text-sm text-muted-foreground">
                       {classes.map(c => `${c.name} (${c.grade})`).join(', ')}
                     </p>
@@ -110,7 +110,7 @@ export function LearningStyleBySubject({ studentName, enrolledClasses }: Learnin
                       className="w-3 h-3 rounded-full"
                       style={{ backgroundColor: dominantStyle.color }}
                     />
-                    <span className="text-sm font-medium">
+                    <span className="text-sm font-medium text-secondary-foreground">
                       {dominantStyle.type} ({dominantStyle.strength}%)
                     </span>
                   </div>
