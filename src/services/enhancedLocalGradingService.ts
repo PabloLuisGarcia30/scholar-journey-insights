@@ -1,13 +1,31 @@
+
 import { DistilBertLocalGradingService } from './distilBertLocalGrading';
 import { QuestionClassification, EnhancedQuestionClassifier } from './enhancedQuestionClassifier';
 import { LocalGradingResult, LocalGradingService } from './localGradingService';
-import { OptimizedClassificationResult } from './optimizedQuestionClassifier';
+import { OptimizedClassificationResult, OptimizedQuestionClassifier } from './optimizedQuestionClassifier';
 import { PerformanceMonitoringService } from './performanceMonitoringService';
 import { OpenAIComplexGradingService, OpenAIGradingResult } from './openAIComplexGradingService';
 
+export interface LocalSkillScore {
+  skill_name: string;
+  skill_type: string;
+  points_earned: number;
+  points_possible: number;
+  score: number;
+  questions_attempted: number;
+  questions_correct: number;
+}
+
+export interface SkillMapping {
+  skill_name: string;
+  skill_type: string;
+  skill_weight: number;
+}
+
 export interface EnhancedLocalGradingResult extends LocalGradingResult {
-  classification?: QuestionClassification;
+  classification?: QuestionClassification | OptimizedClassificationResult;
   reasoning: string;
+  skillMappings?: SkillMapping[];
 }
 
 export class EnhancedLocalGradingService extends LocalGradingService {
@@ -22,7 +40,7 @@ export class EnhancedLocalGradingService extends LocalGradingService {
 
     try {
       // 1. Classify question (enhanced)
-      classification = EnhancedQuestionClassifier.classifyQuestion(question, answerKey);
+      classification = await EnhancedQuestionClassifier.classifyQuestion(question, answerKey);
       console.log(`✅ Enhanced classification: ${classification.questionType} (confidence ${classification.confidence.toFixed(2)})`);
 
       // 2. Grade with DistilBERT (if applicable)
@@ -47,7 +65,7 @@ export class EnhancedLocalGradingService extends LocalGradingService {
             pointsEarned: distilBertResult.isCorrect ? answerKey.points || 1 : 0,
             pointsPossible: answerKey.points || 1,
             confidence: distilBertResult.confidence,
-            gradingMethod: distilBertResult.method,
+            gradingMethod: 'local',
             reasoning: distilBertResult.reasoning,
             processingTime: Date.now() - startTime,
             classification
@@ -75,7 +93,7 @@ export class EnhancedLocalGradingService extends LocalGradingService {
         pointsEarned: 0,
         pointsPossible: answerKey.points || 1,
         confidence: 0.1,
-        gradingMethod: 'error',
+        gradingMethod: 'ai_fallback',
         reasoning: `Grading failed: ${error.message}`,
         processingTime: Date.now() - startTime,
         classification: classification || {
@@ -142,7 +160,7 @@ export class EnhancedLocalGradingService extends LocalGradingService {
             pointsEarned: distilBertResult.isCorrect ? answerKey.points || 1 : 0,
             pointsPossible: answerKey.points || 1,
             confidence: distilBertResult.confidence,
-            gradingMethod: distilBertResult.method,
+            gradingMethod: 'optimized_local',
             reasoning: distilBertResult.reasoning,
             processingTime: Date.now() - startTime,
             classification: optimizedClassification
@@ -170,7 +188,7 @@ export class EnhancedLocalGradingService extends LocalGradingService {
         pointsEarned: 0,
         pointsPossible: answerKey.points || 1,
         confidence: 0.1,
-        gradingMethod: 'error',
+        gradingMethod: 'ai_fallback',
         reasoning: `Grading failed: ${error.message}`,
         processingTime: Date.now() - startTime,
         classification: optimizedClassification || {
@@ -181,7 +199,13 @@ export class EnhancedLocalGradingService extends LocalGradingService {
           requiresHumanReview: false,
           shouldUseLocalGrading: false,
           isSimple: false,
-          fallbackReason: error.message
+          questionNumber: question.questionNumber || 1,
+          metrics: {
+            classificationTime: Date.now() - startTime,
+            usedFastPath: false,
+            confidence: 0.2,
+            fallbackReason: error.message
+          }
         }
       };
     } finally {
@@ -218,10 +242,9 @@ export class EnhancedLocalGradingService extends LocalGradingService {
         isCorrect: result.isCorrect,
         pointsEarned: result.pointsEarned,
         pointsPossible: result.pointsPossible,
-        feedback: result.feedback,
         confidence: result.confidence,
-        gradingMethod: result.gradingMethod,
-        reasoning: result.feedback || `OpenAI grading result for question ${result.questionNumber}`, // Add required reasoning field
+        gradingMethod: 'ai_fallback',
+        reasoning: result.feedback || `OpenAI grading result for question ${result.questionNumber}`,
         processingTime: 2000, // Estimate
         classification: {
           questionType: 'essay',

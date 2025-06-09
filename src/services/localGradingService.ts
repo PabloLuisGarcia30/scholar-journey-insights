@@ -20,7 +20,7 @@ export class LocalGradingService {
     contextQuestions: any[]
   ): Promise<LocalGradingResult> {
     try {
-      const classification = EnhancedQuestionClassifier.classifyQuestion(question, answerKey);
+      const classification = await EnhancedQuestionClassifier.classifyQuestion(question, answerKey);
       
       if (classification.shouldUseLocalGrading && classification.isSimple) {
         return {
@@ -71,26 +71,26 @@ export class LocalGradingService {
     try {
       const classification = await OptimizedQuestionClassifier.classifyQuestionOptimized(question, answerKey);
       
-      console.log(`🎯 Optimized grading Q${classification.questionType || 'unknown'}: ${classification.detectionMethod}`);
+      console.log(`🎯 Optimized grading Q${classification.questionType || 'unknown'}: ${classification.metrics.fallbackReason || 'optimized'}`);
 
       if (classification.shouldUseLocalGrading && classification.isSimple) {
-        console.log(`✅ Using fast path for Q${classification.questionType || 'unknown'} (${classification.detectionMethod})`);
+        console.log(`✅ Using fast path for Q${classification.questionType || 'unknown'} (${classification.metrics.fallbackReason || 'optimized'})`);
         
         return {
-          questionNumber: question.questionNumber || 1,
+          questionNumber: classification.questionNumber,
           isCorrect: Math.random() > 0.2,
           pointsEarned: Math.random() > 0.2 ? 1 : 0,
           pointsPossible: 1,
           confidence: classification.confidence,
           gradingMethod: 'optimized_local',
-          reasoning: classification.fallbackReason || 'Optimized local grading',
+          reasoning: classification.metrics.fallbackReason || 'Optimized local grading',
           processingTime: 50,
           classification
         };
       }
 
       return {
-        questionNumber: question.questionNumber || 1,
+        questionNumber: classification.questionNumber,
         isCorrect: Math.random() > 0.5,
         pointsEarned: Math.random() > 0.5 ? 1 : 0,
         pointsPossible: 1,

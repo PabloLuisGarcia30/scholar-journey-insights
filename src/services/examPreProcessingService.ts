@@ -283,7 +283,7 @@ export class ExamPreProcessingService {
         }));
 
         const complexResults = await OpenAIComplexGradingService.preProcessCommonExamQuestions(complexQuestions);
-        openAIProcessed += complexResults.processed;
+        openAIProcessed += complexResults.processed.length;
         cacheHits += complexResults.cached;
         if (complexResults.errors.length > 0) {
           errors.push(`${complexResults.errors.length} OpenAI processing errors`);
