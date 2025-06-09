@@ -1,3 +1,4 @@
+
 import { supabase } from "@/integrations/supabase/client";
 import { PerformanceOptimizationService } from './performanceOptimizationService';
 import { OptimizedQuestionClassifier } from './optimizedQuestionClassifier';
@@ -92,6 +93,8 @@ export class EnhancedBatchGradingService {
   private static jobs = new Map<string, EnhancedBatchJob>();
   private static jobListeners = new Map<string, (job: EnhancedBatchJob) => void>();
   private static conservativeBatchOptimizer = new ConservativeBatchOptimizer();
+  private static enhancedBatchProcessor: EnhancedBatchProcessor;
+  private static skillAmbiguityResolver: SkillAmbiguityResolver;
   
   // Hybrid concurrency management - aggressive for local, conservative for OpenAI
   private static concurrencyConfig: ConcurrencyConfig = {
@@ -808,6 +811,16 @@ export class EnhancedBatchGradingService {
       };
     });
 
+    // Initialize resolver if not already done
+    if (!this.skillAmbiguityResolver) {
+      this.skillAmbiguityResolver = new SkillAmbiguityResolver({
+        maxSkillsPerQuestion: 2,
+        minSkillsRequired: 1,
+        ambiguityThreshold: 0.7,
+        escalationModel: 'gpt-4.1-2025-04-14'
+      });
+    }
+
     // Process skill ambiguity resolution
     const skillResults: SkillAmbiguityResult[] = await this.skillAmbiguityResolver.processQuestionSkills(skillQuestions);
 
@@ -1077,8 +1090,8 @@ export class EnhancedBatchGradingService {
     };
   } {
     return {
-      batchProcessor: this.enhancedBatchProcessor.config || {},
-      skillResolver: this.skillAmbiguityResolver.getConfiguration(),
+      batchProcessor: this.enhancedBatchProcessor?.config || {},
+      skillResolver: this.skillAmbiguityResolver?.getConfiguration() || {},
       enhancedFeatures: {
         crossQuestionLeakagePrevention: true,
         skillAmbiguityResolution: true,

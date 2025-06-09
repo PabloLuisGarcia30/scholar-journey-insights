@@ -1,3 +1,4 @@
+
 import { ComplexityAnalysis } from './shared/aiOptimizationShared';
 
 export interface SkillAwareBatchGroup {
@@ -17,6 +18,8 @@ export interface SkillAwareBatchGroup {
     skillAlignment: number;
     rubricConsistency: number;
     questionTypeCompatibility: number;
+    crossQuestionIsolation?: number;
+    skillAmbiguityScore?: number;
   };
 }
 
@@ -469,7 +472,13 @@ export class ConservativeBatchOptimizer {
     questions: any[], 
     answerKeys: any[], 
     skillMappings: any[]
-  ): { skillAlignment: number; rubricConsistency: number; questionTypeCompatibility: number } {
+  ): { 
+    skillAlignment: number; 
+    rubricConsistency: number; 
+    questionTypeCompatibility: number;
+    crossQuestionIsolation?: number;
+    skillAmbiguityScore?: number;
+  } {
     const allSkills = skillMappings.flat().map(s => s.skill_name);
     const uniqueSkills = new Set(allSkills);
     const skillAlignment = allSkills.length > 0 ? 1 - (uniqueSkills.size - 1) / allSkills.length : 1;
