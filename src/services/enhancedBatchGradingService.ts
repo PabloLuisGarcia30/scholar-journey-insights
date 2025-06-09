@@ -1,4 +1,5 @@
 
+
 import { supabase } from "@/integrations/supabase/client";
 import { PerformanceOptimizationService } from './performanceOptimizationService';
 import { OptimizedQuestionClassifier } from './optimizedQuestionClassifier';
@@ -1090,7 +1091,7 @@ export class EnhancedBatchGradingService {
     };
   } {
     return {
-      batchProcessor: this.enhancedBatchProcessor?.config || {},
+      batchProcessor: this.enhancedBatchProcessor?.getConfiguration() || {},
       skillResolver: this.skillAmbiguityResolver?.getConfiguration() || {},
       enhancedFeatures: {
         crossQuestionLeakagePrevention: true,
@@ -1100,3 +1101,4 @@ export class EnhancedBatchGradingService {
     };
   }
 }
+
