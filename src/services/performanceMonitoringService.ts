@@ -1,344 +1,382 @@
 
 export interface PerformanceMetric {
-  id: string;
   timestamp: number;
-  operation: 'file_upload' | 'ocr_processing' | 'ai_analysis' | 'full_pipeline';
+  operation: string;
   duration: number;
   success: boolean;
-  fileSize?: number;
-  fileName?: string;
-  errorMessage?: string;
   metadata?: Record<string, any>;
 }
 
 export interface SystemHealthMetrics {
-  averageProcessingTime: number;
-  successRate: number;
+  cpuUsage: number;
+  memoryUsage: number;
+  activeConnections: number;
+  queueDepth: number;
   errorRate: number;
-  throughput: number; // files per hour
-  peakUsageTime: string;
-  systemLoad: 'low' | 'medium' | 'high' | 'critical';
-  apiHealthStatus: {
-    googleVision: 'healthy' | 'degraded' | 'down';
-    roboflow: 'healthy' | 'degraded' | 'down';
-    openai: 'healthy' | 'degraded' | 'down';
-  };
+  throughput: number;
 }
 
 export interface PerformanceReport {
-  period: '1h' | '24h' | '7d' | '30d';
-  totalOperations: number;
+  timeRange: { start: number; end: number };
+  metrics: PerformanceMetric[];
+  aggregates: {
+    totalOperations: number;
+    successRate: number;
+    averageDuration: number;
+    peakThroughput: number;
+  };
+  systemHealth: SystemHealthMetrics;
+}
+
+export interface EnhancedBatchMetrics {
+  jobId: string;
+  totalQuestions: number;
+  successfulQuestions: number;
+  failedQuestions: number;
+  processingTimeMs: number;
   successRate: number;
-  averageProcessingTime: number;
-  topErrors: Array<{ error: string; count: number }>;
-  performanceTrends: Array<{ timestamp: number; value: number }>;
-  recommendations: string[];
+  avgBatchTime: number;
+  errorBreakdown?: Record<string, number>;
+  throughputQuestionsPerSecond?: number;
 }
 
 export class PerformanceMonitoringService {
   private static metrics: PerformanceMetric[] = [];
-  private static readonly MAX_METRICS = 10000; // Keep last 10k metrics
-  private static healthCheckInterval: number | null = null;
-
-  static startMonitoring(): void {
-    this.loadMetricsFromStorage();
-    
-    // Start health check interval
-    if (!this.healthCheckInterval) {
-      this.healthCheckInterval = window.setInterval(() => {
-        this.performHealthCheck();
-      }, 60000); // Every minute
-    }
-  }
-
-  static stopMonitoring(): void {
-    if (this.healthCheckInterval) {
-      clearInterval(this.healthCheckInterval);
-      this.healthCheckInterval = null;
-    }
-  }
-
-  static recordMetric(metric: Omit<PerformanceMetric, 'id' | 'timestamp'>): string {
-    const fullMetric: PerformanceMetric = {
-      id: `metric_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+  private static readonly MAX_METRICS = 10000;
+  
+  static recordMetric(operation: string, duration: number, success: boolean, metadata?: Record<string, any>): void {
+    const metric: PerformanceMetric = {
       timestamp: Date.now(),
-      ...metric
+      operation,
+      duration,
+      success,
+      metadata
     };
 
-    this.metrics.push(fullMetric);
+    this.metrics.push(metric);
     
-    // Cleanup old metrics
     if (this.metrics.length > this.MAX_METRICS) {
       this.metrics = this.metrics.slice(-this.MAX_METRICS);
     }
 
-    this.saveMetricsToStorage();
-    this.analyzePerformance(fullMetric);
-    
-    return fullMetric.id;
-  }
-
-  static async measureOperation<T>(
-    operation: PerformanceMetric['operation'],
-    fn: () => Promise<T>,
-    metadata?: Record<string, any>
-  ): Promise<T> {
-    const startTime = Date.now();
-    let success = false;
-    let errorMessage: string | undefined;
-
-    try {
-      const result = await fn();
-      success = true;
-      return result;
-    } catch (error) {
-      success = false;
-      errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      throw error;
-    } finally {
-      const duration = Date.now() - startTime;
-      
-      this.recordMetric({
-        operation,
-        duration,
-        success,
-        errorMessage,
-        metadata
-      });
+    // Enhanced logging for batch processing operations
+    if (operation.includes('batch')) {
+      console.log(`📊 Enhanced batch metric recorded: ${operation} - ${duration}ms - ${success ? '✅' : '❌'}`, metadata);
     }
   }
 
-  static getSystemHealth(): SystemHealthMetrics {
-    const recentMetrics = this.getMetricsForPeriod('1h');
+  static recordBatchProcessingMetrics(batchMetrics: EnhancedBatchMetrics): void {
+    const throughput = batchMetrics.totalQuestions / (batchMetrics.processingTimeMs / 1000);
     
-    if (recentMetrics.length === 0) {
-      return {
-        averageProcessingTime: 0,
-        successRate: 1,
-        errorRate: 0,
-        throughput: 0,
-        peakUsageTime: 'N/A',
-        systemLoad: 'low',
-        apiHealthStatus: {
-          googleVision: 'healthy',
-          roboflow: 'healthy',
-          openai: 'healthy'
+    this.recordMetric('enhanced_batch_processing', batchMetrics.processingTimeMs, true, {
+      jobId: batchMetrics.jobId,
+      totalQuestions: batchMetrics.totalQuestions,
+      successfulQuestions: batchMetrics.successfulQuestions,
+      failedQuestions: batchMetrics.failedQuestions,
+      successRate: batchMetrics.successRate,
+      avgBatchTime: batchMetrics.avgBatchTime,
+      throughputQuestionsPerSecond: throughput,
+      errorBreakdown: batchMetrics.errorBreakdown || {},
+      enhancedProcessing: true
+    });
+
+    // Record individual batch operation metrics for granular analysis
+    if (batchMetrics.avgBatchTime > 0) {
+      this.recordMetric('batch_operation', batchMetrics.avgBatchTime, batchMetrics.successRate > 0.5, {
+        jobId: batchMetrics.jobId,
+        batchEfficiency: batchMetrics.successRate,
+        parallelProcessing: true
+      });
+    }
+
+    // Log performance insights
+    console.log(`🎯 Enhanced batch processing metrics recorded:`, {
+      jobId: batchMetrics.jobId,
+      performance: {
+        totalQuestions: batchMetrics.totalQuestions,
+        successRate: `${(batchMetrics.successRate * 100).toFixed(1)}%`,
+        throughput: `${throughput.toFixed(1)} questions/second`,
+        avgBatchTime: `${batchMetrics.avgBatchTime.toFixed(0)}ms`,
+        efficiency: throughput > 2 ? 'High' : throughput > 1 ? 'Medium' : 'Low'
+      }
+    });
+  }
+
+  static recordFileProcessingMetrics(
+    operation: string,
+    fileCount: number,
+    processingTimeMs: number,
+    successCount: number,
+    errorBreakdown: Record<string, number> = {}
+  ): void {
+    const successRate = fileCount > 0 ? successCount / fileCount : 0;
+    const throughput = fileCount / (processingTimeMs / 1000);
+
+    this.recordMetric('enhanced_file_processing', processingTimeMs, successRate > 0.8, {
+      operation,
+      fileCount,
+      successCount,
+      failedCount: fileCount - successCount,
+      successRate,
+      throughputFilesPerSecond: throughput,
+      errorBreakdown,
+      enhancedProcessing: true
+    });
+
+    console.log(`📁 Enhanced file processing metrics recorded:`, {
+      operation,
+      performance: {
+        totalFiles: fileCount,
+        successfulFiles: successCount,
+        successRate: `${(successRate * 100).toFixed(1)}%`,
+        throughput: `${throughput.toFixed(1)} files/second`,
+        processingTime: `${(processingTimeMs / 1000).toFixed(1)}s`
+      },
+      errorAnalysis: errorBreakdown
+    });
+  }
+
+  static recordErrorRecoveryMetrics(
+    operation: string,
+    originalError: string,
+    recoveryAttempts: number,
+    recoverySuccess: boolean,
+    recoveryTimeMs: number
+  ): void {
+    this.recordMetric('error_recovery', recoveryTimeMs, recoverySuccess, {
+      operation,
+      originalError: originalError.substring(0, 100), // Truncate for storage
+      recoveryAttempts,
+      recoverySuccess,
+      enhancedErrorHandling: true
+    });
+
+    console.log(`🔧 Error recovery metrics recorded:`, {
+      operation,
+      originalError: originalError.substring(0, 50) + '...',
+      attempts: recoveryAttempts,
+      success: recoverySuccess,
+      recoveryTime: `${recoveryTimeMs}ms`
+    });
+  }
+
+  static getMetrics(timeRange?: { start: number; end: number }): PerformanceMetric[] {
+    let filteredMetrics = [...this.metrics];
+    
+    if (timeRange) {
+      filteredMetrics = filteredMetrics.filter(
+        metric => metric.timestamp >= timeRange.start && metric.timestamp <= timeRange.end
+      );
+    }
+    
+    return filteredMetrics.sort((a, b) => b.timestamp - a.timestamp);
+  }
+
+  static generateEnhancedPerformanceReport(timeRange?: { start: number; end: number }): PerformanceReport {
+    const metrics = this.getMetrics(timeRange);
+    const now = Date.now();
+    const reportTimeRange = timeRange || { 
+      start: now - 24 * 60 * 60 * 1000, // Last 24 hours
+      end: now 
+    };
+
+    // Enhanced aggregations with batch processing insights
+    const totalOperations = metrics.length;
+    const successfulOperations = metrics.filter(m => m.success).length;
+    const successRate = totalOperations > 0 ? successfulOperations / totalOperations : 0;
+    const averageDuration = totalOperations > 0 ? 
+      metrics.reduce((sum, m) => sum + m.duration, 0) / totalOperations : 0;
+
+    // Calculate enhanced throughput metrics
+    const batchMetrics = metrics.filter(m => m.operation.includes('batch'));
+    const peakThroughput = batchMetrics.length > 0 ? 
+      Math.max(...batchMetrics.map(m => m.metadata?.throughputQuestionsPerSecond || 0)) : 0;
+
+    // Enhanced system health calculation
+    const recentMetrics = metrics.filter(m => m.timestamp > now - 5 * 60 * 1000); // Last 5 minutes
+    const recentErrorRate = recentMetrics.length > 0 ? 
+      (recentMetrics.filter(m => !m.success).length / recentMetrics.length) : 0;
+
+    const systemHealth: SystemHealthMetrics = {
+      cpuUsage: Math.random() * 100, // Simulated - would connect to actual system monitoring
+      memoryUsage: Math.random() * 100,
+      activeConnections: recentMetrics.length,
+      queueDepth: metrics.filter(m => m.operation.includes('pending')).length,
+      errorRate: recentErrorRate,
+      throughput: peakThroughput
+    };
+
+    const report: PerformanceReport = {
+      timeRange: reportTimeRange,
+      metrics,
+      aggregates: {
+        totalOperations,
+        successRate,
+        averageDuration,
+        peakThroughput
+      },
+      systemHealth
+    };
+
+    // Log enhanced performance insights
+    console.log(`📈 Enhanced performance report generated:`, {
+      timeRange: {
+        start: new Date(reportTimeRange.start).toISOString(),
+        end: new Date(reportTimeRange.end).toISOString()
+      },
+      summary: {
+        totalOperations,
+        successRate: `${(successRate * 100).toFixed(1)}%`,
+        avgDuration: `${averageDuration.toFixed(0)}ms`,
+        peakThroughput: `${peakThroughput.toFixed(1)} items/second`,
+        systemHealth: {
+          errorRate: `${(recentErrorRate * 100).toFixed(1)}%`,
+          activeConnections: recentMetrics.length
         }
+      }
+    });
+
+    return report;
+  }
+
+  static getOperationMetrics(operation: string): {
+    count: number;
+    successRate: number;
+    averageDuration: number;
+    recentTrend: 'improving' | 'stable' | 'degrading';
+  } {
+    const operationMetrics = this.metrics.filter(m => m.operation === operation);
+    
+    if (operationMetrics.length === 0) {
+      return { count: 0, successRate: 0, averageDuration: 0, recentTrend: 'stable' };
+    }
+
+    const count = operationMetrics.length;
+    const successRate = operationMetrics.filter(m => m.success).length / count;
+    const averageDuration = operationMetrics.reduce((sum, m) => sum + m.duration, 0) / count;
+
+    // Calculate trend based on recent vs historical performance
+    const recentMetrics = operationMetrics.slice(-Math.min(10, Math.floor(count / 2)));
+    const historicalMetrics = operationMetrics.slice(0, -recentMetrics.length);
+    
+    let recentTrend: 'improving' | 'stable' | 'degrading' = 'stable';
+    
+    if (historicalMetrics.length > 0) {
+      const recentSuccessRate = recentMetrics.filter(m => m.success).length / recentMetrics.length;
+      const historicalSuccessRate = historicalMetrics.filter(m => m.success).length / historicalMetrics.length;
+      
+      const improvementThreshold = 0.05; // 5% threshold for trend detection
+      
+      if (recentSuccessRate > historicalSuccessRate + improvementThreshold) {
+        recentTrend = 'improving';
+      } else if (recentSuccessRate < historicalSuccessRate - improvementThreshold) {
+        recentTrend = 'degrading';
+      }
+    }
+
+    return { count, successRate, averageDuration, recentTrend };
+  }
+
+  static getBatchProcessingAnalytics(): {
+    totalBatches: number;
+    averageSuccessRate: number;
+    averageThroughput: number;
+    errorPatterns: Record<string, number>;
+    performanceTrends: {
+      throughputTrend: 'improving' | 'stable' | 'degrading';
+      errorRateTrend: 'improving' | 'stable' | 'degrading';
+    };
+  } {
+    const batchMetrics = this.metrics.filter(m => 
+      m.operation.includes('batch') && m.metadata?.enhancedProcessing
+    );
+
+    if (batchMetrics.length === 0) {
+      return {
+        totalBatches: 0,
+        averageSuccessRate: 0,
+        averageThroughput: 0,
+        errorPatterns: {},
+        performanceTrends: { throughputTrend: 'stable', errorRateTrend: 'stable' }
       };
     }
 
-    const successCount = recentMetrics.filter(m => m.success).length;
-    const successRate = successCount / recentMetrics.length;
-    const errorRate = 1 - successRate;
-    
-    const averageProcessingTime = recentMetrics.reduce((sum, m) => sum + m.duration, 0) / recentMetrics.length;
-    
-    const throughput = recentMetrics.length; // Simple throughput calculation
-    
-    // Determine system load
-    let systemLoad: SystemHealthMetrics['systemLoad'] = 'low';
-    if (averageProcessingTime > 30000) systemLoad = 'critical';
-    else if (averageProcessingTime > 15000) systemLoad = 'high';
-    else if (averageProcessingTime > 8000) systemLoad = 'medium';
+    const totalBatches = batchMetrics.length;
+    const averageSuccessRate = batchMetrics.reduce((sum, m) => sum + (m.metadata?.successRate || 0), 0) / totalBatches;
+    const averageThroughput = batchMetrics.reduce((sum, m) => sum + (m.metadata?.throughputQuestionsPerSecond || 0), 0) / totalBatches;
 
-    // Mock API health status (in real implementation, this would ping the APIs)
-    const apiHealthStatus = {
-      googleVision: successRate > 0.9 ? 'healthy' as const : successRate > 0.7 ? 'degraded' as const : 'down' as const,
-      roboflow: successRate > 0.9 ? 'healthy' as const : successRate > 0.7 ? 'degraded' as const : 'down' as const,
-      openai: successRate > 0.9 ? 'healthy' as const : successRate > 0.7 ? 'degraded' as const : 'down' as const
-    };
-
-    return {
-      averageProcessingTime,
-      successRate,
-      errorRate,
-      throughput,
-      peakUsageTime: this.calculatePeakUsageTime(recentMetrics),
-      systemLoad,
-      apiHealthStatus
-    };
-  }
-
-  static generatePerformanceReport(period: PerformanceReport['period']): PerformanceReport {
-    const metrics = this.getMetricsForPeriod(period);
-    
-    const totalOperations = metrics.length;
-    const successCount = metrics.filter(m => m.success).length;
-    const successRate = totalOperations > 0 ? successCount / totalOperations : 1;
-    
-    const averageProcessingTime = totalOperations > 0 
-      ? metrics.reduce((sum, m) => sum + m.duration, 0) / totalOperations 
-      : 0;
-
-    // Top errors
-    const errorCounts = new Map<string, number>();
-    metrics.filter(m => !m.success && m.errorMessage).forEach(m => {
-      const error = m.errorMessage!;
-      errorCounts.set(error, (errorCounts.get(error) || 0) + 1);
-    });
-    
-    const topErrors = Array.from(errorCounts.entries())
-      .map(([error, count]) => ({ error, count }))
-      .sort((a, b) => b.count - a.count)
-      .slice(0, 10);
-
-    // Performance trends (hourly averages)
-    const performanceTrends = this.calculatePerformanceTrends(metrics, period);
-
-    // Generate recommendations
-    const recommendations = this.generateRecommendations(metrics, successRate, averageProcessingTime);
-
-    return {
-      period,
-      totalOperations,
-      successRate,
-      averageProcessingTime,
-      topErrors,
-      performanceTrends,
-      recommendations
-    };
-  }
-
-  private static getMetricsForPeriod(period: PerformanceReport['period']): PerformanceMetric[] {
-    const now = Date.now();
-    let cutoffTime: number;
-
-    switch (period) {
-      case '1h': cutoffTime = now - (60 * 60 * 1000); break;
-      case '24h': cutoffTime = now - (24 * 60 * 60 * 1000); break;
-      case '7d': cutoffTime = now - (7 * 24 * 60 * 60 * 1000); break;
-      case '30d': cutoffTime = now - (30 * 24 * 60 * 60 * 1000); break;
-    }
-
-    return this.metrics.filter(m => m.timestamp >= cutoffTime);
-  }
-
-  private static calculatePeakUsageTime(metrics: PerformanceMetric[]): string {
-    const hourCounts = new Map<number, number>();
-    
-    metrics.forEach(m => {
-      const hour = new Date(m.timestamp).getHours();
-      hourCounts.set(hour, (hourCounts.get(hour) || 0) + 1);
+    // Aggregate error patterns
+    const errorPatterns: Record<string, number> = {};
+    batchMetrics.forEach(m => {
+      const errorBreakdown = m.metadata?.errorBreakdown || {};
+      Object.entries(errorBreakdown).forEach(([errorType, count]) => {
+        errorPatterns[errorType] = (errorPatterns[errorType] || 0) + (count as number);
+      });
     });
 
-    let peakHour = 0;
-    let maxCount = 0;
-    
-    hourCounts.forEach((count, hour) => {
-      if (count > maxCount) {
-        maxCount = count;
-        peakHour = hour;
+    // Calculate performance trends
+    const recentBatches = batchMetrics.slice(-Math.min(10, Math.floor(totalBatches / 2)));
+    const historicalBatches = batchMetrics.slice(0, -recentBatches.length);
+
+    let throughputTrend: 'improving' | 'stable' | 'degrading' = 'stable';
+    let errorRateTrend: 'improving' | 'stable' | 'degrading' = 'stable';
+
+    if (historicalBatches.length > 0) {
+      const recentAvgThroughput = recentBatches.reduce((sum, m) => sum + (m.metadata?.throughputQuestionsPerSecond || 0), 0) / recentBatches.length;
+      const historicalAvgThroughput = historicalBatches.reduce((sum, m) => sum + (m.metadata?.throughputQuestionsPerSecond || 0), 0) / historicalBatches.length;
+
+      const recentAvgErrorRate = 1 - (recentBatches.reduce((sum, m) => sum + (m.metadata?.successRate || 0), 0) / recentBatches.length);
+      const historicalAvgErrorRate = 1 - (historicalBatches.reduce((sum, m) => sum + (m.metadata?.successRate || 0), 0) / historicalBatches.length);
+
+      const improvementThreshold = 0.1; // 10% threshold
+
+      if (recentAvgThroughput > historicalAvgThroughput * (1 + improvementThreshold)) {
+        throughputTrend = 'improving';
+      } else if (recentAvgThroughput < historicalAvgThroughput * (1 - improvementThreshold)) {
+        throughputTrend = 'degrading';
       }
-    });
 
-    return `${peakHour}:00 - ${peakHour + 1}:00`;
-  }
-
-  private static calculatePerformanceTrends(metrics: PerformanceMetric[], period: PerformanceReport['period']): Array<{ timestamp: number; value: number }> {
-    const bucketSize = period === '1h' ? 5 * 60 * 1000 : // 5 minutes
-                      period === '24h' ? 60 * 60 * 1000 : // 1 hour
-                      period === '7d' ? 6 * 60 * 60 * 1000 : // 6 hours
-                      24 * 60 * 60 * 1000; // 1 day
-
-    const buckets = new Map<number, PerformanceMetric[]>();
-    
-    metrics.forEach(m => {
-      const bucketKey = Math.floor(m.timestamp / bucketSize) * bucketSize;
-      if (!buckets.has(bucketKey)) buckets.set(bucketKey, []);
-      buckets.get(bucketKey)!.push(m);
-    });
-
-    return Array.from(buckets.entries())
-      .map(([timestamp, bucketMetrics]) => ({
-        timestamp,
-        value: bucketMetrics.reduce((sum, m) => sum + m.duration, 0) / bucketMetrics.length
-      }))
-      .sort((a, b) => a.timestamp - b.timestamp);
-  }
-
-  private static generateRecommendations(metrics: PerformanceMetric[], successRate: number, avgTime: number): string[] {
-    const recommendations: string[] = [];
-
-    if (successRate < 0.8) {
-      recommendations.push('Success rate is below 80%. Consider implementing better error handling and retry mechanisms.');
-    }
-
-    if (avgTime > 15000) {
-      recommendations.push('Average processing time is high. Consider optimizing file compression and using parallel processing.');
-    }
-
-    const recentErrors = metrics.filter(m => !m.success && Date.now() - m.timestamp < 60 * 60 * 1000);
-    if (recentErrors.length > 10) {
-      recommendations.push('High error rate detected in the last hour. Check API status and network connectivity.');
-    }
-
-    const largeFiles = metrics.filter(m => m.fileSize && m.fileSize > 5 * 1024 * 1024);
-    if (largeFiles.length > metrics.length * 0.3) {
-      recommendations.push('Many large files detected. Consider implementing file size warnings and compression.');
-    }
-
-    if (recommendations.length === 0) {
-      recommendations.push('System is performing well. Continue monitoring for optimal performance.');
-    }
-
-    return recommendations;
-  }
-
-  private static analyzePerformance(metric: PerformanceMetric): void {
-    // Real-time performance analysis
-    if (!metric.success && metric.operation === 'ocr_processing') {
-      console.warn('OCR processing failed:', metric.errorMessage);
-    }
-
-    if (metric.duration > 30000) {
-      console.warn('Long processing time detected:', metric.duration, 'ms for', metric.operation);
-    }
-  }
-
-  private static async performHealthCheck(): Promise<void> {
-    const health = this.getSystemHealth();
-    
-    if (health.systemLoad === 'critical') {
-      console.error('System load is critical. Consider scaling resources.');
-    }
-
-    if (health.successRate < 0.5) {
-      console.error('Success rate is critically low:', health.successRate);
-    }
-  }
-
-  private static saveMetricsToStorage(): void {
-    try {
-      // Only save recent metrics to avoid storage bloat
-      const recentMetrics = this.metrics.slice(-1000);
-      localStorage.setItem('performanceMetrics', JSON.stringify(recentMetrics));
-    } catch (error) {
-      console.warn('Failed to save performance metrics:', error);
-    }
-  }
-
-  private static loadMetricsFromStorage(): void {
-    try {
-      const saved = localStorage.getItem('performanceMetrics');
-      if (saved) {
-        this.metrics = JSON.parse(saved);
+      if (recentAvgErrorRate < historicalAvgErrorRate * (1 - improvementThreshold)) {
+        errorRateTrend = 'improving';
+      } else if (recentAvgErrorRate > historicalAvgErrorRate * (1 + improvementThreshold)) {
+        errorRateTrend = 'degrading';
       }
-    } catch (error) {
-      console.warn('Failed to load performance metrics:', error);
-      this.metrics = [];
     }
-  }
 
-  static exportMetrics(): string {
-    return JSON.stringify({
-      exportDate: new Date().toISOString(),
-      metrics: this.metrics,
-      systemHealth: this.getSystemHealth()
-    }, null, 2);
+    const analytics = {
+      totalBatches,
+      averageSuccessRate,
+      averageThroughput,
+      errorPatterns,
+      performanceTrends: { throughputTrend, errorRateTrend }
+    };
+
+    console.log(`📊 Batch processing analytics:`, {
+      summary: {
+        totalBatches,
+        avgSuccessRate: `${(averageSuccessRate * 100).toFixed(1)}%`,
+        avgThroughput: `${averageThroughput.toFixed(1)} questions/second`
+      },
+      trends: {
+        throughput: throughputTrend,
+        errorRate: errorRateTrend
+      },
+      topErrors: Object.entries(errorPatterns).sort(([,a], [,b]) => b - a).slice(0, 3)
+    });
+
+    return analytics;
   }
 
   static clearMetrics(): void {
     this.metrics = [];
-    localStorage.removeItem('performanceMetrics');
+    console.log('🗑️ Performance metrics cleared');
+  }
+
+  static exportMetrics(): string {
+    return JSON.stringify({
+      exportedAt: new Date().toISOString(),
+      totalMetrics: this.metrics.length,
+      metrics: this.metrics
+    }, null, 2);
   }
 }
