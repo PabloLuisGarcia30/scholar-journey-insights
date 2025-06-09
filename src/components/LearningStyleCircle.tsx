@@ -40,8 +40,51 @@ export function LearningStyleCircle({ type, strength, color }: LearningStyleCirc
     return "text-red-600";
   };
 
-  // Create gradient ID unique to this component instance
-  const gradientId = `gradient-${type.replace(/\s+/g, '-').toLowerCase()}`;
+  const getGradientColors = (strength: number) => {
+    if (strength >= 80) {
+      // Very Strong: Vibrant green to emerald gradient
+      return {
+        color1: "#10b981", // emerald-500
+        color2: "#059669", // emerald-600
+        color3: "#047857"  // emerald-700
+      };
+    }
+    if (strength >= 70) {
+      // Strong: Blue to cyan gradient
+      return {
+        color1: "#3b82f6", // blue-500
+        color2: "#2563eb", // blue-600
+        color3: "#1d4ed8"  // blue-700
+      };
+    }
+    if (strength >= 60) {
+      // Moderate: Yellow to orange gradient
+      return {
+        color1: "#eab308", // yellow-500
+        color2: "#f59e0b", // amber-500
+        color3: "#d97706"  // amber-600
+      };
+    }
+    if (strength >= 50) {
+      // Developing: Orange to amber gradient
+      return {
+        color1: "#f97316", // orange-500
+        color2: "#ea580c", // orange-600
+        color3: "#dc2626"  // red-600
+      };
+    }
+    // Emerging: Red to pink gradient
+    return {
+      color1: "#ef4444", // red-500
+      color2: "#dc2626", // red-600
+      color3: "#b91c1c"  // red-700
+    };
+  };
+
+  // Create gradient ID unique to this component instance and intensity
+  const intensity = getIntensity(strength);
+  const gradientId = `gradient-${type.replace(/\s+/g, '-').toLowerCase()}-${intensity.toLowerCase()}`;
+  const gradientColors = getGradientColors(strength);
 
   return (
     <Card 
@@ -55,9 +98,9 @@ export function LearningStyleCircle({ type, strength, color }: LearningStyleCirc
           <svg className="w-20 h-20" viewBox="0 0 80 80">
             <defs>
               <linearGradient id={gradientId} x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" stopColor="#10b981" />
-                <stop offset="50%" stopColor="#3b82f6" />
-                <stop offset="100%" stopColor="#8b5cf6" />
+                <stop offset="0%" stopColor={gradientColors.color1} />
+                <stop offset="50%" stopColor={gradientColors.color2} />
+                <stop offset="100%" stopColor={gradientColors.color3} />
               </linearGradient>
             </defs>
             {/* Gradient-filled circle */}
