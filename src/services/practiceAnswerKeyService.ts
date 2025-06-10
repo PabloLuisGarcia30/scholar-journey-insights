@@ -32,8 +32,6 @@ export class PracticeAnswerKeyService {
     console.log(`🔍 Fetching answer keys for exercise: ${exerciseId}`);
     
     try {
-      const examId = `PRACTICE_${exerciseId}`;
-      
       const { data: answerKeys, error } = await supabase
         .from('answer_keys')
         .select('*')
@@ -60,7 +58,7 @@ export class PracticeAnswerKeyService {
         options: key.options,
         points: key.points,
         explanation: key.explanation || 'No explanation available.',
-        acceptableAnswers: key.acceptable_answers || []
+        acceptableAnswers: Array.isArray(key.acceptable_answers) ? key.acceptable_answers : []
       }));
 
       console.log(`✅ Retrieved ${formattedKeys.length} answer keys for exercise: ${exerciseId}`);

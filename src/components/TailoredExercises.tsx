@@ -1,9 +1,9 @@
+
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/components/ui/use-toast";
-import { useUser } from "@/context/UserContext";
 import { PracticeTestService, PracticeTestGenerationRequest } from "@/services/practiceTestService";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffect } from "react";
@@ -25,6 +25,7 @@ interface Exercise {
   skill_score: number;
   exercise_data: any;
   status: string;
+  score?: number;
 }
 
 export function TailoredExercises({ 
@@ -39,7 +40,6 @@ export function TailoredExercises({
   const [generatingSkill, setGeneratingSkill] = useState<string | null>(null);
   const [selectedExercise, setSelectedExercise] = useState<Exercise | null>(null);
   const { toast } = useToast();
-  const { user } = useUser();
   const [sessionId, setSessionId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -79,9 +79,9 @@ export function TailoredExercises({
         .insert({
           id: newSessionId,
           class_id: classData.id,
-          start_time: new Date().toISOString(),
-          end_time: null,
-          created_by: user?.id
+          started_at: new Date().toISOString(),
+          ended_at: null,
+          teacher_id: 'temp-teacher-id' // TODO: Replace with actual teacher ID when auth context is available
         });
 
       if (sessionError) {
@@ -97,7 +97,7 @@ export function TailoredExercises({
     };
 
     createSession();
-  }, [studentId, classData, toast, user, sessionId]);
+  }, [studentId, classData, toast, sessionId]);
 
   const handleGeneratePracticeTest = async (skillName: string, skillScore: number) => {
     if (!classData || isGenerating) return;
@@ -131,7 +131,7 @@ export function TailoredExercises({
           student_name: studentName,
           skill_name: skillName,
           skill_score: skillScore,
-          exercise_data: practiceTestData,
+          exercise_data: practiceTestData as any, // Cast to any to match Json type
           status: 'available'
         })
         .select()
