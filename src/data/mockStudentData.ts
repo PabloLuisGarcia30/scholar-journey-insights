@@ -1,4 +1,3 @@
-
 import { type SkillScore } from "@/services/examService";
 
 export const mockClassData = {
@@ -63,6 +62,43 @@ export const mockPabloContentSkillScores: SkillScore[] = [
   { id: 'mock-23', test_result_id: 'test-2', skill_name: 'Pattern Recognition', score: 92, points_earned: 18, points_possible: 20, created_at: '2024-02-15' },
   { id: 'mock-24', test_result_id: 'test-3', skill_name: 'Logical Reasoning', score: 80, points_earned: 19, points_possible: 24, created_at: '2024-03-05' },
   { id: 'mock-25', test_result_id: 'test-3', skill_name: 'Problem-Solving Strategies', score: 87, points_earned: 17, points_possible: 20, created_at: '2024-03-05' },
+];
+
+// NEW: Mock subject skill scores for Pablo Luis Garcia
+export const mockPabloSubjectSkillScores: SkillScore[] = [
+  // MATHEMATICAL REASONING
+  { id: 'mock-subj-1', test_result_id: 'test-1', skill_name: 'Problem-solving strategies', score: 88, points_earned: 22, points_possible: 25, created_at: '2024-01-15' },
+  { id: 'mock-subj-2', test_result_id: 'test-1', skill_name: 'Mathematical communication', score: 92, points_earned: 23, points_possible: 25, created_at: '2024-01-15' },
+  { id: 'mock-subj-3', test_result_id: 'test-2', skill_name: 'Logical reasoning', score: 85, points_earned: 17, points_possible: 20, created_at: '2024-02-15' },
+  { id: 'mock-subj-4', test_result_id: 'test-2', skill_name: 'Critical thinking', score: 90, points_earned: 18, points_possible: 20, created_at: '2024-02-15' },
+  
+  // COMPUTATIONAL FLUENCY
+  { id: 'mock-subj-5', test_result_id: 'test-1', skill_name: 'Mental math skills', score: 78, points_earned: 19, points_possible: 24, created_at: '2024-01-15' },
+  { id: 'mock-subj-6', test_result_id: 'test-2', skill_name: 'Calculator usage', score: 95, points_earned: 19, points_possible: 20, created_at: '2024-02-15' },
+  { id: 'mock-subj-7', test_result_id: 'test-3', skill_name: 'Estimation techniques', score: 82, points_earned: 20, points_possible: 24, created_at: '2024-03-05' },
+  
+  // MATHEMATICAL MODELING
+  { id: 'mock-subj-8', test_result_id: 'test-1', skill_name: 'Real-world applications', score: 89, points_earned: 21, points_possible: 24, created_at: '2024-01-15' },
+  { id: 'mock-subj-9', test_result_id: 'test-2', skill_name: 'Creating mathematical models', score: 87, points_earned: 17, points_possible: 20, created_at: '2024-02-15' },
+  { id: 'mock-subj-10', test_result_id: 'test-3', skill_name: 'Interpreting results', score: 91, points_earned: 22, points_possible: 24, created_at: '2024-03-05' },
+];
+
+// NEW: Mock Geography 11 subject skills for Pablo Luis Garcia
+export const mockPabloGeographySubjectSkillScores: SkillScore[] = [
+  // GEOGRAPHIC INQUIRY
+  { id: 'mock-geo-subj-1', test_result_id: 'geo-test-1', skill_name: 'Formulating geographic questions', score: 86, points_earned: 21, points_possible: 24, created_at: '2024-01-15' },
+  { id: 'mock-geo-subj-2', test_result_id: 'geo-test-2', skill_name: 'Analyzing geographic data', score: 90, points_earned: 18, points_possible: 20, created_at: '2024-02-15' },
+  { id: 'mock-geo-subj-3', test_result_id: 'geo-test-3', skill_name: 'Drawing geographic conclusions', score: 88, points_earned: 22, points_possible: 25, created_at: '2024-03-05' },
+  
+  // SPATIAL ANALYSIS
+  { id: 'mock-geo-subj-4', test_result_id: 'geo-test-1', skill_name: 'Reading maps and graphs', score: 92, points_earned: 23, points_possible: 25, created_at: '2024-01-15' },
+  { id: 'mock-geo-subj-5', test_result_id: 'geo-test-2', skill_name: 'Understanding scale and distance', score: 84, points_earned: 17, points_possible: 20, created_at: '2024-02-15' },
+  { id: 'mock-geo-subj-6', test_result_id: 'geo-test-3', skill_name: 'Spatial pattern recognition', score: 89, points_earned: 21, points_possible: 24, created_at: '2024-03-05' },
+  
+  // GEOGRAPHIC COMMUNICATION
+  { id: 'mock-geo-subj-7', test_result_id: 'geo-test-1', skill_name: 'Creating geographic presentations', score: 87, points_earned: 20, points_possible: 24, created_at: '2024-01-15' },
+  { id: 'mock-geo-subj-8', test_result_id: 'geo-test-2', skill_name: 'Using geographic terminology', score: 91, points_earned: 18, points_possible: 20, created_at: '2024-02-15' },
+  { id: 'mock-geo-subj-9', test_result_id: 'geo-test-3', skill_name: 'Defending geographic arguments', score: 85, points_earned: 17, points_possible: 20, created_at: '2024-03-05' },
 ];
 
 // NEW: Mock Geography 11 content skills for Pablo Luis Garcia

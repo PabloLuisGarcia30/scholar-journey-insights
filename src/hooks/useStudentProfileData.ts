@@ -16,7 +16,9 @@ import {
 } from "@/services/examService";
 import { 
   mockPabloContentSkillScores, 
+  mockPabloSubjectSkillScores,
   mockPabloGeographyContentSkillScores,
+  mockPabloGeographySubjectSkillScores,
   mockPabloGeographyTestResults 
 } from "@/data/mockStudentData";
 import { supabase } from "@/integrations/supabase/client";
@@ -165,15 +167,48 @@ export function useStudentProfileData({ studentId, classId, className }: UseStud
     staleTime: hasMockData() ? 24 * 60 * 60 * 1000 : 0, // 24 hours cache for mock data
   });
 
-  // Fetch subject skill scores
+  // Fetch subject skill scores with enhanced mock data support for Pablo
   const { data: subjectSkillScores = [], isLoading: subjectSkillsLoading } = useQuery({
-    queryKey: ['studentSubjectSkills', studentProfile?.id, studentId],
+    queryKey: ['studentSubjectSkills', studentProfile?.id, studentId, classId, classData?.subject, classData?.grade],
     queryFn: async () => {
+      console.log('Fetching subject skills for:', { 
+        studentName: student?.name, 
+        isPablo: isPabloLuisGarcia, 
+        isClassView, 
+        classId,
+        className,
+        classSubject: classData?.subject,
+        classGrade: classData?.grade,
+        studentProfileId: studentProfile?.id,
+        hasMockData: hasMockData()
+      });
+      
+      // Use mock data for Pablo Luis Garcia
+      if (isPabloLuisGarcia) {
+        if (classData) {
+          // Class-specific mock data
+          if (classData.subject === 'Geography' && classData.grade === 'Grade 11') {
+            console.log('Using mock Geography subject skills for Pablo Luis Garcia');
+            return Promise.resolve(mockPabloGeographySubjectSkillScores);
+          }
+          if (classData.subject === 'Math' && classData.grade === 'Grade 10') {
+            console.log('Using mock Math subject skills for Pablo Luis Garcia');
+            return Promise.resolve(mockPabloSubjectSkillScores);
+          }
+        } else {
+          // General profile view - use general mock data
+          console.log('Using general mock subject skills for Pablo Luis Garcia');
+          return Promise.resolve(mockPabloSubjectSkillScores);
+        }
+      }
+      
+      // Try student profile ID first, then fallback to active student ID
       const searchId = studentProfile?.id || studentId;
       console.log('📈 Fetching subject skills using ID:', searchId);
       return getStudentSubjectSkillScores(searchId);
     },
-    enabled: !!(studentProfile?.id || studentId),
+    enabled: !!student, // Wait for student data to load first
+    staleTime: hasMockData() ? 24 * 60 * 60 * 1000 : 0, // 24 hours cache for mock data
   });
 
   // Fetch content skills for the class to show complete skill set
