@@ -92,12 +92,13 @@ export const mockPabloGeographyContentSkillScores: SkillScore[] = [
   { id: 'mock-geo-16', test_result_id: 'geo-test-3', skill_name: 'Interpreting energy and water security data', score: 83, points_earned: 20, points_possible: 24, created_at: '2024-03-05' },
 ];
 
-// NEW: Mock test results for Pablo in Geography context
+// NEW: Mock test results for Pablo in Geography context - FIXED with class_id
 export const mockPabloGeographyTestResults = [
   {
     id: 'geo-test-result-1',
     student_id: 'pablo-student-id',
     exam_id: 'geo-exam-1',
+    class_id: 'geography-11-class-id',
     overall_score: 85.5,
     total_points_earned: 171,
     total_points_possible: 200,
@@ -109,6 +110,7 @@ export const mockPabloGeographyTestResults = [
     id: 'geo-test-result-2',
     student_id: 'pablo-student-id',
     exam_id: 'geo-exam-2',
+    class_id: 'geography-11-class-id',
     overall_score: 88.2,
     total_points_earned: 191,
     total_points_possible: 216,
@@ -120,6 +122,7 @@ export const mockPabloGeographyTestResults = [
     id: 'geo-test-result-3',
     student_id: 'pablo-student-id',
     exam_id: 'geo-exam-3',
+    class_id: 'geography-11-class-id',
     overall_score: 86.8,
     total_points_earned: 156,
     total_points_possible: 180,
