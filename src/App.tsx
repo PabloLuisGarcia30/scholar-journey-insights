@@ -136,6 +136,15 @@ function AppRoutes() {
           </ProtectedRoute>
         } 
       />
+
+      <Route 
+        path="/lesson-planner" 
+        element={
+          <ProtectedRoute requiredRole={DEV_CONFIG.DISABLE_AUTH_FOR_DEV ? undefined : "teacher"}>
+            <LessonPlanner />
+          </ProtectedRoute>
+        } 
+      />
       
       <Route path="*" element={<NotFound />} />
     </Routes>
