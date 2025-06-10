@@ -37,7 +37,7 @@ export function useStudentProfileData({ studentId, classId, className }: UseStud
     queryFn: () => getActiveStudentById(studentId),
   });
 
-  // 🆕 ENHANCED: Also fetch student profile to link active_students with student_profiles
+  // Fetch student profile to link active_students with student_profiles
   const { data: studentProfile, isLoading: studentProfileLoading } = useQuery({
     queryKey: ['studentProfile', student?.name],
     queryFn: async () => {
@@ -75,28 +75,25 @@ export function useStudentProfileData({ studentId, classId, className }: UseStud
     enabled: !!classId,
   });
 
-  // Helper function to check if this is a Grade 10 Math class
-  const isGrade10MathClass = () => {
-    return classData && classData.subject === 'Math' && classData.grade === 'Grade 10';
+  // Helper function to check if this class has mock data available
+  const hasMockData = () => {
+    if (!isPabloLuisGarcia || !classData) return false;
+    
+    // Check for specific mock data combinations
+    const isGrade10Math = classData.subject === 'Math' && classData.grade === 'Grade 10';
+    const isGrade10Science = classData.subject === 'Science' && classData.grade === 'Grade 10';
+    const isGrade11Geography = classData.subject === 'Geography' && classData.grade === 'Grade 11';
+    
+    return isGrade10Math || isGrade10Science || isGrade11Geography;
   };
 
-  // Helper function to check if this is a Grade 10 Science class
-  const isGrade10ScienceClass = () => {
-    return classData && classData.subject === 'Science' && classData.grade === 'Grade 10';
-  };
-
-  // Helper function to check if this is a Grade 11 Geography class
-  const isGrade11GeographyClass = () => {
-    return classData && classData.subject === 'Geography' && classData.grade === 'Grade 11';
-  };
-
-  // 🆕 ENHANCED: Fetch test results using student profile ID when available, with mock data support
+  // Fetch test results with mock data support for Pablo
   const { data: testResults = [], isLoading: testResultsLoading } = useQuery({
     queryKey: ['studentTestResults', studentProfile?.id, studentId, classId, classData?.subject, classData?.grade],
     queryFn: async () => {
-      // Use mock data for Pablo Luis Garcia in Geography Grade 11 context
-      if (isPabloLuisGarcia && isGrade11GeographyClass()) {
-        console.log('Using mock Geography test results for Pablo Luis Garcia in Grade 11 Geography');
+      // Use mock data for Pablo Luis Garcia in specific cases
+      if (isPabloLuisGarcia && classData?.subject === 'Geography' && classData?.grade === 'Grade 11') {
+        console.log('Using mock Geography test results for Pablo Luis Garcia');
         return Promise.resolve(mockPabloGeographyTestResults);
       }
 
@@ -121,7 +118,7 @@ export function useStudentProfileData({ studentId, classId, className }: UseStud
     enabled: !!(studentProfile?.id || studentId),
   });
 
-  // 🆕 ENHANCED: Fetch content skill scores using the correct student identifier, with Geography mock data
+  // Fetch content skill scores with mock data support for Pablo
   const { data: contentSkillScores = [], isLoading: contentSkillsLoading } = useQuery({
     queryKey: ['studentContentSkills', studentProfile?.id, studentId, classId, classData?.subject, classData?.grade],
     queryFn: async () => {
@@ -129,26 +126,24 @@ export function useStudentProfileData({ studentId, classId, className }: UseStud
         studentName: student?.name, 
         isPablo: isPabloLuisGarcia, 
         isClassView, 
-        isGrade10Math: isGrade10MathClass(),
-        isGrade10Science: isGrade10ScienceClass(),
-        isGrade11Geography: isGrade11GeographyClass(),
         classId,
         className,
         classSubject: classData?.subject,
         classGrade: classData?.grade,
-        studentProfileId: studentProfile?.id
+        studentProfileId: studentProfile?.id,
+        hasMockData: hasMockData()
       });
       
-      // Use mock Geography data for Pablo Luis Garcia in any Grade 11 Geography class context
-      if (isPabloLuisGarcia && isGrade11GeographyClass()) {
-        console.log('Using mock Geography data for Pablo Luis Garcia in Grade 11 Geography');
-        return Promise.resolve(mockPabloGeographyContentSkillScores);
-      }
-      
-      // Use mock Math data for Pablo Luis Garcia in any Grade 10 Math class context
-      if (isPabloLuisGarcia && isGrade10MathClass()) {
-        console.log('Using mock Math data for Pablo Luis Garcia in Grade 10 Math');
-        return Promise.resolve(mockPabloContentSkillScores);
+      // Use mock data for Pablo Luis Garcia where available
+      if (isPabloLuisGarcia && classData) {
+        if (classData.subject === 'Geography' && classData.grade === 'Grade 11') {
+          console.log('Using mock Geography data for Pablo Luis Garcia');
+          return Promise.resolve(mockPabloGeographyContentSkillScores);
+        }
+        if (classData.subject === 'Math' && classData.grade === 'Grade 10') {
+          console.log('Using mock Math data for Pablo Luis Garcia');
+          return Promise.resolve(mockPabloContentSkillScores);
+        }
       }
       
       // Try student profile ID first, then fallback to active student ID
@@ -156,12 +151,10 @@ export function useStudentProfileData({ studentId, classId, className }: UseStud
       return getStudentContentSkillScores(searchId);
     },
     enabled: !!student, // Wait for student data to load first
-    staleTime: isPabloLuisGarcia && (isGrade10MathClass() || isGrade11GeographyClass())
-      ? 24 * 60 * 60 * 1000 // 24 hours cache for Pablo's mock data
-      : 0, // No cache for regular data
+    staleTime: hasMockData() ? 24 * 60 * 60 * 1000 : 0, // 24 hours cache for mock data
   });
 
-  // 🆕 ENHANCED: Fetch subject skill scores using the correct student identifier
+  // Fetch subject skill scores
   const { data: subjectSkillScores = [], isLoading: subjectSkillsLoading } = useQuery({
     queryKey: ['studentSubjectSkills', studentProfile?.id, studentId],
     queryFn: async () => {
@@ -186,26 +179,42 @@ export function useStudentProfileData({ studentId, classId, className }: UseStud
     enabled: !!classId && isClassView,
   });
 
-  // Auto-link Grade 10 Math, Science, or Grade 11 Geography classes to their skills when class data loads
+  // Universal auto-linking: Link ANY class to skills based on subject/grade when class data loads
   useEffect(() => {
     const autoLinkSkills = async () => {
-      if ((isGrade10MathClass() || isGrade10ScienceClass() || isGrade11GeographyClass()) && classId) {
+      if (classData && classId && classData.subject && classData.grade) {
         try {
-          console.log(`Auto-linking ${classData?.grade} ${classData?.subject} class to ${classData?.grade} ${classData?.subject} skills`);
+          console.log(`Auto-linking ${classData.grade} ${classData.subject} class to skills`);
           
-          // Link Content-Specific Skills
-          const allContentSkills = await getContentSkillsBySubjectAndGrade(classData?.subject || '', classData?.grade || '');
-          const contentSkillIds = allContentSkills.map(skill => skill.id);
-          await linkClassToContentSkills(classId, contentSkillIds);
-          console.log(`Successfully linked class to ${contentSkillIds.length} ${classData?.grade} ${classData?.subject} content skills`);
+          // Try to link Content-Specific Skills
+          try {
+            const allContentSkills = await getContentSkillsBySubjectAndGrade(classData.subject, classData.grade);
+            if (allContentSkills.length > 0) {
+              const contentSkillIds = allContentSkills.map(skill => skill.id);
+              await linkClassToContentSkills(classId, contentSkillIds);
+              console.log(`Successfully linked class to ${contentSkillIds.length} ${classData.grade} ${classData.subject} content skills`);
+            } else {
+              console.log(`No content skills found for ${classData.grade} ${classData.subject} - will work when skills are added`);
+            }
+          } catch (error) {
+            console.log(`Content skills not available yet for ${classData.grade} ${classData.subject}:`, error);
+          }
           
-          // Link Subject-Specific Skills
-          const allSubjectSkills = await getSubjectSkillsBySubjectAndGrade(classData?.subject || '', classData?.grade || '');
-          const subjectSkillIds = allSubjectSkills.map(skill => skill.id);
-          await linkClassToSubjectSkills(classId, subjectSkillIds);
-          console.log(`Successfully linked class to ${subjectSkillIds.length} ${classData?.grade} ${classData?.subject} subject skills`);
+          // Try to link Subject-Specific Skills
+          try {
+            const allSubjectSkills = await getSubjectSkillsBySubjectAndGrade(classData.subject, classData.grade);
+            if (allSubjectSkills.length > 0) {
+              const subjectSkillIds = allSubjectSkills.map(skill => skill.id);
+              await linkClassToSubjectSkills(classId, subjectSkillIds);
+              console.log(`Successfully linked class to ${subjectSkillIds.length} ${classData.grade} ${classData.subject} subject skills`);
+            } else {
+              console.log(`No subject skills found for ${classData.grade} ${classData.subject} - will work when skills are added`);
+            }
+          } catch (error) {
+            console.log(`Subject skills not available yet for ${classData.grade} ${classData.subject}:`, error);
+          }
           
-          // Trigger refetch of both skill types
+          // Trigger refetch of both skill types to show any newly linked skills
           if (classContentSkillsRefetch) {
             classContentSkillsRefetch();
           }
@@ -213,7 +222,7 @@ export function useStudentProfileData({ studentId, classId, className }: UseStud
             classSubjectSkillsRefetch();
           }
         } catch (error) {
-          console.error(`Failed to auto-link ${classData?.grade} ${classData?.subject} skills:`, error);
+          console.error(`Failed to auto-link ${classData.grade} ${classData.subject} skills:`, error);
         }
       }
     };
@@ -223,7 +232,7 @@ export function useStudentProfileData({ studentId, classId, className }: UseStud
     }
   }, [classData, classId]);
 
-  // 🆕 NEW: Fetch enrolled classes for the student
+  // Fetch enrolled classes for the student
   const { data: enrolledClasses = [], isLoading: enrolledClassesLoading } = useQuery({
     queryKey: ['studentEnrolledClasses', studentId],
     queryFn: () => getStudentEnrolledClasses(studentId),
@@ -240,8 +249,11 @@ export function useStudentProfileData({ studentId, classId, className }: UseStud
     enrolledClassesCount: enrolledClasses.length,
     classId,
     className,
-    isGrade11Geography: isGrade11GeographyClass(),
-    usingMockData: isPabloLuisGarcia && (isGrade10MathClass() || isGrade11GeographyClass())
+    classSubject: classData?.subject,
+    classGrade: classData?.grade,
+    classContentSkillsCount: classContentSkills.length,
+    classSubjectSkillsCount: classSubjectSkills.length,
+    usingMockData: hasMockData()
   });
 
   return {
@@ -264,8 +276,6 @@ export function useStudentProfileData({ studentId, classId, className }: UseStud
     enrolledClassesLoading,
     isPabloLuisGarcia,
     isClassView,
-    isGrade10MathClass,
-    isGrade10ScienceClass,
-    isGrade11GeographyClass
+    hasMockData
   };
 }

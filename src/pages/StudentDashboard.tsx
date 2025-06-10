@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Bell, BookOpen, TrendingUp, User, Calendar, Clock, Users, GraduationCap, Target, Play } from "lucide-react";
+import { Bell, BookOpen, TrendingUp, User, Calendar, Clock, Users, GraduationCap, Target, Play, CheckCircle, AlertCircle } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { DevRoleToggle } from "@/components/DevRoleToggle";
 import { useDevRole } from "@/contexts/DevRoleContext";
@@ -30,6 +30,7 @@ export default function StudentDashboard() {
   const [practiceDialogOpen, setPracticeDialogOpen] = useState(false);
   const [showStudentProfile, setShowStudentProfile] = useState(false);
   const [selectedClassForProfile, setSelectedClassForProfile] = useState<{classId: string, className: string} | null>(null);
+  const [classSkillCounts, setClassSkillCounts] = useState<{[classId: string]: number}>({});
   
   const [notifications] = useState([
     {
@@ -97,12 +98,26 @@ export default function StudentDashboard() {
       setLoadingClasses(true);
       const classesData = await getAllActiveClasses();
       
-      // Filter classes that include this student (Pablo's ID)
+      // Filter classes that include this student
       const studentClasses = classesData.filter(cls => 
         cls.students.includes(profile?.id || '')
       );
       
       setClasses(studentClasses);
+      
+      // Load skill counts for each class
+      const skillCounts: {[classId: string]: number} = {};
+      for (const cls of studentClasses) {
+        try {
+          const classSkills = await getLinkedContentSkillsForClass(cls.id);
+          skillCounts[cls.id] = classSkills.length;
+        } catch (error) {
+          console.log(`No skills linked yet for class ${cls.name}`);
+          skillCounts[cls.id] = 0;
+        }
+      }
+      setClassSkillCounts(skillCounts);
+      
     } catch (error) {
       console.error('Error loading classes:', error);
       toast.error('Failed to load classes');
@@ -123,6 +138,12 @@ export default function StudentDashboard() {
       // Get all content skills linked to this class
       const classSkills = await getLinkedContentSkillsForClass(classId);
       console.log('Class content skills:', classSkills);
+      
+      if (classSkills.length === 0) {
+        console.log('No skills linked to this class yet - skills coming soon');
+        setContentSkills([]);
+        return;
+      }
       
       // Merge and find lowest scores
       const mergedSkills = classSkills.map(classSkill => {
@@ -233,6 +254,23 @@ export default function StudentDashboard() {
     return 'text-red-600';
   };
 
+  const getSkillStatusInfo = (classId: string) => {
+    const skillCount = classSkillCounts[classId] || 0;
+    if (skillCount > 0) {
+      return {
+        icon: CheckCircle,
+        text: `${skillCount} skills available`,
+        color: 'text-green-600 bg-green-50'
+      };
+    } else {
+      return {
+        icon: AlertCircle,
+        text: 'Skills coming soon',
+        color: 'text-orange-600 bg-orange-50'
+      };
+    }
+  };
+
   const selectedClassData = selectedClass ? classes.find(cls => cls.id === selectedClass) : null;
 
   return (
@@ -317,7 +355,7 @@ export default function StudentDashboard() {
           </Card>
         </div>
 
-        {/* Your Classes Section */}
+        {/* Your Classes Section with Enhanced Skill Display */}
         <div className="mb-8">
           <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-sm">
             <CardHeader>
@@ -334,40 +372,51 @@ export default function StudentDashboard() {
                 </div>
               ) : classes.length > 0 ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {classes.map((cls) => (
-                    <div
-                      key={cls.id}
-                      className={`relative p-6 rounded-xl border-2 transition-all duration-200 cursor-pointer hover:shadow-lg ${
-                        selectedClass === cls.id
-                          ? 'border-blue-500 bg-blue-50/50 shadow-md'
-                          : 'border-gray-200 bg-white hover:border-gray-300'
-                      }`}
-                      onClick={() => handleClassSelect(cls.id)}
-                    >
-                      <div className="flex items-start justify-between mb-4">
-                        <div className={`w-12 h-12 rounded-lg ${getSubjectColor(cls.subject)} flex items-center justify-center`}>
-                          <BookOpen className="h-6 w-6 text-white" />
+                  {classes.map((cls) => {
+                    const skillStatus = getSkillStatusInfo(cls.id);
+                    const SkillIcon = skillStatus.icon;
+                    
+                    return (
+                      <div
+                        key={cls.id}
+                        className={`relative p-6 rounded-xl border-2 transition-all duration-200 cursor-pointer hover:shadow-lg ${
+                          selectedClass === cls.id
+                            ? 'border-blue-500 bg-blue-50/50 shadow-md'
+                            : 'border-gray-200 bg-white hover:border-gray-300'
+                        }`}
+                        onClick={() => handleClassSelect(cls.id)}
+                      >
+                        <div className="flex items-start justify-between mb-4">
+                          <div className={`w-12 h-12 rounded-lg ${getSubjectColor(cls.subject)} flex items-center justify-center`}>
+                            <BookOpen className="h-6 w-6 text-white" />
+                          </div>
+                          <Badge variant="outline" className="text-xs">
+                            {cls.grade}
+                          </Badge>
                         </div>
-                        <Badge variant="outline" className="text-xs">
-                          {cls.grade}
-                        </Badge>
+                        
+                        <h3 className="font-semibold text-slate-900 mb-2">{cls.name}</h3>
+                        <p className="text-sm text-slate-600 mb-3">{cls.subject}</p>
+                        
+                        {/* Skill Status Display */}
+                        <div className={`flex items-center gap-2 mb-3 px-2 py-1 rounded-md ${skillStatus.color}`}>
+                          <SkillIcon className="h-4 w-4" />
+                          <span className="text-xs font-medium">{skillStatus.text}</span>
+                        </div>
+                        
+                        <div className="flex items-center justify-between text-sm">
+                          <div className="flex items-center gap-1 text-slate-500">
+                            <Users className="h-4 w-4" />
+                            <span>{cls.student_count} students</span>
+                          </div>
+                          <div className="flex items-center gap-1 text-slate-500">
+                            <User className="h-4 w-4" />
+                            <span>{cls.teacher}</span>
+                          </div>
+                        </div>
                       </div>
-                      
-                      <h3 className="font-semibold text-slate-900 mb-2">{cls.name}</h3>
-                      <p className="text-sm text-slate-600 mb-3">{cls.subject}</p>
-                      
-                      <div className="flex items-center justify-between text-sm">
-                        <div className="flex items-center gap-1 text-slate-500">
-                          <Users className="h-4 w-4" />
-                          <span>{cls.student_count} students</span>
-                        </div>
-                        <div className="flex items-center gap-1 text-slate-500">
-                          <User className="h-4 w-4" />
-                          <span>{cls.teacher}</span>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               ) : (
                 <div className="text-center py-8">
@@ -380,7 +429,7 @@ export default function StudentDashboard() {
           </Card>
         </div>
 
-        {/* Selected Class Skills Section */}
+        {/* Selected Class Skills Section with Enhanced Empty State */}
         {selectedClass && selectedClassData && (
           <div className="mb-8">
             <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-sm">
@@ -407,6 +456,7 @@ export default function StudentDashboard() {
                     <Button 
                       onClick={handlePractice}
                       className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-6 py-2 rounded-lg shadow-md transition-all duration-200 flex items-center gap-2"
+                      disabled={contentSkills.length === 0}
                     >
                       <Play className="h-4 w-4" />
                       Let's Practice!
@@ -448,9 +498,14 @@ export default function StudentDashboard() {
                   </div>
                 ) : (
                   <div className="text-center py-8">
-                    <Target className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                    <h3 className="text-lg font-medium text-gray-900 mb-2">No skill data available</h3>
-                    <p className="text-gray-600">Complete some assignments to see your skill progress!</p>
+                    <AlertCircle className="h-12 w-12 text-orange-400 mx-auto mb-4" />
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">Skills coming soon!</h3>
+                    <p className="text-gray-600 mb-2">
+                      Your teacher is setting up the skills for {selectedClassData.subject} {selectedClassData.grade}.
+                    </p>
+                    <p className="text-sm text-gray-500">
+                      Once skills are added, you'll see personalized practice recommendations here.
+                    </p>
                   </div>
                 )}
               </CardContent>
