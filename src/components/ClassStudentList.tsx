@@ -26,8 +26,8 @@ interface StudentCardProps {
 function WeakestSkillCircle({ skillName, score, isTargetSkill = false }: { skillName: string; score: number; isTargetSkill?: boolean }) {
   const [isHovered, setIsHovered] = useState(false);
   
-  // Truncate skill name to 20 characters max
-  const truncatedSkillName = skillName.length > 20 ? skillName.substring(0, 20) + "..." : skillName;
+  // Truncate skill name to 15 characters max for tighter layout
+  const truncatedSkillName = skillName.length > 15 ? skillName.substring(0, 15) + "..." : skillName;
   
   const getGradientColors = (score: number) => {
     // Treat score as already being a percentage (0-100)
@@ -71,14 +71,14 @@ function WeakestSkillCircle({ skillName, score, isTargetSkill = false }: { skill
   const gradientId = `gradient-skill-${Math.random().toString(36).substr(2, 9)}`;
 
   return (
-    <div className="flex flex-col items-center w-32">
+    <div className="flex flex-col items-center w-24">
       <div 
-        className="relative w-16 h-16 mb-2 flex-shrink-0"
+        className="relative w-12 h-12 mb-1 flex-shrink-0"
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
         title={skillName} // Show full skill name on hover
       >
-        <svg className="w-16 h-16" viewBox="0 0 64 64">
+        <svg className="w-12 h-12" viewBox="0 0 48 48">
           <defs>
             <linearGradient id={gradientId} x1="0%" y1="0%" x2="100%" y2="100%">
               <stop offset="0%" stopColor={gradientColors.color1} />
@@ -87,9 +87,9 @@ function WeakestSkillCircle({ skillName, score, isTargetSkill = false }: { skill
             </linearGradient>
           </defs>
           <circle
-            cx="32"
-            cy="32"
-            r="26"
+            cx="24"
+            cy="24"
+            r="20"
             fill={`url(#${gradientId})`}
             style={{ 
               filter: isHovered ? 'brightness(1.1)' : 'brightness(1)',
@@ -102,23 +102,23 @@ function WeakestSkillCircle({ skillName, score, isTargetSkill = false }: { skill
         
         {/* Percentage in center */}
         <div className="absolute inset-0 flex items-center justify-center">
-          <span className="text-sm font-bold text-white drop-shadow-sm">
+          <span className="text-xs font-bold text-white drop-shadow-sm">
             {Math.round(score)}%
           </span>
         </div>
       </div>
 
       {/* Skill name and context - fixed height container */}
-      <div className="text-center w-full h-12 flex flex-col justify-start">
-        <div className="flex items-center gap-1 justify-center mb-1">
+      <div className="text-center w-full h-10 flex flex-col justify-start">
+        <div className="flex items-center gap-1 justify-center mb-0.5">
           {isTargetSkill ? (
             <>
-              <Target className="h-3 w-3 text-blue-600 flex-shrink-0" />
+              <Target className="h-2.5 w-2.5 text-blue-600 flex-shrink-0" />
               <span className="text-xs font-medium text-blue-700">Target</span>
             </>
           ) : (
             <>
-              <TrendingDown className="h-3 w-3 text-orange-600 flex-shrink-0" />
+              <TrendingDown className="h-2.5 w-2.5 text-orange-600 flex-shrink-0" />
               <span className="text-xs font-medium text-orange-700">Weakest</span>
             </>
           )}
@@ -146,10 +146,10 @@ function StudentCard({ student, classId, className, onEdit, targetSkill }: Stude
   const isTargetSkill = Boolean(targetSkill);
 
   return (
-    <Card className="group hover:shadow-lg transition-all duration-300 cursor-pointer border-0 bg-white/80 backdrop-blur-sm hover:bg-white hover:scale-[1.01] w-full max-w-4xl">
+    <Card className="group hover:shadow-lg transition-all duration-300 cursor-pointer border-0 bg-white/80 backdrop-blur-sm hover:bg-white hover:scale-[1.01] w-full max-w-2xl">
       <CardContent className="p-3">
-        {/* Grid Layout: Avatar | Student Info | Edit Button | Skill Circle */}
-        <div className="grid grid-cols-[auto_1fr_auto_132px] gap-3 items-start">
+        {/* Grid Layout: Avatar | Student Info | Edit Button | Skill Circle with 0.2 inch spacing */}
+        <div className="grid grid-cols-[auto_1fr_auto_96px] gap-4 items-start">
           
           {/* Avatar Column */}
           <div className="flex justify-center pt-1">
@@ -202,7 +202,7 @@ function StudentCard({ student, classId, className, onEdit, targetSkill }: Stude
           {/* Skill Circle Column - Fixed width for perfect alignment */}
           <div className="flex justify-center items-start">
             {contentSkillsLoading ? (
-              <div className="w-32 flex justify-center items-center h-20">
+              <div className="w-24 flex justify-center items-center h-16">
                 <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
               </div>
             ) : skillToDisplay ? (
@@ -212,11 +212,11 @@ function StudentCard({ student, classId, className, onEdit, targetSkill }: Stude
                 isTargetSkill={isTargetSkill}
               />
             ) : (
-              <div className="flex flex-col items-center w-32">
-                <div className="w-16 h-16 bg-gradient-to-br from-slate-100 to-slate-200 rounded-full flex items-center justify-center mb-2">
-                  <span className="text-sm font-bold text-slate-500">?</span>
+              <div className="flex flex-col items-center w-24">
+                <div className="w-12 h-12 bg-gradient-to-br from-slate-100 to-slate-200 rounded-full flex items-center justify-center mb-1">
+                  <span className="text-xs font-bold text-slate-500">?</span>
                 </div>
-                <div className="h-12 flex items-start justify-center">
+                <div className="h-10 flex items-start justify-center">
                   <p className="text-xs text-slate-500 font-medium text-center">
                     No data
                   </p>
@@ -325,7 +325,7 @@ export function ClassStudentList({ classId, className, onSelectStudent }: ClassS
         </div>
       </div>
 
-      <div className="space-y-2 max-w-4xl">
+      <div className="space-y-2 max-w-2xl">
         {classStudents.map((student) => (
           <StudentCard 
             key={student.id}
