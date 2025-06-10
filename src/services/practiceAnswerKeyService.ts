@@ -73,7 +73,7 @@ export class PracticeAnswerKeyService {
     return {
       id: data.id,
       exercise_id: data.exercise_id,
-      questions: data.questions as PracticeAnswerKeyQuestion[],
+      questions: data.questions as unknown as PracticeAnswerKeyQuestion[],
       metadata: data.metadata as any,
       created_at: data.created_at,
       updated_at: data.updated_at
