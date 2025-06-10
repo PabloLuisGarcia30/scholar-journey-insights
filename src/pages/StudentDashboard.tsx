@@ -16,6 +16,7 @@ import {
 } from "@/services/examService";
 import { toast } from "sonner";
 import { SkillPracticeDialog } from "@/components/SkillPracticeDialog";
+import { StudentProfile } from "@/components/StudentProfile";
 
 export default function StudentDashboard() {
   const { profile, signOut } = useAuth();
@@ -27,6 +28,8 @@ export default function StudentDashboard() {
   const [contentSkills, setContentSkills] = useState<any[]>([]);
   const [loadingSkills, setLoadingSkills] = useState(false);
   const [practiceDialogOpen, setPracticeDialogOpen] = useState(false);
+  const [showStudentProfile, setShowStudentProfile] = useState(false);
+  const [selectedClassForProfile, setSelectedClassForProfile] = useState<{classId: string, className: string} | null>(null);
   
   const [notifications] = useState([
     {
@@ -160,10 +163,39 @@ export default function StudentDashboard() {
     }
   };
 
+  const handleViewProfile = () => {
+    if (selectedClassData && profile?.id) {
+      setSelectedClassForProfile({
+        classId: selectedClassData.id,
+        className: selectedClassData.name
+      });
+      setShowStudentProfile(true);
+    } else {
+      toast.info("Please select a class first.");
+    }
+  };
+
+  const handleBackFromProfile = () => {
+    setShowStudentProfile(false);
+    setSelectedClassForProfile(null);
+  };
+
   // CONDITIONAL LOGIC AND EARLY RETURNS MUST COME AFTER ALL HOOKS
   // If in teacher view, redirect to main dashboard
   if (currentRole === 'teacher') {
     return <Navigate to="/" replace />;
+  }
+
+  // Show StudentProfile if requested
+  if (showStudentProfile && profile?.id && selectedClassForProfile) {
+    return (
+      <StudentProfile
+        studentId={profile.id}
+        classId={selectedClassForProfile.classId}
+        className={selectedClassForProfile.className}
+        onBack={handleBackFromProfile}
+      />
+    );
   }
 
   const formatDate = (dateString: string) => {
@@ -190,6 +222,7 @@ export default function StudentDashboard() {
       case 'science': return 'bg-green-500';
       case 'english': return 'bg-purple-500';
       case 'history': return 'bg-orange-500';
+      case 'geography': return 'bg-teal-500';
       default: return 'bg-gray-500';
     }
   };
@@ -362,13 +395,23 @@ export default function StudentDashboard() {
                       Focus areas for {selectedClassData.name} - {selectedClassData.subject}
                     </p>
                   </div>
-                  <Button 
-                    onClick={handlePractice}
-                    className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-6 py-2 rounded-lg shadow-md transition-all duration-200 flex items-center gap-2"
-                  >
-                    <Play className="h-4 w-4" />
-                    Let's Practice!
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button 
+                      onClick={handleViewProfile}
+                      variant="outline"
+                      className="font-semibold px-4 py-2 rounded-lg transition-all duration-200 flex items-center gap-2"
+                    >
+                      <User className="h-4 w-4" />
+                      View Profile
+                    </Button>
+                    <Button 
+                      onClick={handlePractice}
+                      className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-6 py-2 rounded-lg shadow-md transition-all duration-200 flex items-center gap-2"
+                    >
+                      <Play className="h-4 w-4" />
+                      Let's Practice!
+                    </Button>
+                  </div>
                 </div>
               </CardHeader>
               <CardContent>
