@@ -1,4 +1,3 @@
-
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,6 +14,8 @@ import { useStudentProfileData } from "@/hooks/useStudentProfileData";
 
 interface LearnerProfileDisplayProps {
   studentId: string;
+  classId?: string;
+  className?: string;
   onBack: () => void;
 }
 
@@ -44,7 +45,7 @@ const getLearningStyles = (studentName: string) => {
   return profiles[studentName as keyof typeof profiles] || profiles.default;
 };
 
-export function LearnerProfileDisplay({ studentId, onBack }: LearnerProfileDisplayProps) {
+export function LearnerProfileDisplay({ studentId, classId, className, onBack }: LearnerProfileDisplayProps) {
   const {
     student,
     studentLoading,
@@ -56,7 +57,7 @@ export function LearnerProfileDisplay({ studentId, onBack }: LearnerProfileDispl
     subjectSkillsLoading,
     enrolledClasses,
     isClassView
-  } = useStudentProfileData({ studentId });
+  } = useStudentProfileData({ studentId, classId, className });
 
   if (studentLoading) {
     return (
@@ -119,6 +120,11 @@ export function LearnerProfileDisplay({ studentId, onBack }: LearnerProfileDispl
                     {student.major && (
                       <span className="px-2 py-1 bg-secondary text-secondary-foreground rounded-full text-sm">
                         {student.major}
+                      </span>
+                    )}
+                    {className && (
+                      <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-sm">
+                        {className}
                       </span>
                     )}
                   </div>

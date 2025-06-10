@@ -58,6 +58,8 @@ const Index = () => {
       return (
         <LearnerProfileDisplay 
           studentId={selectedStudent} 
+          classId={selectedClass?.id}
+          className={selectedClass?.name}
           onBack={handleBack} 
         />
       );
