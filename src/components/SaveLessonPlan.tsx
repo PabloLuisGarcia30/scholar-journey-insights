@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -648,7 +649,9 @@ export function SaveLessonPlan({ classId, className, classData, students, onLess
           <AlertDialogHeader>
             <AlertDialogTitle>Save Lesson Plan with Exercises</AlertDialogTitle>
             <AlertDialogDescription>
-              These practice exercises will be available to Students, through the Student Dashboard, when you Start your next class Session on ClassRunner.
+              <span className="text-blue-600 text-lg font-medium">
+                These practice exercises will be available to Students, through the Student Dashboard, when you Start your next class Session on ClassRunner.
+              </span>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
