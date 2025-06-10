@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { StudentDashboard } from "@/components/StudentDashboard";
 import { StudentSearch } from "@/components/StudentSearch";
-import { StudentProfile } from "@/components/StudentProfile";
+import { LearnerProfileDisplay } from "@/components/LearnerProfileDisplay";
 import { ClassView } from "@/components/ClassView";
 import { StudentPortals } from "@/components/StudentPortals";
 import { DashboardSidebar } from "@/components/DashboardSidebar";
@@ -56,10 +56,8 @@ const Index = () => {
   const renderContent = () => {
     if (selectedStudent) {
       return (
-        <StudentProfile 
+        <LearnerProfileDisplay 
           studentId={selectedStudent} 
-          classId={selectedClass?.id}
-          className={selectedClass?.name}
           onBack={handleBack} 
         />
       );
