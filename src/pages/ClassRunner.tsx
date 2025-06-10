@@ -1,20 +1,15 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Play, Users, Calendar, Settings, BookOpen, ArrowLeft, FileText, Plus } from "lucide-react";
+import { Play, Users, Calendar, Settings, BookOpen, ArrowLeft, FileText } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
-import { useState } from "react";
-import { LockLessonPlanDialog } from "@/components/LockLessonPlanDialog";
-import type { LessonPlanData } from "@/services/lessonPlanService";
 
 export default function ClassRunner() {
   const { profile } = useAuth();
   const navigate = useNavigate();
-  const [showLessonPlanDialog, setShowLessonPlanDialog] = useState(false);
-  const [selectedClassForPlanning, setSelectedClassForPlanning] = useState<any>(null);
 
   // Fetch active classes for Mr. Cullen
   const { data: activeClasses = [], isLoading } = useQuery({
@@ -67,36 +62,6 @@ export default function ClassRunner() {
   const handleStartClass = (classItem: any) => {
     console.log('Starting class:', classItem.name);
     // TODO: Implement class session start functionality
-  };
-
-  const handleCreateLessonPlan = (classItem: any) => {
-    console.log('Creating lesson plan for:', classItem.name);
-    
-    // Prepare lesson plan data
-    const lessonPlanData: LessonPlanData = {
-      classId: classItem.id,
-      className: classItem.name,
-      teacherName: classItem.teacher,
-      subject: classItem.subject,
-      grade: classItem.grade,
-      scheduledDate: new Date().toISOString().split('T')[0], // Today's date
-      scheduledTime: "10:30", // Default time
-      students: classItem.students?.map((studentId: string) => ({
-        studentId,
-        studentName: `Student ${studentId.slice(0, 8)}`, // Placeholder name
-        targetSkillName: "To be determined",
-        targetSkillScore: 0
-      })) || []
-    };
-
-    setSelectedClassForPlanning(lessonPlanData);
-    setShowLessonPlanDialog(true);
-  };
-
-  const handleLessonPlanSuccess = () => {
-    setShowLessonPlanDialog(false);
-    setSelectedClassForPlanning(null);
-    // Optionally refresh data or show success message
   };
 
   return (
@@ -225,15 +190,6 @@ export default function ClassRunner() {
                             <Button 
                               size="sm" 
                               variant="default" 
-                              onClick={() => handleCreateLessonPlan(classItem)}
-                              className="flex items-center gap-2 bg-green-600 hover:bg-green-700"
-                            >
-                              <Plus className="h-4 w-4" />
-                              Create Lesson
-                            </Button>
-                            <Button 
-                              size="sm" 
-                              variant="default" 
                               onClick={() => handleStartClass(classItem)}
                               className="flex items-center gap-2"
                             >
@@ -297,14 +253,6 @@ export default function ClassRunner() {
           </div>
         </div>
       </div>
-
-      {/* Lesson Plan Dialog */}
-      <LockLessonPlanDialog
-        open={showLessonPlanDialog}
-        onOpenChange={setShowLessonPlanDialog}
-        lessonPlanData={selectedClassForPlanning}
-        onSuccess={handleLessonPlanSuccess}
-      />
     </div>
   );
 }

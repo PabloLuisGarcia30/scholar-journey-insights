@@ -1,15 +1,13 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, BookOpen, Plus, ChevronUp, ChevronDown } from "lucide-react";
+import { ArrowLeft, BookOpen, ChevronUp, ChevronDown } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { WeeklyCalendar } from "@/components/WeeklyCalendar";
 import { ClassStudentList } from "@/components/ClassStudentList";
 import { useQuery } from "@tanstack/react-query";
 import { getActiveClassByIdWithDuration, getAllActiveStudents } from "@/services/examService";
 import { useState } from "react";
-import { LockLessonPlanDialog } from "@/components/LockLessonPlanDialog";
-import type { LessonPlanData } from "@/services/lessonPlanService";
 
 export default function LessonPlanner() {
   const navigate = useNavigate();
@@ -19,8 +17,6 @@ export default function LessonPlanner() {
   
   // Automatically show student list when classId is present
   const [showStudentList, setShowStudentList] = useState(!!classId);
-  const [showLessonPlanDialog, setShowLessonPlanDialog] = useState(false);
-  const [selectedClassForPlanning, setSelectedClassForPlanning] = useState<any>(null);
 
   // Fetch class data if classId is available
   const { data: classData, isLoading: isLoadingClass } = useQuery({
@@ -44,44 +40,6 @@ export default function LessonPlanner() {
     console.log('Selected student for lesson planning:', { studentId, studentName });
     // TODO: Navigate to individualized lesson planning for this student
     // navigate(`/lesson-planner/student/${studentId}?class=${className}&classId=${classId}`);
-  };
-
-  const handleCreateLessonPlan = () => {
-    if (!classData || !classId) {
-      console.error('No class data available for lesson planning');
-      return;
-    }
-
-    console.log('Creating lesson plan for:', classData.name);
-    
-    // Prepare lesson plan data
-    const lessonPlanData: LessonPlanData = {
-      classId: classId,
-      className: classData.name,
-      teacherName: classData.teacher,
-      subject: classData.subject,
-      grade: classData.grade,
-      scheduledDate: new Date().toISOString().split('T')[0], // Today's date
-      scheduledTime: "10:30", // Default time
-      students: classData.students?.map((studentId: string) => {
-        const studentData = allStudents.find(s => s.id === studentId);
-        return {
-          studentId,
-          studentName: studentData?.name || `Student ${studentId.slice(0, 8)}`, // Use real name from database
-          targetSkillName: "To be determined",
-          targetSkillScore: 0
-        };
-      }) || []
-    };
-
-    setSelectedClassForPlanning(lessonPlanData);
-    setShowLessonPlanDialog(true);
-  };
-
-  const handleLessonPlanSuccess = () => {
-    setShowLessonPlanDialog(false);
-    setSelectedClassForPlanning(null);
-    // Optionally refresh data or show success message
   };
 
   return (
@@ -116,7 +74,6 @@ export default function LessonPlanner() {
                 size="lg"
               >
                 <div className="flex items-center gap-2">
-                  <Plus className="h-5 w-5" />
                   <span className="text-base">Individualized Lesson plan</span>
                   {showStudentList ? (
                     <ChevronUp className="h-4 w-4 ml-1" />
@@ -139,25 +96,15 @@ export default function LessonPlanner() {
           </div>
         </div>
 
-        {/* Student List and Lesson Planning - Shows by default when classId is present */}
+        {/* Student List - Shows by default when classId is present */}
         {showStudentList && classId && (
           <div className="mb-8">
             <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-sm">
               <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle className="flex items-center gap-2">
-                    <BookOpen className="h-5 w-5" />
-                    Create Lesson Plan for {className}
-                  </CardTitle>
-                  <Button 
-                    onClick={handleCreateLessonPlan}
-                    className="flex items-center gap-2 bg-green-600 hover:bg-green-700"
-                    disabled={!classData || isLoadingClass}
-                  >
-                    <Plus className="h-4 w-4" />
-                    Create Lesson Plan
-                  </Button>
-                </div>
+                <CardTitle className="flex items-center gap-2">
+                  <BookOpen className="h-5 w-5" />
+                  Plan Lessons for {className}
+                </CardTitle>
               </CardHeader>
               <CardContent>
                 <ClassStudentList 
@@ -200,14 +147,6 @@ export default function LessonPlanner() {
           </Card>
         )}
       </div>
-
-      {/* Lesson Plan Dialog */}
-      <LockLessonPlanDialog
-        open={showLessonPlanDialog}
-        onOpenChange={setShowLessonPlanDialog}
-        lessonPlanData={selectedClassForPlanning}
-        onSuccess={handleLessonPlanSuccess}
-      />
     </div>
   );
 }
