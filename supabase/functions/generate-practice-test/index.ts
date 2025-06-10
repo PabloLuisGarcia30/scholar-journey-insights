@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -42,6 +41,7 @@ interface ValidatedQuestion {
   points: number;
   targetSkill: string;
   contentSkillId?: string;
+  explanation?: string;
 }
 
 interface ContentSkill {
@@ -190,7 +190,15 @@ function validateSkillDistributionAgainstContentSkills(
 }
 
 // Enhanced question validator and repairer with better answer generation
-function validateAndRepairQuestion(question: any, index: number, targetSkill: string, contentSkillId?: string, subject?: string, grade?: string): ValidatedQuestion {
+function validateAndRepairQuestion(
+  question: any, 
+  index: number, 
+  targetSkill: string, 
+  contentSkillId?: string, 
+  subject?: string, 
+  grade?: string,
+  includeExplanations: boolean = false
+): ValidatedQuestion {
   console.log(`🔧 Validating question ${index + 1}:`, question);
 
   const repairs = [];
@@ -251,6 +259,12 @@ function validateAndRepairQuestion(question: any, index: number, targetSkill: st
   // Add Content Skill ID if available
   if (contentSkillId) {
     question.contentSkillId = contentSkillId;
+  }
+
+  // NEW: Add explanation if missing and required
+  if (includeExplanations && (!question.explanation || question.explanation.trim().length === 0)) {
+    question.explanation = generateDefaultExplanation(question, targetSkill, subject);
+    repairs.push('explanation');
   }
 
   if (repairs.length > 0) {
@@ -393,7 +407,8 @@ function extractKeywords(answer: string, question: string): string[] {
 function generateFallbackQuestions(
   skillDistribution: Array<{ skill_name: string; score: number; questions: number; contentSkillId?: string; isValidContentSkill?: boolean }>,
   subject: string,
-  grade: string
+  grade: string,
+  includeExplanations: boolean = false
 ): ValidatedQuestion[] {
   console.log('🆘 Generating enhanced fallback questions with educational content');
 
@@ -416,6 +431,11 @@ function generateFallbackQuestions(
         targetSkill: skill.skill_name,
         contentSkillId: skill.contentSkillId
       };
+
+      // Add explanation if required
+      if (includeExplanations) {
+        baseQuestion.explanation = generateDefaultExplanation(baseQuestion, skill.skill_name, subject);
+      }
 
       if (questionType === 'multiple-choice') {
         baseQuestion.options = generateEducationalOptions(question, correctAnswer, skill.skill_name, subject);
@@ -444,7 +464,8 @@ function buildEnhancedPrompt(
   validatedSkillDistribution: any[],
   skillName: string,
   classContentSkills: ContentSkill[],
-  historicalContext: string
+  historicalContext: string,
+  includeExplanations: boolean = false
 ): string {
   // Build Content Skills context
   const contentSkillsContext = classContentSkills.length > 0 
@@ -456,9 +477,18 @@ function buildEnhancedPrompt(
     ? `\n\nMULTI-SKILL DISTRIBUTION:\nDistribute questions exactly as follows:\n${validatedSkillDistribution.map(s => `- ${s.skill_name}: ${s.questions} questions (current score: ${s.score}%)${s.contentSkillId ? ` [Content Skill ID: ${s.contentSkillId}]` : ''}`).join('\n')}`
     : `\n\nSKILL FOCUS:\nAll questions must target: "${skillName}"`;
 
+  const explanationRequirement = includeExplanations 
+    ? `\n\nEXPLANATION REQUIREMENTS:
+- Provide detailed, educational explanations for each correct answer
+- Explanations should help students understand WHY the answer is correct
+- Include key concepts, principles, and learning objectives
+- Use clear, age-appropriate language for ${grade} students
+- Connect answers to broader ${subject} concepts and skills`
+    : '';
+
   return `You are an expert educational content creator specialized in generating precise, high-quality practice tests with complete, educationally sound answers.
 
-Generate exactly ${questionCount} practice questions for ${studentName}, a ${grade}-level student in ${subject}, attending ${className}.${contentSkillsContext}${skillFocusSection}${historicalContext}
+Generate exactly ${questionCount} practice questions for ${studentName}, a ${grade}-level student in ${subject}, attending ${className}.${contentSkillsContext}${skillFocusSection}${historicalContext}${explanationRequirement}
 
 CRITICAL ANSWER REQUIREMENTS:
 1. NEVER use placeholder text like "Please review this answer" or "Check with instructor"
@@ -467,6 +497,7 @@ CRITICAL ANSWER REQUIREMENTS:
 4. For short-answer: Provide a complete, meaningful answer with acceptable variations
 5. For true-false: Clearly state "True" or "False" with educational justification
 6. Include acceptable answer variations and keywords for flexible grading
+${includeExplanations ? '7. Provide detailed explanations that enhance learning and understanding' : ''}
 
 QUESTION GENERATION REQUIREMENTS:
 1. Each question MUST target EXACTLY ONE Content Skill from the provided list
@@ -495,7 +526,7 @@ STRICT JSON RESPONSE FORMAT (respond ONLY in this format; NO extra text, markdow
       "correctAnswer": "Complete, educational answer - NEVER use placeholder text",
       "acceptableAnswers": ["Alternative answer 1", "Alternative answer 2"] (for short-answer only),
       "keywords": ["key concept 1", "key concept 2"] (important concepts, short-answer only),
-      "points": 1-3 (difficulty-based scoring)
+      "points": 1-3 (difficulty-based scoring)${includeExplanations ? ',\n      "explanation": "Detailed educational explanation of why this answer is correct"' : ''}
     }
   ],
   "totalPoints": sum of all question points,
@@ -508,6 +539,7 @@ FINAL VALIDATION CHECKLIST:
 - ✅ Multiple-choice options are realistic and educational
 - ✅ Short-answer questions include acceptable variations
 - ✅ All questions align with specified Content Skills
+${includeExplanations ? '- ✅ Detailed explanations provided for each question' : ''}
 - ✅ JSON format is valid and complete
 
 ONLY return the JSON. Begin your JSON response now.`;
@@ -743,8 +775,14 @@ serve(async (req) => {
       classId,
       skillDistribution,
       multiSkillSupport = false,
-      enhancedAnswerPatterns = false
-    }: GeneratePracticeTestRequest & { enhancedAnswerPatterns?: boolean } = await req.json();
+      enhancedAnswerPatterns = false,
+      saveAnswerKey = false,
+      exerciseId
+    }: GeneratePracticeTestRequest & { 
+      enhancedAnswerPatterns?: boolean; 
+      saveAnswerKey?: boolean;
+      exerciseId?: string;
+    } = await req.json();
 
     console.log(`🎯 Generating practice test for: ${studentName} in class: ${className} skill(s): ${skillName} grade: ${grade} subject: ${subject} questionCount: ${questionCount} classId: ${classId} multiSkill: ${multiSkillSupport}`);
 
@@ -863,7 +901,8 @@ serve(async (req) => {
       validatedSkillDistribution || [],
       skillName,
       classContentSkills,
-      historicalContext
+      historicalContext,
+      saveAnswerKey // NEW: Pass flag to include detailed explanations
     );
 
     try {
@@ -936,12 +975,13 @@ serve(async (req) => {
                 skill.skill_name,
                 skill.contentSkillId,
                 subject,
-                grade
+                grade,
+                saveAnswerKey // NEW: Pass flag for enhanced explanations
               );
               validatedQuestions.push(validatedQuestion);
             } else {
               console.log(`🆘 Generating enhanced fallback question ${questionIndex + 1} for Content Skill: ${skill.skill_name}`);
-              const fallbackQuestions = generateFallbackQuestions([skill], subject, grade);
+              const fallbackQuestions = generateFallbackQuestions([skill], subject, grade, saveAnswerKey);
               validatedQuestions.push(fallbackQuestions[0]);
             }
             questionIndex++;
@@ -949,12 +989,66 @@ serve(async (req) => {
         }
       } else {
         practiceTest.questions.forEach((q: any, index: number) => {
-          const validatedQuestion = validateAndRepairQuestion(q, index, skillName, undefined, subject, grade);
+          const validatedQuestion = validateAndRepairQuestion(
+            q, 
+            index, 
+            skillName, 
+            undefined, 
+            subject, 
+            grade,
+            saveAnswerKey
+          );
           validatedQuestions.push(validatedQuestion);
         });
       }
 
       practiceTest.questions = validatedQuestions;
+
+      // NEW: If saving answer key, store it in the database
+      if (saveAnswerKey && exerciseId && validatedQuestions.length > 0) {
+        try {
+          console.log('💾 Saving answer key to database for exercise:', exerciseId);
+          
+          const answerKeyData = {
+            exercise_id: exerciseId,
+            questions: validatedQuestions.map(q => ({
+              id: q.id,
+              type: q.type,
+              question: q.question,
+              options: q.options,
+              correctAnswer: q.correctAnswer,
+              explanation: q.explanation || generateDefaultExplanation(q),
+              acceptableAnswers: q.acceptableAnswers,
+              keywords: q.keywords,
+              points: q.points,
+              targetSkill: q.targetSkill,
+              learningObjective: generateLearningObjective(q, skillName, subject)
+            })),
+            metadata: {
+              skillName: isMultiSkill ? 'Multiple Skills' : skillName,
+              subject,
+              grade,
+              totalPoints: practiceTest.totalPoints,
+              estimatedTime: practiceTest.estimatedTime,
+              generatedAt: new Date().toISOString()
+            }
+          };
+
+          const { error: answerKeyError } = await supabase
+            .from('practice_answer_keys')
+            .insert(answerKeyData);
+
+          if (answerKeyError) {
+            console.error('⚠️ Failed to save answer key:', answerKeyError);
+            // Don't fail the entire generation if answer key saving fails
+          } else {
+            console.log('✅ Answer key saved to database successfully');
+          }
+        } catch (answerKeyError) {
+          console.error('⚠️ Error saving answer key:', answerKeyError);
+          // Continue with practice test generation even if answer key fails
+        }
+      }
 
       // Final calculations
       if (!practiceTest.totalPoints) {
@@ -1048,3 +1142,378 @@ serve(async (req) => {
     );
   }
 });
+
+// Enhanced prompt builder with explanation requirements
+function buildEnhancedPrompt(
+  studentName: string,
+  className: string,
+  grade: string,
+  subject: string,
+  questionCount: number,
+  skillType: string,
+  skillMetadata: any,
+  isMultiSkill: boolean,
+  validatedSkillDistribution: any[],
+  skillName: string,
+  classContentSkills: ContentSkill[],
+  historicalContext: string,
+  includeExplanations: boolean = false
+): string {
+  // Build Content Skills context
+  const contentSkillsContext = classContentSkills.length > 0 
+    ? `\n\nCONTENT SKILLS CONTEXT:\nThis class defines ${classContentSkills.length} specific Content Skills. Generate questions that explicitly align with these skills:\n${classContentSkills.map(skill => `- ${skill.skill_name}: ${skill.skill_description} (Topic: ${skill.topic})`).join('\n')}`
+    : '';
+
+  // Build skill focus section
+  const skillFocusSection = isMultiSkill && validatedSkillDistribution
+    ? `\n\nMULTI-SKILL DISTRIBUTION:\nDistribute questions exactly as follows:\n${validatedSkillDistribution.map(s => `- ${s.skill_name}: ${s.questions} questions (current score: ${s.score}%)${s.contentSkillId ? ` [Content Skill ID: ${s.contentSkillId}]` : ''}`).join('\n')}`
+    : `\n\nSKILL FOCUS:\nAll questions must target: "${skillName}"`;
+
+  const explanationRequirement = includeExplanations 
+    ? `\n\nEXPLANATION REQUIREMENTS:
+- Provide detailed, educational explanations for each correct answer
+- Explanations should help students understand WHY the answer is correct
+- Include key concepts, principles, and learning objectives
+- Use clear, age-appropriate language for ${grade} students
+- Connect answers to broader ${subject} concepts and skills`
+    : '';
+
+  return `You are an expert educational content creator specialized in generating precise, high-quality practice tests with complete, educationally sound answers.
+
+Generate exactly ${questionCount} practice questions for ${studentName}, a ${grade}-level student in ${subject}, attending ${className}.${contentSkillsContext}${skillFocusSection}${historicalContext}${explanationRequirement}
+
+CRITICAL ANSWER REQUIREMENTS:
+1. NEVER use placeholder text like "Please review this answer" or "Check with instructor"
+2. ALWAYS provide complete, accurate, educational answers
+3. For multiple-choice: Provide the exact correct answer from the options
+4. For short-answer: Provide a complete, meaningful answer with acceptable variations
+5. For true-false: Clearly state "True" or "False" with educational justification
+6. Include acceptable answer variations and keywords for flexible grading
+${includeExplanations ? '7. Provide detailed explanations that enhance learning and understanding' : ''}
+
+QUESTION GENERATION REQUIREMENTS:
+1. Each question MUST target EXACTLY ONE Content Skill from the provided list
+2. Match the provided skill names exactly for accurate progress tracking
+3. Ensure difficulty is suitable for a ${grade}-level student
+4. Provide clear, concise language optimized for educational clarity
+5. Mix question types: multiple-choice (preferred), short-answer, true-false
+6. Questions should logically progress from basic to advanced concepts
+7. Generate realistic, plausible answer options for multiple-choice questions
+
+STRICT JSON RESPONSE FORMAT (respond ONLY in this format; NO extra text, markdown, or explanations):
+
+{
+  "title": "Brief, descriptive test title",
+  "description": "Concise description summarizing test objectives and Content Skills covered",
+  "skillType": "${skillType}",
+  "skillMetadata": ${JSON.stringify(skillMetadata)},
+  "questions": [
+    {
+      "id": "Q1",
+      "type": "multiple-choice" | "short-answer" | "true-false",
+      "question": "Clear, specific question text",
+      "targetSkill": "${isMultiSkill ? 'Exact skill name from distribution list' : skillName}",
+      "contentSkillId": "Matching Content Skill ID (if provided)",
+      "options": ["A", "B", "C", "D"] (ONLY for multiple-choice),
+      "correctAnswer": "Complete, educational answer - NEVER use placeholder text",
+      "acceptableAnswers": ["Alternative answer 1", "Alternative answer 2"] (for short-answer only),
+      "keywords": ["key concept 1", "key concept 2"] (important concepts, short-answer only),
+      "points": 1-3 (difficulty-based scoring)${includeExplanations ? ',\n      "explanation": "Detailed educational explanation of why this answer is correct"' : ''}
+    }
+  ],
+  "totalPoints": sum of all question points,
+  "estimatedTime": estimated completion time in minutes
+}
+
+FINAL VALIDATION CHECKLIST:
+- ✅ All correctAnswer fields contain complete, educational content
+- ✅ No placeholder text like "Please review" anywhere
+- ✅ Multiple-choice options are realistic and educational
+- ✅ Short-answer questions include acceptable variations
+- ✅ All questions align with specified Content Skills
+${includeExplanations ? '- ✅ Detailed explanations provided for each question' : ''}
+- ✅ JSON format is valid and complete
+
+ONLY return the JSON. Begin your JSON response now.`;
+}
+
+// Enhanced JSON response processor with multiple extraction strategies
+function processOpenAIResponse(content: string): any {
+  console.log('🔄 Processing OpenAI response with multiple extraction strategies');
+
+  const extractionStrategies = [
+    // Strategy 1: Direct JSON parse
+    () => {
+      console.log('📝 Trying direct JSON parse...');
+      return JSON.parse(content);
+    },
+
+    // Strategy 2: Extract from markdown code blocks
+    () => {
+      console.log('📝 Trying markdown code block extraction...');
+      const jsonMatch = content.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/);
+      if (jsonMatch) {
+        return JSON.parse(jsonMatch[1]);
+      }
+      throw new Error('No JSON found in markdown blocks');
+    },
+
+    // Strategy 3: Extract first complete JSON object
+    () => {
+      console.log('📝 Trying first JSON object extraction...');
+      const jsonMatch = content.match(/\{[\s\S]*?\}/);
+      if (jsonMatch) {
+        return JSON.parse(jsonMatch[0]);
+      }
+      throw new Error('No JSON object found');
+    },
+
+    // Strategy 4: Clean and parse
+    () => {
+      console.log('📝 Trying cleaned JSON parse...');
+      const cleaned = content
+        .trim()
+        .replace(/^```json\s*/, '')
+        .replace(/\s*```$/, '')
+        .replace(/[\r\n\t]/g, ' ')
+        .replace(/,(\s*[}\]])/g, '$1');
+      return JSON.parse(cleaned);
+    }
+  ];
+
+  for (let i = 0; i < extractionStrategies.length; i++) {
+    try {
+      const result = extractionStrategies[i]();
+      console.log(`✅ JSON extraction successful using strategy ${i + 1}`);
+      return result;
+    } catch (error) {
+      console.log(`❌ Strategy ${i + 1} failed:`, error.message);
+    }
+  }
+
+  throw new Error('All JSON extraction strategies failed');
+}
+
+// Retry configuration
+const RETRY_CONFIG = {
+  maxAttempts: 3,
+  baseDelay: 1000,
+  maxDelay: 8000,
+  backoffMultiplier: 2
+};
+
+function addJitter(delay: number): number {
+  return delay + Math.random() * 1000;
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+async function withRetry<T>(
+  operation: () => Promise<T>,
+  attempt: number = 1
+): Promise<T> {
+  try {
+    return await operation();
+  } catch (error) {
+    console.log(`Attempt ${attempt} failed:`, error.message);
+    
+    if (attempt >= RETRY_CONFIG.maxAttempts) {
+      throw error;
+    }
+
+    const isRetryable = error.message.includes('server had an error') || 
+                       error.message.includes('rate limit') ||
+                       error.message.includes('timeout') ||
+                       error.status >= 500;
+    
+    if (!isRetryable) {
+      throw error;
+    }
+
+    const baseDelay = Math.min(
+      RETRY_CONFIG.baseDelay * Math.pow(RETRY_CONFIG.backoffMultiplier, attempt - 1),
+      RETRY_CONFIG.maxDelay
+    );
+    const delayWithJitter = addJitter(baseDelay);
+    
+    console.log(`⏱️ Retrying in ${delayWithJitter}ms... (attempt ${attempt + 1}/${RETRY_CONFIG.maxAttempts})`);
+    await sleep(delayWithJitter);
+    
+    return withRetry(operation, attempt + 1);
+  }
+}
+
+async function getHistoricalQuestionsForSkill(supabase: any, classId: string, skillName: string): Promise<HistoricalQuestion[]> {
+  console.log('Fetching historical questions for class:', classId, 'skill:', skillName);
+  
+  try {
+    const { data: exams, error: examError } = await supabase
+      .from('exams')
+      .select('exam_id, title')
+      .eq('class_id', classId);
+
+    if (examError) {
+      console.error('Error fetching class exams:', examError);
+      return [];
+    }
+
+    if (!exams || exams.length === 0) {
+      console.log('No exams found for class:', classId);
+      return [];
+    }
+
+    const examIds = exams.map((exam: any) => exam.exam_id);
+    console.log('Found exams:', examIds);
+
+    const { data: questions, error: questionsError } = await supabase
+      .from('answer_keys')
+      .select('question_text, question_type, options, points, exam_id')
+      .in('exam_id', examIds)
+      .limit(10);
+
+    if (questionsError) {
+      console.error('Error fetching historical questions:', questionsError);
+      return [];
+    }
+
+    if (!questions || questions.length === 0) {
+      console.log('No historical questions found for exams:', examIds);
+      return [];
+    }
+
+    const enhancedQuestions = questions.map((q: any) => {
+      const exam = exams.find((e: any) => e.exam_id === q.exam_id);
+      return {
+        ...q,
+        exam_title: exam?.title || 'Unknown Exam'
+      };
+    });
+
+    console.log(`Found ${enhancedQuestions.length} historical questions`);
+    return enhancedQuestions;
+
+  } catch (error) {
+    console.error('Unexpected error fetching historical questions:', error);
+    return [];
+  }
+}
+
+async function callOpenAIWithRetry(prompt: string, model: string = 'gpt-4o-mini'): Promise<any> {
+  const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
+  
+  if (!openAIApiKey) {
+    throw new Error('OpenAI API key not configured');
+  }
+
+  return withRetry(async () => {
+    console.log(`Sending enhanced request to OpenAI ${model} with improved prompt structure`);
+    
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${openAIApiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: model,
+        messages: [
+          {
+            role: 'system',
+            content: 'You are an expert educational content creator. Generate high-quality practice tests that are engaging, educational, and appropriately challenging. ALWAYS return valid JSON with complete question objects. Ensure questions align precisely with specified Content Skills for accurate progress tracking.'
+          },
+          {
+            role: 'user',
+            content: prompt
+          }
+        ],
+        temperature: 0.7,
+        max_tokens: 2000
+      })
+    });
+
+    console.log(`OpenAI ${model} response status:`, response.status);
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      console.error('OpenAI API error response:', JSON.stringify(errorData, null, 2));
+      
+      const errorMessage = errorData.error?.message || 'Unknown OpenAI API error';
+      throw new Error(`OpenAI API error: ${errorMessage}`);
+    }
+
+    const data = await response.json();
+    console.log(`OpenAI ${model} practice test generation completed with enhanced prompt`);
+    return data;
+  });
+}
+
+// NEW: Helper functions for explanations
+function generateDefaultExplanation(question: any, skill: string, subject?: string): string {
+  switch (question.type) {
+    case 'multiple-choice':
+      return `This question tests your understanding of ${skill} in ${subject || 'this subject'}. The correct answer demonstrates the key principles and shows proper application of the concept. Review the fundamental concepts of ${skill} to strengthen your understanding.`;
+    
+    case 'true-false':
+      return `This statement relates to ${skill}. Understanding whether this is true or false helps reinforce important facts and concepts in ${subject || 'this subject'}. Consider the key characteristics and definitions when evaluating such statements.`;
+    
+    case 'short-answer':
+      return `This question requires you to explain ${skill} concepts in your own words. A good answer should include key terms, show clear understanding, and demonstrate how the concept applies in ${subject || 'this subject'}. Practice explaining concepts clearly to improve your communication skills.`;
+    
+    default:
+      return `This question helps assess your knowledge of ${skill}. Review the key concepts and practice similar problems to improve your understanding of this important topic in ${subject || 'this subject'}.`;
+  }
+}
+
+function generateLearningObjective(question: any, skillName: string, subject: string): string {
+  return `Students will demonstrate understanding of ${skillName} by correctly answering questions and explaining key concepts in ${subject} contexts.`;
+}
+
+// Updated fallback question generator with explanations
+function generateFallbackQuestions(
+  skillDistribution: Array<{ skill_name: string; score: number; questions: number; contentSkillId?: string; isValidContentSkill?: boolean }>,
+  subject: string,
+  grade: string,
+  includeExplanations: boolean = false
+): ValidatedQuestion[] {
+  console.log('🆘 Generating enhanced fallback questions with educational content');
+
+  const fallbackQuestions: ValidatedQuestion[] = [];
+  let questionId = 1;
+
+  for (const skill of skillDistribution) {
+    for (let i = 0; i < skill.questions; i++) {
+      const questionType = ['multiple-choice', 'true-false', 'short-answer'][Math.floor(Math.random() * 3)] as 'multiple-choice' | 'true-false' | 'short-answer';
+      
+      const question = generateEducationalQuestion(skill.skill_name, subject, grade, questionType);
+      const correctAnswer = generateEducationalAnswer(question, questionType, skill.skill_name, subject);
+      
+      const baseQuestion: ValidatedQuestion = {
+        id: `Q${questionId++}`,
+        type: questionType,
+        question,
+        correctAnswer,
+        points: 1,
+        targetSkill: skill.skill_name,
+        contentSkillId: skill.contentSkillId
+      };
+
+      // Add explanation if required
+      if (includeExplanations) {
+        baseQuestion.explanation = generateDefaultExplanation(baseQuestion, skill.skill_name, subject);
+      }
+
+      if (questionType === 'multiple-choice') {
+        baseQuestion.options = generateEducationalOptions(question, correctAnswer, skill.skill_name, subject);
+      } else if (questionType === 'short-answer') {
+        baseQuestion.acceptableAnswers = generateAcceptableAnswers(correctAnswer, skill.skill_name);
+        baseQuestion.keywords = extractKeywords(correctAnswer, question);
+      }
+
+      fallbackQuestions.push(baseQuestion);
+    }
+  }
+
+  return fallbackQuestions;
+}

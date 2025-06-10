@@ -1,5 +1,5 @@
-
 import { supabase } from '@/integrations/supabase/client';
+import { PracticeAnswerKeyService } from './practiceAnswerKeyService';
 
 export interface GeneratePracticeTestRequest {
   studentName: string;
@@ -9,12 +9,16 @@ export interface GeneratePracticeTestRequest {
   subject: string;
   questionCount?: number;
   classId?: string;
+  exerciseId?: string; // NEW: Add exercise ID for answer key storage
   skillDistribution?: Array<{
     skill_name: string;
     score: number;
     questions: number;
   }>;
 }
+
+// NEW: Type alias for backwards compatibility
+export type PracticeTestGenerationRequest = GeneratePracticeTestRequest;
 
 export interface PracticeTestQuestion {
   id: string;
@@ -318,7 +322,8 @@ export async function generatePracticeTest(request: GeneratePracticeTestRequest)
         ...request,
         enhancedAnswerPatterns: true,
         multiSkillSupport: true,
-        enhancedErrorHandling: true // Flag for enhanced error handling
+        enhancedErrorHandling: true,
+        saveAnswerKey: true // NEW: Flag to save answer key
       }
     });
 
@@ -383,6 +388,47 @@ export async function generatePracticeTest(request: GeneratePracticeTestRequest)
       console.warn(`⚠️ ${invalidQuestions.length} questions have validation issues but test was generated`);
     }
 
+    // NEW: Save answer key if exercise ID is provided
+    if (request.exerciseId && data.questions) {
+      try {
+        console.log('💾 Saving answer key for exercise:', request.exerciseId);
+        
+        const answerKeyQuestions = data.questions.map((q: any) => ({
+          id: q.id,
+          type: q.type,
+          question: q.question,
+          options: q.options,
+          correctAnswer: q.correctAnswer,
+          explanation: q.explanation || generateDefaultExplanation(q),
+          acceptableAnswers: q.acceptableAnswers,
+          keywords: q.keywords,
+          points: q.points,
+          targetSkill: q.targetSkill || request.skillName,
+          learningObjective: generateLearningObjective(q, request.skillName, request.subject)
+        }));
+
+        const metadata = {
+          skillName: request.skillName,
+          subject: request.subject,
+          grade: request.grade,
+          totalPoints: data.totalPoints,
+          estimatedTime: data.estimatedTime,
+          generatedAt: new Date().toISOString()
+        };
+
+        await PracticeAnswerKeyService.saveAnswerKey(
+          request.exerciseId,
+          answerKeyQuestions,
+          metadata
+        );
+        
+        console.log('✅ Answer key saved successfully');
+      } catch (answerKeyError) {
+        console.error('⚠️ Failed to save answer key, but continuing with exercise generation:', answerKeyError);
+        // Don't fail the entire generation if answer key saving fails
+      }
+    }
+
     console.log('✅ Successfully generated practice test:', {
       title: data.title,
       questionCount: data.questions.length,
@@ -392,6 +438,30 @@ export async function generatePracticeTest(request: GeneratePracticeTestRequest)
     
     return { ...data, skillName: request.skillName } as PracticeTestData;
   }, `practice test generation for ${request.studentName}`);
+}
+
+// NEW: Helper function to generate default explanations
+function generateDefaultExplanation(question: any): string {
+  const skill = question.targetSkill || 'this concept';
+  
+  switch (question.type) {
+    case 'multiple-choice':
+      return `This question tests your understanding of ${skill}. The correct answer demonstrates the key principles and shows proper application of the concept.`;
+    
+    case 'true-false':
+      return `This statement relates to ${skill}. Understanding whether this is true or false helps reinforce important facts and concepts.`;
+    
+    case 'short-answer':
+      return `This question requires you to explain ${skill} in your own words. A good answer should include key terms and show clear understanding of the concept.`;
+    
+    default:
+      return `This question helps assess your knowledge of ${skill}. Review the key concepts and practice similar problems to improve.`;
+  }
+}
+
+// NEW: Helper function to generate learning objectives
+function generateLearningObjective(question: any, skillName: string, subject: string): string {
+  return `Students will be able to apply ${skillName} concepts in ${subject} to solve problems and demonstrate understanding through clear explanations.`;
 }
 
 export async function generateMultiplePracticeTests(
