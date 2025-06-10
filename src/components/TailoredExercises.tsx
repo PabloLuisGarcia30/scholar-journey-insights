@@ -9,6 +9,7 @@ import { SmartAnswerGradingService, type GradingResult } from "@/services/smartA
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { PracticeExerciseRunner } from "./PracticeExerciseRunner";
+import type { ExerciseSubmissionResult } from "@/services/practiceExerciseGradingService";
 
 export function TailoredExercises() {
   const [exercises, setExercises] = useState<StudentExercise[]>([]);
@@ -67,13 +68,15 @@ export function TailoredExercises() {
     }
   };
 
-  const handleCompleteExercise = async (exerciseId: string, score: number) => {
+  const handleCompleteExercise = async (results: ExerciseSubmissionResult) => {
+    if (!selectedExercise) return;
+    
     try {
-      await updateExerciseStatus(exerciseId, 'completed', score);
+      await updateExerciseStatus(selectedExercise.id, 'completed', results.percentageScore);
       setExercises(prev => 
         prev.map(ex => 
-          ex.id === exerciseId 
-            ? { ...ex, status: 'completed', completed_at: new Date().toISOString(), score }
+          ex.id === selectedExercise.id 
+            ? { ...ex, status: 'completed', completed_at: new Date().toISOString(), score: results.percentageScore }
             : ex
         )
       );

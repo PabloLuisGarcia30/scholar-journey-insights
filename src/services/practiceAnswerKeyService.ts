@@ -39,8 +39,8 @@ export class PracticeAnswerKeyService {
       .from('practice_answer_keys')
       .insert({
         exercise_id: exerciseId,
-        questions: questions,
-        metadata: metadata
+        questions: questions as any, // Cast to any to handle Json type
+        metadata: metadata as any // Cast to any to handle Json type
       });
 
     if (error) {
@@ -70,7 +70,14 @@ export class PracticeAnswerKeyService {
     }
 
     console.log('✅ Answer key fetched successfully');
-    return data as PracticeAnswerKey;
+    return {
+      id: data.id,
+      exercise_id: data.exercise_id,
+      questions: data.questions as PracticeAnswerKeyQuestion[],
+      metadata: data.metadata as any,
+      created_at: data.created_at,
+      updated_at: data.updated_at
+    };
   }
 
   static async hasAnswerKey(exerciseId: string): Promise<boolean> {
