@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -467,6 +466,78 @@ async function getHistoricalQuestionsForSkill(supabase: any, classId: string, sk
   }
 }
 
+// Enhanced prompt builder with hybrid approach
+function buildEnhancedPrompt(
+  studentName: string,
+  className: string,
+  grade: string,
+  subject: string,
+  questionCount: number,
+  skillType: string,
+  skillMetadata: any,
+  isMultiSkill: boolean,
+  validatedSkillDistribution: any[],
+  skillName: string,
+  classContentSkills: ContentSkill[],
+  historicalContext: string
+): string {
+  // Build Content Skills context
+  const contentSkillsContext = classContentSkills.length > 0 
+    ? `\n\nCONTENT SKILLS CONTEXT:\nThis class defines ${classContentSkills.length} specific Content Skills. Generate questions that explicitly align with these skills:\n${classContentSkills.map(skill => `- ${skill.skill_name}: ${skill.skill_description} (Topic: ${skill.topic})`).join('\n')}`
+    : '';
+
+  // Build skill focus section
+  const skillFocusSection = isMultiSkill && validatedSkillDistribution
+    ? `\n\nMULTI-SKILL DISTRIBUTION:\nDistribute questions exactly as follows:\n${validatedSkillDistribution.map(s => `- ${s.skill_name}: ${s.questions} questions (current score: ${s.score}%)${s.contentSkillId ? ` [Content Skill ID: ${s.contentSkillId}]` : ''}`).join('\n')}`
+    : `\n\nSKILL FOCUS:\nAll questions must target: "${skillName}"`;
+
+  return `You are an expert educational content creator specialized in generating precise, high-quality practice tests based on detailed educational context and skill metadata.
+
+Generate exactly ${questionCount} practice questions for ${studentName}, a ${grade}-level student in ${subject}, attending ${className}.${contentSkillsContext}${skillFocusSection}${historicalContext}
+
+CRITICAL INSTRUCTIONS:
+1. Each question MUST target EXACTLY ONE Content Skill from the provided list
+2. Match the provided skill names exactly for accurate progress tracking
+3. Ensure difficulty is suitable for a ${grade}-level student
+4. Provide clear, concise language optimized for educational clarity
+5. Mix question types: multiple-choice (preferred), short-answer, true-false
+6. Questions should logically progress from basic to advanced concepts
+7. Use the EXACT skill names provided to ensure proper progress tracking
+
+STRICT JSON RESPONSE FORMAT (respond ONLY in this format; NO extra text, markdown, or explanations):
+
+{
+  "title": "Brief, descriptive test title",
+  "description": "Concise description summarizing test objectives and Content Skills covered",
+  "skillType": "${skillType}",
+  "skillMetadata": ${JSON.stringify(skillMetadata)},
+  "questions": [
+    {
+      "id": "Q1",
+      "type": "multiple-choice" | "short-answer" | "true-false",
+      "question": "Clear, specific question text",
+      "targetSkill": "${isMultiSkill ? 'Exact skill name from distribution list' : skillName}",
+      "contentSkillId": "Matching Content Skill ID (if provided)",
+      "options": ["A", "B", "C", "D"] (ONLY for multiple-choice),
+      "correctAnswer": "Clearly indicated correct answer",
+      "acceptableAnswers": ["Alternative answer 1", "Alternative answer 2"] (for short-answer only),
+      "keywords": ["key concept 1", "key concept 2"] (important concepts, short-answer only),
+      "points": 1-3 (difficulty-based scoring)
+    }
+  ],
+  "totalPoints": sum of all question points,
+  "estimatedTime": estimated completion time in minutes
+}
+
+CONFIRM BEFORE RESPONDING:
+- JSON format precisely matches the structure provided
+- All questions explicitly align with the specified Content Skills
+- Difficulty and content are appropriate for ${grade} students
+- Each question targets exactly one skill from the provided list
+
+ONLY return the JSON. Begin your JSON response now.`;
+}
+
 async function callOpenAIWithRetry(prompt: string, model: string = 'gpt-4o-mini'): Promise<any> {
   const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
   
@@ -475,7 +546,7 @@ async function callOpenAIWithRetry(prompt: string, model: string = 'gpt-4o-mini'
   }
 
   return withRetry(async () => {
-    console.log(`Sending request to OpenAI ${model} with Content Skills integration`);
+    console.log(`Sending enhanced request to OpenAI ${model} with improved prompt structure`);
     
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
@@ -488,7 +559,7 @@ async function callOpenAIWithRetry(prompt: string, model: string = 'gpt-4o-mini'
         messages: [
           {
             role: 'system',
-            content: 'You are an expert educational content creator. Generate high-quality practice tests that are engaging, educational, and appropriately challenging for the student\'s level. ALWAYS return valid JSON with complete question objects including all required fields: id, type, question, correctAnswer, points, and targetSkill. Ensure questions align with the specified Content Skills.'
+            content: 'You are an expert educational content creator. Generate high-quality practice tests that are engaging, educational, and appropriately challenging. ALWAYS return valid JSON with complete question objects. Ensure questions align precisely with specified Content Skills for accurate progress tracking.'
           },
           {
             role: 'user',
@@ -511,7 +582,7 @@ async function callOpenAIWithRetry(prompt: string, model: string = 'gpt-4o-mini'
     }
 
     const data = await response.json();
-    console.log(`OpenAI ${model} practice test generation completed successfully`);
+    console.log(`OpenAI ${model} practice test generation completed with enhanced prompt`);
     return data;
   });
 }
@@ -522,7 +593,7 @@ serve(async (req) => {
   }
 
   try {
-    console.log('🚀 Generate-practice-test function called with Content Skills integration');
+    console.log('🚀 Generate-practice-test function called with enhanced prompt system');
     
     const {
       studentName,
@@ -544,7 +615,7 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // NEW: Fetch Content Skills for the class if classId is provided
+    // Fetch Content Skills for the class if classId is provided
     let classContentSkills: ContentSkill[] = [];
     if (classId) {
       classContentSkills = await getClassContentSkills(supabase, classId);
@@ -556,21 +627,18 @@ serve(async (req) => {
     
     if (isMultiSkill && classContentSkills.length > 0) {
       try {
-        // NEW: Validate skills against actual Content Skills
         validatedSkillDistribution = validateSkillDistributionAgainstContentSkills(
           skillDistribution, 
           classContentSkills, 
           questionCount
         );
         
-        // Check if any skills are invalid Content Skills
         const invalidSkills = validatedSkillDistribution.filter(s => !s.isValidContentSkill);
         if (invalidSkills.length > 0) {
           console.log(`⚠️ Warning: ${invalidSkills.length} skills do not match class Content Skills:`, 
             invalidSkills.map(s => s.skill_name));
         }
         
-        // Filter to only valid Content Skills for enhanced accuracy
         const validContentSkills = validatedSkillDistribution.filter(s => s.isValidContentSkill);
         if (validContentSkills.length === 0) {
           throw new Error('No provided skills match the class Content Skills. Please select skills from the class curriculum.');
@@ -592,7 +660,6 @@ serve(async (req) => {
         );
       }
     } else if (isMultiSkill) {
-      // Fallback to original validation if no Content Skills available
       try {
         validatedSkillDistribution = validateSkillDistributionAgainstContentSkills(
           skillDistribution, 
@@ -614,14 +681,13 @@ serve(async (req) => {
       }
     }
     
-    // Simplified skill classification using database content
+    // Skill classification using database content
     const requestedSkills = isMultiSkill && validatedSkillDistribution 
       ? validatedSkillDistribution.map(s => s.skill_name)
       : [skillName];
     
     const { skillType, skillMetadata } = classifySkillsFromDatabase(classContentSkills, requestedSkills);
     
-    // Add multi-skill specific metadata
     if (isMultiSkill && validatedSkillDistribution) {
       skillMetadata.isMultiSkill = true;
       skillMetadata.skillDistribution = validatedSkillDistribution;
@@ -639,133 +705,39 @@ serve(async (req) => {
 
     let historicalContext = '';
     if (historicalQuestions.length > 0) {
-      historicalContext = `\n\nHere are some example questions from previous exams in this class for context:\n${
+      historicalContext = `\n\nHISTORICAL QUESTION CONTEXT:\nHere are examples from previous exams to guide question style and difficulty:\n${
         historicalQuestions.slice(0, 3).map((q, i) => 
           `Example ${i + 1}: ${q.question_text} (${q.question_type}, ${q.points} points)`
         ).join('\n')
       }\n\nUse these examples to understand the style and difficulty level expected, but create completely new questions.`;
     }
 
-    // NEW: Build Content Skills context for OpenAI prompt
-    let contentSkillsContext = '';
-    if (classContentSkills.length > 0) {
-      contentSkillsContext = `\n\nCLASS CONTENT SKILLS CONTEXT:
-This class has ${classContentSkills.length} defined Content Skills in the curriculum. When generating questions, ensure they align with these specific skills:
-${classContentSkills.map(skill => `- ${skill.skill_name}: ${skill.skill_description} (${skill.topic})`).join('\n')}
-
-IMPORTANT: Generate questions that directly test these Content Skills to enable proper progress tracking.`;
-    }
-
-    // Build the enhanced prompt with Content Skills integration
-    let skillFocusSection: string;
-    let skillInstructions: string;
-    
-    if (isMultiSkill && validatedSkillDistribution) {
-      skillFocusSection = `MULTI-SKILL FOCUS: Generate questions distributed across these Content Skills:
-${validatedSkillDistribution.map(s => `- ${s.skill_name}: ${s.questions} questions (current score: ${s.score}%)${s.contentSkillId ? ` [Content Skill ID: ${s.contentSkillId}]` : ''}`).join('\n')}`;
-      
-      skillInstructions = `
-MULTI-SKILL REQUIREMENTS:
-1. Generate exactly ${questionCount} questions total, distributed as specified above
-2. Each question should clearly target one of the specified Content Skills
-3. Use the EXACT skill names provided to ensure proper progress tracking
-4. Ensure balanced difficulty across all skills
-5. Tag each question with its target skill in the response
-6. Maintain coherent flow between different skill areas
-7. ENSURE ALL QUESTIONS HAVE COMPLETE REQUIRED FIELDS: id, type, question, correctAnswer, points, targetSkill`;
-    } else {
-      skillFocusSection = `SKILL FOCUS: ${skillName}`;
-      skillInstructions = `
-SINGLE-SKILL REQUIREMENTS:
-1. All questions must directly test the skill: "${skillName}"
-2. Use the EXACT skill name "${skillName}" for proper progress tracking
-3. Questions should build upon each other logically
-4. ENSURE ALL QUESTIONS HAVE COMPLETE REQUIRED FIELDS: id, type, question, correctAnswer, points, targetSkill`;
-    }
-
-    const answerPatternInstructions = enhancedAnswerPatterns ? `
-
-ENHANCED SHORT ANSWER REQUIREMENTS:
-- For short-answer questions, provide multiple acceptable answer variations
-- Include key concepts/keywords that should be present in correct answers
-- Consider different ways students might phrase correct responses
-- Account for synonyms and alternative terminology
-
-CRITICAL: Return ONLY valid JSON with this exact structure:
-{
-  "title": "Practice Test Title",
-  "description": "Brief description focusing on ${isMultiSkill ? 'multiple Content Skills' : skillName}",
-  "skillType": "${skillType}",
-  "skillMetadata": ${JSON.stringify(skillMetadata)},
-  "questions": [
-    {
-      "id": "Q1",
-      "type": "multiple-choice" | "short-answer" | "true-false",
-      "question": "Question text here",
-      "targetSkill": "${isMultiSkill ? 'EXACT skill name from distribution' : skillName}",
-      "options": ["A", "B", "C", "D"] (only for multiple-choice),
-      "correctAnswer": "Primary correct answer",
-      "acceptableAnswers": ["Alternative answer 1", "Alternative answer 2"] (for short-answer),
-      "keywords": ["key1", "key2", "key3"] (important concepts for short-answer),
-      "points": 1-3
-    }
-  ],
-  "totalPoints": sum of all question points,
-  "estimatedTime": estimated completion time in minutes
-}` : `
-
-CRITICAL: Return ONLY valid JSON with this exact structure:
-{
-  "title": "Practice Test Title",
-  "description": "Brief description focusing on ${isMultiSkill ? 'multiple Content Skills' : skillName}",
-  "skillType": "${skillType}",
-  "skillMetadata": ${JSON.stringify(skillMetadata)},
-  "questions": [
-    {
-      "id": "Q1",
-      "type": "multiple-choice" | "short-answer" | "true-false",
-      "question": "Question text here",
-      "targetSkill": "${isMultiSkill ? 'EXACT skill name from distribution' : skillName}",
-      "options": ["A", "B", "C", "D"] (only for multiple-choice),
-      "correctAnswer": "Correct answer",
-      "points": 1-3
-    }
-  ],
-  "totalPoints": sum of all question points,
-  "estimatedTime": estimated completion time in minutes
-}`;
-
-    const prompt = `Create a targeted practice test for a ${grade} ${subject} student named ${studentName}.
-
-${skillFocusSection}
-SKILL TYPE: ${skillType} (${skillType === 'content' ? 'subject-specific content knowledge' : 'cross-curricular cognitive skill'})
-CLASS: ${className}
-NUMBER OF QUESTIONS: ${questionCount}
-${contentSkillsContext}
-${historicalContext}
-
-REQUIREMENTS:
-${skillInstructions}
-3. Questions should be appropriate for ${grade} level
-4. Include a mix of question types (multiple-choice, short-answer, true-false)
-5. Each question should have clear, educational value
-6. Provide detailed but concise correct answers
-7. Points should reflect question difficulty (1-3 points each)
-8. Include the skill type (${skillType}) and metadata in the response
-${answerPatternInstructions}
-
-Generate exactly ${questionCount} questions${isMultiSkill ? ' distributed across the specified Content Skills' : ` focused on "${skillName}"`}.`;
+    // Build the enhanced prompt using the hybrid approach
+    const prompt = buildEnhancedPrompt(
+      studentName,
+      className,
+      grade,
+      subject,
+      questionCount,
+      skillType,
+      skillMetadata,
+      isMultiSkill,
+      validatedSkillDistribution || [],
+      skillName,
+      classContentSkills,
+      historicalContext
+    );
 
     try {
-      // Main generation attempt with enhanced error handling
+      // Main generation attempt with enhanced prompt
       const data = await callOpenAIWithRetry(prompt);
       const content = data.choices[0].message.content;
-      console.log('📝 Raw OpenAI response received, processing...');
+      console.log('📝 Raw OpenAI response received, processing with enhanced validation...');
 
       let practiceTest;
       try {
         practiceTest = processOpenAIResponse(content);
-        console.log('✅ JSON processing successful');
+        console.log('✅ JSON processing successful with enhanced prompt');
       } catch (parseError) {
         console.error('❌ All JSON extraction strategies failed:', parseError);
         throw new Error('Could not extract valid JSON from OpenAI response');
@@ -775,7 +747,6 @@ Generate exactly ${questionCount} questions${isMultiSkill ? ' distributed across
       if (!practiceTest.questions || !Array.isArray(practiceTest.questions)) {
         console.error('❌ Invalid practice test format: missing questions array');
         
-        // Emergency fallback: generate basic questions
         if (isMultiSkill && validatedSkillDistribution) {
           console.log('🆘 Using emergency fallback for multi-skill test');
           practiceTest = {
@@ -795,7 +766,6 @@ Generate exactly ${questionCount} questions${isMultiSkill ? ' distributed across
       if (practiceTest.questions.length === 0) {
         console.error('❌ No questions generated in practice test');
         
-        // Emergency fallback
         if (isMultiSkill && validatedSkillDistribution) {
           console.log('🆘 Using emergency fallback for empty test');
           practiceTest.questions = generateFallbackQuestions(validatedSkillDistribution, subject, grade);
@@ -817,7 +787,6 @@ Generate exactly ${questionCount} questions${isMultiSkill ? ' distributed across
       const validatedQuestions: ValidatedQuestion[] = [];
       
       if (isMultiSkill && validatedSkillDistribution) {
-        // For multi-skill, ensure questions are distributed correctly with Content Skills
         let questionIndex = 0;
         for (const skill of validatedSkillDistribution) {
           for (let i = 0; i < skill.questions; i++) {
@@ -831,7 +800,6 @@ Generate exactly ${questionCount} questions${isMultiSkill ? ' distributed across
               );
               validatedQuestions.push(validatedQuestion);
             } else {
-              // Generate fallback question for missing question with Content Skills support
               console.log(`🆘 Generating fallback question ${questionIndex + 1} for Content Skill: ${skill.skill_name}`);
               validatedQuestions.push({
                 id: `Q${questionIndex + 1}`,
@@ -849,7 +817,6 @@ Generate exactly ${questionCount} questions${isMultiSkill ? ' distributed across
           }
         }
       } else {
-        // For single skill, validate all questions
         practiceTest.questions.forEach((q: any, index: number) => {
           const validatedQuestion = validateAndRepairQuestion(q, index, skillName);
           validatedQuestions.push(validatedQuestion);
@@ -867,9 +834,9 @@ Generate exactly ${questionCount} questions${isMultiSkill ? ' distributed across
         practiceTest.estimatedTime = Math.max(10, practiceTest.questions.length * 3);
       }
 
-      console.log(`✅ Successfully generated and validated practice test with ${practiceTest.questions.length} questions`);
+      console.log(`✅ Successfully generated and validated practice test with enhanced prompt: ${practiceTest.questions.length} questions`);
       console.log(`📊 Content Skills integration: ${classContentSkills.length} Content Skills available, ${practiceTest.questions.filter(q => q.contentSkillId).length} questions linked to Content Skills`);
-      console.log(`📊 Skill metadata: type=${practiceTest.skillType}, category=${practiceTest.skillMetadata?.skillCategory}, isMultiSkill=${practiceTest.skillMetadata?.isMultiSkill}`);
+      console.log(`📊 Enhanced prompt effectiveness: type=${practiceTest.skillType}, category=${practiceTest.skillMetadata?.skillCategory}, isMultiSkill=${practiceTest.skillMetadata?.isMultiSkill}`);
 
       return new Response(JSON.stringify(practiceTest), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -879,7 +846,6 @@ Generate exactly ${questionCount} questions${isMultiSkill ? ' distributed across
     } catch (error) {
       console.error('❌ Main generation failed, attempting graceful degradation:', error);
       
-      // Graceful degradation: Generate emergency fallback with Content Skills support
       try {
         let emergencyQuestions: ValidatedQuestion[];
         
@@ -908,7 +874,7 @@ Generate exactly ${questionCount} questions${isMultiSkill ? ' distributed across
           estimatedTime: Math.max(10, emergencyQuestions.length * 3)
         };
 
-        console.log('🆘 Emergency practice test generated successfully with Content Skills support');
+        console.log('🆘 Emergency practice test generated successfully with enhanced fallback');
 
         return new Response(JSON.stringify(emergencyTest), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -917,7 +883,7 @@ Generate exactly ${questionCount} questions${isMultiSkill ? ' distributed across
 
       } catch (emergencyError) {
         console.error('💥 Emergency fallback also failed:', emergencyError);
-        throw error; // Fall through to main error handler
+        throw error;
       }
     }
 
