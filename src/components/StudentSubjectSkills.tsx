@@ -43,10 +43,18 @@ export function StudentSubjectSkills({
     maxSkills 
   } = useMultiSkillSelection();
 
-  const relevantSkills = comprehensiveSubjectSkillData;
+  // Use comprehensive data if available, otherwise fall back to class subject skills
+  const relevantSkills = comprehensiveSubjectSkillData.length > 0 
+    ? comprehensiveSubjectSkillData 
+    : classSubjectSkills.map(skill => ({
+        id: skill.id || skill.skill_name,
+        skill_name: skill.skill_name || skill.name,
+        score: 0, // No score data available yet
+        skill_description: skill.skill_description || skill.description || 'No description available'
+      }));
 
   // Filter skills for "Super Exercise" (all skills below 80%)
-  const skillsForSuperExercise = comprehensiveSubjectSkillData.filter(skill => skill.score < 80);
+  const skillsForSuperExercise = relevantSkills.filter(skill => (skill.score || 0) < 80);
 
   const isSkillSelected = (skillName: string) => {
     return selectedSkills.some(skill => skill.name === skillName);
@@ -57,7 +65,7 @@ export function StudentSubjectSkills({
     toggleSkillSelection({
       id: skill.id || skill.skill_name,
       name: skill.skill_name,
-      score: skill.score,
+      score: skill.score || 0,
       type: 'subject'
     });
   };
