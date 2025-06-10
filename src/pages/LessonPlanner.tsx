@@ -4,11 +4,21 @@ import { Button } from "@/components/ui/button";
 import { ArrowLeft, BookOpen, Plus } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { WeeklyCalendar } from "@/components/WeeklyCalendar";
+import { useQuery } from "@tanstack/react-query";
+import { getActiveClassByIdWithDuration } from "@/services/examService";
 
 export default function LessonPlanner() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const className = searchParams.get('class') || 'Unknown Class';
+  const classId = searchParams.get('classId');
+
+  // Fetch class data if classId is available
+  const { data: classData, isLoading: isLoadingClass } = useQuery({
+    queryKey: ['activeClass', classId],
+    queryFn: () => getActiveClassByIdWithDuration(classId!),
+    enabled: !!classId,
+  });
 
   const handlePlanNextClass = () => {
     console.log('Plan Next Class clicked - functionality coming soon');
@@ -57,7 +67,10 @@ export default function LessonPlanner() {
             {/* Weekly Calendar */}
             <div className="flex-1 min-w-0">
               <h3 className="text-sm font-medium text-slate-700 mb-3">Next 7 Days</h3>
-              <WeeklyCalendar />
+              <WeeklyCalendar 
+                classData={classData} 
+                isLoading={isLoadingClass}
+              />
             </div>
           </div>
         </div>

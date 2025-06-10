@@ -55,7 +55,7 @@ export default function ClassRunner() {
 
   const handlePlanClass = (classItem: any) => {
     console.log('Planning class:', classItem.name);
-    navigate(`/lesson-planner?class=${encodeURIComponent(classItem.name)}`);
+    navigate(`/lesson-planner?class=${encodeURIComponent(classItem.name)}&classId=${classItem.id}`);
   };
 
   const handleStartClass = (classItem: any) => {
