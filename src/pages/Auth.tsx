@@ -1,17 +1,19 @@
-
 import { useState } from 'react';
-import { Navigate } from 'react-router-dom';
+import { Navigate, useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { GraduationCap, Users, Mail, Lock, User } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { GraduationCap, Users, Mail, Lock, User, Code, ArrowRight } from 'lucide-react';
 import { useAuth, UserRole } from '@/contexts/AuthContext';
+import { DEVELOPMENT_CONFIG, isDevelopment } from '@/config/development';
 
 export default function Auth() {
   const { user, signIn, signUp, loading } = useAuth();
+  const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
   
   // Sign in form state
@@ -33,6 +35,12 @@ export default function Auth() {
   if (user && !loading) {
     return <Navigate to="/" replace />;
   }
+
+  // Developer bypass functions
+  const handleDevBypass = (role: 'teacher' | 'student' = 'teacher') => {
+    // Navigate to main dashboard - the ProtectedRoute will handle dev mode bypass
+    navigate('/');
+  };
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -87,14 +95,25 @@ export default function Auth() {
               <GraduationCap className="h-8 w-8 text-white" />
             </div>
           </div>
-          <h1 className="text-3xl font-bold text-slate-900 mb-2">Welcome Back</h1>
+          <div className="flex items-center justify-center gap-2 mb-2">
+            <h1 className="text-3xl font-bold text-slate-900">Welcome Back</h1>
+            {isDevelopment && (
+              <Badge variant="secondary" className="text-xs flex items-center gap-1">
+                <Code className="h-3 w-3" />
+                Dev Mode
+              </Badge>
+            )}
+          </div>
           <p className="text-slate-600">Sign in to your account or create a new one</p>
         </div>
 
         <Tabs defaultValue="signin" className="w-full">
-          <TabsList className="grid w-full grid-cols-2">
+          <TabsList className={`grid w-full ${isDevelopment ? 'grid-cols-3' : 'grid-cols-2'}`}>
             <TabsTrigger value="signin">Sign In</TabsTrigger>
             <TabsTrigger value="signup">Sign Up</TabsTrigger>
+            {isDevelopment && (
+              <TabsTrigger value="developer">Developer</TabsTrigger>
+            )}
           </TabsList>
 
           <TabsContent value="signin">
@@ -232,6 +251,64 @@ export default function Auth() {
               </CardContent>
             </Card>
           </TabsContent>
+
+          {isDevelopment && (
+            <TabsContent value="developer">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Code className="h-5 w-5" />
+                    Developer Mode
+                  </CardTitle>
+                  <CardDescription>
+                    Quick access to the dashboard without authentication (development only)
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+                    <div className="flex items-start gap-2">
+                      <Badge variant="outline" className="text-xs mt-0.5">
+                        DEV ONLY
+                      </Badge>
+                      <p className="text-sm text-amber-800">
+                        This bypass is only available in development mode and will not work in production.
+                      </p>
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-3">
+                    <Button 
+                      onClick={() => handleDevBypass('teacher')}
+                      className="w-full justify-between"
+                      variant="outline"
+                    >
+                      <div className="flex items-center gap-2">
+                        <GraduationCap className="h-4 w-4" />
+                        Enter as Teacher
+                      </div>
+                      <ArrowRight className="h-4 w-4" />
+                    </Button>
+                    
+                    <Button 
+                      onClick={() => handleDevBypass('student')}
+                      className="w-full justify-between"
+                      variant="outline"
+                    >
+                      <div className="flex items-center gap-2">
+                        <User className="h-4 w-4" />
+                        Enter as Student
+                      </div>
+                      <ArrowRight className="h-4 w-4" />
+                    </Button>
+                  </div>
+
+                  <div className="text-xs text-slate-500 text-center pt-2 border-t">
+                    Use the sidebar toggle once inside to switch between Teacher and Student views
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+          )}
         </Tabs>
       </div>
     </div>
