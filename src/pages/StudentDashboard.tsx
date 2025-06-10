@@ -1,3 +1,4 @@
+
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -26,6 +27,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { TailoredExercises } from "@/components/TailoredExercises";
 import { DashboardHeader } from "@/components/DashboardHeader";
+import { RoleToggle } from "@/components/RoleToggle";
 import { useAuth } from "@/contexts/AuthContext";
 
 interface StudentProfile {
@@ -109,10 +111,13 @@ export default function StudentDashboard() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50/30">
       <div className="max-w-7xl mx-auto px-6 py-8">
-        <DashboardHeader 
-          title="Student Dashboard" 
-          subtitle={`Welcome back, ${studentProfile.name}!`}
-        />
+        <div className="flex items-center justify-between mb-6">
+          <DashboardHeader 
+            title="Student Dashboard" 
+            subtitle={`Welcome back, ${studentProfile.name}!`}
+          />
+          <RoleToggle />
+        </div>
 
         {/* Welcome Section with Key Stats */}
         <div className="mb-8">
