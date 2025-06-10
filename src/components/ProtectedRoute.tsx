@@ -1,20 +1,28 @@
 
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth, UserRole } from '@/contexts/AuthContext';
+import { DEVELOPMENT_CONFIG } from '@/config/development';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
   requiredRole?: UserRole;
   redirectTo?: string;
+  allowDevMode?: boolean;
 }
 
 export function ProtectedRoute({ 
   children, 
   requiredRole,
-  redirectTo = '/auth' 
+  redirectTo = '/auth',
+  allowDevMode = true
 }: ProtectedRouteProps) {
   const { user, profile, loading } = useAuth();
   const location = useLocation();
+
+  // Development mode bypass
+  if (allowDevMode && DEVELOPMENT_CONFIG.bypassAuth) {
+    return <>{children}</>;
+  }
 
   if (loading) {
     return (

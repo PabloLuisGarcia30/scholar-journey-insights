@@ -59,7 +59,7 @@ const Index = () => {
   };
 
   return (
-    <ProtectedRoute requiredRole="teacher">
+    <ProtectedRoute allowDevMode={true}>
       <SidebarProvider>
         <div className="min-h-screen flex w-full bg-gray-50">
           <DashboardSidebar activeView={activeView} onViewChange={setActiveView} />

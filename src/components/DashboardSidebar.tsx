@@ -1,10 +1,10 @@
-
-import { BarChart3, Users, GraduationCap, Calendar, Brain, Home, ToggleLeft, ToggleRight, User, LogOut } from "lucide-react";
+import { BarChart3, Users, GraduationCap, Calendar, Brain, Home, User, LogOut, Code } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/contexts/AuthContext";
+import { DEVELOPMENT_CONFIG } from "@/config/development";
 import {
   Sidebar,
   SidebarContent,
@@ -28,8 +28,16 @@ export function DashboardSidebar({ activeView, onViewChange }: DashboardSidebarP
   const { user, profile, signOut } = useAuth();
   const [devMode, setDevMode] = useState<'teacher' | 'student'>('teacher');
 
-  // If user is not authenticated, don't show the sidebar
-  if (!user) {
+  // Use real user data if authenticated, otherwise use mock data in development
+  const isDevMode = DEVELOPMENT_CONFIG.bypassAuth && !user;
+  const displayUser = user || (isDevMode ? { email: DEVELOPMENT_CONFIG.mockUser.email } : null);
+  const displayProfile = profile || (isDevMode ? { 
+    ...DEVELOPMENT_CONFIG.mockUser, 
+    role: devMode 
+  } : null);
+
+  // If user is not authenticated and not in dev mode, don't show the sidebar
+  if (!displayUser) {
     return null;
   }
 
@@ -135,14 +143,20 @@ export function DashboardSidebar({ activeView, onViewChange }: DashboardSidebarP
               <GraduationCap className="h-6 w-6 text-blue-600" />
               <span className="font-semibold text-slate-900">EduPlatform</span>
             </div>
+            {isDevMode && (
+              <Badge variant="secondary" className="text-xs flex items-center gap-1">
+                <Code className="h-3 w-3" />
+                Dev Mode
+              </Badge>
+            )}
           </div>
           
           {/* Development Toggle */}
           <div className="bg-slate-50 rounded-lg p-3 space-y-2">
             <div className="flex items-center justify-between text-xs text-slate-600">
-              <span>Dev Mode</span>
+              <span>View Mode</span>
               <Badge variant="outline" className="text-xs">
-                {profile?.role || 'student'}
+                {displayProfile?.role || 'teacher'}
               </Badge>
             </div>
             <div className="flex items-center gap-2">
@@ -174,9 +188,10 @@ export function DashboardSidebar({ activeView, onViewChange }: DashboardSidebarP
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-slate-900 truncate">
-                {profile?.full_name || 'User'}
+                {displayProfile?.full_name || 'User'}
+                {isDevMode && <span className="text-xs text-slate-500 ml-1">(Mock)</span>}
               </p>
-              <p className="text-xs text-slate-600">{profile?.email}</p>
+              <p className="text-xs text-slate-600">{displayProfile?.email}</p>
             </div>
           </div>
         </div>
@@ -247,14 +262,25 @@ export function DashboardSidebar({ activeView, onViewChange }: DashboardSidebarP
       </SidebarContent>
 
       <SidebarFooter className="p-4 border-t">
-        <Button 
-          variant="outline" 
-          onClick={signOut}
-          className="w-full justify-start"
-        >
-          <LogOut className="mr-2 h-4 w-4" />
-          Sign Out
-        </Button>
+        {isDevMode ? (
+          <Button 
+            variant="outline" 
+            onClick={() => window.location.href = '/auth'}
+            className="w-full justify-start"
+          >
+            <User className="mr-2 h-4 w-4" />
+            Login (Exit Dev Mode)
+          </Button>
+        ) : (
+          <Button 
+            variant="outline" 
+            onClick={signOut}
+            className="w-full justify-start"
+          >
+            <LogOut className="mr-2 h-4 w-4" />
+            Sign Out
+          </Button>
+        )}
       </SidebarFooter>
     </Sidebar>
   );
