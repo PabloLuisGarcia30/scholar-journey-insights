@@ -36,69 +36,47 @@ interface StudentProfile {
   year?: string;
 }
 
-// Mock data for student dashboard
+// Pablo Luis Garcia test profile data
+const testStudentProfile = {
+  id: 'f2b40ffb-6348-4fa9-ade5-105bd1eb6b26',
+  name: 'Pablo Luis Garcia',
+  email: 'PabloLuisAlegaGarcia@gmail.com',
+  major: 'Computer Science',
+  year: 'Grade 11'
+};
+
+// Mock data based on Pablo's performance
 const mockProgressData = [
-  { subject: "Mathematics", progress: 78, grade: "B+", recentScore: 85 },
-  { subject: "Science", progress: 82, grade: "A-", recentScore: 88 },
-  { subject: "English", progress: 74, grade: "B", recentScore: 79 },
-  { subject: "History", progress: 89, grade: "A", recentScore: 92 },
+  { subject: "Mathematics", progress: 85, grade: "A-", recentScore: 88 },
+  { subject: "Science", progress: 90, grade: "A", recentScore: 92 },
+  { subject: "Geography", progress: 87, grade: "A-", recentScore: 89 },
+  { subject: "English", progress: 82, grade: "B+", recentScore: 85 },
 ];
 
 const mockRecentActivities = [
-  { title: "Algebra Practice Test", type: "assessment", score: 85, date: "2 days ago", status: "completed" },
-  { title: "Chemistry Lab Report", type: "assignment", score: 92, date: "3 days ago", status: "completed" },
-  { title: "Literature Essay", type: "assignment", score: 88, date: "5 days ago", status: "completed" },
-  { title: "Physics Quiz", type: "assessment", score: 76, date: "1 week ago", status: "completed" },
+  { title: "Geography Test - Grade 11", type: "assessment", score: 89, date: "2 days ago", status: "completed" },
+  { title: "Algebra Practice Test", type: "assessment", score: 88, date: "5 days ago", status: "completed" },
+  { title: "Science Lab Report", type: "assignment", score: 92, date: "1 week ago", status: "completed" },
+  { title: "Literature Essay", type: "assignment", score: 85, date: "1 week ago", status: "completed" },
 ];
 
 const mockUpcomingTasks = [
-  { title: "Biology Test", type: "test", dueDate: "Tomorrow", priority: "high" },
-  { title: "Math Homework", type: "homework", dueDate: "In 2 days", priority: "medium" },
-  { title: "History Project", type: "project", dueDate: "Next week", priority: "low" },
+  { title: "Math Quiz - Functions", type: "quiz", dueDate: "Tomorrow", priority: "high" },
+  { title: "Geography Project", type: "project", dueDate: "In 3 days", priority: "medium" },
+  { title: "Science Homework", type: "homework", dueDate: "Next week", priority: "low" },
 ];
 
 const mockLearningGoals = [
-  { goal: "Master Quadratic Equations", progress: 65, target: "End of month" },
-  { goal: "Improve Essay Writing", progress: 45, target: "Next quarter" },
-  { goal: "Chemistry Formulas", progress: 80, target: "This week" },
+  { goal: "Master Quadratic Functions", progress: 85, target: "End of month" },
+  { goal: "Improve Geographic Analysis", progress: 87, target: "Next quarter" },
+  { goal: "Advanced Problem Solving", progress: 82, target: "This semester" },
 ];
 
 export default function StudentDashboard() {
   const { user, loading } = useAuth();
 
-  const { data: studentProfile, isLoading: profileLoading } = useQuery({
-    queryKey: ['studentProfile', user?.id],
-    queryFn: async () => {
-      if (!user?.id) return null;
-      
-      // Try to get from active_students first
-      const { data: activeStudent } = await supabase
-        .from('active_students')
-        .select('*')
-        .eq('id', user.id)
-        .maybeSingle();
-
-      if (activeStudent) {
-        return {
-          id: activeStudent.id,
-          name: activeStudent.name,
-          email: activeStudent.email,
-          major: activeStudent.major,
-          year: activeStudent.year
-        };
-      }
-
-      // Fallback to user email if no profile found
-      return {
-        id: user.id,
-        name: user.email?.split('@')[0] || 'Student',
-        email: user.email,
-        major: 'Unknown',
-        year: 'Unknown'
-      };
-    },
-    enabled: !!user?.id,
-  });
+  // Use Pablo's profile data for testing
+  const studentProfile = testStudentProfile;
 
   if (loading) {
     return (
@@ -133,7 +111,7 @@ export default function StudentDashboard() {
       <div className="max-w-7xl mx-auto px-6 py-8">
         <DashboardHeader 
           title="Student Dashboard" 
-          subtitle={`Welcome back, ${studentProfile?.name || 'Student'}!`}
+          subtitle={`Welcome back, ${studentProfile.name}!`}
         />
 
         {/* Welcome Section with Key Stats */}
@@ -145,23 +123,19 @@ export default function StudentDashboard() {
                 <div className="flex items-center gap-4">
                   <Avatar className="h-16 w-16 ring-4 ring-white/20">
                     <AvatarFallback className="bg-white/20 text-white text-lg font-bold">
-                      {studentProfile?.name?.split(' ').map(n => n[0]).join('') || 'S'}
+                      PG
                     </AvatarFallback>
                   </Avatar>
                   <div>
-                    <h2 className="text-2xl font-bold">{studentProfile?.name || 'Student'}</h2>
-                    <p className="text-blue-100">{studentProfile?.email}</p>
+                    <h2 className="text-2xl font-bold">{studentProfile.name}</h2>
+                    <p className="text-blue-100">{studentProfile.email}</p>
                     <div className="flex gap-2 mt-2">
-                      {studentProfile?.year && (
-                        <Badge variant="secondary" className="bg-white/20 text-white border-0">
-                          {studentProfile.year}
-                        </Badge>
-                      )}
-                      {studentProfile?.major && (
-                        <Badge variant="secondary" className="bg-white/20 text-white border-0">
-                          {studentProfile.major}
-                        </Badge>
-                      )}
+                      <Badge variant="secondary" className="bg-white/20 text-white border-0">
+                        {studentProfile.year}
+                      </Badge>
+                      <Badge variant="secondary" className="bg-white/20 text-white border-0">
+                        {studentProfile.major}
+                      </Badge>
                     </div>
                   </div>
                 </div>
@@ -187,7 +161,7 @@ export default function StudentDashboard() {
           </div>
         </div>
 
-        {/* Rest of the dashboard content remains the same */}
+        {/* Rest of the dashboard content */}
         <Tabs defaultValue="overview" className="space-y-6">
           <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="overview">Overview</TabsTrigger>
@@ -345,15 +319,15 @@ export default function StudentDashboard() {
                     <div className="flex items-center gap-3 p-3 bg-blue-50 rounded-lg">
                       <Star className="h-8 w-8 text-blue-500" />
                       <div>
-                        <h4 className="font-medium">Perfect Attendance</h4>
-                        <p className="text-sm text-slate-600">No missed classes this month</p>
+                        <h4 className="font-medium">Geography Excellence</h4>
+                        <p className="text-sm text-slate-600">Top performer in Geography</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-3 p-3 bg-green-50 rounded-lg">
                       <Brain className="h-8 w-8 text-green-500" />
                       <div>
-                        <h4 className="font-medium">Quick Learner</h4>
-                        <p className="text-sm text-slate-600">Completed 15 practice tests</p>
+                        <h4 className="font-medium">Problem Solver</h4>
+                        <p className="text-sm text-slate-600">Excels in mathematical reasoning</p>
                       </div>
                     </div>
                   </div>
@@ -401,50 +375,44 @@ export default function StudentDashboard() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                {profileLoading ? (
-                  <div className="flex items-center justify-center py-8">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-                  </div>
-                ) : (
-                  <div className="space-y-6">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <div>
-                        <label className="text-sm font-medium text-slate-700">Full Name</label>
-                        <p className="text-lg font-medium">{studentProfile?.name || 'Not set'}</p>
-                      </div>
-                      <div>
-                        <label className="text-sm font-medium text-slate-700">Email</label>
-                        <p className="text-lg font-medium">{studentProfile?.email || 'Not set'}</p>
-                      </div>
-                      <div>
-                        <label className="text-sm font-medium text-slate-700">Academic Year</label>
-                        <p className="text-lg font-medium">{studentProfile?.year || 'Not set'}</p>
-                      </div>
-                      <div>
-                        <label className="text-sm font-medium text-slate-700">Major</label>
-                        <p className="text-lg font-medium">{studentProfile?.major || 'Not set'}</p>
-                      </div>
+                <div className="space-y-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                      <label className="text-sm font-medium text-slate-700">Full Name</label>
+                      <p className="text-lg font-medium">{studentProfile.name}</p>
                     </div>
-                    
-                    <div className="pt-4 border-t">
-                      <h3 className="text-lg font-semibold mb-4">Academic Summary</h3>
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div className="text-center p-4 bg-blue-50 rounded-lg">
-                          <div className="text-2xl font-bold text-blue-600">{overallGPA.toFixed(1)}%</div>
-                          <div className="text-sm text-slate-600">Overall Average</div>
-                        </div>
-                        <div className="text-center p-4 bg-green-50 rounded-lg">
-                          <div className="text-2xl font-bold text-green-600">{mockRecentActivities.length}</div>
-                          <div className="text-sm text-slate-600">Completed Assessments</div>
-                        </div>
-                        <div className="text-center p-4 bg-purple-50 rounded-lg">
-                          <div className="text-2xl font-bold text-purple-600">{mockProgressData.length}</div>
-                          <div className="text-sm text-slate-600">Active Subjects</div>
-                        </div>
+                    <div>
+                      <label className="text-sm font-medium text-slate-700">Email</label>
+                      <p className="text-lg font-medium">{studentProfile.email}</p>
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium text-slate-700">Academic Year</label>
+                      <p className="text-lg font-medium">{studentProfile.year}</p>
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium text-slate-700">Major</label>
+                      <p className="text-lg font-medium">{studentProfile.major}</p>
+                    </div>
+                  </div>
+                  
+                  <div className="pt-4 border-t">
+                    <h3 className="text-lg font-semibold mb-4">Academic Summary</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div className="text-center p-4 bg-blue-50 rounded-lg">
+                        <div className="text-2xl font-bold text-blue-600">{overallGPA.toFixed(1)}%</div>
+                        <div className="text-sm text-slate-600">Overall Average</div>
+                      </div>
+                      <div className="text-center p-4 bg-green-50 rounded-lg">
+                        <div className="text-2xl font-bold text-green-600">{mockRecentActivities.length}</div>
+                        <div className="text-sm text-slate-600">Completed Assessments</div>
+                      </div>
+                      <div className="text-center p-4 bg-purple-50 rounded-lg">
+                        <div className="text-2xl font-bold text-purple-600">{mockProgressData.length}</div>
+                        <div className="text-sm text-slate-600">Active Subjects</div>
                       </div>
                     </div>
                   </div>
-                )}
+                </div>
               </CardContent>
             </Card>
           </TabsContent>
