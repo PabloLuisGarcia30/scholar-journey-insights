@@ -1,12 +1,13 @@
-
 import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { User, TrendingDown } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { User, TrendingDown, Edit, Save, X } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { getAllActiveStudents, getActiveClassById } from "@/services/examService";
 import { useStudentProfileData } from "@/hooks/useStudentProfileData";
 import { useState } from "react";
+import { StudentSkillEditor } from "./StudentSkillEditor";
 
 interface ClassStudentListProps {
   classId: string;
@@ -18,6 +19,8 @@ interface StudentCardProps {
   student: any;
   classId: string;
   className: string;
+  onEdit: (studentId: string) => void;
+  customSkills?: Array<{ skill_name: string; score: number }>;
 }
 
 function WeakestSkillCircle({ skillName, score }: { skillName: string; score: number }) {
@@ -115,7 +118,7 @@ function WeakestSkillCircle({ skillName, score }: { skillName: string; score: nu
   );
 }
 
-function StudentCard({ student, classId, className }: StudentCardProps) {
+function StudentCard({ student, classId, className, onEdit, customSkills }: StudentCardProps) {
   // Get student profile data to find weakest content skill
   const { contentSkillScores, contentSkillsLoading } = useStudentProfileData({
     studentId: student.id,
@@ -123,9 +126,14 @@ function StudentCard({ student, classId, className }: StudentCardProps) {
     className
   });
 
+  // Use custom skills if available, otherwise use original data
+  const skillsToUse = customSkills || contentSkillScores;
+
   // Find the weakest content skill (absolute lowest score)
-  const weakestSkill = contentSkillScores
+  const weakestSkill = skillsToUse
     .sort((a, b) => a.score - b.score)[0]; // Get the lowest scoring skill
+
+  const hasCustomSkills = Boolean(customSkills);
 
   return (
     <Card className="group hover:shadow-lg transition-all duration-300 cursor-pointer border-0 bg-white/80 backdrop-blur-sm hover:bg-white hover:scale-[1.01] w-full max-w-lg">
@@ -138,9 +146,16 @@ function StudentCard({ student, classId, className }: StudentCardProps) {
           </Avatar>
           
           <div className="flex-1 min-w-0">
-            <h4 className="font-semibold text-sm text-slate-900 truncate group-hover:text-blue-700 transition-colors">
-              {student.name}
-            </h4>
+            <div className="flex items-center gap-2">
+              <h4 className="font-semibold text-sm text-slate-900 truncate group-hover:text-blue-700 transition-colors">
+                {student.name}
+              </h4>
+              {hasCustomSkills && (
+                <Badge variant="secondary" className="text-xs px-2 py-0.5 bg-blue-50 text-blue-700 border-blue-200">
+                  Custom
+                </Badge>
+              )}
+            </div>
             <p className="text-xs text-slate-500 truncate">{student.email || 'No email'}</p>
             
             <div className="flex flex-wrap gap-1 mt-1">
@@ -155,6 +170,22 @@ function StudentCard({ student, classId, className }: StudentCardProps) {
                 </Badge>
               )}
             </div>
+          </div>
+
+          {/* Edit Button */}
+          <div className="flex-shrink-0 mr-2">
+            <Button 
+              size="sm" 
+              variant="outline"
+              onClick={(e) => {
+                e.stopPropagation();
+                onEdit(student.id);
+              }}
+              className="h-8 w-8 p-0"
+              title="Edit student skills for lesson planning"
+            >
+              <Edit className="h-4 w-4" />
+            </Button>
           </div>
 
           {/* Weakest Skill Circle */}
@@ -186,6 +217,9 @@ function StudentCard({ student, classId, className }: StudentCardProps) {
 }
 
 export function ClassStudentList({ classId, className, onSelectStudent }: ClassStudentListProps) {
+  const [editingStudentId, setEditingStudentId] = useState<string | null>(null);
+  const [customStudentSkills, setCustomStudentSkills] = useState<Record<string, Array<{ skill_name: string; score: number }>>>({});
+
   const { data: allStudents = [], isLoading: studentsLoading } = useQuery({
     queryKey: ['allActiveStudents'],
     queryFn: getAllActiveStudents,
@@ -203,6 +237,22 @@ export function ClassStudentList({ classId, className, onSelectStudent }: ClassS
   );
 
   const isLoading = studentsLoading || classLoading;
+
+  const handleEditStudent = (studentId: string) => {
+    setEditingStudentId(studentId);
+  };
+
+  const handleSaveStudentSkills = (studentId: string, skills: Array<{ skill_name: string; score: number }>) => {
+    setCustomStudentSkills(prev => ({
+      ...prev,
+      [studentId]: skills
+    }));
+    setEditingStudentId(null);
+  };
+
+  const handleCancelEdit = () => {
+    setEditingStudentId(null);
+  };
 
   if (isLoading) {
     return (
@@ -228,6 +278,25 @@ export function ClassStudentList({ classId, className, onSelectStudent }: ClassS
     );
   }
 
+  // If editing a student, show the editor
+  if (editingStudentId) {
+    const editingStudent = classStudents.find(s => s.id === editingStudentId);
+    if (editingStudent) {
+      return (
+        <div className="mt-6 flex justify-center">
+          <StudentSkillEditor
+            studentId={editingStudentId}
+            studentName={editingStudent.name}
+            classId={classId}
+            className={className}
+            onSave={handleSaveStudentSkills}
+            onCancel={handleCancelEdit}
+          />
+        </div>
+      );
+    }
+  }
+
   return (
     <div className="mt-6">
       <div className="mb-4">
@@ -236,7 +305,7 @@ export function ClassStudentList({ classId, className, onSelectStudent }: ClassS
             Student Analysis
           </h3>
           <p className="text-sm text-slate-600">
-            View each student's weakest content skill in {className} - automatically identified based on their performance
+            View each student's weakest content skill in {className} - click Edit to customize skills for today's lesson
           </p>
         </div>
       </div>
@@ -248,6 +317,8 @@ export function ClassStudentList({ classId, className, onSelectStudent }: ClassS
             student={student}
             classId={classId}
             className={className}
+            onEdit={handleEditStudent}
+            customSkills={customStudentSkills[student.id]}
           />
         ))}
       </div>
