@@ -1,4 +1,3 @@
-
 import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -8,7 +7,7 @@ import { useQuery } from "@tanstack/react-query";
 import { getAllActiveStudents, getActiveClassById } from "@/services/examService";
 import { useStudentProfileData } from "@/hooks/useStudentProfileData";
 import { getMasteryColor } from "@/utils/studentProfileUtils";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { LockLessonPlanDialog } from "./LockLessonPlanDialog";
 import { type LessonPlanData } from "@/services/lessonPlanService";
 
@@ -214,7 +213,8 @@ export function ClassStudentList({ classId, className, onSelectStudent }: ClassS
     setShowLockDialog(true);
   };
 
-  const prepareLessonPlanData = (): LessonPlanData | null => {
+  // Prepare lesson plan data using useMemo to avoid recalculation
+  const lessonPlanData = useMemo((): LessonPlanData | null => {
     if (!classData || classStudents.length === 0) return null;
 
     // Get current date and time for the lesson plan
@@ -222,36 +222,8 @@ export function ClassStudentList({ classId, className, onSelectStudent }: ClassS
     const scheduledDate = today.toISOString().split('T')[0]; // YYYY-MM-DD format
     const scheduledTime = "13:30"; // Default time, could be made dynamic
 
-    const studentsWithSkills = classStudents
-      .map(student => {
-        // Get weakest skill for this student from the StudentCard logic
-        const { contentSkillScores } = useStudentProfileData({
-          studentId: student.id,
-          classId,
-          className
-        });
-
-        const weakestSkill = contentSkillScores
-          .sort((a, b) => a.score - b.score)[0];
-
-        if (!weakestSkill) return null;
-
-        return {
-          studentId: student.id,
-          studentName: student.name,
-          targetSkillName: weakestSkill.skill_name,
-          targetSkillScore: weakestSkill.score
-        };
-      })
-      .filter(Boolean) as Array<{
-        studentId: string;
-        studentName: string;
-        targetSkillName: string;
-        targetSkillScore: number;
-      }>;
-
-    if (studentsWithSkills.length === 0) return null;
-
+    // For now, we'll create a basic lesson plan structure
+    // The individual student skill data will be populated when the dialog opens
     return {
       classId: classData.id,
       className: classData.name,
@@ -260,9 +232,14 @@ export function ClassStudentList({ classId, className, onSelectStudent }: ClassS
       grade: classData.grade,
       scheduledDate,
       scheduledTime,
-      students: studentsWithSkills
+      students: classStudents.map(student => ({
+        studentId: student.id,
+        studentName: student.name,
+        targetSkillName: "Loading...", // Will be populated in dialog
+        targetSkillScore: 0 // Will be populated in dialog
+      }))
     };
-  };
+  }, [classData, classStudents]);
 
   if (isLoading) {
     return (
@@ -325,7 +302,7 @@ export function ClassStudentList({ classId, className, onSelectStudent }: ClassS
       <LockLessonPlanDialog
         open={showLockDialog}
         onOpenChange={setShowLockDialog}
-        lessonPlanData={prepareLessonPlanData()}
+        lessonPlanData={lessonPlanData}
         onSuccess={() => {
           // Could add additional success handling here
           console.log('Lesson plan saved successfully');

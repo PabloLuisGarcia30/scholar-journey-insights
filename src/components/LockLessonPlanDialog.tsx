@@ -13,12 +13,82 @@ import { Badge } from "@/components/ui/badge";
 import { Calendar, Clock, Users, Target, BookOpen } from "lucide-react";
 import { toast } from "sonner";
 import { saveLessonPlan, type LessonPlanData } from "@/services/lessonPlanService";
+import { useStudentProfileData } from "@/hooks/useStudentProfileData";
 
 interface LockLessonPlanDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   lessonPlanData: LessonPlanData | null;
   onSuccess: () => void;
+}
+
+interface StudentSkillData {
+  studentId: string;
+  studentName: string;
+  targetSkillName: string;
+  targetSkillScore: number;
+}
+
+function StudentSkillFetcher({ 
+  studentId, 
+  studentName, 
+  classId, 
+  className, 
+  onSkillData 
+}: {
+  studentId: string;
+  studentName: string;
+  classId: string;
+  className: string;
+  onSkillData: (data: StudentSkillData) => void;
+}) {
+  const { contentSkillScores, contentSkillsLoading } = useStudentProfileData({
+    studentId,
+    classId,
+    className
+  });
+
+  const weakestSkill = contentSkillScores
+    .sort((a, b) => a.score - b.score)[0];
+
+  // Call onSkillData when data is available
+  if (!contentSkillsLoading && weakestSkill) {
+    onSkillData({
+      studentId,
+      studentName,
+      targetSkillName: weakestSkill.skill_name,
+      targetSkillScore: weakestSkill.score
+    });
+  }
+
+  return (
+    <div className="p-3 bg-white rounded-lg border">
+      <div className="flex items-start justify-between mb-2">
+        <div>
+          <h4 className="font-medium text-slate-900">{studentName}</h4>
+          <div className="flex items-center gap-2 mt-1">
+            <Target className="h-3 w-3 text-orange-600" />
+            <span className="text-sm text-orange-700">Target Skill</span>
+          </div>
+        </div>
+        {contentSkillsLoading ? (
+          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+        ) : weakestSkill ? (
+          <Badge variant="outline" className="text-red-600 border-red-200 bg-red-50">
+            {Math.round(weakestSkill.score)}%
+          </Badge>
+        ) : (
+          <Badge variant="outline" className="text-gray-600 border-gray-200 bg-gray-50">
+            No data
+          </Badge>
+        )}
+      </div>
+      <p className="text-sm text-slate-700 font-medium">
+        {contentSkillsLoading ? "Loading skill data..." : 
+         weakestSkill ? weakestSkill.skill_name : "No skill data available"}
+      </p>
+    </div>
+  );
 }
 
 export function LockLessonPlanDialog({ 
@@ -28,13 +98,43 @@ export function LockLessonPlanDialog({
   onSuccess 
 }: LockLessonPlanDialogProps) {
   const [saving, setSaving] = useState(false);
+  const [studentSkillData, setStudentSkillData] = useState<StudentSkillData[]>([]);
+
+  const handleSkillData = (data: StudentSkillData) => {
+    setStudentSkillData(prev => {
+      const existing = prev.find(item => item.studentId === data.studentId);
+      if (existing) {
+        return prev.map(item => 
+          item.studentId === data.studentId ? data : item
+        );
+      } else {
+        return [...prev, data];
+      }
+    });
+  };
 
   const handleSave = async () => {
     if (!lessonPlanData) return;
 
+    // Use the collected skill data or fallback to basic data
+    const studentsWithSkills = lessonPlanData.students.map(student => {
+      const skillData = studentSkillData.find(data => data.studentId === student.studentId);
+      return skillData || {
+        studentId: student.studentId,
+        studentName: student.studentName,
+        targetSkillName: "Assessment pending",
+        targetSkillScore: 0
+      };
+    });
+
+    const finalLessonPlanData = {
+      ...lessonPlanData,
+      students: studentsWithSkills
+    };
+
     try {
       setSaving(true);
-      await saveLessonPlan(lessonPlanData);
+      await saveLessonPlan(finalLessonPlanData);
       toast.success("Lesson plan locked in successfully!");
       onSuccess();
       onOpenChange(false);
@@ -121,24 +221,15 @@ export function LockLessonPlanDialog({
               Students & Target Skills ({lessonPlanData.students.length} students)
             </h3>
             <div className="space-y-3">
-              {lessonPlanData.students.map((student, index) => (
-                <div key={student.studentId} className="p-3 bg-white rounded-lg border">
-                  <div className="flex items-start justify-between mb-2">
-                    <div>
-                      <h4 className="font-medium text-slate-900">{student.studentName}</h4>
-                      <div className="flex items-center gap-2 mt-1">
-                        <Target className="h-3 w-3 text-orange-600" />
-                        <span className="text-sm text-orange-700">Target Skill</span>
-                      </div>
-                    </div>
-                    <Badge variant="outline" className="text-red-600 border-red-200 bg-red-50">
-                      {Math.round(student.targetSkillScore)}%
-                    </Badge>
-                  </div>
-                  <p className="text-sm text-slate-700 font-medium">
-                    {student.targetSkillName}
-                  </p>
-                </div>
+              {lessonPlanData.students.map((student) => (
+                <StudentSkillFetcher
+                  key={student.studentId}
+                  studentId={student.studentId}
+                  studentName={student.studentName}
+                  classId={lessonPlanData.classId}
+                  className={lessonPlanData.className}
+                  onSkillData={handleSkillData}
+                />
               ))}
             </div>
           </div>
