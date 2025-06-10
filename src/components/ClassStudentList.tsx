@@ -67,11 +67,11 @@ function WeakestSkillCircle({ skillName, score }: { skillName: string; score: nu
   return (
     <div className="flex flex-col items-center">
       <div 
-        className="relative w-16 h-16 mb-2"
+        className="relative w-12 h-12 mb-1"
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
       >
-        <svg className="w-16 h-16" viewBox="0 0 64 64">
+        <svg className="w-12 h-12" viewBox="0 0 48 48">
           <defs>
             <linearGradient id={gradientId} x1="0%" y1="0%" x2="100%" y2="100%">
               <stop offset="0%" stopColor={gradientColors.color1} />
@@ -80,9 +80,9 @@ function WeakestSkillCircle({ skillName, score }: { skillName: string; score: nu
             </linearGradient>
           </defs>
           <circle
-            cx="32"
-            cy="32"
-            r="28"
+            cx="24"
+            cy="24"
+            r="20"
             fill={`url(#${gradientId})`}
             style={{ 
               filter: isHovered ? 'brightness(1.1)' : 'brightness(1)',
@@ -101,17 +101,14 @@ function WeakestSkillCircle({ skillName, score }: { skillName: string; score: nu
         </div>
       </div>
 
-      {/* Skill name and context */}
-      <div className="text-center max-w-[140px]">
-        <div className="flex items-center gap-1 justify-center mb-1">
-          <TrendingDown className="h-3 w-3 text-orange-600" />
-          <span className="text-xs font-medium text-orange-700">Weakest Skill</span>
+      {/* Skill name and context - more compact */}
+      <div className="text-center max-w-[100px]">
+        <div className="flex items-center gap-1 justify-center mb-0.5">
+          <TrendingDown className="h-2.5 w-2.5 text-orange-600" />
+          <span className="text-[10px] font-medium text-orange-700">Weakest</span>
         </div>
-        <p className="text-xs text-slate-700 font-medium leading-tight">
+        <p className="text-[10px] text-slate-700 font-medium leading-tight truncate">
           {skillName}
-        </p>
-        <p className="text-xs text-slate-500 mt-1">
-          Focus area
         </p>
       </div>
     </div>
@@ -132,28 +129,28 @@ function StudentCard({ student, classId, className }: StudentCardProps) {
 
   return (
     <Card className="group hover:shadow-lg transition-all duration-300 cursor-pointer border-0 bg-white/80 backdrop-blur-sm hover:bg-white hover:scale-[1.01]">
-      <CardContent className="p-4">
-        <div className="flex items-center gap-4">
-          <Avatar className="h-12 w-12 ring-2 ring-slate-100 group-hover:ring-blue-200 transition-all duration-300 flex-shrink-0">
-            <AvatarFallback className="bg-gradient-to-br from-blue-100 to-purple-100 text-slate-700 font-semibold">
+      <CardContent className="p-3">
+        <div className="flex items-center gap-3">
+          <Avatar className="h-10 w-10 ring-2 ring-slate-100 group-hover:ring-blue-200 transition-all duration-300 flex-shrink-0">
+            <AvatarFallback className="bg-gradient-to-br from-blue-100 to-purple-100 text-slate-700 font-semibold text-sm">
               {student.name.split(' ').map(n => n[0]).join('')}
             </AvatarFallback>
           </Avatar>
           
           <div className="flex-1 min-w-0">
-            <h4 className="font-semibold text-slate-900 truncate group-hover:text-blue-700 transition-colors text-lg">
+            <h4 className="font-semibold text-slate-900 truncate group-hover:text-blue-700 transition-colors">
               {student.name}
             </h4>
-            <p className="text-sm text-slate-500 truncate">{student.email || 'No email'}</p>
+            <p className="text-xs text-slate-500 truncate">{student.email || 'No email'}</p>
             
-            <div className="flex flex-wrap gap-2 mt-2">
+            <div className="flex flex-wrap gap-1.5 mt-1">
               {student.year && (
-                <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200">
+                <Badge variant="outline" className="text-[10px] px-1.5 py-0.5 bg-blue-50 text-blue-700 border-blue-200">
                   {student.year}
                 </Badge>
               )}
               {student.gpa && (
-                <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">
+                <Badge variant="outline" className="text-[10px] px-1.5 py-0.5 bg-green-50 text-green-700 border-green-200">
                   GPA: {Number(student.gpa).toFixed(1)}
                 </Badge>
               )}
@@ -163,8 +160,8 @@ function StudentCard({ student, classId, className }: StudentCardProps) {
           {/* Weakest Skill Circle - automatically displayed */}
           <div className="flex-shrink-0">
             {contentSkillsLoading ? (
-              <div className="w-16 h-16 flex items-center justify-center">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+              <div className="w-12 h-12 flex items-center justify-center">
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
               </div>
             ) : weakestSkill ? (
               <WeakestSkillCircle 
@@ -172,12 +169,12 @@ function StudentCard({ student, classId, className }: StudentCardProps) {
                 score={weakestSkill.score}
               />
             ) : (
-              <div className="flex flex-col items-center w-16">
-                <div className="w-16 h-16 bg-gradient-to-br from-slate-100 to-slate-200 rounded-full flex items-center justify-center mb-2">
+              <div className="flex flex-col items-center w-12">
+                <div className="w-12 h-12 bg-gradient-to-br from-slate-100 to-slate-200 rounded-full flex items-center justify-center mb-1">
                   <span className="text-xs font-bold text-slate-500">?</span>
                 </div>
-                <p className="text-xs text-slate-500 font-medium text-center">
-                  No skills data
+                <p className="text-[10px] text-slate-500 font-medium text-center">
+                  No data
                 </p>
               </div>
             )}
