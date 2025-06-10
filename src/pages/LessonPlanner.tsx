@@ -47,7 +47,7 @@ export default function LessonPlanner() {
                 size="lg"
               >
                 <Plus className="h-5 w-5" />
-                Plan your Next Class
+                Individualized Lesson plan for your next class
               </Button>
             </div>
             
