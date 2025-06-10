@@ -1,5 +1,3 @@
-
-
 import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -10,6 +8,7 @@ import { getAllActiveStudents, getActiveClassById } from "@/services/examService
 import { useStudentProfileData } from "@/hooks/useStudentProfileData";
 import { useState } from "react";
 import { StudentSkillSelector } from "./StudentSkillSelector";
+import { StartClassSession } from "./StartClassSession";
 
 interface ClassStudentListProps {
   classId: string;
@@ -332,6 +331,13 @@ export function ClassStudentList({ classId, className, onSelectStudent }: ClassS
     return skills;
   };
 
+  // Prepare data for StartClassSession component
+  const studentsWithSkills = classStudents.map(student => ({
+    studentId: student.id,
+    studentName: student.name,
+    skills: getStudentSkills(student.id)
+  })).filter(student => student.skills.length > 0);
+
   if (isLoading) {
     return (
       <div className="mt-6">
@@ -401,13 +407,23 @@ export function ClassStudentList({ classId, className, onSelectStudent }: ClassS
   return (
     <div className="mt-6">
       <div className="mb-4">
-        <div>
-          <h3 className="text-lg font-semibold text-slate-900 mb-1">
-            Recommended Lesson Plan based on Student Performance
-          </h3>
-          <p className="text-sm text-slate-600">
-            View each student's skill focus for {className} - click Target to select focus skills, Add Skills for additional content
-          </p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-lg font-semibold text-slate-900 mb-1">
+              Recommended Lesson Plan based on Student Performance
+            </h3>
+            <p className="text-sm text-slate-600">
+              View each student's skill focus for {className} - click Target to select focus skills, Add Skills for additional content
+            </p>
+          </div>
+          
+          {studentsWithSkills.length > 0 && (
+            <StartClassSession
+              classId={classId}
+              className={className}
+              students={studentsWithSkills}
+            />
+          )}
         </div>
       </div>
 
@@ -427,4 +443,3 @@ export function ClassStudentList({ classId, className, onSelectStudent }: ClassS
     </div>
   );
 }
-

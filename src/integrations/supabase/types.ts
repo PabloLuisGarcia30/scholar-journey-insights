@@ -224,6 +224,60 @@ export type Database = {
           },
         ]
       }
+      class_sessions: {
+        Row: {
+          class_id: string
+          created_at: string
+          ended_at: string | null
+          id: string
+          is_active: boolean
+          lesson_plan_id: string | null
+          session_name: string
+          started_at: string
+          teacher_id: string
+          updated_at: string
+        }
+        Insert: {
+          class_id: string
+          created_at?: string
+          ended_at?: string | null
+          id?: string
+          is_active?: boolean
+          lesson_plan_id?: string | null
+          session_name: string
+          started_at?: string
+          teacher_id: string
+          updated_at?: string
+        }
+        Update: {
+          class_id?: string
+          created_at?: string
+          ended_at?: string | null
+          id?: string
+          is_active?: boolean
+          lesson_plan_id?: string | null
+          session_name?: string
+          started_at?: string
+          teacher_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "class_sessions_class_id_fkey"
+            columns: ["class_id"]
+            isOneToOne: false
+            referencedRelation: "active_classes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "class_sessions_lesson_plan_id_fkey"
+            columns: ["lesson_plan_id"]
+            isOneToOne: false
+            referencedRelation: "lesson_plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       class_subject_skills: {
         Row: {
           class_id: string
@@ -796,6 +850,62 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: []
+      }
+      student_exercises: {
+        Row: {
+          class_session_id: string
+          completed_at: string | null
+          created_at: string
+          exercise_data: Json
+          id: string
+          score: number | null
+          skill_name: string
+          skill_score: number
+          started_at: string | null
+          status: string
+          student_id: string
+          student_name: string
+          updated_at: string
+        }
+        Insert: {
+          class_session_id: string
+          completed_at?: string | null
+          created_at?: string
+          exercise_data: Json
+          id?: string
+          score?: number | null
+          skill_name: string
+          skill_score: number
+          started_at?: string | null
+          status?: string
+          student_id: string
+          student_name: string
+          updated_at?: string
+        }
+        Update: {
+          class_session_id?: string
+          completed_at?: string | null
+          created_at?: string
+          exercise_data?: Json
+          id?: string
+          score?: number | null
+          skill_name?: string
+          skill_score?: number
+          started_at?: string | null
+          status?: string
+          student_id?: string
+          student_name?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "student_exercises_class_session_id_fkey"
+            columns: ["class_session_id"]
+            isOneToOne: false
+            referencedRelation: "class_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       student_links: {
         Row: {
