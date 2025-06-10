@@ -33,6 +33,38 @@ export interface ExerciseGenerationProgress {
   error?: string;
 }
 
+async function generatePracticeTestForStudent(request: {
+  studentName: string;
+  className: string;
+  skillName: string;
+  grade: string;
+  subject: string;
+  questionCount?: number;
+}) {
+  try {
+    console.log('Calling generate-lesson-exercises edge function with:', request);
+    
+    const { data, error } = await supabase.functions.invoke('generate-lesson-exercises', {
+      body: request
+    });
+
+    if (error) {
+      console.error('Supabase function error:', error);
+      throw new Error(`Failed to generate exercise: ${error.message}`);
+    }
+
+    if (!data) {
+      throw new Error('No data returned from exercise generation');
+    }
+
+    console.log('Successfully generated exercise:', data);
+    return data;
+  } catch (error) {
+    console.error('Error in generatePracticeTestForStudent:', error);
+    throw error;
+  }
+}
+
 export async function saveLessonPlan(lessonPlanData: LessonPlanData) {
   try {
     // Insert the lesson plan
@@ -103,7 +135,7 @@ export async function saveLessonPlanWithExercises(
     const exercises: Array<{
       studentId: string;
       studentName: string;
-      exerciseData: PracticeTestData;
+      exerciseData: any;
       generatedAt: string;
     }> = [];
 
@@ -120,30 +152,28 @@ export async function saveLessonPlanWithExercises(
       try {
         console.log(`Generating practice test for ${student.studentName} targeting ${student.targetSkillName}`);
         
-        const practiceTestRequest: GeneratePracticeTestRequest = {
+        const exerciseData = await generatePracticeTestForStudent({
           studentName: student.studentName,
           className: lessonPlanData.className,
           skillName: student.targetSkillName,
           grade: lessonPlanData.grade,
           subject: lessonPlanData.subject,
-          questionCount: 8, // Smaller number for lesson plan exercises
-          classId: lessonPlanData.classId
-        };
-
-        const exerciseData = await generatePracticeTest(practiceTestRequest);
+          questionCount: 8
+        });
         
-        // Store the generated exercise in the database - cast to any to handle JSON type
+        // Store the generated exercise in the database
         const { error: exerciseError } = await supabase
           .from('lesson_plan_practice_exercises')
           .insert({
             lesson_plan_id: lessonPlan.id,
             student_id: student.studentId,
             student_name: student.studentName,
-            exercise_data: exerciseData as any,
+            exercise_data: exerciseData,
             exercise_type: 'practice_test'
           });
 
         if (exerciseError) {
+          console.error('Database insert error:', exerciseError);
           throw exerciseError;
         }
 

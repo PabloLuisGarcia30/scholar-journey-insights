@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -110,6 +111,14 @@ export function LockLessonPlanDialog({
   const [exerciseGenerationComplete, setExerciseGenerationComplete] = useState(false);
   const [generatedLessonPlan, setGeneratedLessonPlan] = useState<LessonPlanWithExercises | null>(null);
   const [showExerciseViewer, setShowExerciseViewer] = useState(false);
+  const [debugInfo, setDebugInfo] = useState<string[]>([]);
+
+  const addDebugInfo = (message: string) => {
+    const timestamp = new Date().toLocaleTimeString();
+    const debugMessage = `[${timestamp}] ${message}`;
+    console.log(debugMessage);
+    setDebugInfo(prev => [...prev, debugMessage]);
+  };
 
   const handleSkillData = (data: StudentSkillData) => {
     setStudentSkillData(prev => {
@@ -125,17 +134,26 @@ export function LockLessonPlanDialog({
   };
 
   const handleSave = async () => {
-    if (!lessonPlanData) return;
+    if (!lessonPlanData) {
+      addDebugInfo("ERROR: No lesson plan data provided");
+      toast.error("No lesson plan data available");
+      return;
+    }
+
+    addDebugInfo(`Starting lesson plan save for class: ${lessonPlanData.className}`);
+    addDebugInfo(`Students count: ${lessonPlanData.students.length}`);
 
     // Use the collected skill data or fallback to basic data
     const studentsWithSkills = lessonPlanData.students.map(student => {
       const skillData = studentSkillData.find(data => data.studentId === student.studentId);
-      return skillData || {
+      const result = skillData || {
         studentId: student.studentId,
         studentName: student.studentName,
         targetSkillName: "Assessment pending",
         targetSkillScore: 0
       };
+      addDebugInfo(`Student ${student.studentName}: target skill = ${result.targetSkillName} (${result.targetSkillScore}%)`);
+      return result;
     });
 
     const finalLessonPlanData = {
@@ -149,16 +167,17 @@ export function LockLessonPlanDialog({
       setExerciseGenerationComplete(false);
       setExerciseProgress([]);
 
-      console.log('Starting lesson plan save with exercise generation...');
+      addDebugInfo('Calling saveLessonPlanWithExercises...');
       
       const result = await saveLessonPlanWithExercises(
         finalLessonPlanData,
         (progress) => {
-          console.log('Exercise generation progress:', progress);
+          addDebugInfo(`Exercise generation progress: ${progress.length} students, ${progress.filter(p => p.status === 'completed').length} completed`);
           setExerciseProgress(progress);
         }
       );
 
+      addDebugInfo('Exercise generation completed successfully');
       setExerciseGenerationComplete(true);
       setGeneratedLessonPlan(result);
       
@@ -172,8 +191,11 @@ export function LockLessonPlanDialog({
       onSuccess();
       
     } catch (error) {
-      console.error('Error saving lesson plan with exercises:', error);
-      toast.error("Failed to save lesson plan. Please try again.");
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      addDebugInfo(`ERROR in handleSave: ${errorMessage}`);
+      console.error('Detailed error in lesson plan save:', error);
+      
+      toast.error(`Failed to save lesson plan: ${errorMessage}`);
       setIsGeneratingExercises(false);
       setExerciseGenerationComplete(false);
     } finally {
@@ -182,16 +204,19 @@ export function LockLessonPlanDialog({
   };
 
   const handleViewExercises = () => {
+    addDebugInfo('Opening exercise viewer dialog');
     setShowExerciseViewer(true);
   };
 
   const handleCloseDialog = () => {
+    addDebugInfo('Closing lesson plan dialog');
     onOpenChange(false);
     // Reset states for next time
     setExerciseProgress([]);
     setIsGeneratingExercises(false);
     setExerciseGenerationComplete(false);
     setGeneratedLessonPlan(null);
+    setDebugInfo([]);
   };
 
   if (!lessonPlanData) return null;
@@ -231,6 +256,20 @@ export function LockLessonPlanDialog({
           </DialogHeader>
 
           <div className="space-y-6">
+            {/* Debug Information - only show in development or when there are errors */}
+            {debugInfo.length > 0 && (
+              <div className="p-3 bg-gray-50 rounded-lg text-xs">
+                <details>
+                  <summary className="cursor-pointer font-medium text-gray-700">Debug Information</summary>
+                  <div className="mt-2 space-y-1 max-h-32 overflow-y-auto">
+                    {debugInfo.map((info, index) => (
+                      <div key={index} className="text-gray-600 font-mono">{info}</div>
+                    ))}
+                  </div>
+                </details>
+              </div>
+            )}
+
             {/* Show exercise generation progress if in progress */}
             {isGeneratingExercises && (
               <ExerciseProgressComponent 
