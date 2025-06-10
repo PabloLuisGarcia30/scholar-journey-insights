@@ -2,8 +2,56 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Play, Users, Calendar, Settings, BookOpen } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 
 export default function ClassRunner() {
+  const { profile } = useAuth();
+
+  // Fetch active classes for Mr. Cullen
+  const { data: activeClasses = [], isLoading } = useQuery({
+    queryKey: ['activeClasses', profile?.full_name],
+    queryFn: async () => {
+      console.log('Fetching classes for teacher:', profile?.full_name);
+      
+      const { data, error } = await supabase
+        .from('active_classes')
+        .select('*')
+        .eq('teacher', profile?.full_name || 'Mr. Cullen')
+        .order('created_at', { ascending: true });
+
+      if (error) {
+        console.error('Error fetching active classes:', error);
+        throw error;
+      }
+
+      console.log('Found classes:', data);
+      return data || [];
+    },
+    enabled: !!profile?.full_name,
+  });
+
+  const formatTime = (timeString: string) => {
+    const date = new Date(`2024-01-01 ${timeString}`);
+    return date.toLocaleTimeString('en-US', { 
+      hour: 'numeric', 
+      minute: '2-digit',
+      hour12: true 
+    });
+  };
+
+  const getNextClassTime = () => {
+    // Simple logic to show next class - could be enhanced with real scheduling
+    const now = new Date();
+    const currentHour = now.getHours();
+    
+    if (currentHour < 10) return "10:30 AM";
+    if (currentHour < 13) return "1:15 PM";
+    if (currentHour < 14) return "2:45 PM";
+    return "Tomorrow 10:30 AM";
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50/30">
       <div className="max-w-7xl mx-auto px-6 py-8">
@@ -86,59 +134,61 @@ export default function ClassRunner() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="space-y-4">
-                  <div className="p-4 rounded-lg border bg-white/50">
-                    <div className="flex items-center justify-between mb-3">
-                      <div>
-                        <h3 className="font-semibold text-slate-900">Algebra II</h3>
-                        <p className="text-sm text-slate-600">Period 3 • Room 205</p>
+                {isLoading ? (
+                  <div className="space-y-4">
+                    {[1, 2, 3].map((i) => (
+                      <div key={i} className="p-4 rounded-lg border bg-white/50 animate-pulse">
+                        <div className="h-4 bg-slate-200 rounded w-3/4 mb-2"></div>
+                        <div className="h-3 bg-slate-200 rounded w-1/2 mb-3"></div>
+                        <div className="h-3 bg-slate-200 rounded w-2/3"></div>
                       </div>
-                      <Button size="sm">
-                        <Play className="h-4 w-4 mr-2" />
-                        Start
-                      </Button>
-                    </div>
-                    <div className="flex items-center gap-4 text-sm text-slate-600">
-                      <span>25 students</span>
-                      <span>•</span>
-                      <span>Next: 10:30 AM</span>
-                    </div>
+                    ))}
                   </div>
-
-                  <div className="p-4 rounded-lg border bg-white/50">
-                    <div className="flex items-center justify-between mb-3">
-                      <div>
-                        <h3 className="font-semibold text-slate-900">Geometry</h3>
-                        <p className="text-sm text-slate-600">Period 5 • Room 207</p>
+                ) : activeClasses.length > 0 ? (
+                  <div className="space-y-4">
+                    {activeClasses.map((classItem, index) => (
+                      <div key={classItem.id} className="p-4 rounded-lg border bg-white/50">
+                        <div className="flex items-center justify-between mb-3">
+                          <div>
+                            <h3 className="font-semibold text-slate-900">{classItem.name}</h3>
+                            <p className="text-sm text-slate-600">
+                              {classItem.subject} • {classItem.grade}
+                            </p>
+                          </div>
+                          <Button size="sm" variant={index === 0 ? "default" : "outline"}>
+                            {index === 0 ? (
+                              <>
+                                <Play className="h-4 w-4 mr-2" />
+                                Start
+                              </>
+                            ) : (
+                              "Schedule"
+                            )}
+                          </Button>
+                        </div>
+                        <div className="flex items-center gap-4 text-sm text-slate-600">
+                          <span>{classItem.student_count || 0} students</span>
+                          <span>•</span>
+                          <span>Next: {getNextClassTime()}</span>
+                          {classItem.avg_gpa && (
+                            <>
+                              <span>•</span>
+                              <span>Avg GPA: {Number(classItem.avg_gpa).toFixed(1)}</span>
+                            </>
+                          )}
+                        </div>
                       </div>
-                      <Button size="sm" variant="outline">
-                        Schedule
-                      </Button>
-                    </div>
-                    <div className="flex items-center gap-4 text-sm text-slate-600">
-                      <span>28 students</span>
-                      <span>•</span>
-                      <span>Next: 1:15 PM</span>
-                    </div>
+                    ))}
                   </div>
-
-                  <div className="p-4 rounded-lg border bg-white/50">
-                    <div className="flex items-center justify-between mb-3">
-                      <div>
-                        <h3 className="font-semibold text-slate-900">Pre-Calculus</h3>
-                        <p className="text-sm text-slate-600">Period 7 • Room 205</p>
-                      </div>
-                      <Button size="sm" variant="outline">
-                        Schedule
-                      </Button>
-                    </div>
-                    <div className="flex items-center gap-4 text-sm text-slate-600">
-                      <span>22 students</span>
-                      <span>•</span>
-                      <span>Next: 2:45 PM</span>
-                    </div>
+                ) : (
+                  <div className="text-center py-8">
+                    <BookOpen className="h-12 w-12 text-slate-300 mx-auto mb-4" />
+                    <p className="text-slate-500">No active classes found for {profile?.full_name}</p>
+                    <p className="text-sm text-slate-400 mt-2">
+                      Classes will appear here once they are created and assigned to you.
+                    </p>
                   </div>
-                </div>
+                )}
               </CardContent>
             </Card>
           </div>
