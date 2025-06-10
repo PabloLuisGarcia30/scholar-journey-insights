@@ -446,9 +446,9 @@ export function SaveLessonPlan({ classId, className, classData, students, onLess
             id="questionCount"
             type="number"
             min="1"
-            max="20"
+            max="15"
             value={questionCount}
-            onChange={(e) => setQuestionCount(Math.max(1, Math.min(20, parseInt(e.target.value) || 5)))}
+            onChange={(e) => setQuestionCount(Math.max(1, Math.min(15, parseInt(e.target.value) || 5)))}
             placeholder="Number of questions"
           />
           <p className="text-xs text-slate-500 mt-1">
