@@ -26,7 +26,7 @@ export interface PracticeTestData {
   questions: PracticeTestQuestion[];
   totalPoints: number;
   estimatedTime: number;
-  skillName: string; // Added to track which skill this test targets
+  skillName: string;
 }
 
 export interface MultiPracticeTestResult {
@@ -43,6 +43,47 @@ export interface HistoricalQuestion {
   options?: any;
   points: number;
   exam_title?: string;
+}
+
+// Retry configuration for client-side retries
+const RETRY_CONFIG = {
+  maxAttempts: 2, // Client-side retries (edge function has its own retry logic)
+  baseDelay: 2000, // 2 seconds
+  backoffMultiplier: 2
+};
+
+// Client-side retry wrapper
+async function withRetry<T>(
+  operation: () => Promise<T>,
+  attempt: number = 1
+): Promise<T> {
+  try {
+    return await operation();
+  } catch (error) {
+    console.log(`Client retry attempt ${attempt} failed:`, error);
+    
+    if (attempt >= RETRY_CONFIG.maxAttempts) {
+      throw error;
+    }
+
+    // Only retry on specific errors
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    const isRetryable = errorMessage.includes('temporarily unavailable') || 
+                       errorMessage.includes('server had an error') ||
+                       errorMessage.includes('rate limit') ||
+                       errorMessage.includes('timeout');
+    
+    if (!isRetryable) {
+      throw error;
+    }
+
+    // Wait before retrying
+    const delay = RETRY_CONFIG.baseDelay * Math.pow(RETRY_CONFIG.backoffMultiplier, attempt - 1);
+    console.log(`Retrying in ${delay}ms... (client attempt ${attempt + 1}/${RETRY_CONFIG.maxAttempts})`);
+    await new Promise(resolve => setTimeout(resolve, delay));
+    
+    return withRetry(operation, attempt + 1);
+  }
 }
 
 export async function getHistoricalQuestionsForSkill(classId: string, skillName: string): Promise<HistoricalQuestion[]> {
@@ -106,21 +147,38 @@ export async function getHistoricalQuestionsForSkill(classId: string, skillName:
 export async function generatePracticeTest(request: GeneratePracticeTestRequest): Promise<PracticeTestData> {
   console.log('Calling generate-practice-test function with:', request);
   
-  const { data, error } = await supabase.functions.invoke('generate-practice-test', {
-    body: request
+  return withRetry(async () => {
+    const { data, error } = await supabase.functions.invoke('generate-practice-test', {
+      body: request
+    });
+
+    if (error) {
+      console.error('Error calling generate-practice-test function:', error);
+      
+      // Create a more specific error message
+      let errorMessage = 'Failed to generate practice test';
+      if (error.message) {
+        if (error.message.includes('temporarily unavailable')) {
+          errorMessage = 'AI service is temporarily unavailable. Please try again in a moment.';
+        } else if (error.message.includes('rate limit')) {
+          errorMessage = 'Rate limit reached. Please try again in a moment.';
+        } else if (error.message.includes('server had an error')) {
+          errorMessage = 'AI service encountered an error. Please try again.';
+        } else {
+          errorMessage = error.message;
+        }
+      }
+      
+      throw new Error(errorMessage);
+    }
+
+    if (!data) {
+      throw new Error('No data returned from practice test generation');
+    }
+
+    console.log('Successfully generated practice test:', data);
+    return { ...data, skillName: request.skillName } as PracticeTestData;
   });
-
-  if (error) {
-    console.error('Error calling generate-practice-test function:', error);
-    throw new Error(`Failed to generate practice test: ${error.message}`);
-  }
-
-  if (!data) {
-    throw new Error('No data returned from practice test generation');
-  }
-
-  console.log('Successfully generated practice test:', data);
-  return { ...data, skillName: request.skillName } as PracticeTestData;
 }
 
 export async function generateMultiplePracticeTests(
@@ -135,7 +193,7 @@ export async function generateMultiplePracticeTests(
     status: 'pending' as const
   }));
 
-  // Generate tests for each skill individually
+  // Generate tests for each skill individually with built-in retry logic
   for (let i = 0; i < skills.length; i++) {
     const skill = skills[i];
     results[i].status = 'generating';
