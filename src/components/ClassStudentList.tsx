@@ -3,7 +3,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { User, TrendingDown, Edit, Target, Plus } from "lucide-react";
+import { User, TrendingDown, Plus, Edit2 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { getAllActiveStudents, getActiveClassById } from "@/services/examService";
 import { useStudentProfileData } from "@/hooks/useStudentProfileData";
@@ -20,7 +20,8 @@ interface ClassStudentListProps {
 interface StudentSkill {
   skill_name: string;
   score: number;
-  isTarget?: boolean;
+  isDefault?: boolean;
+  isEditedDefault?: boolean;
   isAdditional?: boolean;
 }
 
@@ -28,12 +29,17 @@ interface StudentCardProps {
   student: any;
   classId: string;
   className: string;
-  onEdit: (studentId: string) => void;
+  onEditDefault: (studentId: string) => void;
   onAddSkills: (studentId: string) => void;
   skills: StudentSkill[];
 }
 
-function SkillCircle({ skill, index }: { skill: StudentSkill; index: number }) {
+function SkillCircle({ skill, index, isClickable, onClick }: { 
+  skill: StudentSkill; 
+  index: number; 
+  isClickable?: boolean;
+  onClick?: () => void;
+}) {
   const [isHovered, setIsHovered] = useState(false);
   
   // Improved skill name truncation - more aggressive for better display
@@ -81,15 +87,49 @@ function SkillCircle({ skill, index }: { skill: StudentSkill; index: number }) {
   const gradientColors = getGradientColors(skill.score);
   const gradientId = `gradient-skill-${index}-${Math.random().toString(36).substr(2, 9)}`;
 
+  const getSkillTypeInfo = () => {
+    if (skill.isEditedDefault) {
+      return {
+        icon: <Edit2 className="h-2.5 w-2.5 text-purple-600 flex-shrink-0" />,
+        label: "Edited Default",
+        colorClass: "text-purple-700"
+      };
+    } else if (skill.isDefault) {
+      return {
+        icon: <TrendingDown className="h-2.5 w-2.5 text-orange-600 flex-shrink-0" />,
+        label: "Default (Weakest)",
+        colorClass: "text-orange-700"
+      };
+    } else if (skill.isAdditional) {
+      return {
+        icon: <Plus className="h-2.5 w-2.5 text-green-600 flex-shrink-0" />,
+        label: "Added",
+        colorClass: "text-green-700"
+      };
+    }
+    return {
+      icon: <TrendingDown className="h-2.5 w-2.5 text-orange-600 flex-shrink-0" />,
+      label: "Default",
+      colorClass: "text-orange-700"
+    };
+  };
+
+  const skillTypeInfo = getSkillTypeInfo();
+
   return (
     <TooltipProvider>
       <Tooltip>
         <TooltipTrigger asChild>
           <div className="flex flex-col items-center w-20 mx-1">
             <div 
-              className="relative w-12 h-12 mb-2 flex-shrink-0 cursor-help"
+              className={`relative w-12 h-12 mb-2 flex-shrink-0 ${
+                isClickable ? 'cursor-pointer' : 'cursor-help'
+              } transition-transform duration-200 ${
+                isHovered && isClickable ? 'transform scale-105' : ''
+              }`}
               onMouseEnter={() => setIsHovered(true)}
               onMouseLeave={() => setIsHovered(false)}
+              onClick={onClick}
             >
               <svg className="w-12 h-12" viewBox="0 0 48 48">
                 <defs>
@@ -119,27 +159,24 @@ function SkillCircle({ skill, index }: { skill: StudentSkill; index: number }) {
                   {Math.round(skill.score || 0)}%
                 </span>
               </div>
+
+              {/* Edit icon for clickable default skills */}
+              {isClickable && isHovered && (
+                <div className="absolute -top-1 -right-1 bg-blue-600 rounded-full p-0.5">
+                  <Edit2 className="h-2 w-2 text-white" />
+                </div>
+              )}
             </div>
 
             {/* Skill name and context - improved height and layout */}
             <div className="text-center w-full h-14 flex flex-col justify-start">
               <div className="flex items-center gap-1 justify-center mb-1">
-                {skill.isTarget ? (
-                  <>
-                    <Target className="h-2.5 w-2.5 text-blue-600 flex-shrink-0" />
-                    <span className="text-xs font-semibold text-blue-700">Target</span>
-                  </>
-                ) : skill.isAdditional ? (
-                  <>
-                    <Plus className="h-2.5 w-2.5 text-green-600 flex-shrink-0" />
-                    <span className="text-xs font-semibold text-green-700">Added</span>
-                  </>
-                ) : (
-                  <>
-                    <TrendingDown className="h-2.5 w-2.5 text-orange-600 flex-shrink-0" />
-                    <span className="text-xs font-semibold text-orange-700">Weakest</span>
-                  </>
-                )}
+                {skillTypeInfo.icon}
+                <span className={`text-xs font-semibold ${skillTypeInfo.colorClass}`}>
+                  {skill.isDefault && !skill.isEditedDefault ? 'Default' : 
+                   skill.isEditedDefault ? 'Edited' : 
+                   skill.isAdditional ? 'Added' : 'Default'}
+                </span>
               </div>
               <p className="text-xs text-slate-800 font-medium leading-tight text-center px-1 line-clamp-2" style={{ 
                 wordBreak: 'break-word',
@@ -151,14 +188,19 @@ function SkillCircle({ skill, index }: { skill: StudentSkill; index: number }) {
           </div>
         </TooltipTrigger>
         <TooltipContent>
-          <p className="max-w-xs text-sm">{skill.skill_name || "Unknown Skill"}</p>
+          <div className="max-w-xs text-sm">
+            <p className="font-medium">{skill.skill_name || "Unknown Skill"}</p>
+            <p className="text-xs text-muted-foreground mt-1">
+              {isClickable ? "Click to edit this default skill" : skillTypeInfo.label}
+            </p>
+          </div>
         </TooltipContent>
       </Tooltip>
     </TooltipProvider>
   );
 }
 
-function StudentCard({ student, classId, className, onEdit, onAddSkills, skills }: StudentCardProps) {
+function StudentCard({ student, classId, className, onEditDefault, onAddSkills, skills }: StudentCardProps) {
   return (
     <Card className="group hover:shadow-lg transition-all duration-300 cursor-pointer border-0 bg-white/80 backdrop-blur-sm hover:bg-white hover:scale-[1.01] w-full max-w-4xl">
       <CardContent className="p-3">
@@ -197,21 +239,8 @@ function StudentCard({ student, classId, className, onEdit, onAddSkills, skills 
             </div>
           </div>
 
-          {/* Action Buttons Column */}
+          {/* Action Buttons Column - Only Add Skills button now */}
           <div className="flex flex-col gap-2 pt-1">
-            <Button 
-              size="sm" 
-              variant="outline"
-              onClick={(e) => {
-                e.stopPropagation();
-                onEdit(student.id);
-              }}
-              className="h-7 px-2 text-xs"
-              title="Select target skill"
-            >
-              <Edit className="h-3 w-3 mr-1" />
-              Target
-            </Button>
             <Button 
               size="sm" 
               variant="outline"
@@ -231,9 +260,19 @@ function StudentCard({ student, classId, className, onEdit, onAddSkills, skills 
           <div className="flex justify-start items-start overflow-x-auto">
             <div className="flex flex-nowrap gap-1 min-w-0">
               {skills.length > 0 ? (
-                skills.map((skill, index) => (
-                  <SkillCircle key={`${skill.skill_name}-${index}`} skill={skill} index={index} />
-                ))
+                skills.map((skill, index) => {
+                  // Default skills (not edited) are clickable for editing
+                  const isClickableDefault = skill.isDefault && !skill.isEditedDefault;
+                  return (
+                    <SkillCircle 
+                      key={`${skill.skill_name}-${index}`} 
+                      skill={skill} 
+                      index={index}
+                      isClickable={isClickableDefault}
+                      onClick={isClickableDefault ? () => onEditDefault(student.id) : undefined}
+                    />
+                  );
+                })
               ) : (
                 <div className="flex flex-col items-center w-16">
                   <div className="w-12 h-12 bg-gradient-to-br from-slate-100 to-slate-200 rounded-full flex items-center justify-center mb-1">
@@ -257,7 +296,7 @@ function StudentCard({ student, classId, className, onEdit, onAddSkills, skills 
 export function ClassStudentList({ classId, className, onSelectStudent }: ClassStudentListProps) {
   const [editingStudentId, setEditingStudentId] = useState<string | null>(null);
   const [addingSkillsStudentId, setAddingSkillsStudentId] = useState<string | null>(null);
-  const [studentTargetSkills, setStudentTargetSkills] = useState<Record<string, StudentSkill | null>>({});
+  const [editedDefaultSkills, setEditedDefaultSkills] = useState<Record<string, StudentSkill | null>>({});
   const [studentAdditionalSkills, setStudentAdditionalSkills] = useState<Record<string, StudentSkill[]>>({});
 
   const { data: allStudents = [], isLoading: studentsLoading } = useQuery({
@@ -276,52 +315,9 @@ export function ClassStudentList({ classId, className, onSelectStudent }: ClassS
     classData?.students?.includes(student.id)
   );
 
-  // Create a hook to get skill data for all students
-  const useStudentSkillData = (studentId: string) => {
-    const { contentSkillScores } = useStudentProfileData({
-      studentId,
-      classId,
-      className
-    });
-    return contentSkillScores;
-  };
-
-  // Create a map of student skill data including weakest skills
-  const studentSkillsMap = useMemo(() => {
-    const skillsMap: Record<string, StudentSkill[]> = {};
-    
-    classStudents.forEach(student => {
-      const skills: StudentSkill[] = [];
-      const targetSkill = studentTargetSkills[student.id];
-      const additionalSkills = studentAdditionalSkills[student.id] || [];
-      
-      // Add target skill if set, otherwise try to add weakest skill
-      if (targetSkill) {
-        skills.push(targetSkill);
-      } else {
-        // We need to get the student's skill data to find the weakest skill
-        // This will be handled by individual student cards calling the hook
-        // For now, we'll mark that this student needs weakest skill data
-        skills.push({
-          skill_name: '__WEAKEST_PLACEHOLDER__',
-          score: 0,
-          isTarget: false,
-          isAdditional: false
-        });
-      }
-      
-      // Add additional skills
-      skills.push(...additionalSkills);
-      
-      skillsMap[student.id] = skills;
-    });
-    
-    return skillsMap;
-  }, [classStudents, studentTargetSkills, studentAdditionalSkills]);
-
   const isLoading = studentsLoading || classLoading;
 
-  const handleEditStudent = (studentId: string) => {
+  const handleEditDefaultSkill = (studentId: string) => {
     setEditingStudentId(studentId);
   };
 
@@ -329,10 +325,10 @@ export function ClassStudentList({ classId, className, onSelectStudent }: ClassS
     setAddingSkillsStudentId(studentId);
   };
 
-  const handleSaveTargetSkill = (studentId: string, targetSkill: { skill_name: string; score: number } | null) => {
-    setStudentTargetSkills(prev => ({
+  const handleSaveEditedDefault = (studentId: string, editedSkill: { skill_name: string; score: number } | null) => {
+    setEditedDefaultSkills(prev => ({
       ...prev,
-      [studentId]: targetSkill ? { ...targetSkill, isTarget: true } : null
+      [studentId]: editedSkill ? { ...editedSkill, isEditedDefault: true } : null
     }));
     setEditingStudentId(null);
   };
@@ -350,31 +346,19 @@ export function ClassStudentList({ classId, className, onSelectStudent }: ClassS
     setAddingSkillsStudentId(null);
   };
 
-  // Enhanced function to get all skills for a student including weakest skill
+  // Enhanced function to get all skills for a student
   const getStudentSkills = (studentId: string): StudentSkill[] => {
-    const baseSkills = studentSkillsMap[studentId] || [];
-    const targetSkill = studentTargetSkills[studentId];
+    const editedDefault = editedDefaultSkills[studentId];
     const additionalSkills = studentAdditionalSkills[studentId] || [];
     
-    // If we have a target skill, return target + additional skills
-    if (targetSkill) {
-      return [targetSkill, ...additionalSkills];
+    // If we have an edited default, use it first
+    if (editedDefault) {
+      return [editedDefault, ...additionalSkills];
     }
     
-    // Otherwise, we need to get the weakest skill from student data
-    // This will be handled by the StudentCardWithWeakestSkill component
+    // Otherwise, we'll use the weakest skill as default (handled by StudentCardWithWeakestSkill)
     return [...additionalSkills];
   };
-
-  // Prepare data for StartClassSession component
-  const studentsWithSkills = classStudents.map(student => {
-    const skills = getStudentSkills(student.id).filter(skill => skill.skill_name !== '__WEAKEST_PLACEHOLDER__');
-    return {
-      studentId: student.id,
-      studentName: student.name,
-      skills: skills
-    };
-  });
 
   if (isLoading) {
     return (
@@ -400,7 +384,7 @@ export function ClassStudentList({ classId, className, onSelectStudent }: ClassS
     );
   }
 
-  // If editing a student's target skill, show the skill selector
+  // If editing a student's default skill, show the skill selector
   if (editingStudentId) {
     const editingStudent = classStudents.find(s => s.id === editingStudentId);
     if (editingStudent) {
@@ -411,8 +395,8 @@ export function ClassStudentList({ classId, className, onSelectStudent }: ClassS
             studentName={editingStudent.name}
             classId={classId}
             className={className}
-            currentSelectedSkill={studentTargetSkills[editingStudentId]}
-            onSave={handleSaveTargetSkill}
+            currentSelectedSkill={editedDefaultSkills[editingStudentId]}
+            onSave={handleSaveEditedDefault}
             onCancel={handleCancelEdit}
             isMultiSelect={false}
           />
@@ -451,7 +435,7 @@ export function ClassStudentList({ classId, className, onSelectStudent }: ClassS
               Recommended Lesson Plan based on Student Performance
             </h3>
             <p className="text-sm text-slate-600">
-              View each student's skill focus for {className} - click Target to select focus skills, Add Skills for additional content
+              Click on default skills to edit them, or use "Add Skills" for additional content
             </p>
           </div>
           
@@ -461,7 +445,7 @@ export function ClassStudentList({ classId, className, onSelectStudent }: ClassS
               classId={classId}
               className={className}
               students={classStudents}
-              studentTargetSkills={studentTargetSkills}
+              editedDefaultSkills={editedDefaultSkills}
               studentAdditionalSkills={studentAdditionalSkills}
             />
           )}
@@ -475,9 +459,9 @@ export function ClassStudentList({ classId, className, onSelectStudent }: ClassS
             student={student}
             classId={classId}
             className={className}
-            onEdit={handleEditStudent}
+            onEditDefault={handleEditDefaultSkill}
             onAddSkills={handleAddSkillsStudent}
-            targetSkill={studentTargetSkills[student.id]}
+            editedDefault={editedDefaultSkills[student.id]}
             additionalSkills={studentAdditionalSkills[student.id] || []}
           />
         ))}
@@ -486,51 +470,27 @@ export function ClassStudentList({ classId, className, onSelectStudent }: ClassS
   );
 }
 
-// New component that handles the Start Class Session with default skills
+// New component that handles the Start Class Session with enhanced default skills
 function StartClassSessionWithDefaults({ 
   classId, 
   className, 
   students,
-  studentTargetSkills,
+  editedDefaultSkills,
   studentAdditionalSkills
 }: {
   classId: string;
   className: string;
   students: any[];
-  studentTargetSkills: Record<string, StudentSkill | null>;
+  editedDefaultSkills: Record<string, StudentSkill | null>;
   studentAdditionalSkills: Record<string, StudentSkill[]>;
 }) {
-  // Prepare data including default weakest skills for students without selections
-  const studentsWithSkills = useMemo(() => {
-    return students.map(student => {
-      const skills: StudentSkill[] = [];
-      const targetSkill = studentTargetSkills[student.id];
-      const additionalSkills = studentAdditionalSkills[student.id] || [];
-      
-      // Add target skill if set
-      if (targetSkill) {
-        skills.push(targetSkill);
-      }
-      
-      // Add additional skills
-      skills.push(...additionalSkills);
-      
-      // If no skills are selected, we'll use the weakest skill from the student's data
-      // This will be handled by the StudentCardWithWeakestSkill component's logic
-      return {
-        studentId: student.id,
-        studentName: student.name,
-        skills: skills.length > 0 ? skills : [] // Will be populated with default skills
-      };
-    });
-  }, [students, studentTargetSkills, studentAdditionalSkills]);
-
   return (
     <StudentsWithDefaultSkills
       classId={classId}
       className={className}
       students={students}
-      studentsWithSkills={studentsWithSkills}
+      editedDefaultSkills={editedDefaultSkills}
+      studentAdditionalSkills={studentAdditionalSkills}
     />
   );
 }
@@ -540,16 +500,14 @@ function StudentsWithDefaultSkills({
   classId,
   className,
   students,
-  studentsWithSkills
+  editedDefaultSkills,
+  studentAdditionalSkills
 }: {
   classId: string;
   className: string;
   students: any[];
-  studentsWithSkills: Array<{
-    studentId: string;
-    studentName: string;
-    skills: StudentSkill[];
-  }>;
+  editedDefaultSkills: Record<string, StudentSkill | null>;
+  studentAdditionalSkills: Record<string, StudentSkill[]>;
 }) {
   // Get skill data for all students to determine default weakest skills
   const studentSkillData = students.map(student => {
@@ -565,33 +523,45 @@ function StudentsWithDefaultSkills({
     };
   });
 
-  // Prepare final data with default weakest skills for students without selections
+  // Prepare final data with enhanced skill priority: edited defaults > weakest > additional
   const finalStudentsWithSkills = useMemo(() => {
-    return studentsWithSkills.map(studentWithSkills => {
-      // If student already has skills selected, use those
-      if (studentWithSkills.skills.length > 0) {
-        return studentWithSkills;
-      }
+    return students.map(student => {
+      const skills: StudentSkill[] = [];
+      const editedDefault = editedDefaultSkills[student.id];
+      const additionalSkills = studentAdditionalSkills[student.id] || [];
       
-      // Otherwise, find their weakest skill from the skill data
-      const studentData = studentSkillData.find(s => s.studentId === studentWithSkills.studentId);
-      if (studentData && studentData.contentSkillScores.length > 0) {
-        const weakestSkill = studentData.contentSkillScores.reduce((weakest, current) => 
-          current.score < weakest.score ? current : weakest
-        );
-        
-        return {
-          ...studentWithSkills,
-          skills: [{
+      // Priority 1: Edited default skill
+      if (editedDefault) {
+        skills.push(editedDefault);
+      } else {
+        // Priority 2: Automatic weakest skill (if no edited default)
+        const studentData = studentSkillData.find(s => s.studentId === student.id);
+        if (studentData && studentData.contentSkillScores.length > 0) {
+          const weakestSkill = studentData.contentSkillScores.reduce((weakest, current) => 
+            current.score < weakest.score ? current : weakest
+          );
+          
+          skills.push({
             skill_name: weakestSkill.skill_name,
-            score: weakestSkill.score
-          }]
-        };
+            score: weakestSkill.score,
+            isDefault: true
+          });
+        }
       }
       
-      return studentWithSkills;
+      // Priority 3: Additional skills
+      skills.push(...additionalSkills);
+      
+      return {
+        studentId: student.id,
+        studentName: student.name,
+        skills: skills.map(skill => ({
+          skill_name: skill.skill_name,
+          score: skill.score
+        }))
+      };
     }).filter(student => student.skills.length > 0); // Only include students with skills
-  }, [studentsWithSkills, studentSkillData]);
+  }, [students, editedDefaultSkills, studentAdditionalSkills, studentSkillData]);
 
   return (
     <StartClassSession
@@ -602,22 +572,22 @@ function StudentsWithDefaultSkills({
   );
 }
 
-// New component that handles individual student cards with weakest skill logic
+// Enhanced component that handles individual student cards with weakest skill logic
 function StudentCardWithWeakestSkill({ 
   student, 
   classId, 
   className, 
-  onEdit, 
+  onEditDefault, 
   onAddSkills,
-  targetSkill,
+  editedDefault,
   additionalSkills
 }: {
   student: any;
   classId: string;
   className: string;
-  onEdit: (studentId: string) => void;
+  onEditDefault: (studentId: string) => void;
   onAddSkills: (studentId: string) => void;
-  targetSkill?: StudentSkill | null;
+  editedDefault?: StudentSkill | null;
   additionalSkills: StudentSkill[];
 }) {
   // Use the hook to get this student's skill data
@@ -627,38 +597,37 @@ function StudentCardWithWeakestSkill({
     className
   });
 
-  // Calculate the skills to display
+  // Calculate the skills to display with enhanced priority system
   const skills = useMemo(() => {
     const skillsToShow: StudentSkill[] = [];
 
-    // Add target skill if set, otherwise add weakest skill
-    if (targetSkill) {
-      skillsToShow.push(targetSkill);
+    // Priority 1: Edited default skill
+    if (editedDefault) {
+      skillsToShow.push(editedDefault);
     } else if (contentSkillScores.length > 0) {
-      // Find the weakest skill (lowest score)
+      // Priority 2: Automatic weakest skill (if no edited default)
       const weakestSkill = contentSkillScores.reduce((weakest, current) => 
         current.score < weakest.score ? current : weakest
       );
       skillsToShow.push({
         skill_name: weakestSkill.skill_name,
         score: weakestSkill.score,
-        isTarget: false,
-        isAdditional: false
+        isDefault: true
       });
     }
 
-    // Add additional skills
+    // Priority 3: Additional skills
     skillsToShow.push(...additionalSkills);
 
     return skillsToShow;
-  }, [targetSkill, additionalSkills, contentSkillScores]);
+  }, [editedDefault, additionalSkills, contentSkillScores]);
 
   return (
     <StudentCard 
       student={student}
       classId={classId}
       className={className}
-      onEdit={onEdit}
+      onEditDefault={onEditDefault}
       onAddSkills={onAddSkills}
       skills={skills}
     />
