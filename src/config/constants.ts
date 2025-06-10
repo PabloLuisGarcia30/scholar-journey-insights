@@ -27,3 +27,11 @@ export const MESSAGES = {
   COPY_SUCCESS: 'Link copied to clipboard!',
   QR_CODE_DESCRIPTION: 'Scan with your phone to access the portal',
 };
+
+// Development Configuration
+export const DEV_CONFIG = {
+  // Set to true to bypass authentication during development
+  DISABLE_AUTH_FOR_DEV: true,
+  // Default role when auth is disabled (can be 'teacher' or 'student')
+  DEFAULT_DEV_ROLE: 'teacher' as const
+};

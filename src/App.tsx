@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import StudentDashboard from "./pages/StudentDashboard";
+import DashboardSelector from "./pages/DashboardSelector";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import NotFound from "./pages/NotFound";
@@ -16,12 +17,108 @@ import CreateQuizLink from "./pages/CreateQuizLink";
 import StudentLessonTracker from "./pages/StudentLessonTracker";
 import StudentLearnerProfile from "./pages/StudentLearnerProfile";
 import StudentQuiz from "./pages/StudentQuiz";
+import { DEV_CONFIG } from "./config/constants";
 
 const queryClient = new QueryClient();
 
 function AppRoutes() {
   const { user, profile, loading } = useAuth();
 
+  // Development mode: bypass authentication
+  if (DEV_CONFIG.DISABLE_AUTH_FOR_DEV) {
+    return (
+      <Routes>
+        {/* Dashboard Selector - shows when no role is specified */}
+        <Route path="/dashboard-selector" element={<DashboardSelector />} />
+        
+        {/* Public quiz route */}
+        <Route path="/quiz/:token" element={<StudentQuiz />} />
+        
+        {/* Teacher routes */}
+        <Route 
+          path="/" 
+          element={
+            <ProtectedRoute>
+              <Index />
+            </ProtectedRoute>
+          } 
+        />
+        
+        <Route 
+          path="/test-creator" 
+          element={
+            <ProtectedRoute requiredRole="teacher">
+              <TestCreator />
+            </ProtectedRoute>
+          } 
+        />
+        
+        <Route 
+          path="/upload-test" 
+          element={
+            <ProtectedRoute requiredRole="teacher">
+              <UploadTest />
+            </ProtectedRoute>
+          } 
+        />
+        
+        <Route 
+          path="/create-quiz-link" 
+          element={
+            <ProtectedRoute requiredRole="teacher">
+              <CreateQuizLink />
+            </ProtectedRoute>
+          } 
+        />
+        
+        {/* Student routes */}
+        <Route 
+          path="/student-dashboard" 
+          element={
+            <ProtectedRoute requiredRole="student">
+              <StudentDashboard />
+            </ProtectedRoute>
+          } 
+        />
+        
+        {/* Shared routes */}
+        <Route 
+          path="/student-upload" 
+          element={
+            <ProtectedRoute>
+              <StudentUpload />
+            </ProtectedRoute>
+          } 
+        />
+        
+        <Route 
+          path="/student-lesson-tracker" 
+          element={
+            <ProtectedRoute>
+              <StudentLessonTracker />
+            </ProtectedRoute>
+          } 
+        />
+        
+        <Route 
+          path="/student-learner-profile" 
+          element={
+            <ProtectedRoute>
+              <StudentLearnerProfile />
+            </ProtectedRoute>
+          } 
+        />
+
+        {/* Redirect auth page to dashboard selector in dev mode */}
+        <Route path="/auth" element={<Navigate to="/dashboard-selector" replace />} />
+        
+        {/* Default redirect to dashboard selector */}
+        <Route path="*" element={<DashboardSelector />} />
+      </Routes>
+    );
+  }
+
+  // Production mode: normal authentication flow
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50/30 flex items-center justify-center">
