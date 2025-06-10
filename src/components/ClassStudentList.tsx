@@ -1,4 +1,3 @@
-
 import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -268,7 +267,17 @@ export function ClassStudentList({ classId, className, onSelectStudent }: ClassS
     classData?.students?.includes(student.id)
   );
 
-  // Create a map of student skill data using the hook at the top level
+  // Create a hook to get skill data for all students
+  const useStudentSkillData = (studentId: string) => {
+    const { contentSkillScores } = useStudentProfileData({
+      studentId,
+      classId,
+      className
+    });
+    return contentSkillScores;
+  };
+
+  // Create a map of student skill data including weakest skills
   const studentSkillsMap = useMemo(() => {
     const skillsMap: Record<string, StudentSkill[]> = {};
     
@@ -277,9 +286,19 @@ export function ClassStudentList({ classId, className, onSelectStudent }: ClassS
       const targetSkill = studentTargetSkills[student.id];
       const additionalSkills = studentAdditionalSkills[student.id] || [];
       
-      // Add target skill if set
+      // Add target skill if set, otherwise try to add weakest skill
       if (targetSkill) {
         skills.push(targetSkill);
+      } else {
+        // We need to get the student's skill data to find the weakest skill
+        // This will be handled by individual student cards calling the hook
+        // For now, we'll mark that this student needs weakest skill data
+        skills.push({
+          skill_name: '__WEAKEST_PLACEHOLDER__',
+          score: 0,
+          isTarget: false,
+          isAdditional: false
+        });
       }
       
       // Add additional skills
@@ -322,16 +341,27 @@ export function ClassStudentList({ classId, className, onSelectStudent }: ClassS
     setAddingSkillsStudentId(null);
   };
 
-  // Get all skills for a student using the pre-computed map
+  // Enhanced function to get all skills for a student including weakest skill
   const getStudentSkills = (studentId: string): StudentSkill[] => {
-    return studentSkillsMap[studentId] || [];
+    const baseSkills = studentSkillsMap[studentId] || [];
+    const targetSkill = studentTargetSkills[studentId];
+    const additionalSkills = studentAdditionalSkills[studentId] || [];
+    
+    // If we have a target skill, return target + additional skills
+    if (targetSkill) {
+      return [targetSkill, ...additionalSkills];
+    }
+    
+    // Otherwise, we need to get the weakest skill from student data
+    // This will be handled by the StudentCardWithWeakestSkill component
+    return [...additionalSkills];
   };
 
   // Prepare data for StartClassSession component
   const studentsWithSkills = classStudents.map(student => ({
     studentId: student.id,
     studentName: student.name,
-    skills: getStudentSkills(student.id)
+    skills: getStudentSkills(student.id).filter(skill => skill.skill_name !== '__WEAKEST_PLACEHOLDER__')
   })).filter(student => student.skills.length > 0);
 
   if (isLoading) {
@@ -425,17 +455,81 @@ export function ClassStudentList({ classId, className, onSelectStudent }: ClassS
 
       <div className="space-y-2">
         {classStudents.map((student) => (
-          <StudentCard 
+          <StudentCardWithWeakestSkill 
             key={student.id}
             student={student}
             classId={classId}
             className={className}
             onEdit={handleEditStudent}
             onAddSkills={handleAddSkillsStudent}
-            skills={getStudentSkills(student.id)}
+            targetSkill={studentTargetSkills[student.id]}
+            additionalSkills={studentAdditionalSkills[student.id] || []}
           />
         ))}
       </div>
     </div>
+  );
+}
+
+// New component that handles individual student cards with weakest skill logic
+function StudentCardWithWeakestSkill({ 
+  student, 
+  classId, 
+  className, 
+  onEdit, 
+  onAddSkills,
+  targetSkill,
+  additionalSkills
+}: {
+  student: any;
+  classId: string;
+  className: string;
+  onEdit: (studentId: string) => void;
+  onAddSkills: (studentId: string) => void;
+  targetSkill?: StudentSkill | null;
+  additionalSkills: StudentSkill[];
+}) {
+  // Use the hook to get this student's skill data
+  const { contentSkillScores } = useStudentProfileData({
+    studentId: student.id,
+    classId,
+    className
+  });
+
+  // Calculate the skills to display
+  const skills = useMemo(() => {
+    const skillsToShow: StudentSkill[] = [];
+
+    // Add target skill if set, otherwise add weakest skill
+    if (targetSkill) {
+      skillsToShow.push(targetSkill);
+    } else if (contentSkillScores.length > 0) {
+      // Find the weakest skill (lowest score)
+      const weakestSkill = contentSkillScores.reduce((weakest, current) => 
+        current.score < weakest.score ? current : weakest
+      );
+      skillsToShow.push({
+        skill_name: weakestSkill.skill_name,
+        score: weakestSkill.score,
+        isTarget: false,
+        isAdditional: false
+      });
+    }
+
+    // Add additional skills
+    skillsToShow.push(...additionalSkills);
+
+    return skillsToShow;
+  }, [targetSkill, additionalSkills, contentSkillScores]);
+
+  return (
+    <StudentCard 
+      student={student}
+      classId={classId}
+      className={className}
+      onEdit={onEdit}
+      onAddSkills={onAddSkills}
+      skills={skills}
+    />
   );
 }
