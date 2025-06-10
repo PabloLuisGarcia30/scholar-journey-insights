@@ -26,8 +26,8 @@ interface StudentCardProps {
 function WeakestSkillCircle({ skillName, score, isTargetSkill = false }: { skillName: string; score: number; isTargetSkill?: boolean }) {
   const [isHovered, setIsHovered] = useState(false);
   
-  // Truncate skill name to 15 characters max for tighter layout
-  const truncatedSkillName = skillName.length > 15 ? skillName.substring(0, 15) + "..." : skillName;
+  // Truncate skill name to 20 characters max with better handling
+  const truncatedSkillName = skillName && skillName.length > 20 ? skillName.substring(0, 20) + "..." : skillName || "Unknown Skill";
   
   const getGradientColors = (score: number) => {
     // Treat score as already being a percentage (0-100)
@@ -73,12 +73,12 @@ function WeakestSkillCircle({ skillName, score, isTargetSkill = false }: { skill
   return (
     <div className="flex flex-col items-center w-24">
       <div 
-        className="relative w-12 h-12 mb-1 flex-shrink-0"
+        className="relative w-10 h-10 mb-1 flex-shrink-0"
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
-        title={skillName} // Show full skill name on hover
+        title={skillName || "Unknown Skill"} // Show full skill name on hover
       >
-        <svg className="w-12 h-12" viewBox="0 0 48 48">
+        <svg className="w-10 h-10" viewBox="0 0 40 40">
           <defs>
             <linearGradient id={gradientId} x1="0%" y1="0%" x2="100%" y2="100%">
               <stop offset="0%" stopColor={gradientColors.color1} />
@@ -87,9 +87,9 @@ function WeakestSkillCircle({ skillName, score, isTargetSkill = false }: { skill
             </linearGradient>
           </defs>
           <circle
-            cx="24"
-            cy="24"
-            r="20"
+            cx="20"
+            cy="20"
+            r="16"
             fill={`url(#${gradientId})`}
             style={{ 
               filter: isHovered ? 'brightness(1.1)' : 'brightness(1)',
@@ -103,13 +103,13 @@ function WeakestSkillCircle({ skillName, score, isTargetSkill = false }: { skill
         {/* Percentage in center */}
         <div className="absolute inset-0 flex items-center justify-center">
           <span className="text-xs font-bold text-white drop-shadow-sm">
-            {Math.round(score)}%
+            {Math.round(score || 0)}%
           </span>
         </div>
       </div>
 
       {/* Skill name and context - fixed height container */}
-      <div className="text-center w-full h-10 flex flex-col justify-start">
+      <div className="text-center w-full h-12 flex flex-col justify-start">
         <div className="flex items-center gap-1 justify-center mb-0.5">
           {isTargetSkill ? (
             <>
@@ -123,7 +123,12 @@ function WeakestSkillCircle({ skillName, score, isTargetSkill = false }: { skill
             </>
           )}
         </div>
-        <p className="text-xs text-slate-700 font-medium leading-tight text-center overflow-hidden">
+        <p className="text-xs text-slate-700 font-medium leading-tight text-center overflow-hidden px-1" style={{ 
+          display: '-webkit-box',
+          WebkitLineClamp: 2,
+          WebkitBoxOrient: 'vertical',
+          wordBreak: 'break-word'
+        }}>
           {truncatedSkillName}
         </p>
       </div>
@@ -146,9 +151,9 @@ function StudentCard({ student, classId, className, onEdit, targetSkill }: Stude
   const isTargetSkill = Boolean(targetSkill);
 
   return (
-    <Card className="group hover:shadow-lg transition-all duration-300 cursor-pointer border-0 bg-white/80 backdrop-blur-sm hover:bg-white hover:scale-[1.01] w-full max-w-2xl">
+    <Card className="group hover:shadow-lg transition-all duration-300 cursor-pointer border-0 bg-white/80 backdrop-blur-sm hover:bg-white hover:scale-[1.01] w-full max-w-xl">
       <CardContent className="p-3">
-        {/* Grid Layout: Avatar | Student Info | Edit Button | Skill Circle with 0.2 inch spacing */}
+        {/* Grid Layout: Avatar | Student Info | Edit Button | Skill Circle with 16px spacing */}
         <div className="grid grid-cols-[auto_1fr_auto_96px] gap-4 items-start">
           
           {/* Avatar Column */}
@@ -213,10 +218,10 @@ function StudentCard({ student, classId, className, onEdit, targetSkill }: Stude
               />
             ) : (
               <div className="flex flex-col items-center w-24">
-                <div className="w-12 h-12 bg-gradient-to-br from-slate-100 to-slate-200 rounded-full flex items-center justify-center mb-1">
+                <div className="w-10 h-10 bg-gradient-to-br from-slate-100 to-slate-200 rounded-full flex items-center justify-center mb-1">
                   <span className="text-xs font-bold text-slate-500">?</span>
                 </div>
-                <div className="h-10 flex items-start justify-center">
+                <div className="h-12 flex items-start justify-center">
                   <p className="text-xs text-slate-500 font-medium text-center">
                     No data
                   </p>
@@ -325,7 +330,7 @@ export function ClassStudentList({ classId, className, onSelectStudent }: ClassS
         </div>
       </div>
 
-      <div className="space-y-2 max-w-2xl">
+      <div className="space-y-2 max-w-xl">
         {classStudents.map((student) => (
           <StudentCard 
             key={student.id}
