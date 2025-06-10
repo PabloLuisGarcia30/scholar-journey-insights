@@ -53,85 +53,31 @@ interface ContentSkill {
   topic: string;
 }
 
-// Enhanced skill type detection based on skill name patterns
-function detectSkillType(skillName: string, subject: string): 'content' | 'subject' {
-  const contentSkillPatterns = [
-    // Math content skills
-    'algebra', 'geometry', 'calculus', 'trigonometry', 'statistics', 'probability',
-    'fractions', 'decimals', 'integers', 'equations', 'functions', 'graphing',
-    'polynomials', 'logarithms', 'matrices', 'sequences', 'series',
-    
-    // Science content skills
-    'chemistry', 'physics', 'biology', 'atomic structure', 'periodic table',
-    'chemical bonds', 'reactions', 'thermodynamics', 'mechanics', 'waves',
-    'electricity', 'magnetism', 'genetics', 'evolution', 'ecology',
-    
-    // English content skills
-    'grammar', 'vocabulary', 'syntax', 'phonics', 'spelling', 'punctuation',
-    'literature', 'poetry', 'prose', 'rhetoric', 'composition',
-    
-    // History content skills
-    'ancient history', 'medieval', 'renaissance', 'industrial revolution',
-    'world wars', 'cold war', 'civilizations', 'empires'
-  ];
+// Simplified skill classification based on database content
+function classifySkillsFromDatabase(
+  contentSkills: ContentSkill[],
+  requestedSkills: string[]
+): { skillType: 'content' | 'subject'; skillMetadata: any } {
+  // If we have Content Skills from database and any requested skills match them, it's content-based
+  const hasMatchingContentSkills = contentSkills.some(cs => 
+    requestedSkills.some(skill => 
+      cs.skill_name.toLowerCase().includes(skill.toLowerCase()) ||
+      skill.toLowerCase().includes(cs.skill_name.toLowerCase())
+    )
+  );
 
-  const subjectSkillPatterns = [
-    // Cross-subject cognitive skills
-    'critical thinking', 'problem solving', 'analytical reasoning', 'logical reasoning',
-    'reading comprehension', 'written communication', 'oral communication',
-    'research skills', 'data analysis', 'interpretation', 'synthesis',
-    'evaluation', 'application', 'comprehension', 'knowledge recall',
-    'creative thinking', 'decision making', 'time management', 'organization',
-    'collaboration', 'leadership', 'presentation skills', 'study skills'
-  ];
-
-  const skillLower = skillName.toLowerCase();
+  const skillType = hasMatchingContentSkills ? 'content' : 'subject';
   
-  // Check for content skill patterns
-  for (const pattern of contentSkillPatterns) {
-    if (skillLower.includes(pattern)) {
-      return 'content';
-    }
-  }
-  
-  // Check for subject skill patterns
-  for (const pattern of subjectSkillPatterns) {
-    if (skillLower.includes(pattern)) {
-      return 'subject';
-    }
-  }
-  
-  // Default classification based on skill name characteristics
-  if (skillLower.includes('understanding') || skillLower.includes('knowledge') || 
-      skillLower.includes('concepts') || skillLower.includes('principles')) {
-    return 'content';
-  }
-  
-  if (skillLower.includes('skills') || skillLower.includes('ability') || 
-      skillLower.includes('thinking') || skillLower.includes('reasoning')) {
-    return 'subject';
-  }
-  
-  // Final fallback: content skills for specific subjects, subject skills for general
-  const specificSubjects = ['math', 'science', 'english', 'history', 'physics', 'chemistry', 'biology'];
-  if (specificSubjects.some(subj => subject.toLowerCase().includes(subj))) {
-    return 'content';
-  }
-  
-  return 'subject'; // Default to subject skill
-}
-
-// Generate skill metadata
-function generateSkillMetadata(skillName: string, skillType: 'content' | 'subject', subject: string, grade: string) {
-  return {
+  const skillMetadata = {
     skillType,
     skillCategory: skillType === 'content' ? 'domain_specific' : 'cross_curricular',
-    subject: subject,
-    grade: grade,
-    detectedPatterns: skillType === 'content' ? ['subject_specific_content'] : ['cognitive_skill'],
-    confidence: 0.8,
-    classificationMethod: 'pattern_matching_enhanced'
+    databaseDriven: true,
+    contentSkillsAvailable: contentSkills.length,
+    classificationMethod: 'database_matching',
+    confidence: hasMatchingContentSkills ? 0.95 : 0.7
   };
+
+  return { skillType, skillMetadata };
 }
 
 // NEW: Fetch Content Skills for the class
@@ -213,7 +159,7 @@ function validateSkillDistributionAgainstContentSkills(
   // Calculate actual total from distribution
   const distributionTotal = validatedDistribution.reduce((sum, skill) => sum + skill.questions, 0);
   
-  // Adjust distribution if needed (same logic as before)
+  // Adjust distribution if needed
   if (distributionTotal !== totalQuestions) {
     console.log(`⚠️ Distribution mismatch: ${distributionTotal} vs ${totalQuestions}, adjusting...`);
     
@@ -668,22 +614,22 @@ serve(async (req) => {
       }
     }
     
-    let skillType: 'content' | 'subject';
-    let skillMetadata: any;
+    // Simplified skill classification using database content
+    const requestedSkills = isMultiSkill && validatedSkillDistribution 
+      ? validatedSkillDistribution.map(s => s.skill_name)
+      : [skillName];
     
+    const { skillType, skillMetadata } = classifySkillsFromDatabase(classContentSkills, requestedSkills);
+    
+    // Add multi-skill specific metadata
     if (isMultiSkill && validatedSkillDistribution) {
-      skillType = detectSkillType(validatedSkillDistribution[0].skill_name, subject);
-      skillMetadata = generateSkillMetadata(`Multi-skill: ${validatedSkillDistribution.map(s => s.skill_name).join(', ')}`, skillType, subject, grade);
       skillMetadata.isMultiSkill = true;
       skillMetadata.skillDistribution = validatedSkillDistribution;
-      skillMetadata.contentSkillsCount = classContentSkills.length;
-    } else {
-      skillType = detectSkillType(skillName, subject);
-      skillMetadata = generateSkillMetadata(skillName, skillType, subject, grade);
-      skillMetadata.contentSkillsCount = classContentSkills.length;
     }
     
-    console.log(`✅ Detected skill type: ${skillType} for skill(s): ${isMultiSkill ? 'multi-skill' : skillName}`);
+    skillMetadata.contentSkillsCount = classContentSkills.length;
+    
+    console.log(`✅ Classified skill type: ${skillType} for skill(s): ${isMultiSkill ? 'multi-skill' : skillName}`);
     console.log('📊 Skill metadata:', skillMetadata);
 
     let historicalQuestions: HistoricalQuestion[] = [];
