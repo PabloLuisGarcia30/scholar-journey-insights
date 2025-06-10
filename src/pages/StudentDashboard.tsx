@@ -1,16 +1,21 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Bell, BookOpen, TrendingUp, User, Calendar, Clock } from "lucide-react";
+import { Bell, BookOpen, TrendingUp, User, Calendar, Clock, Users, GraduationCap } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { DevRoleToggle } from "@/components/DevRoleToggle";
 import { useDevRole } from "@/contexts/DevRoleContext";
 import { Navigate } from "react-router-dom";
 import { DEV_CONFIG } from "@/config/devConfig";
+import { getAllActiveClasses, type ActiveClass } from "@/services/examService";
+import { toast } from "sonner";
 
 export default function StudentDashboard() {
   const { profile, signOut } = useAuth();
+  const [classes, setClasses] = useState<ActiveClass[]>([]);
+  const [selectedClass, setSelectedClass] = useState<string | null>(null);
+  const [loadingClasses, setLoadingClasses] = useState(true);
   
   // Get current role (dev or actual)
   let currentRole: 'teacher' | 'student' = 'student';
@@ -29,6 +34,29 @@ export default function StudentDashboard() {
   if (currentRole === 'teacher') {
     return <Navigate to="/" replace />;
   }
+
+  useEffect(() => {
+    loadClasses();
+  }, []);
+
+  const loadClasses = async () => {
+    try {
+      setLoadingClasses(true);
+      const classesData = await getAllActiveClasses();
+      
+      // Filter classes that include this student (Pablo's ID)
+      const studentClasses = classesData.filter(cls => 
+        cls.students.includes(profile?.id || '')
+      );
+      
+      setClasses(studentClasses);
+    } catch (error) {
+      console.error('Error loading classes:', error);
+      toast.error('Failed to load classes');
+    } finally {
+      setLoadingClasses(false);
+    }
+  };
 
   const [notifications] = useState([
     {
@@ -83,6 +111,16 @@ export default function StudentDashboard() {
       case 'in-progress': return 'bg-blue-100 text-blue-800';
       case 'pending': return 'bg-orange-100 text-orange-800';
       default: return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  const getSubjectColor = (subject: string) => {
+    switch (subject.toLowerCase()) {
+      case 'math': return 'bg-blue-500';
+      case 'science': return 'bg-green-500';
+      case 'english': return 'bg-purple-500';
+      case 'history': return 'bg-orange-500';
+      default: return 'bg-gray-500';
     }
   };
 
@@ -164,6 +202,77 @@ export default function StudentDashboard() {
                   <p className="text-2xl font-bold text-slate-900">7 days</p>
                 </div>
               </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Your Classes Section */}
+        <div className="mb-8">
+          <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-sm">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <GraduationCap className="h-5 w-5" />
+                Your Classes
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {loadingClasses ? (
+                <div className="flex items-center justify-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                  <span className="ml-3 text-slate-600">Loading classes...</span>
+                </div>
+              ) : classes.length > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {classes.map((cls) => (
+                    <div
+                      key={cls.id}
+                      className={`relative p-6 rounded-xl border-2 transition-all duration-200 cursor-pointer hover:shadow-lg ${
+                        selectedClass === cls.id
+                          ? 'border-blue-500 bg-blue-50/50 shadow-md'
+                          : 'border-gray-200 bg-white hover:border-gray-300'
+                      }`}
+                      onClick={() => setSelectedClass(selectedClass === cls.id ? null : cls.id)}
+                    >
+                      <div className="flex items-start justify-between mb-4">
+                        <div className={`w-12 h-12 rounded-lg ${getSubjectColor(cls.subject)} flex items-center justify-center`}>
+                          <BookOpen className="h-6 w-6 text-white" />
+                        </div>
+                        <Badge variant="outline" className="text-xs">
+                          {cls.grade}
+                        </Badge>
+                      </div>
+                      
+                      <h3 className="font-semibold text-slate-900 mb-2">{cls.name}</h3>
+                      <p className="text-sm text-slate-600 mb-3">{cls.subject}</p>
+                      
+                      <div className="flex items-center justify-between text-sm">
+                        <div className="flex items-center gap-1 text-slate-500">
+                          <Users className="h-4 w-4" />
+                          <span>{cls.student_count} students</span>
+                        </div>
+                        <div className="flex items-center gap-1 text-slate-500">
+                          <User className="h-4 w-4" />
+                          <span>{cls.teacher}</span>
+                        </div>
+                      </div>
+                      
+                      {selectedClass === cls.id && (
+                        <div className="mt-4 pt-4 border-t border-gray-200">
+                          <Button size="sm" className="w-full">
+                            View Class Details
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8">
+                  <GraduationCap className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">No classes found</h3>
+                  <p className="text-gray-600">You're not enrolled in any classes yet.</p>
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>
