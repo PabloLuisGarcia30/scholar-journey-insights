@@ -9,7 +9,12 @@ import { DevRoleToggle } from "@/components/DevRoleToggle";
 import { useDevRole } from "@/contexts/DevRoleContext";
 import { Navigate } from "react-router-dom";
 import { DEV_CONFIG } from "@/config/devConfig";
-import { getAllActiveClasses, type ActiveClass } from "@/services/examService";
+import { 
+  getAllActiveClasses, 
+  getStudentContentSkillScores, 
+  getLinkedContentSkillsForClass,
+  type ActiveClass 
+} from "@/services/examService";
 import { toast } from "sonner";
 
 export default function StudentDashboard() {
