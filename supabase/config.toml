@@ -13,9 +13,6 @@ verify_jwt = false
 [functions.generate-practice-test]
 verify_jwt = false
 
-[functions.generate-lesson-exercises]
-verify_jwt = false
-
 [functions.batch-queue-manager]
 verify_jwt = false
 

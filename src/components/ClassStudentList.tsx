@@ -1,15 +1,12 @@
+
 import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { User, TrendingDown } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { getAllActiveStudents, getActiveClassById } from "@/services/examService";
 import { useStudentProfileData } from "@/hooks/useStudentProfileData";
-import { getMasteryColor } from "@/utils/studentProfileUtils";
-import { useState, useMemo } from "react";
-import { LockLessonPlanDialog } from "./LockLessonPlanDialog";
-import { type LessonPlanData } from "@/services/lessonPlanService";
+import { useState } from "react";
 
 interface ClassStudentListProps {
   classId: string;
@@ -189,8 +186,6 @@ function StudentCard({ student, classId, className }: StudentCardProps) {
 }
 
 export function ClassStudentList({ classId, className, onSelectStudent }: ClassStudentListProps) {
-  const [showLockDialog, setShowLockDialog] = useState(false);
-  
   const { data: allStudents = [], isLoading: studentsLoading } = useQuery({
     queryKey: ['allActiveStudents'],
     queryFn: getAllActiveStudents,
@@ -208,38 +203,6 @@ export function ClassStudentList({ classId, className, onSelectStudent }: ClassS
   );
 
   const isLoading = studentsLoading || classLoading;
-
-  const handleLockLessonPlan = () => {
-    setShowLockDialog(true);
-  };
-
-  // Prepare lesson plan data using useMemo to avoid recalculation
-  const lessonPlanData = useMemo((): LessonPlanData | null => {
-    if (!classData || classStudents.length === 0) return null;
-
-    // Get current date and time for the lesson plan
-    const today = new Date();
-    const scheduledDate = today.toISOString().split('T')[0]; // YYYY-MM-DD format
-    const scheduledTime = "13:30"; // Default time, could be made dynamic
-
-    // For now, we'll create a basic lesson plan structure
-    // The individual student skill data will be populated when the dialog opens
-    return {
-      classId: classData.id,
-      className: classData.name,
-      teacherName: classData.teacher,
-      subject: classData.subject,
-      grade: classData.grade,
-      scheduledDate,
-      scheduledTime,
-      students: classStudents.map(student => ({
-        studentId: student.id,
-        studentName: student.name,
-        targetSkillName: "Loading...", // Will be populated in dialog
-        targetSkillScore: 0 // Will be populated in dialog
-      }))
-    };
-  }, [classData, classStudents]);
 
   if (isLoading) {
     return (
@@ -268,23 +231,13 @@ export function ClassStudentList({ classId, className, onSelectStudent }: ClassS
   return (
     <div className="mt-6">
       <div className="mb-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <h3 className="text-lg font-semibold text-slate-900 mb-1">
-              Recommended Lesson Plan
-            </h3>
-            <p className="text-sm text-slate-600">
-              View each student's weakest content skill in {className} - automatically identified based on their performance
-            </p>
-          </div>
-          {classStudents.length > 0 && !isLoading && (
-            <Button 
-              onClick={handleLockLessonPlan}
-              className="bg-green-600 hover:bg-green-700 text-white"
-            >
-              Lock in Lesson Plan & Generate Exercises
-            </Button>
-          )}
+        <div>
+          <h3 className="text-lg font-semibold text-slate-900 mb-1">
+            Student Analysis
+          </h3>
+          <p className="text-sm text-slate-600">
+            View each student's weakest content skill in {className} - automatically identified based on their performance
+          </p>
         </div>
       </div>
 
@@ -298,15 +251,6 @@ export function ClassStudentList({ classId, className, onSelectStudent }: ClassS
           />
         ))}
       </div>
-
-      <LockLessonPlanDialog
-        open={showLockDialog}
-        onOpenChange={setShowLockDialog}
-        lessonPlanData={lessonPlanData}
-        onSuccess={() => {
-          console.log('Lesson plan with exercises saved successfully');
-        }}
-      />
     </div>
   );
 }
