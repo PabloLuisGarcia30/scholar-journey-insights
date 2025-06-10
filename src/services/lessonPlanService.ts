@@ -115,3 +115,73 @@ export async function getLessonPlan(lessonPlanId: string) {
     throw error;
   }
 }
+
+export async function getLessonPlanByClassId(classId: string) {
+  try {
+    const { data, error } = await supabase
+      .from('lesson_plans')
+      .select(`
+        *,
+        lesson_plan_students (
+          student_id,
+          student_name,
+          target_skill_name,
+          target_skill_score
+        )
+      `)
+      .eq('class_id', classId)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      throw error;
+    }
+
+    return data || [];
+  } catch (error) {
+    console.error('Error fetching lesson plans by class:', error);
+    throw error;
+  }
+}
+
+export async function updateLessonPlanStatus(lessonPlanId: string, status: string) {
+  try {
+    const { error } = await supabase
+      .from('lesson_plans')
+      .update({ status })
+      .eq('id', lessonPlanId);
+
+    if (error) {
+      throw error;
+    }
+  } catch (error) {
+    console.error('Error updating lesson plan status:', error);
+    throw error;
+  }
+}
+
+export async function deleteLessonPlan(lessonPlanId: string) {
+  try {
+    // First delete related lesson plan students
+    const { error: studentsError } = await supabase
+      .from('lesson_plan_students')
+      .delete()
+      .eq('lesson_plan_id', lessonPlanId);
+
+    if (studentsError) {
+      throw studentsError;
+    }
+
+    // Then delete the lesson plan
+    const { error: planError } = await supabase
+      .from('lesson_plans')
+      .delete()
+      .eq('id', lessonPlanId);
+
+    if (planError) {
+      throw planError;
+    }
+  } catch (error) {
+    console.error('Error deleting lesson plan:', error);
+    throw error;
+  }
+}

@@ -2,14 +2,16 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Play, Users, Calendar, Settings, BookOpen, ArrowLeft, FileText, Activity } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Play, Users, Calendar, Settings, BookOpen, ArrowLeft, FileText, Activity, CheckCircle2 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
-import { StartClassSession } from "@/components/StartClassSession";
+import { StartClassSessionFromPlan } from "@/components/StartClassSessionFromPlan";
 import { LiveSessionMonitoring } from "@/components/LiveSessionMonitoring";
 import { getActiveClassSessions } from "@/services/classSessionService";
+import { getLessonPlanByClassId } from "@/services/lessonPlanService";
 import { useState } from "react";
 
 export default function ClassRunner() {
@@ -38,6 +40,22 @@ export default function ClassRunner() {
       return data || [];
     },
     enabled: !!profile?.full_name,
+  });
+
+  // Fetch lesson plans for all classes to show status
+  const { data: allLessonPlans = [] } = useQuery({
+    queryKey: ['allLessonPlans'],
+    queryFn: async () => {
+      const promises = activeClasses.map(async (classItem) => {
+        const plans = await getLessonPlanByClassId(classItem.id);
+        return {
+          classId: classItem.id,
+          lessonPlans: plans
+        };
+      });
+      return Promise.all(promises);
+    },
+    enabled: activeClasses.length > 0,
   });
 
   // Fetch active sessions for monitoring
@@ -81,24 +99,20 @@ export default function ClassRunner() {
     setActiveTab("monitoring");
   };
 
-  const mockStudents = [
-    {
-      studentId: "student-1",
-      studentName: "Alice Johnson",
-      skills: [
-        { skill_name: "Algebra", score: 75 },
-        { skill_name: "Geometry", score: 82 }
-      ]
-    },
-    {
-      studentId: "student-2", 
-      studentName: "Bob Smith",
-      skills: [
-        { skill_name: "Algebra", score: 68 },
-        { skill_name: "Statistics", score: 71 }
-      ]
+  const getLessonPlanStatus = (classId: string) => {
+    const classPlans = allLessonPlans.find(item => item.classId === classId);
+    if (!classPlans || classPlans.lessonPlans.length === 0) {
+      return { status: 'none', text: 'No Plan', color: 'bg-slate-100 text-slate-600' };
     }
-  ];
+    
+    const latestPlan = classPlans.lessonPlans[0];
+    return { 
+      status: 'ready', 
+      text: 'Plan Ready', 
+      color: 'bg-green-100 text-green-700',
+      plan: latestPlan
+    };
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50/30">
@@ -157,46 +171,66 @@ export default function ClassRunner() {
                   </div>
                 ) : activeClasses.length > 0 ? (
                   <div className="space-y-4">
-                    {activeClasses.map((classItem) => (
-                      <div key={classItem.id} className="p-4 rounded-lg border bg-white/50">
-                        <div className="flex items-center justify-between mb-3">
-                          <div>
-                            <h3 className="font-semibold text-slate-900">{classItem.name}</h3>
-                            <p className="text-sm text-slate-600">
-                              {classItem.subject} • {classItem.grade}
-                            </p>
+                    {activeClasses.map((classItem) => {
+                      const planStatus = getLessonPlanStatus(classItem.id);
+                      const hasPlan = planStatus.status === 'ready';
+                      
+                      return (
+                        <div key={classItem.id} className="p-4 rounded-lg border bg-white/50">
+                          <div className="flex items-center justify-between mb-3">
+                            <div className="flex items-center gap-3">
+                              <div>
+                                <h3 className="font-semibold text-slate-900">{classItem.name}</h3>
+                                <p className="text-sm text-slate-600">
+                                  {classItem.subject} • {classItem.grade}
+                                </p>
+                              </div>
+                              <Badge className={`px-2 py-1 text-xs ${planStatus.color} border-0`}>
+                                {hasPlan && <CheckCircle2 className="h-3 w-3 mr-1" />}
+                                {planStatus.text}
+                              </Badge>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Button 
+                                size="sm" 
+                                variant="outline" 
+                                onClick={() => handlePlanClass(classItem)}
+                                className="flex items-center gap-2"
+                              >
+                                <FileText className="h-4 w-4" />
+                                {hasPlan ? 'Edit Plan' : 'Create Plan'}
+                              </Button>
+                              {hasPlan && (
+                                <StartClassSessionFromPlan
+                                  classId={classItem.id}
+                                  className={classItem.name}
+                                  onSessionStarted={handleSessionStarted}
+                                />
+                              )}
+                            </div>
                           </div>
-                          <div className="flex items-center gap-2">
-                            <Button 
-                              size="sm" 
-                              variant="outline" 
-                              onClick={() => handlePlanClass(classItem)}
-                              className="flex items-center gap-2"
-                            >
-                              <FileText className="h-4 w-4" />
-                              Plan
-                            </Button>
-                            <StartClassSession
-                              classId={classItem.id}
-                              className={classItem.name}
-                              students={mockStudents}
-                              onSessionStarted={handleSessionStarted}
-                            />
+                          <div className="flex items-center gap-4 text-sm text-slate-600">
+                            <span>{classItem.student_count || 0} students</span>
+                            <span>•</span>
+                            <span>Next: {getNextClassTime()}</span>
+                            {classItem.avg_gpa && (
+                              <>
+                                <span>•</span>
+                                <span>Avg GPA: {Number(classItem.avg_gpa).toFixed(1)}</span>
+                              </>
+                            )}
+                            {hasPlan && planStatus.plan && (
+                              <>
+                                <span>•</span>
+                                <span className="text-green-600">
+                                  Plan for {planStatus.plan.scheduled_date} at {planStatus.plan.scheduled_time}
+                                </span>
+                              </>
+                            )}
                           </div>
                         </div>
-                        <div className="flex items-center gap-4 text-sm text-slate-600">
-                          <span>{classItem.student_count || 0} students</span>
-                          <span>•</span>
-                          <span>Next: {getNextClassTime()}</span>
-                          {classItem.avg_gpa && (
-                            <>
-                              <span>•</span>
-                              <span>Avg GPA: {Number(classItem.avg_gpa).toFixed(1)}</span>
-                            </>
-                          )}
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 ) : (
                   <div className="text-center py-8">

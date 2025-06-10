@@ -1,4 +1,3 @@
-
 import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -10,7 +9,7 @@ import { getAllActiveStudents, getActiveClassById } from "@/services/examService
 import { useStudentProfileData } from "@/hooks/useStudentProfileData";
 import { useState, useMemo } from "react";
 import { StudentSkillSelector } from "./StudentSkillSelector";
-import { StartClassSession } from "./StartClassSession";
+import { SaveLessonPlan } from "./SaveLessonPlan";
 
 interface ClassStudentListProps {
   classId: string;
@@ -487,9 +486,9 @@ export function ClassStudentList({ classId, className, onSelectStudent }: ClassS
             </p>
           </div>
           
-          {/* Show Start Class Session button immediately when students are present */}
+          {/* Show Save Lesson Plan button when students are present */}
           {classStudents.length > 0 && (
-            <StartClassSessionWithDefaults
+            <SaveLessonPlanWithDefaults
               classId={classId}
               className={className}
               students={classStudents}
@@ -519,8 +518,8 @@ export function ClassStudentList({ classId, className, onSelectStudent }: ClassS
   );
 }
 
-// New component that handles the Start Class Session with enhanced default skills
-function StartClassSessionWithDefaults({ 
+// New component that handles the Save Lesson Plan with enhanced default skills
+function SaveLessonPlanWithDefaults({ 
   classId, 
   className, 
   students,
@@ -544,7 +543,7 @@ function StartClassSessionWithDefaults({
   );
 }
 
-// Component that fetches default skills for students and prepares data for StartClassSession
+// Component that fetches default skills for students and prepares data for SaveLessonPlan
 function StudentsWithDefaultSkills({
   classId,
   className,
@@ -613,7 +612,7 @@ function StudentsWithDefaultSkills({
   }, [students, editedDefaultSkills, studentAdditionalSkills, studentSkillData]);
 
   return (
-    <StartClassSession
+    <SaveLessonPlan
       classId={classId}
       className={className}
       students={finalStudentsWithSkills}
