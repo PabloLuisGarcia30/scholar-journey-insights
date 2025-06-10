@@ -23,6 +23,7 @@ interface CreateClassDialogProps {
     teacher: string;
     dayOfWeek?: string;
     classTime?: string;
+    endTime?: string;
   }) => void;
 }
 
@@ -34,7 +35,8 @@ export function CreateClassDialog({ onCreateClass }: CreateClassDialogProps) {
     grade: '',
     teacher: '',
     dayOfWeek: '',
-    classTime: ''
+    classTime: '',
+    endTime: ''
   });
 
   const subjects = ['Math', 'Science', 'English', 'History', 'Geography', 'Art', 'Music', 'Physical Education'];
@@ -50,10 +52,11 @@ export function CreateClassDialog({ onCreateClass }: CreateClassDialogProps) {
         grade: formData.grade,
         teacher: formData.teacher,
         ...(formData.dayOfWeek && { dayOfWeek: formData.dayOfWeek }),
-        ...(formData.classTime && { classTime: formData.classTime })
+        ...(formData.classTime && { classTime: formData.classTime }),
+        ...(formData.endTime && { endTime: formData.endTime })
       };
       onCreateClass(classData);
-      setFormData({ name: '', subject: '', grade: '', teacher: '', dayOfWeek: '', classTime: '' });
+      setFormData({ name: '', subject: '', grade: '', teacher: '', dayOfWeek: '', classTime: '', endTime: '' });
       setOpen(false);
     }
   };
@@ -148,7 +151,7 @@ export function CreateClassDialog({ onCreateClass }: CreateClassDialogProps) {
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="classTime" className="text-right">
-                Class Time
+                Start Time
               </Label>
               <Input
                 id="classTime"
@@ -157,6 +160,19 @@ export function CreateClassDialog({ onCreateClass }: CreateClassDialogProps) {
                 onChange={(e) => setFormData({ ...formData, classTime: e.target.value })}
                 className="col-span-3"
                 placeholder="e.g., 09:00"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="endTime" className="text-right">
+                End Time
+              </Label>
+              <Input
+                id="endTime"
+                type="time"
+                value={formData.endTime}
+                onChange={(e) => setFormData({ ...formData, endTime: e.target.value })}
+                className="col-span-3"
+                placeholder="e.g., 10:00"
               />
             </div>
           </div>

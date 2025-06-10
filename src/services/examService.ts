@@ -48,6 +48,7 @@ export interface ActiveClass {
   students: string[];
   day_of_week?: string;
   class_time?: string;
+  end_time?: string;
   created_at: string;
   updated_at: string;
 }
@@ -158,6 +159,7 @@ export const createActiveClass = async (classData: {
   teacher: string;
   dayOfWeek?: string;
   classTime?: string;
+  endTime?: string;
 }): Promise<ActiveClass> => {
   try {
     console.log('Creating active class:', classData);
@@ -178,6 +180,9 @@ export const createActiveClass = async (classData: {
     }
     if (classData.classTime) {
       insertData.class_time = classData.classTime;
+    }
+    if (classData.endTime) {
+      insertData.end_time = classData.endTime;
     }
 
     const { data, error } = await supabase
@@ -1083,6 +1088,41 @@ export const getStudentEnrolledClasses = async (studentId: string): Promise<Acti
     return data || [];
   } catch (error) {
     console.error('Error in getStudentEnrolledClasses:', error);
+    throw error;
+  }
+};
+
+export const getLinkedContentSkillsForClass = async (classId: string): Promise<ContentSkill[]> => {
+  try {
+    console.log('Fetching linked content skills for class:', classId);
+    
+    const { data, error } = await supabase
+      .from('class_content_skills')
+      .select(`
+        content_skills (
+          id,
+          subject,
+          grade,
+          topic,
+          skill_name,
+          skill_description,
+          created_at,
+          updated_at
+        )
+      `)
+      .eq('class_id', classId);
+
+    if (error) {
+      console.error('Error fetching linked content skills:', error);
+      throw new Error(`Failed to fetch linked content skills: ${error.message}`);
+    }
+
+    // Extract the content_skills from the nested structure
+    const contentSkills = data?.map((item: any) => item.content_skills).filter(Boolean) || [];
+    console.log('Found linked content skills:', contentSkills.length);
+    return contentSkills;
+  } catch (error) {
+    console.error('Error in getLinkedContentSkillsForClass:', error);
     throw error;
   }
 };
