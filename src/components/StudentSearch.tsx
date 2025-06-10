@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
@@ -24,7 +23,6 @@ interface StudentWithIdStatus extends ActiveStudent {
 
 export function StudentSearch({ onSelectStudent }: StudentSearchProps) {
   const [searchTerm, setSearchTerm] = useState("");
-  const [filterMajor, setFilterMajor] = useState<string>('all');
   const [filterClass, setFilterClass] = useState<string>('all');
   const [filteredStudents, setFilteredStudents] = useState<StudentWithIdStatus[]>([]);
   const [allStudents, setAllStudents] = useState<StudentWithIdStatus[]>([]);
@@ -92,30 +90,21 @@ export function StudentSearch({ onSelectStudent }: StudentSearchProps) {
 
   const handleSearch = (term: string) => {
     setSearchTerm(term);
-    applyFilters(term, filterMajor, filterClass);
-  };
-
-  const handleMajorFilter = (majorFilter: string) => {
-    setFilterMajor(majorFilter);
-    applyFilters(searchTerm, majorFilter, filterClass);
+    applyFilters(term, filterClass);
   };
 
   const handleClassFilter = (classFilter: string) => {
     setFilterClass(classFilter);
-    applyFilters(searchTerm, filterMajor, classFilter);
+    applyFilters(searchTerm, classFilter);
   };
 
-  const applyFilters = (term: string, majorFilter: string, classFilter: string) => {
+  const applyFilters = (term: string, classFilter: string) => {
     let filtered = allStudents.filter(student =>
       student.name.toLowerCase().includes(term.toLowerCase()) ||
       (student.email && student.email.toLowerCase().includes(term.toLowerCase())) ||
       (student.major && student.major.toLowerCase().includes(term.toLowerCase())) ||
       (student.studentIdFromProfile && student.studentIdFromProfile.toLowerCase().includes(term.toLowerCase()))
     );
-
-    if (majorFilter !== 'all') {
-      filtered = filtered.filter(student => student.major === majorFilter);
-    }
 
     if (classFilter !== 'all') {
       filtered = filtered.filter(student => 
@@ -144,7 +133,6 @@ export function StudentSearch({ onSelectStudent }: StudentSearchProps) {
     return 'bg-orange-50';
   };
 
-  const majors = [...new Set(allStudents.map(student => student.major).filter(Boolean))];
   const studentsWithoutIds = allStudents.filter(student => !student.hasStudentId).length;
 
   if (loading) {
@@ -219,18 +207,6 @@ export function StudentSearch({ onSelectStudent }: StudentSearchProps) {
               </div>
               
               <div className="flex flex-col sm:flex-row gap-4">
-                <Select value={filterMajor} onValueChange={handleMajorFilter}>
-                  <SelectTrigger className="w-full sm:w-48 h-12 border-slate-200 rounded-xl bg-white/50 backdrop-blur-sm">
-                    <SelectValue placeholder="Filter by major" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Majors</SelectItem>
-                    {majors.map((major) => (
-                      <SelectItem key={major} value={major!}>{major}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-
                 <Select value={filterClass} onValueChange={handleClassFilter}>
                   <SelectTrigger className="w-full sm:w-48 h-12 border-slate-200 rounded-xl bg-white/50 backdrop-blur-sm">
                     <SelectValue placeholder="Filter by class" />
