@@ -67,11 +67,11 @@ function WeakestSkillCircle({ skillName, score }: { skillName: string; score: nu
   return (
     <div className="flex flex-col items-center min-w-0">
       <div 
-        className="relative w-8 h-8 mb-1 flex-shrink-0"
+        className="relative w-12 h-12 mb-2 flex-shrink-0"
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
       >
-        <svg className="w-8 h-8" viewBox="0 0 32 32">
+        <svg className="w-12 h-12" viewBox="0 0 48 48">
           <defs>
             <linearGradient id={gradientId} x1="0%" y1="0%" x2="100%" y2="100%">
               <stop offset="0%" stopColor={gradientColors.color1} />
@@ -80,9 +80,9 @@ function WeakestSkillCircle({ skillName, score }: { skillName: string; score: nu
             </linearGradient>
           </defs>
           <circle
-            cx="16"
-            cy="16"
-            r="13"
+            cx="24"
+            cy="24"
+            r="20"
             fill={`url(#${gradientId})`}
             style={{ 
               filter: isHovered ? 'brightness(1.1)' : 'brightness(1)',
@@ -95,7 +95,7 @@ function WeakestSkillCircle({ skillName, score }: { skillName: string; score: nu
         
         {/* Percentage in center */}
         <div className="absolute inset-0 flex items-center justify-center">
-          <span className="text-[9px] font-bold text-white drop-shadow-sm">
+          <span className="text-xs font-bold text-white drop-shadow-sm">
             {Math.round(score)}%
           </span>
         </div>
@@ -103,11 +103,11 @@ function WeakestSkillCircle({ skillName, score }: { skillName: string; score: nu
 
       {/* Skill name and context */}
       <div className="text-center w-full min-w-0">
-        <div className="flex items-center gap-0.5 justify-center mb-0.5">
-          <TrendingDown className="h-2 w-2 text-orange-600 flex-shrink-0" />
-          <span className="text-[8px] font-medium text-orange-700">Weakest</span>
+        <div className="flex items-center gap-1 justify-center mb-1">
+          <TrendingDown className="h-3 w-3 text-orange-600 flex-shrink-0" />
+          <span className="text-xs font-medium text-orange-700">Weakest</span>
         </div>
-        <p className="text-[8px] text-slate-700 font-medium leading-tight break-words hyphens-auto">
+        <p className="text-xs text-slate-700 font-medium leading-tight break-words hyphens-auto">
           {skillName}
         </p>
       </div>
@@ -128,11 +128,11 @@ function StudentCard({ student, classId, className }: StudentCardProps) {
     .sort((a, b) => a.score - b.score)[0]; // Get the lowest scoring skill
 
   return (
-    <Card className="group hover:shadow-lg transition-all duration-300 cursor-pointer border-0 bg-white/80 backdrop-blur-sm hover:bg-white hover:scale-[1.01] max-w-lg">
-      <CardContent className="p-2">
+    <Card className="group hover:shadow-lg transition-all duration-300 cursor-pointer border-0 bg-white/80 backdrop-blur-sm hover:bg-white hover:scale-[1.01] w-full max-w-md">
+      <CardContent className="p-3">
         <div className="flex items-center gap-3">
-          <Avatar className="h-7 w-7 ring-2 ring-slate-100 group-hover:ring-blue-200 transition-all duration-300 flex-shrink-0">
-            <AvatarFallback className="bg-gradient-to-br from-blue-100 to-purple-100 text-slate-700 font-semibold text-xs">
+          <Avatar className="h-8 w-8 ring-2 ring-slate-100 group-hover:ring-blue-200 transition-all duration-300 flex-shrink-0">
+            <AvatarFallback className="bg-gradient-to-br from-blue-100 to-purple-100 text-slate-700 font-semibold text-sm">
               {student.name.split(' ').map(n => n[0]).join('')}
             </AvatarFallback>
           </Avatar>
@@ -141,27 +141,27 @@ function StudentCard({ student, classId, className }: StudentCardProps) {
             <h4 className="font-semibold text-sm text-slate-900 truncate group-hover:text-blue-700 transition-colors">
               {student.name}
             </h4>
-            <p className="text-[10px] text-slate-500 truncate">{student.email || 'No email'}</p>
+            <p className="text-xs text-slate-500 truncate">{student.email || 'No email'}</p>
             
-            <div className="flex flex-wrap gap-1 mt-0.5">
+            <div className="flex flex-wrap gap-1 mt-1">
               {student.year && (
-                <Badge variant="outline" className="text-[8px] px-1 py-0 bg-blue-50 text-blue-700 border-blue-200">
+                <Badge variant="outline" className="text-xs px-1.5 py-0.5 bg-blue-50 text-blue-700 border-blue-200">
                   {student.year}
                 </Badge>
               )}
               {student.gpa && (
-                <Badge variant="outline" className="text-[8px] px-1 py-0 bg-green-50 text-green-700 border-green-200">
+                <Badge variant="outline" className="text-xs px-1.5 py-0.5 bg-green-50 text-green-700 border-green-200">
                   GPA: {Number(student.gpa).toFixed(1)}
                 </Badge>
               )}
             </div>
           </div>
 
-          {/* Weakest Skill Circle - positioned closer */}
-          <div className="flex-shrink-0">
+          {/* Weakest Skill Circle */}
+          <div className="flex-shrink-0 ml-2">
             {contentSkillsLoading ? (
-              <div className="w-16 flex justify-center items-center h-12">
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+              <div className="w-20 flex justify-center items-center h-16">
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
               </div>
             ) : weakestSkill ? (
               <WeakestSkillCircle 
@@ -169,11 +169,11 @@ function StudentCard({ student, classId, className }: StudentCardProps) {
                 score={weakestSkill.score}
               />
             ) : (
-              <div className="flex flex-col items-center w-16">
-                <div className="w-8 h-8 bg-gradient-to-br from-slate-100 to-slate-200 rounded-full flex items-center justify-center mb-1">
-                  <span className="text-[9px] font-bold text-slate-500">?</span>
+              <div className="flex flex-col items-center w-20">
+                <div className="w-12 h-12 bg-gradient-to-br from-slate-100 to-slate-200 rounded-full flex items-center justify-center mb-2">
+                  <span className="text-xs font-bold text-slate-500">?</span>
                 </div>
-                <p className="text-[8px] text-slate-500 font-medium text-center">
+                <p className="text-xs text-slate-500 font-medium text-center">
                   No data
                 </p>
               </div>
