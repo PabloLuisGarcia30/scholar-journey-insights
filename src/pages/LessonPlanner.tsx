@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, BookOpen, Plus } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import { WeeklyCalendar } from "@/components/WeeklyCalendar";
 
 export default function LessonPlanner() {
   const navigate = useNavigate();
@@ -35,16 +36,27 @@ export default function LessonPlanner() {
           <p className="text-lg text-slate-600 mt-2">Plan lessons for {className}</p>
         </div>
 
-        {/* Plan Next Class Button */}
+        {/* Plan Next Class Button and Calendar */}
         <div className="mb-8">
-          <Button 
-            onClick={handlePlanNextClass}
-            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 text-lg"
-            size="lg"
-          >
-            <Plus className="h-5 w-5" />
-            Plan your Next Class
-          </Button>
+          <div className="flex flex-col lg:flex-row gap-6 items-start">
+            {/* Plan Next Class Button */}
+            <div className="flex-shrink-0">
+              <Button 
+                onClick={handlePlanNextClass}
+                className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 text-lg"
+                size="lg"
+              >
+                <Plus className="h-5 w-5" />
+                Plan your Next Class
+              </Button>
+            </div>
+            
+            {/* Weekly Calendar */}
+            <div className="flex-1 min-w-0">
+              <h3 className="text-sm font-medium text-slate-700 mb-3">Next 7 Days</h3>
+              <WeeklyCalendar />
+            </div>
+          </div>
         </div>
 
         {/* Main Content */}
