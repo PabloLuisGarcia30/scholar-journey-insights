@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -15,6 +14,12 @@ interface GeneratePracticeTestRequest {
   subject: string;
   questionCount?: number;
   classId?: string;
+  skillDistribution?: Array<{
+    skill_name: string;
+    score: number;
+    questions: number;
+  }>;
+  multiSkillSupport?: boolean;
 }
 
 interface HistoricalQuestion {
@@ -267,7 +272,7 @@ serve(async (req) => {
   }
 
   try {
-    console.log('Generate-practice-test function called with skill metadata support');
+    console.log('Generate-practice-test function called with multi-skill support');
     
     const {
       studentName,
@@ -277,16 +282,32 @@ serve(async (req) => {
       subject,
       questionCount = 5,
       classId,
+      skillDistribution,
+      multiSkillSupport = false,
       enhancedAnswerPatterns = false
     }: GeneratePracticeTestRequest & { enhancedAnswerPatterns?: boolean } = await req.json();
 
-    console.log(`Generating practice test for: ${studentName} in class: ${className} skill: ${skillName} grade: ${grade} subject: ${subject} questionCount: ${questionCount} classId: ${classId}`);
+    console.log(`Generating practice test for: ${studentName} in class: ${className} skill(s): ${skillName} grade: ${grade} subject: ${subject} questionCount: ${questionCount} classId: ${classId} multiSkill: ${multiSkillSupport}`);
 
-    // Detect skill type and generate metadata
-    const skillType = detectSkillType(skillName, subject);
-    const skillMetadata = generateSkillMetadata(skillName, skillType, subject, grade);
+    // Detect if this is a multi-skill request
+    const isMultiSkill = multiSkillSupport && skillDistribution && skillDistribution.length > 1;
     
-    console.log(`Detected skill type: ${skillType} for skill: ${skillName}`);
+    let skillType: 'content' | 'subject';
+    let skillMetadata: any;
+    
+    if (isMultiSkill) {
+      // For multi-skill, detect based on the first skill but note it's multi-skill
+      skillType = detectSkillType(skillDistribution[0].skill_name, subject);
+      skillMetadata = generateSkillMetadata(`Multi-skill: ${skillDistribution.map(s => s.skill_name).join(', ')}`, skillType, subject, grade);
+      skillMetadata.isMultiSkill = true;
+      skillMetadata.skillDistribution = skillDistribution;
+    } else {
+      // Single skill logic (existing)
+      skillType = detectSkillType(skillName, subject);
+      skillMetadata = generateSkillMetadata(skillName, skillType, subject, grade);
+    }
+    
+    console.log(`Detected skill type: ${skillType} for skill(s): ${isMultiSkill ? 'multi-skill' : skillName}`);
     console.log('Skill metadata:', skillMetadata);
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
@@ -295,7 +316,7 @@ serve(async (req) => {
 
     let historicalQuestions: HistoricalQuestion[] = [];
     if (classId) {
-      historicalQuestions = await getHistoricalQuestionsForSkill(supabase, classId, skillName);
+      historicalQuestions = await getHistoricalQuestionsForSkill(supabase, classId, isMultiSkill ? skillDistribution[0].skill_name : skillName);
     }
 
     let historicalContext = '';
@@ -305,6 +326,29 @@ serve(async (req) => {
           `Example ${i + 1}: ${q.question_text} (${q.question_type}, ${q.points} points)`
         ).join('\n')
       }\n\nUse these examples to understand the style and difficulty level expected, but create completely new questions.`;
+    }
+
+    // Build the prompt based on whether it's multi-skill or single skill
+    let skillFocusSection: string;
+    let skillInstructions: string;
+    
+    if (isMultiSkill && skillDistribution) {
+      skillFocusSection = `MULTI-SKILL FOCUS: Generate questions distributed across these skills:
+${skillDistribution.map(s => `- ${s.skill_name}: ${s.questions} questions (current score: ${s.score}%)`).join('\n')}`;
+      
+      skillInstructions = `
+MULTI-SKILL REQUIREMENTS:
+1. Generate exactly ${questionCount} questions total, distributed as specified above
+2. Each question should clearly target one of the specified skills
+3. Ensure balanced difficulty across all skills
+4. Tag each question with its target skill in the response
+5. Maintain coherent flow between different skill areas`;
+    } else {
+      skillFocusSection = `SKILL FOCUS: ${skillName}`;
+      skillInstructions = `
+SINGLE-SKILL REQUIREMENTS:
+1. All questions must directly test the skill: "${skillName}"
+2. Questions should build upon each other logically`;
     }
 
     const answerPatternInstructions = enhancedAnswerPatterns ? `
@@ -318,7 +362,7 @@ ENHANCED SHORT ANSWER REQUIREMENTS:
 RESPONSE FORMAT - Return valid JSON only with enhanced answer patterns:
 {
   "title": "Practice Test Title",
-  "description": "Brief description focusing on ${skillName}",
+  "description": "Brief description focusing on ${isMultiSkill ? 'multiple skills' : skillName}",
   "skillType": "${skillType}",
   "skillMetadata": ${JSON.stringify(skillMetadata)},
   "questions": [
@@ -326,6 +370,7 @@ RESPONSE FORMAT - Return valid JSON only with enhanced answer patterns:
       "id": "Q1",
       "type": "multiple-choice" | "short-answer" | "true-false",
       "question": "Question text here",
+      "targetSkill": "${isMultiSkill ? 'skill name from distribution' : skillName}",
       "options": ["A", "B", "C", "D"] (only for multiple-choice),
       "correctAnswer": "Primary correct answer",
       "acceptableAnswers": ["Alternative answer 1", "Alternative answer 2"] (for short-answer),
@@ -340,7 +385,7 @@ RESPONSE FORMAT - Return valid JSON only with enhanced answer patterns:
 RESPONSE FORMAT - Return valid JSON only:
 {
   "title": "Practice Test Title",
-  "description": "Brief description focusing on ${skillName}",
+  "description": "Brief description focusing on ${isMultiSkill ? 'multiple skills' : skillName}",
   "skillType": "${skillType}",
   "skillMetadata": ${JSON.stringify(skillMetadata)},
   "questions": [
@@ -348,6 +393,7 @@ RESPONSE FORMAT - Return valid JSON only:
       "id": "Q1",
       "type": "multiple-choice" | "short-answer" | "true-false",
       "question": "Question text here",
+      "targetSkill": "${isMultiSkill ? 'skill name from distribution' : skillName}",
       "options": ["A", "B", "C", "D"] (only for multiple-choice),
       "correctAnswer": "Correct answer",
       "points": 1-3
@@ -359,23 +405,23 @@ RESPONSE FORMAT - Return valid JSON only:
 
     const prompt = `Create a targeted practice test for a ${grade} ${subject} student named ${studentName}.
 
-SKILL FOCUS: ${skillName}
+${skillFocusSection}
 SKILL TYPE: ${skillType} (${skillType === 'content' ? 'subject-specific content knowledge' : 'cross-curricular cognitive skill'})
 CLASS: ${className}
 NUMBER OF QUESTIONS: ${questionCount}
 ${historicalContext}
 
 REQUIREMENTS:
-1. All questions must directly test the skill: "${skillName}"
-2. Questions should be appropriate for ${grade} level
-3. Include a mix of question types (multiple-choice, short-answer, true-false)
-4. Each question should have clear, educational value
-5. Provide detailed but concise correct answers
-6. Points should reflect question difficulty (1-3 points each)
-7. Include the skill type (${skillType}) and metadata in the response
+${skillInstructions}
+3. Questions should be appropriate for ${grade} level
+4. Include a mix of question types (multiple-choice, short-answer, true-false)
+5. Each question should have clear, educational value
+6. Provide detailed but concise correct answers
+7. Points should reflect question difficulty (1-3 points each)
+8. Include the skill type (${skillType}) and metadata in the response
 ${answerPatternInstructions}
 
-Generate exactly ${questionCount} questions focused on "${skillName}".`;
+Generate exactly ${questionCount} questions${isMultiSkill ? ' distributed across the specified skills' : ` focused on "${skillName}"`}.`;
 
     const data = await callOpenAIWithRetry(prompt);
     
@@ -422,6 +468,14 @@ Generate exactly ${questionCount} questions focused on "${skillName}".`;
       if (!q.points) q.points = 1;
       if (!q.id) q.id = `Q${index + 1}`;
       
+      // Ensure targetSkill is set for multi-skill questions
+      if (isMultiSkill && !q.targetSkill) {
+        // Assign to first skill if not specified
+        q.targetSkill = skillDistribution[0].skill_name;
+      } else if (!isMultiSkill && !q.targetSkill) {
+        q.targetSkill = skillName;
+      }
+      
       if (q.type === 'short-answer' && enhancedAnswerPatterns) {
         if (!q.acceptableAnswers) {
           q.acceptableAnswers = [q.correctAnswer];
@@ -444,7 +498,7 @@ Generate exactly ${questionCount} questions focused on "${skillName}".`;
     }
 
     console.log(`Successfully parsed and validated practice test with ${practiceTest.questions.length} questions`);
-    console.log(`Skill metadata included: type=${practiceTest.skillType}, category=${practiceTest.skillMetadata?.skillCategory}`);
+    console.log(`Skill metadata included: type=${practiceTest.skillType}, category=${practiceTest.skillMetadata?.skillCategory}, isMultiSkill=${practiceTest.skillMetadata?.isMultiSkill}`);
 
     return new Response(JSON.stringify(practiceTest), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

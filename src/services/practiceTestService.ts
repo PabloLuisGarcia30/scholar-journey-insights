@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 
 export interface GeneratePracticeTestRequest {
@@ -9,6 +8,11 @@ export interface GeneratePracticeTestRequest {
   subject: string;
   questionCount?: number;
   classId?: string;
+  skillDistribution?: Array<{
+    skill_name: string;
+    score: number;
+    questions: number;
+  }>;
 }
 
 export interface PracticeTestQuestion {
@@ -153,7 +157,8 @@ export async function generatePracticeTest(request: GeneratePracticeTestRequest)
     const { data, error } = await supabase.functions.invoke('generate-practice-test', {
       body: {
         ...request,
-        enhancedAnswerPatterns: true // Request enhanced answer patterns
+        enhancedAnswerPatterns: true, // Request enhanced answer patterns
+        multiSkillSupport: true // Enable multi-skill support
       }
     });
 
