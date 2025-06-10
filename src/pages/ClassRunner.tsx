@@ -1,13 +1,14 @@
-
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Play, Users, Calendar, Settings, BookOpen } from "lucide-react";
+import { Play, Users, Calendar, Settings, BookOpen, ArrowLeft } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useNavigate } from "react-router-dom";
 
 export default function ClassRunner() {
   const { profile } = useAuth();
+  const navigate = useNavigate();
 
   // Fetch active classes for Mr. Cullen
   const { data: activeClasses = [], isLoading } = useQuery({
@@ -57,6 +58,16 @@ export default function ClassRunner() {
       <div className="max-w-7xl mx-auto px-6 py-8">
         {/* Header */}
         <div className="mb-8">
+          <div className="flex items-center gap-4 mb-4">
+            <Button 
+              variant="outline" 
+              onClick={() => navigate('/')}
+              className="flex items-center gap-2"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              Back to Teacher Dashboard
+            </Button>
+          </div>
           <h1 className="text-4xl font-bold bg-gradient-to-r from-slate-900 via-slate-700 to-blue-800 bg-clip-text text-transparent">
             ClassRunner
           </h1>
