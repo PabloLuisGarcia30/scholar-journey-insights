@@ -1,9 +1,10 @@
 
+
 import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { User, TrendingDown, Edit, Target } from "lucide-react";
+import { User, TrendingDown, Edit, Target, Plus } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { getAllActiveStudents, getActiveClassById } from "@/services/examService";
 import { useStudentProfileData } from "@/hooks/useStudentProfileData";
@@ -16,22 +17,29 @@ interface ClassStudentListProps {
   onSelectStudent: (studentId: string, studentName: string) => void;
 }
 
+interface StudentSkill {
+  skill_name: string;
+  score: number;
+  isTarget?: boolean;
+  isAdditional?: boolean;
+}
+
 interface StudentCardProps {
   student: any;
   classId: string;
   className: string;
   onEdit: (studentId: string) => void;
-  targetSkill?: { skill_name: string; score: number } | null;
+  onAddSkills: (studentId: string) => void;
+  skills: StudentSkill[];
 }
 
-function WeakestSkillCircle({ skillName, score, isTargetSkill = false }: { skillName: string; score: number; isTargetSkill?: boolean }) {
+function SkillCircle({ skill, index }: { skill: StudentSkill; index: number }) {
   const [isHovered, setIsHovered] = useState(false);
   
   // Truncate skill name to 20 characters max with better handling
-  const truncatedSkillName = skillName && skillName.length > 20 ? skillName.substring(0, 20) + "..." : skillName || "Unknown Skill";
+  const truncatedSkillName = skill.skill_name && skill.skill_name.length > 20 ? skill.skill_name.substring(0, 20) + "..." : skill.skill_name || "Unknown Skill";
   
   const getGradientColors = (score: number) => {
-    // Treat score as already being a percentage (0-100)
     const percentage = score;
     if (percentage >= 80) {
       return {
@@ -68,18 +76,18 @@ function WeakestSkillCircle({ skillName, score, isTargetSkill = false }: { skill
     };
   };
 
-  const gradientColors = getGradientColors(score);
-  const gradientId = `gradient-skill-${Math.random().toString(36).substr(2, 9)}`;
+  const gradientColors = getGradientColors(skill.score);
+  const gradientId = `gradient-skill-${index}-${Math.random().toString(36).substr(2, 9)}`;
 
   return (
-    <div className="flex flex-col items-center w-24">
+    <div className="flex flex-col items-center w-16 mx-1">
       <div 
-        className="relative w-14 h-14 mb-1 flex-shrink-0"
+        className="relative w-12 h-12 mb-1 flex-shrink-0"
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
-        title={skillName || "Unknown Skill"} // Show full skill name on hover
+        title={skill.skill_name || "Unknown Skill"}
       >
-        <svg className="w-14 h-14" viewBox="0 0 56 56">
+        <svg className="w-12 h-12" viewBox="0 0 48 48">
           <defs>
             <linearGradient id={gradientId} x1="0%" y1="0%" x2="100%" y2="100%">
               <stop offset="0%" stopColor={gradientColors.color1} />
@@ -88,9 +96,9 @@ function WeakestSkillCircle({ skillName, score, isTargetSkill = false }: { skill
             </linearGradient>
           </defs>
           <circle
-            cx="28"
-            cy="28"
-            r="22"
+            cx="24"
+            cy="24"
+            r="18"
             fill={`url(#${gradientId})`}
             style={{ 
               filter: isHovered ? 'brightness(1.1)' : 'brightness(1)',
@@ -103,30 +111,35 @@ function WeakestSkillCircle({ skillName, score, isTargetSkill = false }: { skill
         
         {/* Percentage in center */}
         <div className="absolute inset-0 flex items-center justify-center">
-          <span className="text-sm font-bold text-white drop-shadow-sm">
-            {Math.round(score || 0)}%
+          <span className="text-xs font-bold text-white drop-shadow-sm">
+            {Math.round(skill.score || 0)}%
           </span>
         </div>
       </div>
 
       {/* Skill name and context - fixed height container */}
-      <div className="text-center w-full h-12 flex flex-col justify-start">
+      <div className="text-center w-full h-10 flex flex-col justify-start">
         <div className="flex items-center gap-1 justify-center mb-0.5">
-          {isTargetSkill ? (
+          {skill.isTarget ? (
             <>
-              <Target className="h-2.5 w-2.5 text-blue-600 flex-shrink-0" />
+              <Target className="h-2 w-2 text-blue-600 flex-shrink-0" />
               <span className="text-xs font-medium text-blue-700">Target</span>
+            </>
+          ) : skill.isAdditional ? (
+            <>
+              <Plus className="h-2 w-2 text-green-600 flex-shrink-0" />
+              <span className="text-xs font-medium text-green-700">Added</span>
             </>
           ) : (
             <>
-              <TrendingDown className="h-2.5 w-2.5 text-orange-600 flex-shrink-0" />
+              <TrendingDown className="h-2 w-2 text-orange-600 flex-shrink-0" />
               <span className="text-xs font-medium text-orange-700">Weakest</span>
             </>
           )}
         </div>
         <p className="text-xs text-slate-700 font-medium leading-tight text-center overflow-hidden px-1" style={{ 
           display: '-webkit-box',
-          WebkitLineClamp: 2,
+          WebkitLineClamp: 1,
           WebkitBoxOrient: 'vertical',
           wordBreak: 'break-word'
         }}>
@@ -137,25 +150,12 @@ function WeakestSkillCircle({ skillName, score, isTargetSkill = false }: { skill
   );
 }
 
-function StudentCard({ student, classId, className, onEdit, targetSkill }: StudentCardProps) {
-  // Get student profile data to find weakest content skill
-  const { contentSkillScores, contentSkillsLoading } = useStudentProfileData({
-    studentId: student.id,
-    classId,
-    className
-  });
-
-  // Determine which skill to display
-  const skillToDisplay = targetSkill || 
-    contentSkillScores.sort((a, b) => a.score - b.score)[0]; // Get the lowest scoring skill
-
-  const isTargetSkill = Boolean(targetSkill);
-
+function StudentCard({ student, classId, className, onEdit, onAddSkills, skills }: StudentCardProps) {
   return (
-    <Card className="group hover:shadow-lg transition-all duration-300 cursor-pointer border-0 bg-white/80 backdrop-blur-sm hover:bg-white hover:scale-[1.01] w-full max-w-xl">
+    <Card className="group hover:shadow-lg transition-all duration-300 cursor-pointer border-0 bg-white/80 backdrop-blur-sm hover:bg-white hover:scale-[1.01] w-full max-w-4xl">
       <CardContent className="p-3">
-        {/* Grid Layout: Avatar | Student Info | Edit Button | Skill Circle with 16px spacing */}
-        <div className="grid grid-cols-[auto_1fr_auto_96px] gap-4 items-start">
+        {/* Grid Layout: Avatar | Student Info | Buttons | Skills */}
+        <div className="grid grid-cols-[auto_1fr_auto_1fr] gap-4 items-start">
           
           {/* Avatar Column */}
           <div className="flex justify-center pt-1">
@@ -166,7 +166,7 @@ function StudentCard({ student, classId, className, onEdit, targetSkill }: Stude
             </Avatar>
           </div>
           
-          {/* Student Info Column - Fixed height container */}
+          {/* Student Info Column */}
           <div className="min-h-[60px] flex flex-col justify-start">
             <div className="flex items-center gap-2">
               <h4 className="font-semibold text-sm text-slate-900 truncate group-hover:text-blue-700 transition-colors">
@@ -189,8 +189,8 @@ function StudentCard({ student, classId, className, onEdit, targetSkill }: Stude
             </div>
           </div>
 
-          {/* Edit Button Column */}
-          <div className="flex justify-center pt-1">
+          {/* Action Buttons Column */}
+          <div className="flex flex-col gap-2 pt-1">
             <Button 
               size="sm" 
               variant="outline"
@@ -198,37 +198,47 @@ function StudentCard({ student, classId, className, onEdit, targetSkill }: Stude
                 e.stopPropagation();
                 onEdit(student.id);
               }}
-              className="h-8 w-8 p-0"
-              title="Select target skill for lesson planning"
+              className="h-7 px-2 text-xs"
+              title="Select target skill"
             >
-              <Edit className="h-4 w-4" />
+              <Edit className="h-3 w-3 mr-1" />
+              Target
+            </Button>
+            <Button 
+              size="sm" 
+              variant="outline"
+              onClick={(e) => {
+                e.stopPropagation();
+                onAddSkills(student.id);
+              }}
+              className="h-7 px-2 text-xs"
+              title="Add additional skills"
+            >
+              <Plus className="h-3 w-3 mr-1" />
+              Add Skills
             </Button>
           </div>
 
-          {/* Skill Circle Column - Fixed width for perfect alignment */}
-          <div className="flex justify-center items-start">
-            {contentSkillsLoading ? (
-              <div className="w-24 flex justify-center items-center h-16">
-                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
-              </div>
-            ) : skillToDisplay ? (
-              <WeakestSkillCircle 
-                skillName={skillToDisplay.skill_name}
-                score={skillToDisplay.score}
-                isTargetSkill={isTargetSkill}
-              />
-            ) : (
-              <div className="flex flex-col items-center w-24">
-                <div className="w-14 h-14 bg-gradient-to-br from-slate-100 to-slate-200 rounded-full flex items-center justify-center mb-1">
-                  <span className="text-sm font-bold text-slate-500">?</span>
+          {/* Skills Column */}
+          <div className="flex justify-start items-start overflow-x-auto">
+            <div className="flex flex-nowrap gap-1 min-w-0">
+              {skills.length > 0 ? (
+                skills.map((skill, index) => (
+                  <SkillCircle key={`${skill.skill_name}-${index}`} skill={skill} index={index} />
+                ))
+              ) : (
+                <div className="flex flex-col items-center w-16">
+                  <div className="w-12 h-12 bg-gradient-to-br from-slate-100 to-slate-200 rounded-full flex items-center justify-center mb-1">
+                    <span className="text-xs font-bold text-slate-500">?</span>
+                  </div>
+                  <div className="h-10 flex items-start justify-center">
+                    <p className="text-xs text-slate-500 font-medium text-center">
+                      No data
+                    </p>
+                  </div>
                 </div>
-                <div className="h-12 flex items-start justify-center">
-                  <p className="text-xs text-slate-500 font-medium text-center">
-                    No data
-                  </p>
-                </div>
-              </div>
-            )}
+              )}
+            </div>
           </div>
         </div>
       </CardContent>
@@ -238,7 +248,9 @@ function StudentCard({ student, classId, className, onEdit, targetSkill }: Stude
 
 export function ClassStudentList({ classId, className, onSelectStudent }: ClassStudentListProps) {
   const [editingStudentId, setEditingStudentId] = useState<string | null>(null);
-  const [studentTargetSkills, setStudentTargetSkills] = useState<Record<string, { skill_name: string; score: number } | null>>({});
+  const [addingSkillsStudentId, setAddingSkillsStudentId] = useState<string | null>(null);
+  const [studentTargetSkills, setStudentTargetSkills] = useState<Record<string, StudentSkill | null>>({});
+  const [studentAdditionalSkills, setStudentAdditionalSkills] = useState<Record<string, StudentSkill[]>>({});
 
   const { data: allStudents = [], isLoading: studentsLoading } = useQuery({
     queryKey: ['allActiveStudents'],
@@ -262,16 +274,62 @@ export function ClassStudentList({ classId, className, onSelectStudent }: ClassS
     setEditingStudentId(studentId);
   };
 
+  const handleAddSkillsStudent = (studentId: string) => {
+    setAddingSkillsStudentId(studentId);
+  };
+
   const handleSaveTargetSkill = (studentId: string, targetSkill: { skill_name: string; score: number } | null) => {
     setStudentTargetSkills(prev => ({
       ...prev,
-      [studentId]: targetSkill
+      [studentId]: targetSkill ? { ...targetSkill, isTarget: true } : null
     }));
     setEditingStudentId(null);
   };
 
+  const handleSaveAdditionalSkills = (studentId: string, additionalSkills: { skill_name: string; score: number }[]) => {
+    setStudentAdditionalSkills(prev => ({
+      ...prev,
+      [studentId]: additionalSkills.map(skill => ({ ...skill, isAdditional: true }))
+    }));
+    setAddingSkillsStudentId(null);
+  };
+
   const handleCancelEdit = () => {
     setEditingStudentId(null);
+    setAddingSkillsStudentId(null);
+  };
+
+  // Get all skills for a student (weakest + target + additional)
+  const getStudentSkills = (studentId: string): StudentSkill[] => {
+    const skills: StudentSkill[] = [];
+    
+    // Get weakest skill from student profile data
+    const { contentSkillScores } = useStudentProfileData({
+      studentId,
+      classId,
+      className
+    });
+    
+    const targetSkill = studentTargetSkills[studentId];
+    const additionalSkills = studentAdditionalSkills[studentId] || [];
+    
+    // Add target skill if set, otherwise add weakest skill
+    if (targetSkill) {
+      skills.push(targetSkill);
+    } else if (contentSkillScores.length > 0) {
+      const weakestSkill = contentSkillScores.sort((a, b) => a.score - b.score)[0];
+      skills.push({
+        skill_name: weakestSkill.skill_name,
+        score: weakestSkill.score,
+        isTarget: false,
+        isAdditional: false
+      });
+    }
+    
+    // Add additional skills
+    skills.push(...additionalSkills);
+    
+    return skills;
   };
 
   if (isLoading) {
@@ -298,7 +356,7 @@ export function ClassStudentList({ classId, className, onSelectStudent }: ClassS
     );
   }
 
-  // If editing a student, show the skill selector
+  // If editing a student's target skill, show the skill selector
   if (editingStudentId) {
     const editingStudent = classStudents.find(s => s.id === editingStudentId);
     if (editingStudent) {
@@ -312,6 +370,28 @@ export function ClassStudentList({ classId, className, onSelectStudent }: ClassS
             currentSelectedSkill={studentTargetSkills[editingStudentId]}
             onSave={handleSaveTargetSkill}
             onCancel={handleCancelEdit}
+            isMultiSelect={false}
+          />
+        </div>
+      );
+    }
+  }
+
+  // If adding additional skills, show the multi-select skill selector
+  if (addingSkillsStudentId) {
+    const editingStudent = classStudents.find(s => s.id === addingSkillsStudentId);
+    if (editingStudent) {
+      return (
+        <div className="mt-6 flex justify-center">
+          <StudentSkillSelector
+            studentId={addingSkillsStudentId}
+            studentName={editingStudent.name}
+            classId={classId}
+            className={className}
+            currentSelectedSkills={studentAdditionalSkills[addingSkillsStudentId] || []}
+            onSaveMultiple={handleSaveAdditionalSkills}
+            onCancel={handleCancelEdit}
+            isMultiSelect={true}
           />
         </div>
       );
@@ -326,12 +406,12 @@ export function ClassStudentList({ classId, className, onSelectStudent }: ClassS
             Recommended Lesson Plan based on Student Performance
           </h3>
           <p className="text-sm text-slate-600">
-            View each student's skill focus for {className} - click Edit to select target skills for today's lesson
+            View each student's skill focus for {className} - click Target to select focus skills, Add Skills for additional content
           </p>
         </div>
       </div>
 
-      <div className="space-y-2 max-w-xl">
+      <div className="space-y-2">
         {classStudents.map((student) => (
           <StudentCard 
             key={student.id}
@@ -339,10 +419,12 @@ export function ClassStudentList({ classId, className, onSelectStudent }: ClassS
             classId={classId}
             className={className}
             onEdit={handleEditStudent}
-            targetSkill={studentTargetSkills[student.id]}
+            onAddSkills={handleAddSkillsStudent}
+            skills={getStudentSkills(student.id)}
           />
         ))}
       </div>
     </div>
   );
 }
+
