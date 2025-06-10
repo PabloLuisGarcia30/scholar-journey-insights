@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { BookOpen, User } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
-import { getAllActiveStudents } from "@/services/examService";
+import { getAllActiveStudents, getActiveClassById } from "@/services/examService";
 
 interface ClassStudentListProps {
   classId: string;
@@ -14,17 +14,23 @@ interface ClassStudentListProps {
 }
 
 export function ClassStudentList({ classId, className, onSelectStudent }: ClassStudentListProps) {
-  const { data: allStudents = [], isLoading } = useQuery({
+  const { data: allStudents = [], isLoading: studentsLoading } = useQuery({
     queryKey: ['allActiveStudents'],
     queryFn: getAllActiveStudents,
   });
 
+  const { data: classData, isLoading: classLoading } = useQuery({
+    queryKey: ['activeClass', classId],
+    queryFn: () => getActiveClassById(classId),
+    enabled: !!classId,
+  });
+
   // Filter students who are enrolled in this class
   const classStudents = allStudents.filter(student => 
-    // This assumes the class has a students array with student IDs
-    // You may need to adjust this logic based on your data structure
-    true // For now, show all students - you can filter by class enrollment later
+    classData?.students?.includes(student.id)
   );
+
+  const isLoading = studentsLoading || classLoading;
 
   if (isLoading) {
     return (
