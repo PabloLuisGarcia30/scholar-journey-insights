@@ -60,6 +60,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(mockData.user as any);
       setProfile(mockData.profile);
       setLoading(false);
+      console.log(`🔧 Dev mode: Using ${devRole} role with data:`, mockData.profile);
       return;
     }
 
