@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { generatePracticeTest, type GeneratePracticeTestRequest, type PracticeTestData } from "./practiceTestService";
 
@@ -133,14 +132,14 @@ export async function saveLessonPlanWithExercises(
 
         const exerciseData = await generatePracticeTest(practiceTestRequest);
         
-        // Store the generated exercise in the database
+        // Store the generated exercise in the database - cast to any to handle JSON type
         const { error: exerciseError } = await supabase
           .from('lesson_plan_practice_exercises')
           .insert({
             lesson_plan_id: lessonPlan.id,
             student_id: student.studentId,
             student_name: student.studentName,
-            exercise_data: exerciseData,
+            exercise_data: exerciseData as any,
             exercise_type: 'practice_test'
           });
 

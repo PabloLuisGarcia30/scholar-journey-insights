@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -17,7 +18,7 @@ import {
   type ExerciseGenerationProgress 
 } from "@/services/lessonPlanService";
 import { useStudentProfileData } from "@/hooks/useStudentProfileData";
-import { ExerciseGenerationProgress } from "./ExerciseGenerationProgress";
+import { ExerciseGenerationProgress as ExerciseProgressComponent } from "./ExerciseGenerationProgress";
 
 interface LockLessonPlanDialogProps {
   open: boolean;
@@ -223,7 +224,7 @@ export function LockLessonPlanDialog({
         <div className="space-y-6">
           {/* Show exercise generation progress if in progress */}
           {isGeneratingExercises && (
-            <ExerciseGenerationProgress 
+            <ExerciseProgressComponent 
               progress={exerciseProgress}
               isComplete={exerciseGenerationComplete}
             />
