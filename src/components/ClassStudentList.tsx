@@ -144,8 +144,8 @@ function StudentCard({ student, classId, className, onEdit, targetSkill }: Stude
   return (
     <Card className="group hover:shadow-lg transition-all duration-300 cursor-pointer border-0 bg-white/80 backdrop-blur-sm hover:bg-white hover:scale-[1.01] w-full max-w-lg">
       <CardContent className="p-3">
-        <div className="flex items-center gap-2">
-          <Avatar className="h-8 w-8 ring-2 ring-slate-100 group-hover:ring-blue-200 transition-all duration-300 flex-shrink-0">
+        <div className="flex items-start gap-3">
+          <Avatar className="h-8 w-8 ring-2 ring-slate-100 group-hover:ring-blue-200 transition-all duration-300 flex-shrink-0 mt-1">
             <AvatarFallback className="bg-gradient-to-br from-blue-100 to-purple-100 text-slate-700 font-semibold text-sm">
               {student.name.split(' ').map(n => n[0]).join('')}
             </AvatarFallback>
@@ -174,7 +174,7 @@ function StudentCard({ student, classId, className, onEdit, targetSkill }: Stude
           </div>
 
           {/* Edit Button */}
-          <div className="flex-shrink-0 mr-2">
+          <div className="flex-shrink-0">
             <Button 
               size="sm" 
               variant="outline"
@@ -189,8 +189,8 @@ function StudentCard({ student, classId, className, onEdit, targetSkill }: Stude
             </Button>
           </div>
 
-          {/* Skill Circle */}
-          <div className="flex-shrink-0">
+          {/* Skill Circle - Fixed positioning */}
+          <div className="flex-shrink-0 flex items-start pt-1">
             {contentSkillsLoading ? (
               <div className="w-24 flex justify-center items-center h-20">
                 <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
