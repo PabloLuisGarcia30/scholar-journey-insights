@@ -55,8 +55,11 @@ export function LearnerProfileDisplay({ studentId, classId, className, onBack }:
     contentSkillsLoading,
     subjectSkillScores,
     subjectSkillsLoading,
+    classContentSkills,
+    classSubjectSkills,
     enrolledClasses,
-    isClassView
+    isClassView,
+    classData
   } = useStudentProfileData({ studentId, classId, className });
 
   if (studentLoading) {
@@ -207,6 +210,11 @@ export function LearnerProfileDisplay({ studentId, classId, className, onBack }:
               contentSkillScores={contentSkillScores}
               contentSkillsLoading={contentSkillsLoading}
               onGeneratePracticeTest={handleGeneratePracticeTest}
+              subjectSkillScores={subjectSkillScores}
+              classContentSkills={classContentSkills}
+              classSubjectSkills={classSubjectSkills}
+              isClassView={isClassView}
+              classData={classData}
             />
           </TabsContent>
 
