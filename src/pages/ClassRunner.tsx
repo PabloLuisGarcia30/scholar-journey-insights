@@ -1,3 +1,4 @@
+
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Play, Users, Calendar, Settings, BookOpen, ArrowLeft, FileText } from "lucide-react";
@@ -78,7 +79,7 @@ export default function ClassRunner() {
               Back to Teacher Dashboard
             </Button>
           </div>
-          <h1 className="text-4xl font-bold bg-gradient-to-r from-yellow-400 via-lime-400 to-green-500 bg-clip-text text-transparent">
+          <h1 className="text-4xl font-bold bg-gradient-to-r from-yellow-400 via-lime-400 to-green-500 bg-clip-text text-transparent inline-block">
             ClassRunner
           </h1>
           <p className="text-lg text-slate-600 mt-2">Manage and run your classes efficiently</p>
