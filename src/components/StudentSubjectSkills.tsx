@@ -117,7 +117,7 @@ export function StudentSubjectSkills({
         </div>
       </CardHeader>
       <CardContent className="p-0">
-        <ScrollArea className="h-[400px] w-full">
+        <ScrollArea className="h-[calc(100vh-280px)] w-full">
           <div className="p-4 space-y-4">
             {isLoading ? (
               <p>Loading subject skills...</p>
