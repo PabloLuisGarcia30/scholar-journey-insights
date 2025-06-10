@@ -1,4 +1,3 @@
-
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, BookOpen, ChevronUp, ChevronDown } from "lucide-react";
@@ -110,6 +109,7 @@ export default function LessonPlanner() {
                 <ClassStudentList 
                   classId={classId}
                   className={className}
+                  classData={classData}
                   onSelectStudent={handleSelectStudent}
                 />
               </CardContent>

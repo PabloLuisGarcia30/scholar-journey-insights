@@ -4,14 +4,18 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Save, Loader2, BookOpen } from "lucide-react";
+import { Save, Loader2, BookOpen, Calendar } from "lucide-react";
 import { toast } from "sonner";
 import { saveLessonPlan } from "@/services/lessonPlanService";
 import { supabase } from "@/integrations/supabase/client";
+import { WeeklyCalendar } from "@/components/WeeklyCalendar";
+import { format } from "date-fns";
+import type { ActiveClassWithDuration } from "@/services/examService";
 
 interface SaveLessonPlanProps {
   classId: string;
   className: string;
+  classData?: ActiveClassWithDuration | null;
   students: Array<{
     studentId: string;
     studentName: string;
@@ -23,16 +27,36 @@ interface SaveLessonPlanProps {
   onLessonPlanSaved?: (lessonPlanId: string) => void;
 }
 
-export function SaveLessonPlan({ classId, className, students, onLessonPlanSaved }: SaveLessonPlanProps) {
+export function SaveLessonPlan({ 
+  classId, 
+  className, 
+  classData, 
+  students, 
+  onLessonPlanSaved 
+}: SaveLessonPlanProps) {
   const [open, setOpen] = useState(false);
   const [lessonTitle, setLessonTitle] = useState(`${className} - ${new Date().toLocaleDateString()}`);
-  const [scheduledDate, setScheduledDate] = useState(new Date().toISOString().split('T')[0]);
-  const [scheduledTime, setScheduledTime] = useState("10:00");
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [selectedClassInfo, setSelectedClassInfo] = useState<{
+    startTime: string;
+    endTime?: string;
+    duration?: string;
+  } | null>(null);
   const [loading, setLoading] = useState(false);
+
+  const handleDateSelect = (date: Date, classInfo: { startTime: string; endTime?: string; duration?: string }) => {
+    setSelectedDate(date);
+    setSelectedClassInfo(classInfo);
+  };
 
   const handleSaveLessonPlan = async () => {
     if (!lessonTitle.trim()) {
       toast.error("Please enter a lesson title");
+      return;
+    }
+
+    if (!selectedDate || !selectedClassInfo) {
+      toast.error("Please select a scheduled class session");
       return;
     }
 
@@ -64,13 +88,31 @@ export function SaveLessonPlan({ classId, className, students, onLessonPlanSaved
         targetSkillScore: student.skills[0]?.score || 0
       }));
 
+      // Convert selected time string to time format for database
+      const timeMatch = selectedClassInfo.startTime.match(/(\d{1,2}):(\d{2})\s*(AM|PM)/i);
+      let scheduledTime = "10:00";
+      
+      if (timeMatch) {
+        let hours = parseInt(timeMatch[1]);
+        const minutes = timeMatch[2];
+        const period = timeMatch[3].toUpperCase();
+        
+        if (period === 'PM' && hours !== 12) {
+          hours += 12;
+        } else if (period === 'AM' && hours === 12) {
+          hours = 0;
+        }
+        
+        scheduledTime = `${hours.toString().padStart(2, '0')}:${minutes}`;
+      }
+
       const lessonPlanData = {
         classId,
         className,
         teacherName: profile?.full_name || "Unknown Teacher",
-        subject: "Unknown Subject", // Could be enhanced to get from class data
-        grade: "Unknown Grade", // Could be enhanced to get from class data
-        scheduledDate,
+        subject: classData?.subject || "Unknown Subject",
+        grade: classData?.grade || "Unknown Grade",
+        scheduledDate: format(selectedDate, 'yyyy-MM-dd'),
         scheduledTime,
         students: studentsForLessonPlan
       };
@@ -80,6 +122,8 @@ export function SaveLessonPlan({ classId, className, students, onLessonPlanSaved
       toast.success(`Lesson plan "${lessonTitle}" saved successfully!`);
       setOpen(false);
       setLessonTitle(`${className} - ${new Date().toLocaleDateString()}`);
+      setSelectedDate(null);
+      setSelectedClassInfo(null);
       
       // Notify parent component about the saved lesson plan
       if (onLessonPlanSaved) {
@@ -102,7 +146,7 @@ export function SaveLessonPlan({ classId, className, students, onLessonPlanSaved
           Save Lesson Plan
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>Save Lesson Plan</DialogTitle>
         </DialogHeader>
@@ -117,25 +161,34 @@ export function SaveLessonPlan({ classId, className, students, onLessonPlanSaved
             />
           </div>
           
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor="scheduledDate">Scheduled Date</Label>
-              <Input
-                id="scheduledDate"
-                type="date"
-                value={scheduledDate}
-                onChange={(e) => setScheduledDate(e.target.value)}
-              />
-            </div>
-            <div>
-              <Label htmlFor="scheduledTime">Scheduled Time</Label>
-              <Input
-                id="scheduledTime"
-                type="time"
-                value={scheduledTime}
-                onChange={(e) => setScheduledTime(e.target.value)}
-              />
-            </div>
+          <div>
+            <Label className="flex items-center gap-2 mb-3">
+              <Calendar className="h-4 w-4" />
+              Select Class Session
+            </Label>
+            <WeeklyCalendar 
+              classData={classData}
+              selectable={true}
+              selectedDate={selectedDate}
+              onDateSelect={handleDateSelect}
+            />
+            
+            {selectedDate && selectedClassInfo && (
+              <div className="mt-3 p-3 bg-blue-50 rounded-lg">
+                <p className="text-sm font-medium text-blue-800">
+                  Selected: {className} - {format(selectedDate, 'MMMM d, yyyy')} at {selectedClassInfo.startTime}
+                  {selectedClassInfo.duration && ` (${selectedClassInfo.duration})`}
+                </p>
+              </div>
+            )}
+            
+            {!selectedDate && (
+              <div className="mt-3 p-3 bg-amber-50 rounded-lg">
+                <p className="text-sm text-amber-700">
+                  Please select a scheduled class session from the calendar above
+                </p>
+              </div>
+            )}
           </div>
           
           <div className="bg-blue-50 p-3 rounded-lg">
@@ -146,7 +199,9 @@ export function SaveLessonPlan({ classId, className, students, onLessonPlanSaved
               <li>• {students.length} students with individualized skills</li>
               <li>• {students.reduce((total, student) => total + student.skills.length, 0)} total skill targets</li>
               <li>• Ready to use for starting class sessions</li>
-              <li>• Scheduled for {scheduledDate} at {scheduledTime}</li>
+              {selectedDate && selectedClassInfo && (
+                <li>• Scheduled for {format(selectedDate, 'MMMM d, yyyy')} at {selectedClassInfo.startTime}</li>
+              )}
             </ul>
           </div>
 
@@ -154,7 +209,10 @@ export function SaveLessonPlan({ classId, className, students, onLessonPlanSaved
             <Button variant="outline" onClick={() => setOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={handleSaveLessonPlan} disabled={loading}>
+            <Button 
+              onClick={handleSaveLessonPlan} 
+              disabled={loading || !selectedDate || !selectedClassInfo}
+            >
               {loading ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />

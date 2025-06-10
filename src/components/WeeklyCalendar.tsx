@@ -7,9 +7,18 @@ import type { ActiveClassWithDuration } from "@/services/examService";
 interface WeeklyCalendarProps {
   classData?: ActiveClassWithDuration | null;
   isLoading?: boolean;
+  selectable?: boolean;
+  selectedDate?: Date | null;
+  onDateSelect?: (date: Date, classInfo: { startTime: string; endTime?: string; duration?: string }) => void;
 }
 
-export function WeeklyCalendar({ classData, isLoading }: WeeklyCalendarProps) {
+export function WeeklyCalendar({ 
+  classData, 
+  isLoading, 
+  selectable = false, 
+  selectedDate, 
+  onDateSelect 
+}: WeeklyCalendarProps) {
   const today = startOfDay(new Date());
   
   const generateNext7Days = () => {
@@ -64,21 +73,48 @@ export function WeeklyCalendar({ classData, isLoading }: WeeklyCalendarProps) {
     };
   };
 
+  const isDateSelected = (date: Date): boolean => {
+    if (!selectedDate) return false;
+    return format(date, 'yyyy-MM-dd') === format(selectedDate, 'yyyy-MM-dd');
+  };
+
+  const handleDateClick = (date: Date) => {
+    if (!selectable || !hasClassOnDay(date) || !onDateSelect) return;
+    
+    const classInfo = getClassInfo();
+    if (classInfo?.startTime) {
+      onDateSelect(date, {
+        startTime: classInfo.startTime,
+        endTime: classInfo.endTime,
+        duration: classInfo.duration
+      });
+    }
+  };
+
   return (
     <div className="flex gap-2 overflow-x-auto pb-2">
       {next7Days.map((date, index) => {
         const isCurrentDay = isToday(date);
         const hasClass = hasClassOnDay(date);
+        const isSelected = isDateSelected(date);
         const classInfo = getClassInfo();
+        const isClickable = selectable && hasClass;
         
         return (
           <Card
             key={index}
-            className={`min-w-[120px] p-3 text-center cursor-pointer transition-colors hover:bg-slate-50 ${
+            className={`min-w-[120px] p-3 text-center transition-colors ${
+              isClickable ? 'cursor-pointer hover:bg-slate-50' : ''
+            } ${
               isCurrentDay 
                 ? "bg-blue-100 border-blue-300 shadow-sm" 
                 : "bg-white border-slate-200"
-            } ${hasClass ? "ring-2 ring-green-200 bg-green-50" : ""}`}
+            } ${
+              hasClass ? "ring-2 ring-green-200 bg-green-50" : ""
+            } ${
+              isSelected ? "ring-2 ring-blue-500 bg-blue-100 border-blue-500" : ""
+            }`}
+            onClick={() => handleDateClick(date)}
           >
             <div className="space-y-1">
               <div className={`text-xs font-medium ${
@@ -112,6 +148,11 @@ export function WeeklyCalendar({ classData, isLoading }: WeeklyCalendarProps) {
                   {classInfo.duration && (
                     <div className="text-xs text-green-500">
                       {classInfo.duration}
+                    </div>
+                  )}
+                  {isSelected && (
+                    <div className="text-xs text-blue-600 font-semibold mt-1">
+                      Selected
                     </div>
                   )}
                 </div>
