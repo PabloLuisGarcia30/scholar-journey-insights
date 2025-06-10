@@ -7,6 +7,7 @@ import { ClassView } from "@/components/ClassView";
 import { StudentPortals } from "@/components/StudentPortals";
 import { DashboardSidebar } from "@/components/DashboardSidebar";
 import { SidebarProvider } from "@/components/ui/sidebar";
+import { ProtectedRoute } from "@/components/ProtectedRoute";
 
 const Index = () => {
   const [selectedStudent, setSelectedStudent] = useState<string | null>(null);
@@ -58,14 +59,16 @@ const Index = () => {
   };
 
   return (
-    <SidebarProvider>
-      <div className="min-h-screen flex w-full bg-gray-50">
-        <DashboardSidebar activeView={activeView} onViewChange={setActiveView} />
-        <main className="flex-1 overflow-auto">
-          {renderContent()}
-        </main>
-      </div>
-    </SidebarProvider>
+    <ProtectedRoute requiredRole="teacher">
+      <SidebarProvider>
+        <div className="min-h-screen flex w-full bg-gray-50">
+          <DashboardSidebar activeView={activeView} onViewChange={setActiveView} />
+          <main className="flex-1 overflow-auto">
+            {renderContent()}
+          </main>
+        </div>
+      </SidebarProvider>
+    </ProtectedRoute>
   );
 };
 
