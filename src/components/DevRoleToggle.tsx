@@ -19,12 +19,12 @@ export function DevRoleToggle() {
 
   return (
     <div className="p-3 bg-orange-50 border border-orange-200 rounded-lg">
-      <div className="flex items-center justify-between gap-3">
-        <Badge variant="secondary" className="bg-orange-100 text-orange-800">
+      <div className="flex flex-col gap-3">
+        <Badge variant="secondary" className="bg-orange-100 text-orange-800 w-fit">
           DEV MODE
         </Badge>
         
-        <div className="flex items-center gap-2">
+        <div className="flex items-center justify-center gap-2">
           <div className="flex items-center gap-1 text-sm text-orange-700">
             <GraduationCap className="h-3 w-3" />
             <span>Teacher</span>
