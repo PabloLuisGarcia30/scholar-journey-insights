@@ -1,42 +1,22 @@
-import { useState } from "react";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { PracticeTestGenerator } from "./PracticeTestGenerator";
-import { MultiPracticeTestResults } from "./MultiPracticeTestResults";
-import { MultiSkillActionBar } from "./MultiSkillActionBar";
-import { StudentProfileHeader } from "./StudentProfileHeader";
-import { StudentQuickStats } from "./StudentQuickStats";
-import { StudentTestResults } from "./StudentTestResults";
-import { StudentContentSkills } from "./StudentContentSkills";
-import { StudentSubjectSkills } from "./StudentSubjectSkills";
-import { StudentProgressChart } from "./StudentProgressChart";
-import { LearningStyleBySubject } from "./LearningStyleBySubject";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Calendar, Clock, BookOpen, GraduationCap, Target } from "lucide-react";
 import { useStudentProfileData } from "@/hooks/useStudentProfileData";
-import { useSkillData } from "@/hooks/useSkillData";
-import { calculateOverallGrade } from "@/utils/studentProfileUtils";
-import { useMultiSkillSelection } from "@/contexts/MultiSkillSelectionContext";
-import { generateMultiplePracticeTests, MultiPracticeTestResult } from "@/services/practiceTestService";
-import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
 
 interface StudentProfileProps {
   studentId: string;
-  classId?: string;
-  className?: string;
+  classId: string;
+  className: string;
   onBack: () => void;
 }
 
 export function StudentProfile({ studentId, classId, className, onBack }: StudentProfileProps) {
-  const [showPracticeTest, setShowPracticeTest] = useState(false);
-  const [showMultiPracticeTests, setShowMultiPracticeTests] = useState(false);
-  const [selectedSkill, setSelectedSkill] = useState<string | null>(null);
-  const [multiTestResults, setMultiTestResults] = useState<MultiPracticeTestResult[]>([]);
-  const [isGeneratingMultiTests, setIsGeneratingMultiTests] = useState(false);
-  
-  const { selectedSkills, clearSelection, toggleSelectionMode } = useMultiSkillSelection();
-  
-  // Fetch all data using custom hook
   const {
     student,
     studentLoading,
+    studentProfile,
     classData,
     classLoading,
     testResults,
@@ -50,274 +30,170 @@ export function StudentProfile({ studentId, classId, className, onBack }: Studen
     classSubjectSkills,
     classSubjectSkillsLoading,
     enrolledClasses,
+    enrolledClassesLoading,
+    isPabloLuisGarcia,
     isClassView,
-    isGrade10MathClass,
-    isGrade10ScienceClass
+    hasMockData
   } = useStudentProfileData({ studentId, classId, className });
 
-  // Process skill data using custom hook
-  const {
-    comprehensiveSkillData,
-    comprehensiveSubjectSkillData,
-    groupedSkills
-  } = useSkillData({
-    contentSkillScores,
-    subjectSkillScores,
-    classContentSkills,
-    classSubjectSkills,
-    isClassView,
-    isGrade10MathClass,
-    isGrade10ScienceClass
-  });
-
-  const overallGrade = calculateOverallGrade(testResults);
-
-  const handleGeneratePracticeTest = (skillName?: string) => {
-    setSelectedSkill(skillName || null);
-    setShowPracticeTest(true);
-  };
-
-  const handleGenerateMultiPracticeTests = async () => {
-    if (selectedSkills.length === 0) {
-      toast.error("Please select at least one skill");
-      return;
-    }
-
-    setIsGeneratingMultiTests(true);
-    
-    try {
-      const results = await generateMultiplePracticeTests(
-        selectedSkills.map(skill => ({ name: skill.name, score: skill.score })),
-        {
-          studentName: student?.name || '',
-          className: className || classData?.name || `${classData?.subject} ${classData?.grade}` || 'Unknown Class',
-          grade: classData?.grade || 'Grade 10',
-          subject: classData?.subject || 'Math',
-          classId: classData?.id || classId
-        }
-      );
-
-      setMultiTestResults(results);
-      setShowMultiPracticeTests(true);
-      clearSelection();
-      toggleSelectionMode();
-      toast.success(`Generated ${results.filter(r => r.status === 'completed').length} practice tests successfully!`);
-    } catch (error) {
-      console.error('Error generating multiple practice tests:', error);
-      toast.error("Failed to generate practice tests. Please try again.");
-    } finally {
-      setIsGeneratingMultiTests(false);
-    }
-  };
-
-  const handleRegenerateSkill = async (skillName: string) => {
-    try {
-      const skillToRegenerate = selectedSkills.find(s => s.name === skillName) || 
-        { name: skillName, score: 0 };
-      
-      const results = await generateMultiplePracticeTests(
-        [{ name: skillToRegenerate.name, score: skillToRegenerate.score }],
-        {
-          studentName: student?.name || '',
-          className: className || classData?.name || `${classData?.subject} ${classData?.grade}` || 'Unknown Class',
-          grade: classData?.grade || 'Grade 10',
-          subject: classData?.subject || 'Math',
-          classId: classData?.id || classId
-        }
-      );
-
-      setMultiTestResults(prev => 
-        prev.map(result => 
-          result.skillName === skillName ? results[0] : result
-        )
-      );
-
-      toast.success("Practice test regenerated successfully!");
-    } catch (error) {
-      toast.error("Failed to regenerate practice test");
-    }
-  };
-
-  const handleBackFromPracticeTest = () => {
-    setShowPracticeTest(false);
-    setSelectedSkill(null);
-  };
-
-  const handleBackFromMultiTests = () => {
-    setShowMultiPracticeTests(false);
-    setMultiTestResults([]);
-  };
-
-  if (showPracticeTest) {
-    return (
-      <PracticeTestGenerator
-        studentName={student?.name || ''}
-        className={className || classData?.name || `${classData?.subject} ${classData?.grade}` || 'Unknown Class'}
-        skillName={selectedSkill}
-        grade={classData?.grade || 'Grade 10'}
-        subject={classData?.subject || 'Math'}
-        classId={classData?.id || classId}
-        onBack={handleBackFromPracticeTest}
-      />
-    );
-  }
-
-  if (showMultiPracticeTests) {
-    return (
-      <MultiPracticeTestResults
-        results={multiTestResults}
-        studentName={student?.name || ''}
-        className={className || classData?.name || `${classData?.subject} ${classData?.grade}` || 'Unknown Class'}
-        onBack={handleBackFromMultiTests}
-        onRegenerateSkill={handleRegenerateSkill}
-      />
-    );
-  }
-
-  if (studentLoading || (isClassView && classLoading)) {
+  if (studentLoading || classLoading) {
     return (
       <div className="p-6">
         <div className="animate-pulse space-y-6">
           <div className="h-8 bg-gray-200 rounded w-1/4"></div>
-          <div className="h-20 bg-gray-200 rounded"></div>
-          <div className="grid grid-cols-4 gap-4">
-            {[...Array(4)].map((_, i) => (
-              <div key={i} className="h-24 bg-gray-200 rounded"></div>
+          <div className="grid grid-cols-2 gap-4">
+            {[...Array(2)].map((_, i) => (
+              <div key={i} className="h-32 bg-gray-200 rounded"></div>
             ))}
           </div>
+          <div className="h-48 bg-gray-200 rounded"></div>
         </div>
       </div>
     );
   }
 
-  if (!student) {
+  if (!student || !classData) {
     return (
-      <div className="p-6">
-        <StudentProfileHeader 
-          student={{ name: 'Unknown', email: '' } as any}
-          isClassView={isClassView}
-          className={className}
-          classData={classData}
-          overallGrade={0}
-          onBack={onBack}
-        />
-        <div className="text-center py-8">
-          <p className="text-gray-600">Student not found.</p>
-        </div>
+      <div className="p-6 text-center">
+        <h2 className="text-2xl font-semibold text-gray-900">Error Loading Profile</h2>
+        <p className="text-gray-600">Could not retrieve student or class data.</p>
+        <Button onClick={onBack} className="mt-4">
+          Go Back
+        </Button>
       </div>
     );
   }
+
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
+  const showMockDataBadge = isPabloLuisGarcia && hasMockData();
 
   return (
-    <div className="p-6">
-      <StudentProfileHeader
-        student={student}
-        isClassView={isClassView}
-        className={className}
-        classData={classData}
-        overallGrade={overallGrade}
-        onBack={onBack}
-      />
+    <div className="p-6 space-y-6">
+      {/* Back Button */}
+      <Button onClick={onBack} variant="ghost" className="mb-4">
+        &larr; Back to Dashboard
+      </Button>
 
-      <StudentQuickStats
-        isClassView={isClassView}
-        testResults={testResults}
-        overallGrade={overallGrade}
-        student={student}
-      />
-
-      <Tabs defaultValue={isClassView ? "assignments" : "grades"} className="space-y-4">
-        <TabsList>
-          {isClassView ? (
-            <>
-              <TabsTrigger value="assignments">Test Results</TabsTrigger>
-              <TabsTrigger value="strengths">Content-Specific Skills</TabsTrigger>
-              <TabsTrigger value="specific-strengths">Subject Specific Skill Mastery</TabsTrigger>
-              <TabsTrigger value="progress">Progress Trend</TabsTrigger>
-              <TabsTrigger value="learning-profile">Subject Learning Profile</TabsTrigger>
-            </>
-          ) : (
-            <>
-              <TabsTrigger value="grades">Grade History</TabsTrigger>
-              <TabsTrigger value="courses">Current Courses</TabsTrigger>
-              <TabsTrigger value="progress">Academic Progress</TabsTrigger>
-            </>
-          )}
-        </TabsList>
-
-        {isClassView ? (
-          <>
-            <TabsContent value="assignments">
-              <StudentTestResults
-                testResults={testResults}
-                testResultsLoading={testResultsLoading}
-              />
-            </TabsContent>
-
-            <TabsContent value="strengths">
-              <StudentContentSkills
-                groupedSkills={groupedSkills}
-                comprehensiveSkillData={comprehensiveSkillData}
-                contentSkillsLoading={contentSkillsLoading}
-                classContentSkillsLoading={classContentSkillsLoading}
-                isClassView={isClassView}
-                classData={classData}
-                classContentSkills={classContentSkills}
-                onGeneratePracticeTest={handleGeneratePracticeTest}
-              />
-            </TabsContent>
-
-            <TabsContent value="specific-strengths">
-              <StudentSubjectSkills
-                comprehensiveSubjectSkillData={comprehensiveSubjectSkillData}
-                subjectSkillsLoading={subjectSkillsLoading}
-                classSubjectSkillsLoading={classSubjectSkillsLoading}
-                isClassView={isClassView}
-                classSubjectSkills={classSubjectSkills}
-                onGeneratePracticeTest={handleGeneratePracticeTest}
-              />
-            </TabsContent>
-
-            <TabsContent value="progress">
-              <StudentProgressChart
-                testResults={testResults}
-                isClassView={isClassView}
-                student={student}
-              />
-            </TabsContent>
-
-            <TabsContent value="learning-profile">
-              <LearningStyleBySubject
-                studentName={student?.name || ''}
-                enrolledClasses={enrolledClasses}
-                currentSubject={classData?.subject}
-              />
-            </TabsContent>
-          </>
-        ) : (
-          <>
-            <TabsContent value="grades">
-              
-            </TabsContent>
-
-            <TabsContent value="courses">
-              
-            </TabsContent>
-
-            <TabsContent value="progress">
-              <StudentProgressChart
-                testResults={testResults}
-                isClassView={isClassView}
-                student={student}
-              />
-            </TabsContent>
-          </>
+      {/* Header */}
+      <div className="flex items-center gap-6">
+        <Avatar className="h-16 w-16">
+          <AvatarFallback>{student.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
+        </Avatar>
+        <div>
+          <h2 className="text-3xl font-bold text-gray-900">{student.name}</h2>
+          <p className="text-gray-600">{classData.name} - {classData.subject}</p>
+        </div>
+        {showMockDataBadge && (
+          <Badge className="ml-auto bg-yellow-100 text-yellow-800 border-0">
+            Using Mock Data
+          </Badge>
         )}
-      </Tabs>
+      </div>
 
-      <MultiSkillActionBar 
-        onGenerateTests={handleGenerateMultiPracticeTests}
-      />
+      {/* Quick Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Card>
+          <CardContent className="p-4 text-center">
+            <BookOpen className="h-8 w-8 text-blue-600 mx-auto mb-2" />
+            <div className="text-2xl font-bold">{testResults.length}</div>
+            <div className="text-sm text-gray-600">Tests Taken</div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-4 text-center">
+            <Target className="h-8 w-8 text-green-600 mx-auto mb-2" />
+            <div className="text-2xl font-bold">{contentSkillScores.length}</div>
+            <div className="text-sm text-gray-600">Content Skills</div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-4 text-center">
+            <GraduationCap className="h-8 w-8 text-purple-600 mx-auto mb-2" />
+            <div className="text-2xl font-bold">{enrolledClasses.length}</div>
+            <div className="text-sm text-gray-600">Enrolled Classes</div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Test Results */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Recent Test Results</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {testResults.length > 0 ? (
+            testResults.slice(0, 3).map((test) => (
+              <div key={test.id} className="p-4 rounded-lg border">
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="font-semibold">{test.test_name}</h3>
+                  <Badge className="bg-blue-100 text-blue-700">
+                    Score: {test.score}%
+                  </Badge>
+                </div>
+                <div className="flex items-center gap-4 text-sm text-gray-600">
+                  <div className="flex items-center gap-1">
+                    <Calendar className="h-4 w-4" />
+                    Taken: {formatDate(test.date_taken)}
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <Clock className="h-4 w-4" />
+                    Time: {test.time_taken} minutes
+                  </div>
+                </div>
+              </div>
+            ))
+          ) : (
+            <div className="text-center py-8">
+              <BookOpen className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+              <h3 className="text-lg font-medium text-gray-900 mb-2">No test results found</h3>
+              <p className="text-gray-600">This student hasn't taken any tests yet.</p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Content Skill Scores */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Content Skill Scores</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {contentSkillScores.length > 0 ? (
+            contentSkillScores.slice(0, 5).map((skill) => (
+              <div key={skill.id} className="p-4 rounded-lg border">
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="font-semibold">{skill.skill_name}</h3>
+                  <Badge className="bg-green-100 text-green-700">
+                    Score: {skill.score}%
+                  </Badge>
+                </div>
+                <p className="text-sm text-gray-600">
+                  {skill.skill_description}
+                </p>
+              </div>
+            ))
+          ) : (
+            <div className="text-center py-8">
+              <Target className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+              <h3 className="text-lg font-medium text-gray-900 mb-2">No content skills found</h3>
+              <p className="text-gray-600">
+                This student doesn't have any content skill scores yet.
+              </p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

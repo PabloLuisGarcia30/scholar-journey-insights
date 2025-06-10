@@ -355,7 +355,7 @@ export default function StudentDashboard() {
           </Card>
         </div>
 
-        {/* Your Classes Section with Enhanced Skill Display */}
+        {/* Your Classes Section */}
         <div className="mb-8">
           <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-sm">
             <CardHeader>
@@ -373,9 +373,6 @@ export default function StudentDashboard() {
               ) : classes.length > 0 ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {classes.map((cls) => {
-                    const skillStatus = getSkillStatusInfo(cls.id);
-                    const SkillIcon = skillStatus.icon;
-                    
                     return (
                       <div
                         key={cls.id}
@@ -397,12 +394,6 @@ export default function StudentDashboard() {
                         
                         <h3 className="font-semibold text-slate-900 mb-2">{cls.name}</h3>
                         <p className="text-sm text-slate-600 mb-3">{cls.subject}</p>
-                        
-                        {/* Skill Status Display */}
-                        <div className={`flex items-center gap-2 mb-3 px-2 py-1 rounded-md ${skillStatus.color}`}>
-                          <SkillIcon className="h-4 w-4" />
-                          <span className="text-xs font-medium">{skillStatus.text}</span>
-                        </div>
                         
                         <div className="flex items-center justify-between text-sm">
                           <div className="flex items-center gap-1 text-slate-500">
