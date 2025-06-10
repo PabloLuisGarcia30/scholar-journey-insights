@@ -320,6 +320,7 @@ export type Database = {
           id: string
           points_earned: number
           points_possible: number
+          practice_exercise_id: string | null
           score: number
           skill_name: string
           test_result_id: string
@@ -329,6 +330,7 @@ export type Database = {
           id?: string
           points_earned: number
           points_possible: number
+          practice_exercise_id?: string | null
           score: number
           skill_name: string
           test_result_id: string
@@ -338,11 +340,19 @@ export type Database = {
           id?: string
           points_earned?: number
           points_possible?: number
+          practice_exercise_id?: string | null
           score?: number
           skill_name?: string
           test_result_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "content_skill_scores_practice_exercise_id_fkey"
+            columns: ["practice_exercise_id"]
+            isOneToOne: false
+            referencedRelation: "student_exercises"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "content_skill_scores_test_result_id_fkey"
             columns: ["test_result_id"]
@@ -1099,6 +1109,7 @@ export type Database = {
           id: string
           points_earned: number
           points_possible: number
+          practice_exercise_id: string | null
           score: number
           skill_name: string
           test_result_id: string
@@ -1108,6 +1119,7 @@ export type Database = {
           id?: string
           points_earned: number
           points_possible: number
+          practice_exercise_id?: string | null
           score: number
           skill_name: string
           test_result_id: string
@@ -1117,11 +1129,19 @@ export type Database = {
           id?: string
           points_earned?: number
           points_possible?: number
+          practice_exercise_id?: string | null
           score?: number
           skill_name?: string
           test_result_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "subject_skill_scores_practice_exercise_id_fkey"
+            columns: ["practice_exercise_id"]
+            isOneToOne: false
+            referencedRelation: "student_exercises"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "subject_skill_scores_test_result_id_fkey"
             columns: ["test_result_id"]
@@ -1291,6 +1311,15 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      calculate_updated_skill_score: {
+        Args: {
+          current_score: number
+          new_score: number
+          current_attempts: number
+          recency_weight?: number
+        }
+        Returns: number
+      }
       get_session_monitoring_data: {
         Args: { session_id?: string }
         Returns: {
@@ -1314,6 +1343,16 @@ export type Database = {
           class_name: string
           subject: string
           grade: string
+        }[]
+      }
+      get_student_current_skill_scores: {
+        Args: { student_uuid: string }
+        Returns: {
+          skill_name: string
+          skill_type: string
+          current_score: number
+          attempts_count: number
+          last_updated: string
         }[]
       }
       get_user_role: {

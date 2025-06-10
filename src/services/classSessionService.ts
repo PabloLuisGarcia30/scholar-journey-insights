@@ -182,6 +182,9 @@ export async function updateExerciseStatus(
       .eq('id', exerciseId);
 
     if (error) throw error;
+
+    console.log(`✅ Exercise ${exerciseId} status updated to ${status}${score ? ` with score ${score}%` : ''}`);
+    
   } catch (error) {
     console.error('Error updating exercise status:', error);
     throw error;
