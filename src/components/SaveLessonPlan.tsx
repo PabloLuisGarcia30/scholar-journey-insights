@@ -48,6 +48,7 @@ interface ExerciseGenerationResult {
 export function SaveLessonPlan({ classId, className, classData, students, onLessonPlanSaved }: SaveLessonPlanProps) {
   const [open, setOpen] = useState(false);
   const [lessonTitle, setLessonTitle] = useState(`${className} - ${new Date().toLocaleDateString()}`);
+  const [questionCount, setQuestionCount] = useState(5);
   const [loading, setLoading] = useState(false);
   const [step, setStep] = useState<'basic' | 'exercises' | 'preview'>('basic');
   const [generatedExercises, setGeneratedExercises] = useState<StudentExercise[]>([]);
@@ -70,6 +71,7 @@ export function SaveLessonPlan({ classId, className, classData, students, onLess
       setStep('basic');
       setGeneratedExercises([]);
       setExerciseResults([]);
+      setQuestionCount(5); // Reset to default
     }
   }, [open]);
 
@@ -87,7 +89,7 @@ export function SaveLessonPlan({ classId, className, classData, students, onLess
         skillName: primarySkill.skill_name,
         grade: classData?.grade || "Grade 10",
         subject: classData?.subject || "Math",
-        questionCount: 5,
+        questionCount: questionCount, // Use selected question count
         classId: classId
       });
 
@@ -330,7 +332,7 @@ export function SaveLessonPlan({ classId, className, classData, students, onLess
             </h3>
           </div>
           <p className="text-sm text-slate-600 mb-4">
-            Creating personalized exercises for {students.length} students...
+            Creating {questionCount} question exercises for {students.length} students...
           </p>
           
           <div className="bg-blue-50 p-4 rounded-lg mb-4">
@@ -438,6 +440,22 @@ export function SaveLessonPlan({ classId, className, classData, students, onLess
           />
         </div>
         
+        <div>
+          <Label htmlFor="questionCount">Questions per Exercise</Label>
+          <Input
+            id="questionCount"
+            type="number"
+            min="1"
+            max="20"
+            value={questionCount}
+            onChange={(e) => setQuestionCount(Math.max(1, Math.min(20, parseInt(e.target.value) || 5)))}
+            placeholder="Number of questions"
+          />
+          <p className="text-xs text-slate-500 mt-1">
+            Estimated time: ~{Math.ceil(questionCount * 2.5)} minutes per exercise
+          </p>
+        </div>
+        
         {/* Next Class Information */}
         {nextClassInfo ? (
           <div className="bg-green-50 border border-green-200 rounded-lg p-4">
@@ -481,6 +499,7 @@ export function SaveLessonPlan({ classId, className, classData, students, onLess
           </p>
           <ul className="text-xs text-blue-700 space-y-1">
             <li>• {students.length} students with individualized skills</li>
+            <li>• {questionCount} questions per exercise</li>
             <li>• {students.reduce((total, student) => total + student.skills.length, 0)} total skill targets</li>
             <li>• Ready to use for starting class sessions</li>
             {nextClassInfo && (
