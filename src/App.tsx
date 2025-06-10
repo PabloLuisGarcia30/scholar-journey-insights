@@ -18,6 +18,7 @@ import StudentLessonTracker from "./pages/StudentLessonTracker";
 import StudentLearnerProfile from "./pages/StudentLearnerProfile";
 import StudentQuiz from "./pages/StudentQuiz";
 import ClassRunner from "./pages/ClassRunner";
+import LessonPlanner from "./pages/LessonPlanner";
 import { DEV_CONFIG } from "./config/devConfig";
 
 const queryClient = new QueryClient();
