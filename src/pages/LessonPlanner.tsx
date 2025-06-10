@@ -43,11 +43,14 @@ export default function LessonPlanner() {
             <div className="flex-shrink-0">
               <Button 
                 onClick={handlePlanNextClass}
-                className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 text-lg"
+                className="flex flex-col items-center gap-1 bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 h-auto min-h-[3rem]"
                 size="lg"
               >
-                <Plus className="h-5 w-5" />
-                Individualized Lesson plan for your next class
+                <div className="flex items-center gap-2">
+                  <Plus className="h-5 w-5" />
+                  <span className="text-base">Individualized Lesson plan</span>
+                </div>
+                <span className="text-sm">for your next class</span>
               </Button>
             </div>
             
