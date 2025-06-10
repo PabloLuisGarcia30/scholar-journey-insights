@@ -1,3 +1,4 @@
+
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -133,22 +134,22 @@ export function StudentProfile({ studentId, classId, className, onBack }: Studen
         </CardHeader>
         <CardContent className="space-y-4">
           {testResults.length > 0 ? (
-            testResults.slice(0, 3).map((test) => (
+            testResults.slice(0, 3).map((test, index) => (
               <div key={test.id} className="p-4 rounded-lg border">
                 <div className="flex items-center justify-between mb-2">
-                  <h3 className="font-semibold">{test.test_name}</h3>
+                  <h3 className="font-semibold">Test {index + 1}</h3>
                   <Badge className="bg-blue-100 text-blue-700">
-                    Score: {test.score}%
+                    Score: {Math.round(test.overall_score)}%
                   </Badge>
                 </div>
                 <div className="flex items-center gap-4 text-sm text-gray-600">
                   <div className="flex items-center gap-1">
                     <Calendar className="h-4 w-4" />
-                    Taken: {formatDate(test.date_taken)}
+                    Taken: {formatDate(test.created_at)}
                   </div>
                   <div className="flex items-center gap-1">
                     <Clock className="h-4 w-4" />
-                    Time: {test.time_taken} minutes
+                    Points: {test.total_points_earned}/{test.total_points_possible}
                   </div>
                 </div>
               </div>
@@ -170,8 +171,8 @@ export function StudentProfile({ studentId, classId, className, onBack }: Studen
         </CardHeader>
         <CardContent className="space-y-4">
           {contentSkillScores.length > 0 ? (
-            contentSkillScores.slice(0, 5).map((skill) => (
-              <div key={skill.id} className="p-4 rounded-lg border">
+            contentSkillScores.slice(0, 5).map((skill, index) => (
+              <div key={skill.id || index} className="p-4 rounded-lg border">
                 <div className="flex items-center justify-between mb-2">
                   <h3 className="font-semibold">{skill.skill_name}</h3>
                   <Badge className="bg-green-100 text-green-700">
@@ -179,7 +180,7 @@ export function StudentProfile({ studentId, classId, className, onBack }: Studen
                   </Badge>
                 </div>
                 <p className="text-sm text-gray-600">
-                  {skill.skill_description}
+                  {skill.points_earned} out of {skill.points_possible} points earned
                 </p>
               </div>
             ))
