@@ -19,7 +19,12 @@ import {
   mockPabloSubjectSkillScores,
   mockPabloGeographyContentSkillScores,
   mockPabloGeographySubjectSkillScores,
-  mockPabloGeographyTestResults 
+  mockPabloGeographyTestResults,
+  mockBettyContentSkillScores,
+  mockBettySubjectSkillScores,
+  mockBettyTestResults,
+  mockBettyGeographyContentSkillScores,
+  mockBettyGeographySubjectSkillScores
 } from "@/data/mockStudentData";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -68,6 +73,7 @@ export function useStudentProfileData({ studentId, classId, className }: UseStud
   });
 
   const isPabloLuisGarcia = student?.name === 'Pablo Luis Garcia';
+  const isBettyJohnson = student?.name === 'Betty Johnson';
 
   // Fetch class data if in class view
   const { data: classData, isLoading: classLoading } = useQuery({
@@ -76,31 +82,53 @@ export function useStudentProfileData({ studentId, classId, className }: UseStud
     enabled: !!classId,
   });
 
-  // Helper function to check if this class has mock data available
+  // Helper function to check if this student/class has mock data available
   const hasMockData = () => {
-    if (!isPabloLuisGarcia) return false;
-    
-    if (classData) {
-      // Check for specific mock data combinations
-      const isGrade10Math = classData.subject === 'Math' && classData.grade === 'Grade 10';
-      const isGrade10Science = classData.subject === 'Science' && classData.grade === 'Grade 10';
-      const isGrade11Geography = classData.subject === 'Geography' && classData.grade === 'Grade 11';
-      
-      return isGrade10Math || isGrade10Science || isGrade11Geography;
+    if (isPabloLuisGarcia) {
+      if (classData) {
+        // Check for specific mock data combinations for Pablo
+        const isGrade10Math = classData.subject === 'Math' && classData.grade === 'Grade 10';
+        const isGrade10Science = classData.subject === 'Science' && classData.grade === 'Grade 10';
+        const isGrade11Geography = classData.subject === 'Geography' && classData.grade === 'Grade 11';
+        
+        return isGrade10Math || isGrade10Science || isGrade11Geography;
+      }
+      // Return true for general profile view for Pablo
+      return true;
     }
     
-    // Return true for general profile view for Pablo - use general mock data
-    return true;
+    if (isBettyJohnson) {
+      if (classData) {
+        // Check for specific mock data combinations for Betty
+        const isGrade10Math = classData.subject === 'Math' && classData.grade === 'Grade 10';
+        const isGrade11Biology = classData.subject === 'Science' && classData.grade === 'Grade 11';
+        const isGrade11English = classData.subject === 'English' && classData.grade === 'Grade 11';
+        const isGrade10History = classData.subject === 'History' && classData.grade === 'Grade 10';
+        const isGrade11Geography = classData.subject === 'Geography' && classData.grade === 'Grade 11';
+        
+        return isGrade10Math || isGrade11Biology || isGrade11English || isGrade10History || isGrade11Geography;
+      }
+      // Return true for general profile view for Betty
+      return true;
+    }
+    
+    return false;
   };
 
-  // Fetch test results with mock data support for Pablo
+  // Fetch test results with mock data support for both students
   const { data: testResults = [], isLoading: testResultsLoading } = useQuery({
-    queryKey: ['studentTestResults', studentProfile?.id, studentId, classId, classData?.subject, classData?.grade],
+    queryKey: ['studentTestResults', studentProfile?.id, studentId, classId, classData?.subject, classData?.grade, student?.name],
     queryFn: async () => {
-      // Use mock data for Pablo Luis Garcia in specific cases
+      // Use mock data for Pablo Luis Garcia
       if (isPabloLuisGarcia && classData?.subject === 'Geography' && classData?.grade === 'Grade 11') {
         console.log('Using mock Geography test results for Pablo Luis Garcia');
         return Promise.resolve(mockPabloGeographyTestResults);
+      }
+
+      // Use mock data for Betty Johnson
+      if (isBettyJohnson) {
+        console.log('Using mock test results for Betty Johnson');
+        return Promise.resolve(mockBettyTestResults);
       }
 
       // Try student profile ID first (for newly processed tests)
@@ -124,13 +152,14 @@ export function useStudentProfileData({ studentId, classId, className }: UseStud
     enabled: !!(studentProfile?.id || studentId),
   });
 
-  // Fetch content skill scores with enhanced mock data support for Pablo
+  // Fetch content skill scores with enhanced mock data support for both students
   const { data: contentSkillScores = [], isLoading: contentSkillsLoading } = useQuery({
-    queryKey: ['studentContentSkills', studentProfile?.id, studentId, classId, classData?.subject, classData?.grade, isClassView],
+    queryKey: ['studentContentSkills', studentProfile?.id, studentId, classId, classData?.subject, classData?.grade, isClassView, student?.name],
     queryFn: async () => {
       console.log('Fetching content skills for:', { 
         studentName: student?.name, 
-        isPablo: isPabloLuisGarcia, 
+        isPablo: isPabloLuisGarcia,
+        isBetty: isBettyJohnson,
         isClassView, 
         classId,
         className,
@@ -143,7 +172,7 @@ export function useStudentProfileData({ studentId, classId, className }: UseStud
       // Use mock data for Pablo Luis Garcia
       if (isPabloLuisGarcia) {
         if (classData) {
-          // Class-specific mock data
+          // Class-specific mock data for Pablo
           if (classData.subject === 'Geography' && classData.grade === 'Grade 11') {
             console.log('Using mock Geography data for Pablo Luis Garcia');
             return Promise.resolve(mockPabloGeographyContentSkillScores);
@@ -153,9 +182,27 @@ export function useStudentProfileData({ studentId, classId, className }: UseStud
             return Promise.resolve(mockPabloContentSkillScores);
           }
         } else {
-          // General profile view - use general mock data
+          // General profile view - use general mock data for Pablo
           console.log('Using general mock content skills for Pablo Luis Garcia');
           return Promise.resolve(mockPabloContentSkillScores);
+        }
+      }
+
+      // Use mock data for Betty Johnson
+      if (isBettyJohnson) {
+        if (classData) {
+          // Class-specific mock data for Betty
+          if (classData.subject === 'Geography' && classData.grade === 'Grade 11') {
+            console.log('Using mock Geography data for Betty Johnson');
+            return Promise.resolve(mockBettyGeographyContentSkillScores);
+          }
+          // For other subjects, use general mock data
+          console.log('Using mock content skills for Betty Johnson in', classData.subject);
+          return Promise.resolve(mockBettyContentSkillScores);
+        } else {
+          // General profile view - use general mock data for Betty
+          console.log('Using general mock content skills for Betty Johnson');
+          return Promise.resolve(mockBettyContentSkillScores);
         }
       }
       
@@ -167,13 +214,14 @@ export function useStudentProfileData({ studentId, classId, className }: UseStud
     staleTime: hasMockData() ? 24 * 60 * 60 * 1000 : 0, // 24 hours cache for mock data
   });
 
-  // Fetch subject skill scores with enhanced mock data support for Pablo
+  // Fetch subject skill scores with enhanced mock data support for both students
   const { data: subjectSkillScores = [], isLoading: subjectSkillsLoading } = useQuery({
-    queryKey: ['studentSubjectSkills', studentProfile?.id, studentId, classId, classData?.subject, classData?.grade],
+    queryKey: ['studentSubjectSkills', studentProfile?.id, studentId, classId, classData?.subject, classData?.grade, student?.name],
     queryFn: async () => {
       console.log('Fetching subject skills for:', { 
         studentName: student?.name, 
-        isPablo: isPabloLuisGarcia, 
+        isPablo: isPabloLuisGarcia,
+        isBetty: isBettyJohnson,
         isClassView, 
         classId,
         className,
@@ -186,7 +234,7 @@ export function useStudentProfileData({ studentId, classId, className }: UseStud
       // Use mock data for Pablo Luis Garcia
       if (isPabloLuisGarcia) {
         if (classData) {
-          // Class-specific mock data
+          // Class-specific mock data for Pablo
           if (classData.subject === 'Geography' && classData.grade === 'Grade 11') {
             console.log('Using mock Geography subject skills for Pablo Luis Garcia');
             return Promise.resolve(mockPabloGeographySubjectSkillScores);
@@ -196,9 +244,27 @@ export function useStudentProfileData({ studentId, classId, className }: UseStud
             return Promise.resolve(mockPabloSubjectSkillScores);
           }
         } else {
-          // General profile view - use general mock data
+          // General profile view - use general mock data for Pablo
           console.log('Using general mock subject skills for Pablo Luis Garcia');
           return Promise.resolve(mockPabloSubjectSkillScores);
+        }
+      }
+
+      // Use mock data for Betty Johnson
+      if (isBettyJohnson) {
+        if (classData) {
+          // Class-specific mock data for Betty
+          if (classData.subject === 'Geography' && classData.grade === 'Grade 11') {
+            console.log('Using mock Geography subject skills for Betty Johnson');
+            return Promise.resolve(mockBettyGeographySubjectSkillScores);
+          }
+          // For other subjects, use general mock data
+          console.log('Using mock subject skills for Betty Johnson in', classData.subject);
+          return Promise.resolve(mockBettySubjectSkillScores);
+        } else {
+          // General profile view - use general mock data for Betty
+          console.log('Using general mock subject skills for Betty Johnson');
+          return Promise.resolve(mockBettySubjectSkillScores);
         }
       }
       
@@ -299,7 +365,9 @@ export function useStudentProfileData({ studentId, classId, className }: UseStud
     classGrade: classData?.grade,
     classContentSkillsCount: classContentSkills.length,
     classSubjectSkillsCount: classSubjectSkills.length,
-    usingMockData: hasMockData()
+    usingMockData: hasMockData(),
+    isPablo: isPabloLuisGarcia,
+    isBetty: isBettyJohnson
   });
 
   return {
@@ -321,6 +389,7 @@ export function useStudentProfileData({ studentId, classId, className }: UseStud
     enrolledClasses,
     enrolledClassesLoading,
     isPabloLuisGarcia,
+    isBettyJohnson,
     isClassView,
     hasMockData
   };
