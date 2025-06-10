@@ -67,48 +67,52 @@ export function ClassStudentList({ classId, className, onSelectStudent }: ClassS
         </p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="space-y-3 max-w-2xl">
         {classStudents.map((student) => (
           <Card 
             key={student.id} 
-            className="group hover:shadow-lg transition-all duration-300 cursor-pointer border-0 bg-white/80 backdrop-blur-sm hover:bg-white hover:scale-[1.02]"
+            className="group hover:shadow-lg transition-all duration-300 cursor-pointer border-0 bg-white/80 backdrop-blur-sm hover:bg-white hover:scale-[1.01]"
           >
             <CardContent className="p-4">
-              <div className="flex items-center gap-3 mb-3">
-                <Avatar className="h-10 w-10 ring-2 ring-slate-100 group-hover:ring-blue-200 transition-all duration-300">
+              <div className="flex items-center gap-4">
+                <Avatar className="h-12 w-12 ring-2 ring-slate-100 group-hover:ring-blue-200 transition-all duration-300 flex-shrink-0">
                   <AvatarFallback className="bg-gradient-to-br from-blue-100 to-purple-100 text-slate-700 font-semibold">
                     {student.name.split(' ').map(n => n[0]).join('')}
                   </AvatarFallback>
                 </Avatar>
                 
                 <div className="flex-1 min-w-0">
-                  <h4 className="font-semibold text-slate-900 truncate group-hover:text-blue-700 transition-colors">
-                    {student.name}
-                  </h4>
-                  <p className="text-xs text-slate-500 truncate">{student.email || 'No email'}</p>
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="min-w-0 flex-1">
+                      <h4 className="font-semibold text-slate-900 truncate group-hover:text-blue-700 transition-colors text-lg">
+                        {student.name}
+                      </h4>
+                      <p className="text-sm text-slate-500 truncate">{student.email || 'No email'}</p>
+                      
+                      <div className="flex flex-wrap gap-2 mt-2">
+                        {student.year && (
+                          <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200">
+                            {student.year}
+                          </Badge>
+                        )}
+                        {student.gpa && (
+                          <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">
+                            GPA: {Number(student.gpa).toFixed(1)}
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+
+                    <Button 
+                      onClick={() => onSelectStudent(student.id, student.name)}
+                      className="h-10 px-6 bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-2 flex-shrink-0"
+                    >
+                      <BookOpen className="h-4 w-4" />
+                      Create Lesson Plan
+                    </Button>
+                  </div>
                 </div>
               </div>
-
-              <div className="flex flex-wrap gap-1 mb-3">
-                {student.year && (
-                  <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200">
-                    {student.year}
-                  </Badge>
-                )}
-                {student.gpa && (
-                  <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">
-                    GPA: {Number(student.gpa).toFixed(1)}
-                  </Badge>
-                )}
-              </div>
-
-              <Button 
-                onClick={() => onSelectStudent(student.id, student.name)}
-                className="w-full h-8 text-sm bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-2"
-              >
-                <BookOpen className="h-3 w-3" />
-                Create Lesson Plan
-              </Button>
             </CardContent>
           </Card>
         ))}
