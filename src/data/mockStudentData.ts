@@ -1,3 +1,4 @@
+
 import { type SkillScore } from "@/services/examService";
 
 export const mockClassData = {
@@ -27,6 +28,7 @@ export const courseGrades = [
   { course: 'Software Engineering', grade: 'A-', credits: 4, progress: 89 },
 ];
 
+// PABLO LUIS GARCIA MOCK DATA
 export const mockPabloContentSkillScores: SkillScore[] = [
   // ALGEBRA AND FUNCTIONS
   { id: 'mock-1', test_result_id: 'test-1', skill_name: 'Factoring Polynomials', score: 85, points_earned: 17, points_possible: 20, created_at: '2024-01-15' },
@@ -64,7 +66,6 @@ export const mockPabloContentSkillScores: SkillScore[] = [
   { id: 'mock-25', test_result_id: 'test-3', skill_name: 'Problem-Solving Strategies', score: 87, points_earned: 17, points_possible: 20, created_at: '2024-03-05' },
 ];
 
-// NEW: Mock subject skill scores for Pablo Luis Garcia
 export const mockPabloSubjectSkillScores: SkillScore[] = [
   // MATHEMATICAL REASONING
   { id: 'mock-subj-1', test_result_id: 'test-1', skill_name: 'Problem-solving strategies', score: 88, points_earned: 22, points_possible: 25, created_at: '2024-01-15' },
@@ -83,7 +84,6 @@ export const mockPabloSubjectSkillScores: SkillScore[] = [
   { id: 'mock-subj-10', test_result_id: 'test-3', skill_name: 'Interpreting results', score: 91, points_earned: 22, points_possible: 24, created_at: '2024-03-05' },
 ];
 
-// NEW: Mock Geography 11 subject skills for Pablo Luis Garcia
 export const mockPabloGeographySubjectSkillScores: SkillScore[] = [
   // GEOGRAPHIC INQUIRY
   { id: 'mock-geo-subj-1', test_result_id: 'geo-test-1', skill_name: 'Formulating geographic questions', score: 86, points_earned: 21, points_possible: 24, created_at: '2024-01-15' },
@@ -101,7 +101,6 @@ export const mockPabloGeographySubjectSkillScores: SkillScore[] = [
   { id: 'mock-geo-subj-9', test_result_id: 'geo-test-3', skill_name: 'Defending geographic arguments', score: 85, points_earned: 17, points_possible: 20, created_at: '2024-03-05' },
 ];
 
-// NEW: Mock Geography 11 content skills for Pablo Luis Garcia
 export const mockPabloGeographyContentSkillScores: SkillScore[] = [
   // POPULATIONS IN TRANSITION
   { id: 'mock-geo-1', test_result_id: 'geo-test-1', skill_name: 'Interpreting population pyramids', score: 89, points_earned: 18, points_possible: 20, created_at: '2024-01-15' },
@@ -128,7 +127,6 @@ export const mockPabloGeographyContentSkillScores: SkillScore[] = [
   { id: 'mock-geo-16', test_result_id: 'geo-test-3', skill_name: 'Interpreting energy and water security data', score: 83, points_earned: 20, points_possible: 24, created_at: '2024-03-05' },
 ];
 
-// NEW: Mock test results for Pablo in Geography context - FIXED with class_id
 export const mockPabloGeographyTestResults = [
   {
     id: 'geo-test-result-1',
@@ -166,4 +164,157 @@ export const mockPabloGeographyTestResults = [
     ai_feedback: 'Consistent performance across all geography topics. Shows improvement in resource consumption analysis.',
     detailed_analysis: 'Pablo maintains strong performance across all geography units. His ability to connect different geographical concepts is developing well.'
   }
+];
+
+// BETTY JOHNSON MOCK DATA
+export const mockBettyContentSkillScores: SkillScore[] = [
+  // MATH - ALGEBRA AND FUNCTIONS
+  { id: 'betty-mock-1', test_result_id: 'betty-test-1', skill_name: 'Factoring Polynomials', score: 92, points_earned: 18, points_possible: 20, created_at: '2024-01-20' },
+  { id: 'betty-mock-2', test_result_id: 'betty-test-1', skill_name: 'Solving Systems of Equations', score: 88, points_earned: 22, points_possible: 25, created_at: '2024-01-20' },
+  { id: 'betty-mock-3', test_result_id: 'betty-test-1', skill_name: 'Understanding Function Notation', score: 84, points_earned: 20, points_possible: 24, created_at: '2024-01-20' },
+  { id: 'betty-mock-4', test_result_id: 'betty-test-2', skill_name: 'Graphing Linear and Quadratic Functions', score: 95, points_earned: 24, points_possible: 25, created_at: '2024-02-20' },
+  { id: 'betty-mock-5', test_result_id: 'betty-test-2', skill_name: 'Working with Exponential Functions', score: 87, points_earned: 17, points_possible: 20, created_at: '2024-02-20' },
+  
+  // MATH - GEOMETRY
+  { id: 'betty-mock-6', test_result_id: 'betty-test-1', skill_name: 'Properties of Similar Triangles', score: 89, points_earned: 18, points_possible: 20, created_at: '2024-01-20' },
+  { id: 'betty-mock-7', test_result_id: 'betty-test-1', skill_name: 'Area and Perimeter Calculations', score: 93, points_earned: 19, points_possible: 20, created_at: '2024-01-20' },
+  { id: 'betty-mock-8', test_result_id: 'betty-test-2', skill_name: 'Volume and Surface Area of 3D Objects', score: 91, points_earned: 22, points_possible: 24, created_at: '2024-02-20' },
+  { id: 'betty-mock-9', test_result_id: 'betty-test-2', skill_name: 'Coordinate Geometry', score: 86, points_earned: 21, points_possible: 24, created_at: '2024-02-20' },
+  
+  // SCIENCE - BIOLOGY
+  { id: 'betty-mock-10', test_result_id: 'betty-sci-test-1', skill_name: 'Cell Structure and Function', score: 94, points_earned: 19, points_possible: 20, created_at: '2024-01-25' },
+  { id: 'betty-mock-11', test_result_id: 'betty-sci-test-1', skill_name: 'Genetics and Heredity', score: 87, points_earned: 21, points_possible: 24, created_at: '2024-01-25' },
+  { id: 'betty-mock-12', test_result_id: 'betty-sci-test-1', skill_name: 'Ecosystem Interactions', score: 90, points_earned: 18, points_possible: 20, created_at: '2024-01-25' },
+  { id: 'betty-mock-13', test_result_id: 'betty-sci-test-2', skill_name: 'Evolution and Natural Selection', score: 92, points_earned: 22, points_possible: 24, created_at: '2024-02-25' },
+  { id: 'betty-mock-14', test_result_id: 'betty-sci-test-2', skill_name: 'Photosynthesis and Cellular Respiration', score: 88, points_earned: 18, points_possible: 20, created_at: '2024-02-25' },
+  
+  // ENGLISH - LITERATURE AND COMPOSITION
+  { id: 'betty-mock-15', test_result_id: 'betty-eng-test-1', skill_name: 'Literary Analysis and Interpretation', score: 96, points_earned: 23, points_possible: 24, created_at: '2024-01-30' },
+  { id: 'betty-mock-16', test_result_id: 'betty-eng-test-1', skill_name: 'Character Development Analysis', score: 91, points_earned: 18, points_possible: 20, created_at: '2024-01-30' },
+  { id: 'betty-mock-17', test_result_id: 'betty-eng-test-1', skill_name: 'Theme and Symbolism Recognition', score: 89, points_earned: 21, points_possible: 24, created_at: '2024-01-30' },
+  { id: 'betty-mock-18', test_result_id: 'betty-eng-test-2', skill_name: 'Essay Writing and Structure', score: 94, points_earned: 19, points_possible: 20, created_at: '2024-03-01' },
+  { id: 'betty-mock-19', test_result_id: 'betty-eng-test-2', skill_name: 'Grammar and Mechanics', score: 97, points_earned: 23, points_possible: 24, created_at: '2024-03-01' },
+  
+  // HISTORY - WORLD HISTORY
+  { id: 'betty-mock-20', test_result_id: 'betty-hist-test-1', skill_name: 'Analyzing Primary Sources', score: 85, points_earned: 17, points_possible: 20, created_at: '2024-02-05' },
+  { id: 'betty-mock-21', test_result_id: 'betty-hist-test-1', skill_name: 'Understanding Historical Context', score: 88, points_earned: 21, points_possible: 24, created_at: '2024-02-05' },
+  { id: 'betty-mock-22', test_result_id: 'betty-hist-test-1', skill_name: 'Cause and Effect Relationships', score: 92, points_earned: 18, points_possible: 20, created_at: '2024-02-05' },
+  { id: 'betty-mock-23', test_result_id: 'betty-hist-test-2', skill_name: 'Comparing Civilizations', score: 90, points_earned: 22, points_possible: 24, created_at: '2024-03-05' },
+  { id: 'betty-mock-24', test_result_id: 'betty-hist-test-2', skill_name: 'Historical Timeline Construction', score: 86, points_earned: 17, points_possible: 20, created_at: '2024-03-05' },
+];
+
+export const mockBettySubjectSkillScores: SkillScore[] = [
+  // MATHEMATICAL REASONING
+  { id: 'betty-subj-1', test_result_id: 'betty-test-1', skill_name: 'Problem-solving strategies', score: 91, points_earned: 23, points_possible: 25, created_at: '2024-01-20' },
+  { id: 'betty-subj-2', test_result_id: 'betty-test-1', skill_name: 'Mathematical communication', score: 88, points_earned: 22, points_possible: 25, created_at: '2024-01-20' },
+  { id: 'betty-subj-3', test_result_id: 'betty-test-2', skill_name: 'Logical reasoning', score: 93, points_earned: 19, points_possible: 20, created_at: '2024-02-20' },
+  { id: 'betty-subj-4', test_result_id: 'betty-test-2', skill_name: 'Critical thinking', score: 87, points_earned: 17, points_possible: 20, created_at: '2024-02-20' },
+  
+  // COMPUTATIONAL FLUENCY
+  { id: 'betty-subj-5', test_result_id: 'betty-test-1', skill_name: 'Mental math skills', score: 85, points_earned: 20, points_possible: 24, created_at: '2024-01-20' },
+  { id: 'betty-subj-6', test_result_id: 'betty-test-2', skill_name: 'Calculator usage', score: 92, points_earned: 18, points_possible: 20, created_at: '2024-02-20' },
+  { id: 'betty-subj-7', test_result_id: 'betty-test-3', skill_name: 'Estimation techniques', score: 89, points_earned: 21, points_possible: 24, created_at: '2024-03-10' },
+  
+  // SCIENTIFIC INQUIRY
+  { id: 'betty-subj-8', test_result_id: 'betty-sci-test-1', skill_name: 'Hypothesis formation', score: 94, points_earned: 23, points_possible: 24, created_at: '2024-01-25' },
+  { id: 'betty-subj-9', test_result_id: 'betty-sci-test-1', skill_name: 'Experimental design', score: 90, points_earned: 18, points_possible: 20, created_at: '2024-01-25' },
+  { id: 'betty-subj-10', test_result_id: 'betty-sci-test-2', skill_name: 'Data analysis and interpretation', score: 92, points_earned: 22, points_possible: 24, created_at: '2024-02-25' },
+  
+  // LANGUAGE ARTS COMMUNICATION
+  { id: 'betty-subj-11', test_result_id: 'betty-eng-test-1', skill_name: 'Written expression', score: 95, points_earned: 19, points_possible: 20, created_at: '2024-01-30' },
+  { id: 'betty-subj-12', test_result_id: 'betty-eng-test-1', skill_name: 'Reading comprehension', score: 93, points_earned: 22, points_possible: 24, created_at: '2024-01-30' },
+  { id: 'betty-subj-13', test_result_id: 'betty-eng-test-2', skill_name: 'Oral presentation', score: 88, points_earned: 18, points_possible: 20, created_at: '2024-03-01' },
+  
+  // HISTORICAL THINKING
+  { id: 'betty-subj-14', test_result_id: 'betty-hist-test-1', skill_name: 'Historical analysis', score: 87, points_earned: 21, points_possible: 24, created_at: '2024-02-05' },
+  { id: 'betty-subj-15', test_result_id: 'betty-hist-test-1', skill_name: 'Evidence evaluation', score: 91, points_earned: 18, points_possible: 20, created_at: '2024-02-05' },
+  { id: 'betty-subj-16', test_result_id: 'betty-hist-test-2', skill_name: 'Historical argumentation', score: 89, points_earned: 21, points_possible: 24, created_at: '2024-03-05' },
+];
+
+export const mockBettyTestResults = [
+  {
+    id: 'betty-test-result-1',
+    student_id: 'betty-student-id',
+    exam_id: 'math-exam-1',
+    class_id: 'math-10-class-id',
+    overall_score: 89.7,
+    total_points_earned: 179,
+    total_points_possible: 200,
+    created_at: '2024-01-20',
+    ai_feedback: 'Excellent performance in algebra and geometry. Shows strong mathematical reasoning skills.',
+    detailed_analysis: 'Betty demonstrates exceptional understanding of mathematical concepts with particularly strong performance in geometric calculations and algebraic problem-solving.'
+  },
+  {
+    id: 'betty-test-result-2',
+    student_id: 'betty-student-id',
+    exam_id: 'math-exam-2',
+    class_id: 'math-10-class-id',
+    overall_score: 91.3,
+    total_points_earned: 197,
+    total_points_possible: 216,
+    created_at: '2024-02-20',
+    ai_feedback: 'Outstanding work on advanced functions and coordinate geometry. Maintains high standard across all topics.',
+    detailed_analysis: 'Betty shows consistent improvement and mastery of complex mathematical concepts. Her graphing skills are particularly noteworthy.'
+  },
+  {
+    id: 'betty-sci-test-result-1',
+    student_id: 'betty-student-id',
+    exam_id: 'bio-exam-1',
+    class_id: 'biology-11-class-id',
+    overall_score: 90.8,
+    total_points_earned: 163,
+    total_points_possible: 180,
+    created_at: '2024-01-25',
+    ai_feedback: 'Strong grasp of biological concepts, particularly cell biology and ecosystems.',
+    detailed_analysis: 'Betty excels in understanding complex biological processes and shows excellent analytical skills in ecosystem studies.'
+  },
+  {
+    id: 'betty-eng-test-result-1',
+    student_id: 'betty-student-id',
+    exam_id: 'lit-exam-1',
+    class_id: 'english-11-class-id',
+    overall_score: 93.2,
+    total_points_earned: 168,
+    total_points_possible: 180,
+    created_at: '2024-01-30',
+    ai_feedback: 'Exceptional literary analysis skills with sophisticated understanding of themes and symbolism.',
+    detailed_analysis: 'Betty demonstrates advanced critical thinking in literature with excellent written expression and deep analytical insights.'
+  },
+  {
+    id: 'betty-hist-test-result-1',
+    student_id: 'betty-student-id',
+    exam_id: 'hist-exam-1',
+    class_id: 'history-10-class-id',
+    overall_score: 88.1,
+    total_points_earned: 159,
+    total_points_possible: 180,
+    created_at: '2024-02-05',
+    ai_feedback: 'Good historical analysis with room for improvement in primary source interpretation.',
+    detailed_analysis: 'Betty shows solid understanding of historical concepts and demonstrates good analytical skills in comparing civilizations and understanding cause-effect relationships.'
+  }
+];
+
+// Geography skills for Betty (if needed for specific geography classes)
+export const mockBettyGeographyContentSkillScores: SkillScore[] = [
+  // PHYSICAL GEOGRAPHY
+  { id: 'betty-geo-1', test_result_id: 'betty-geo-test-1', skill_name: 'Understanding Climate Patterns', score: 89, points_earned: 18, points_possible: 20, created_at: '2024-02-10' },
+  { id: 'betty-geo-2', test_result_id: 'betty-geo-test-1', skill_name: 'Analyzing Landform Development', score: 92, points_earned: 22, points_possible: 24, created_at: '2024-02-10' },
+  { id: 'betty-geo-3', test_result_id: 'betty-geo-test-1', skill_name: 'Water Cycle and Hydrosphere', score: 87, points_earned: 17, points_possible: 20, created_at: '2024-02-10' },
+  
+  // HUMAN GEOGRAPHY
+  { id: 'betty-geo-4', test_result_id: 'betty-geo-test-2', skill_name: 'Urban Planning and Development', score: 91, points_earned: 22, points_possible: 24, created_at: '2024-03-10' },
+  { id: 'betty-geo-5', test_result_id: 'betty-geo-test-2', skill_name: 'Cultural Geography Analysis', score: 88, points_earned: 21, points_possible: 24, created_at: '2024-03-10' },
+  { id: 'betty-geo-6', test_result_id: 'betty-geo-test-2', skill_name: 'Migration and Demographics', score: 85, points_earned: 17, points_possible: 20, created_at: '2024-03-10' },
+];
+
+export const mockBettyGeographySubjectSkillScores: SkillScore[] = [
+  // GEOGRAPHIC INQUIRY
+  { id: 'betty-geo-subj-1', test_result_id: 'betty-geo-test-1', skill_name: 'Formulating geographic questions', score: 88, points_earned: 21, points_possible: 24, created_at: '2024-02-10' },
+  { id: 'betty-geo-subj-2', test_result_id: 'betty-geo-test-2', skill_name: 'Analyzing geographic data', score: 92, points_earned: 18, points_possible: 20, created_at: '2024-03-10' },
+  { id: 'betty-geo-subj-3', test_result_id: 'betty-geo-test-2', skill_name: 'Drawing geographic conclusions', score: 90, points_earned: 22, points_possible: 25, created_at: '2024-03-10' },
+  
+  // SPATIAL ANALYSIS
+  { id: 'betty-geo-subj-4', test_result_id: 'betty-geo-test-1', skill_name: 'Reading maps and graphs', score: 94, points_earned: 23, points_possible: 25, created_at: '2024-02-10' },
+  { id: 'betty-geo-subj-5', test_result_id: 'betty-geo-test-2', skill_name: 'Understanding scale and distance', score: 87, points_earned: 17, points_possible: 20, created_at: '2024-03-10' },
+  { id: 'betty-geo-subj-6', test_result_id: 'betty-geo-test-2', skill_name: 'Spatial pattern recognition', score: 91, points_earned: 22, points_possible: 24, created_at: '2024-03-10' },
 ];
