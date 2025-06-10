@@ -41,6 +41,16 @@ interface ValidatedQuestion {
   keywords?: string[];
   points: number;
   targetSkill: string;
+  contentSkillId?: string;
+}
+
+interface ContentSkill {
+  id: string;
+  skill_name: string;
+  skill_description: string;
+  subject: string;
+  grade: string;
+  topic: string;
 }
 
 // Enhanced skill type detection based on skill name patterns
@@ -124,35 +134,86 @@ function generateSkillMetadata(skillName: string, skillType: 'content' | 'subjec
   };
 }
 
-// Enhanced skill distribution validator
-function validateAndFixSkillDistribution(
+// NEW: Fetch Content Skills for the class
+async function getClassContentSkills(supabase: any, classId: string): Promise<ContentSkill[]> {
+  console.log('🔍 Fetching Content Skills for class:', classId);
+  
+  try {
+    const { data: classContentSkills, error } = await supabase
+      .from('class_content_skills')
+      .select(`
+        content_skill_id,
+        content_skills (
+          id,
+          skill_name,
+          skill_description,
+          subject,
+          grade,
+          topic
+        )
+      `)
+      .eq('class_id', classId);
+
+    if (error) {
+      console.error('❌ Error fetching class content skills:', error);
+      return [];
+    }
+
+    if (!classContentSkills || classContentSkills.length === 0) {
+      console.log('⚠️ No Content Skills found for class:', classId);
+      return [];
+    }
+
+    const contentSkills = classContentSkills
+      .map(item => item.content_skills)
+      .filter(skill => skill !== null) as ContentSkill[];
+
+    console.log(`✅ Found ${contentSkills.length} Content Skills for class:`, 
+      contentSkills.map(s => s.skill_name));
+    
+    return contentSkills;
+
+  } catch (error) {
+    console.error('💥 Unexpected error fetching Content Skills:', error);
+    return [];
+  }
+}
+
+// NEW: Validate and map skill distribution against actual Content Skills
+function validateSkillDistributionAgainstContentSkills(
   skillDistribution: Array<{ skill_name: string; score: number; questions: number }>,
+  contentSkills: ContentSkill[],
   totalQuestions: number
-): Array<{ skill_name: string; score: number; questions: number }> {
-  console.log('🔧 Validating skill distribution:', skillDistribution, 'total:', totalQuestions);
+): Array<{ skill_name: string; score: number; questions: number; contentSkillId?: string; isValidContentSkill: boolean }> {
+  console.log('🔧 Validating skill distribution against Content Skills');
+  
+  const validatedDistribution = skillDistribution.map(skill => {
+    // Find matching Content Skill (case-insensitive)
+    const matchingContentSkill = contentSkills.find(cs => 
+      cs.skill_name.toLowerCase().trim() === skill.skill_name.toLowerCase().trim()
+    );
 
-  // Edge case: No skills provided
-  if (!skillDistribution || skillDistribution.length === 0) {
-    throw new Error('No skills provided for multi-skill test generation');
-  }
-
-  // Edge case: More skills than questions
-  if (skillDistribution.length > totalQuestions && totalQuestions > 0) {
-    console.log('⚠️ More skills than questions, selecting top skills by lowest score');
-    const sortedSkills = skillDistribution
-      .sort((a, b) => a.score - b.score) // Prioritize lower scores (need more practice)
-      .slice(0, totalQuestions)
-      .map((skill, index) => ({
+    if (matchingContentSkill) {
+      console.log(`✅ Skill "${skill.skill_name}" matches Content Skill: ${matchingContentSkill.skill_name}`);
+      return {
         ...skill,
-        questions: 1 // Assign 1 question per skill
-      }));
-    return sortedSkills;
-  }
+        skill_name: matchingContentSkill.skill_name, // Use exact Content Skill name
+        contentSkillId: matchingContentSkill.id,
+        isValidContentSkill: true
+      };
+    } else {
+      console.log(`⚠️ Skill "${skill.skill_name}" does NOT match any Content Skills`);
+      return {
+        ...skill,
+        isValidContentSkill: false
+      };
+    }
+  });
 
   // Calculate actual total from distribution
-  const distributionTotal = skillDistribution.reduce((sum, skill) => sum + skill.questions, 0);
+  const distributionTotal = validatedDistribution.reduce((sum, skill) => sum + skill.questions, 0);
   
-  // Edge case: Distribution doesn't match total questions
+  // Adjust distribution if needed (same logic as before)
   if (distributionTotal !== totalQuestions) {
     console.log(`⚠️ Distribution mismatch: ${distributionTotal} vs ${totalQuestions}, adjusting...`);
     
@@ -160,14 +221,14 @@ function validateAndFixSkillDistribution(
     
     if (difference > 0) {
       // Add extra questions to skill with lowest score (needs most practice)
-      const lowestScoreSkill = skillDistribution.reduce((min, skill) => 
+      const lowestScoreSkill = validatedDistribution.reduce((min, skill) => 
         skill.score < min.score ? skill : min
       );
       lowestScoreSkill.questions += difference;
     } else {
       // Remove questions from skill with highest score (needs least practice)
       let remaining = Math.abs(difference);
-      const sortedByScore = [...skillDistribution].sort((a, b) => b.score - a.score);
+      const sortedByScore = [...validatedDistribution].sort((a, b) => b.score - a.score);
       
       for (const skill of sortedByScore) {
         if (remaining <= 0) break;
@@ -178,18 +239,12 @@ function validateAndFixSkillDistribution(
     }
   }
 
-  // Ensure minimum 1 question per skill (if possible)
-  const finalDistribution = skillDistribution.map(skill => ({
-    ...skill,
-    questions: Math.max(1, skill.questions)
-  }));
-
-  console.log('✅ Fixed skill distribution:', finalDistribution);
-  return finalDistribution;
+  console.log('✅ Validated skill distribution:', validatedDistribution);
+  return validatedDistribution;
 }
 
-// Enhanced question validator and repairer
-function validateAndRepairQuestion(question: any, index: number, targetSkill: string): ValidatedQuestion {
+// Enhanced question validator and repairer with Content Skills integration
+function validateAndRepairQuestion(question: any, index: number, targetSkill: string, contentSkillId?: string): ValidatedQuestion {
   console.log(`🔧 Validating question ${index + 1}:`, question);
 
   const repairs = [];
@@ -246,6 +301,11 @@ function validateAndRepairQuestion(question: any, index: number, targetSkill: st
   if (!question.targetSkill) {
     question.targetSkill = targetSkill;
     repairs.push('targetSkill');
+  }
+
+  // Add Content Skill ID if available
+  if (contentSkillId) {
+    question.contentSkillId = contentSkillId;
   }
 
   // Set default acceptable answers and keywords for short-answer questions
@@ -325,9 +385,9 @@ function processOpenAIResponse(content: string): any {
   throw new Error('All JSON extraction strategies failed');
 }
 
-// Fallback question generator for critical failures
+// Fallback question generator for critical failures with Content Skills support
 function generateFallbackQuestions(
-  skillDistribution: Array<{ skill_name: string; score: number; questions: number }>,
+  skillDistribution: Array<{ skill_name: string; score: number; questions: number; contentSkillId?: string; isValidContentSkill?: boolean }>,
   subject: string,
   grade: string
 ): ValidatedQuestion[] {
@@ -346,7 +406,8 @@ function generateFallbackQuestions(
         acceptableAnswers: ['Please review with instructor'],
         keywords: ['practice', 'review', 'concept'],
         points: 1,
-        targetSkill: skill.skill_name
+        targetSkill: skill.skill_name,
+        contentSkillId: skill.contentSkillId
       });
     }
   }
@@ -468,7 +529,7 @@ async function callOpenAIWithRetry(prompt: string, model: string = 'gpt-4o-mini'
   }
 
   return withRetry(async () => {
-    console.log(`Sending request to OpenAI ${model} with enhanced prompt including skill metadata`);
+    console.log(`Sending request to OpenAI ${model} with Content Skills integration`);
     
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
@@ -481,7 +542,7 @@ async function callOpenAIWithRetry(prompt: string, model: string = 'gpt-4o-mini'
         messages: [
           {
             role: 'system',
-            content: 'You are an expert educational content creator. Generate high-quality practice tests that are engaging, educational, and appropriately challenging for the student\'s level. ALWAYS return valid JSON with complete question objects including all required fields: id, type, question, correctAnswer, points, and targetSkill.'
+            content: 'You are an expert educational content creator. Generate high-quality practice tests that are engaging, educational, and appropriately challenging for the student\'s level. ALWAYS return valid JSON with complete question objects including all required fields: id, type, question, correctAnswer, points, and targetSkill. Ensure questions align with the specified Content Skills.'
           },
           {
             role: 'user',
@@ -515,7 +576,7 @@ serve(async (req) => {
   }
 
   try {
-    console.log('🚀 Generate-practice-test function called with enhanced edge case handling');
+    console.log('🚀 Generate-practice-test function called with Content Skills integration');
     
     const {
       studentName,
@@ -532,13 +593,66 @@ serve(async (req) => {
 
     console.log(`🎯 Generating practice test for: ${studentName} in class: ${className} skill(s): ${skillName} grade: ${grade} subject: ${subject} questionCount: ${questionCount} classId: ${classId} multiSkill: ${multiSkillSupport}`);
 
-    // Enhanced skill distribution validation
+    // Initialize Supabase client
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const supabase = createClient(supabaseUrl, supabaseKey);
+
+    // NEW: Fetch Content Skills for the class if classId is provided
+    let classContentSkills: ContentSkill[] = [];
+    if (classId) {
+      classContentSkills = await getClassContentSkills(supabase, classId);
+    }
+
+    // Enhanced skill distribution validation with Content Skills integration
     const isMultiSkill = multiSkillSupport && skillDistribution && skillDistribution.length > 1;
     let validatedSkillDistribution = skillDistribution;
     
-    if (isMultiSkill) {
+    if (isMultiSkill && classContentSkills.length > 0) {
       try {
-        validatedSkillDistribution = validateAndFixSkillDistribution(skillDistribution, questionCount);
+        // NEW: Validate skills against actual Content Skills
+        validatedSkillDistribution = validateSkillDistributionAgainstContentSkills(
+          skillDistribution, 
+          classContentSkills, 
+          questionCount
+        );
+        
+        // Check if any skills are invalid Content Skills
+        const invalidSkills = validatedSkillDistribution.filter(s => !s.isValidContentSkill);
+        if (invalidSkills.length > 0) {
+          console.log(`⚠️ Warning: ${invalidSkills.length} skills do not match class Content Skills:`, 
+            invalidSkills.map(s => s.skill_name));
+        }
+        
+        // Filter to only valid Content Skills for enhanced accuracy
+        const validContentSkills = validatedSkillDistribution.filter(s => s.isValidContentSkill);
+        if (validContentSkills.length === 0) {
+          throw new Error('No provided skills match the class Content Skills. Please select skills from the class curriculum.');
+        }
+        
+        validatedSkillDistribution = validContentSkills;
+        
+      } catch (error) {
+        console.error('❌ Content Skills validation failed:', error);
+        return new Response(
+          JSON.stringify({ 
+            error: `Content Skills validation failed: ${error.message}`,
+            retryable: false
+          }),
+          {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            status: 400,
+          }
+        );
+      }
+    } else if (isMultiSkill) {
+      // Fallback to original validation if no Content Skills available
+      try {
+        validatedSkillDistribution = validateSkillDistributionAgainstContentSkills(
+          skillDistribution, 
+          [], 
+          questionCount
+        );
       } catch (error) {
         console.error('❌ Skill distribution validation failed:', error);
         return new Response(
@@ -562,17 +676,15 @@ serve(async (req) => {
       skillMetadata = generateSkillMetadata(`Multi-skill: ${validatedSkillDistribution.map(s => s.skill_name).join(', ')}`, skillType, subject, grade);
       skillMetadata.isMultiSkill = true;
       skillMetadata.skillDistribution = validatedSkillDistribution;
+      skillMetadata.contentSkillsCount = classContentSkills.length;
     } else {
       skillType = detectSkillType(skillName, subject);
       skillMetadata = generateSkillMetadata(skillName, skillType, subject, grade);
+      skillMetadata.contentSkillsCount = classContentSkills.length;
     }
     
     console.log(`✅ Detected skill type: ${skillType} for skill(s): ${isMultiSkill ? 'multi-skill' : skillName}`);
     console.log('📊 Skill metadata:', skillMetadata);
-
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const supabase = createClient(supabaseUrl, supabaseKey);
 
     let historicalQuestions: HistoricalQuestion[] = [];
     if (classId) {
@@ -588,29 +700,41 @@ serve(async (req) => {
       }\n\nUse these examples to understand the style and difficulty level expected, but create completely new questions.`;
     }
 
-    // Build the enhanced prompt
+    // NEW: Build Content Skills context for OpenAI prompt
+    let contentSkillsContext = '';
+    if (classContentSkills.length > 0) {
+      contentSkillsContext = `\n\nCLASS CONTENT SKILLS CONTEXT:
+This class has ${classContentSkills.length} defined Content Skills in the curriculum. When generating questions, ensure they align with these specific skills:
+${classContentSkills.map(skill => `- ${skill.skill_name}: ${skill.skill_description} (${skill.topic})`).join('\n')}
+
+IMPORTANT: Generate questions that directly test these Content Skills to enable proper progress tracking.`;
+    }
+
+    // Build the enhanced prompt with Content Skills integration
     let skillFocusSection: string;
     let skillInstructions: string;
     
     if (isMultiSkill && validatedSkillDistribution) {
-      skillFocusSection = `MULTI-SKILL FOCUS: Generate questions distributed across these skills:
-${validatedSkillDistribution.map(s => `- ${s.skill_name}: ${s.questions} questions (current score: ${s.score}%)`).join('\n')}`;
+      skillFocusSection = `MULTI-SKILL FOCUS: Generate questions distributed across these Content Skills:
+${validatedSkillDistribution.map(s => `- ${s.skill_name}: ${s.questions} questions (current score: ${s.score}%)${s.contentSkillId ? ` [Content Skill ID: ${s.contentSkillId}]` : ''}`).join('\n')}`;
       
       skillInstructions = `
 MULTI-SKILL REQUIREMENTS:
 1. Generate exactly ${questionCount} questions total, distributed as specified above
-2. Each question should clearly target one of the specified skills
-3. Ensure balanced difficulty across all skills
-4. Tag each question with its target skill in the response
-5. Maintain coherent flow between different skill areas
-6. ENSURE ALL QUESTIONS HAVE COMPLETE REQUIRED FIELDS: id, type, question, correctAnswer, points, targetSkill`;
+2. Each question should clearly target one of the specified Content Skills
+3. Use the EXACT skill names provided to ensure proper progress tracking
+4. Ensure balanced difficulty across all skills
+5. Tag each question with its target skill in the response
+6. Maintain coherent flow between different skill areas
+7. ENSURE ALL QUESTIONS HAVE COMPLETE REQUIRED FIELDS: id, type, question, correctAnswer, points, targetSkill`;
     } else {
       skillFocusSection = `SKILL FOCUS: ${skillName}`;
       skillInstructions = `
 SINGLE-SKILL REQUIREMENTS:
 1. All questions must directly test the skill: "${skillName}"
-2. Questions should build upon each other logically
-3. ENSURE ALL QUESTIONS HAVE COMPLETE REQUIRED FIELDS: id, type, question, correctAnswer, points, targetSkill`;
+2. Use the EXACT skill name "${skillName}" for proper progress tracking
+3. Questions should build upon each other logically
+4. ENSURE ALL QUESTIONS HAVE COMPLETE REQUIRED FIELDS: id, type, question, correctAnswer, points, targetSkill`;
     }
 
     const answerPatternInstructions = enhancedAnswerPatterns ? `
@@ -624,7 +748,7 @@ ENHANCED SHORT ANSWER REQUIREMENTS:
 CRITICAL: Return ONLY valid JSON with this exact structure:
 {
   "title": "Practice Test Title",
-  "description": "Brief description focusing on ${isMultiSkill ? 'multiple skills' : skillName}",
+  "description": "Brief description focusing on ${isMultiSkill ? 'multiple Content Skills' : skillName}",
   "skillType": "${skillType}",
   "skillMetadata": ${JSON.stringify(skillMetadata)},
   "questions": [
@@ -632,7 +756,7 @@ CRITICAL: Return ONLY valid JSON with this exact structure:
       "id": "Q1",
       "type": "multiple-choice" | "short-answer" | "true-false",
       "question": "Question text here",
-      "targetSkill": "${isMultiSkill ? 'skill name from distribution' : skillName}",
+      "targetSkill": "${isMultiSkill ? 'EXACT skill name from distribution' : skillName}",
       "options": ["A", "B", "C", "D"] (only for multiple-choice),
       "correctAnswer": "Primary correct answer",
       "acceptableAnswers": ["Alternative answer 1", "Alternative answer 2"] (for short-answer),
@@ -647,7 +771,7 @@ CRITICAL: Return ONLY valid JSON with this exact structure:
 CRITICAL: Return ONLY valid JSON with this exact structure:
 {
   "title": "Practice Test Title",
-  "description": "Brief description focusing on ${isMultiSkill ? 'multiple skills' : skillName}",
+  "description": "Brief description focusing on ${isMultiSkill ? 'multiple Content Skills' : skillName}",
   "skillType": "${skillType}",
   "skillMetadata": ${JSON.stringify(skillMetadata)},
   "questions": [
@@ -655,7 +779,7 @@ CRITICAL: Return ONLY valid JSON with this exact structure:
       "id": "Q1",
       "type": "multiple-choice" | "short-answer" | "true-false",
       "question": "Question text here",
-      "targetSkill": "${isMultiSkill ? 'skill name from distribution' : skillName}",
+      "targetSkill": "${isMultiSkill ? 'EXACT skill name from distribution' : skillName}",
       "options": ["A", "B", "C", "D"] (only for multiple-choice),
       "correctAnswer": "Correct answer",
       "points": 1-3
@@ -671,6 +795,7 @@ ${skillFocusSection}
 SKILL TYPE: ${skillType} (${skillType === 'content' ? 'subject-specific content knowledge' : 'cross-curricular cognitive skill'})
 CLASS: ${className}
 NUMBER OF QUESTIONS: ${questionCount}
+${contentSkillsContext}
 ${historicalContext}
 
 REQUIREMENTS:
@@ -683,7 +808,7 @@ ${skillInstructions}
 8. Include the skill type (${skillType}) and metadata in the response
 ${answerPatternInstructions}
 
-Generate exactly ${questionCount} questions${isMultiSkill ? ' distributed across the specified skills' : ` focused on "${skillName}"`}.`;
+Generate exactly ${questionCount} questions${isMultiSkill ? ' distributed across the specified Content Skills' : ` focused on "${skillName}"`}.`;
 
     try {
       // Main generation attempt with enhanced error handling
@@ -700,7 +825,7 @@ Generate exactly ${questionCount} questions${isMultiSkill ? ' distributed across
         throw new Error('Could not extract valid JSON from OpenAI response');
       }
 
-      // Enhanced question validation and repair
+      // Enhanced question validation and repair with Content Skills
       if (!practiceTest.questions || !Array.isArray(practiceTest.questions)) {
         console.error('❌ Invalid practice test format: missing questions array');
         
@@ -742,30 +867,36 @@ Generate exactly ${questionCount} questions${isMultiSkill ? ' distributed across
         practiceTest.skillMetadata = skillMetadata;
       }
 
-      // Enhanced question validation and repair
+      // Enhanced question validation and repair with Content Skills integration
       const validatedQuestions: ValidatedQuestion[] = [];
       
       if (isMultiSkill && validatedSkillDistribution) {
-        // For multi-skill, ensure questions are distributed correctly
+        // For multi-skill, ensure questions are distributed correctly with Content Skills
         let questionIndex = 0;
         for (const skill of validatedSkillDistribution) {
           for (let i = 0; i < skill.questions; i++) {
             const originalQuestion = practiceTest.questions[questionIndex];
             if (originalQuestion) {
-              const validatedQuestion = validateAndRepairQuestion(originalQuestion, questionIndex, skill.skill_name);
+              const validatedQuestion = validateAndRepairQuestion(
+                originalQuestion, 
+                questionIndex, 
+                skill.skill_name,
+                skill.contentSkillId
+              );
               validatedQuestions.push(validatedQuestion);
             } else {
-              // Generate fallback question for missing question
-              console.log(`🆘 Generating fallback question ${questionIndex + 1} for skill: ${skill.skill_name}`);
+              // Generate fallback question for missing question with Content Skills support
+              console.log(`🆘 Generating fallback question ${questionIndex + 1} for Content Skill: ${skill.skill_name}`);
               validatedQuestions.push({
                 id: `Q${questionIndex + 1}`,
                 type: 'short-answer',
-                question: `Practice question for ${skill.skill_name}. Describe a key concept related to this skill.`,
+                question: `Practice question for ${skill.skill_name}. Describe a key concept related to this Content Skill.`,
                 correctAnswer: 'Please review with instructor',
                 acceptableAnswers: ['Please review with instructor'],
                 keywords: ['practice', 'review'],
                 points: 1,
-                targetSkill: skill.skill_name
+                targetSkill: skill.skill_name,
+                contentSkillId: skill.contentSkillId
               });
             }
             questionIndex++;
@@ -791,6 +922,7 @@ Generate exactly ${questionCount} questions${isMultiSkill ? ' distributed across
       }
 
       console.log(`✅ Successfully generated and validated practice test with ${practiceTest.questions.length} questions`);
+      console.log(`📊 Content Skills integration: ${classContentSkills.length} Content Skills available, ${practiceTest.questions.filter(q => q.contentSkillId).length} questions linked to Content Skills`);
       console.log(`📊 Skill metadata: type=${practiceTest.skillType}, category=${practiceTest.skillMetadata?.skillCategory}, isMultiSkill=${practiceTest.skillMetadata?.isMultiSkill}`);
 
       return new Response(JSON.stringify(practiceTest), {
@@ -801,7 +933,7 @@ Generate exactly ${questionCount} questions${isMultiSkill ? ' distributed across
     } catch (error) {
       console.error('❌ Main generation failed, attempting graceful degradation:', error);
       
-      // Graceful degradation: Generate emergency fallback
+      // Graceful degradation: Generate emergency fallback with Content Skills support
       try {
         let emergencyQuestions: ValidatedQuestion[];
         
@@ -830,7 +962,7 @@ Generate exactly ${questionCount} questions${isMultiSkill ? ' distributed across
           estimatedTime: Math.max(10, emergencyQuestions.length * 3)
         };
 
-        console.log('🆘 Emergency practice test generated successfully');
+        console.log('🆘 Emergency practice test generated successfully with Content Skills support');
 
         return new Response(JSON.stringify(emergencyTest), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -854,6 +986,8 @@ Generate exactly ${questionCount} questions${isMultiSkill ? ' distributed across
       userFriendlyMessage = 'Generated content format error. Please try again.';
     } else if (error.message.includes('API key')) {
       userFriendlyMessage = 'API configuration error. Please contact support.';
+    } else if (error.message.includes('Content Skills')) {
+      userFriendlyMessage = error.message;
     } else if (error.message.includes('Invalid skill distribution')) {
       userFriendlyMessage = error.message;
     }
@@ -863,13 +997,14 @@ Generate exactly ${questionCount} questions${isMultiSkill ? ' distributed across
         error: userFriendlyMessage,
         details: error.message,
         retryable: !error.message.includes('Invalid skill distribution') && 
+                  !error.message.includes('Content Skills') &&
                   (error.message.includes('server had an error') || 
                    error.message.includes('temporarily unavailable') ||
                    error.message.includes('rate limit'))
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: error.message.includes('Invalid skill distribution') ? 400 : 500,
+        status: error.message.includes('Invalid skill distribution') || error.message.includes('Content Skills') ? 400 : 500,
       }
     );
   }
