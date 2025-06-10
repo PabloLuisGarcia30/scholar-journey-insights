@@ -1,10 +1,16 @@
+
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { LearningStyleProgressBar } from "@/components/LearningStyleProgressBar";
 import { LearningStyleBySubject } from "@/components/LearningStyleBySubject";
+import { StudentTestResults } from "@/components/StudentTestResults";
+import { StudentContentSkills } from "@/components/StudentContentSkills";
+import { StudentSubjectSkills } from "@/components/StudentSubjectSkills";
+import { StudentProgressChart } from "@/components/StudentProgressChart";
 import { useStudentProfileData } from "@/hooks/useStudentProfileData";
 
 interface LearnerProfileDisplayProps {
@@ -39,7 +45,18 @@ const getLearningStyles = (studentName: string) => {
 };
 
 export function LearnerProfileDisplay({ studentId, onBack }: LearnerProfileDisplayProps) {
-  const { student, studentLoading, enrolledClasses } = useStudentProfileData({ studentId });
+  const {
+    student,
+    studentLoading,
+    testResults,
+    testResultsLoading,
+    contentSkillScores,
+    contentSkillsLoading,
+    subjectSkillScores,
+    subjectSkillsLoading,
+    enrolledClasses,
+    isClassView
+  } = useStudentProfileData({ studentId });
 
   if (studentLoading) {
     return (
@@ -61,6 +78,12 @@ export function LearnerProfileDisplay({ studentId, onBack }: LearnerProfileDispl
   const dominantStyle = learningStyles.reduce((prev, current) => 
     (prev.strength > current.strength) ? prev : current
   );
+
+  // Placeholder function for practice test generation
+  const handleGeneratePracticeTest = (skillName?: string) => {
+    console.log('Generate practice test for:', skillName);
+    // TODO: Implement practice test generation
+  };
 
   return (
     <div className="min-h-screen bg-background p-6">
@@ -105,54 +128,101 @@ export function LearnerProfileDisplay({ studentId, onBack }: LearnerProfileDispl
           </Card>
         </div>
 
-        {/* Dominant Learning Style */}
-        <Card className="mb-8">
-          <CardHeader>
-            <CardTitle>Dominant Learning Style</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center gap-4 p-4 bg-secondary rounded-lg">
-              <div 
-                className="w-12 h-12 rounded-full flex items-center justify-center text-white font-bold text-lg"
-                style={{ backgroundColor: dominantStyle.color }}
-              >
-                {dominantStyle.strength}%
-              </div>
-              <div>
-                <h3 className="text-lg font-semibold">{dominantStyle.type}</h3>
-                <p className="text-muted-foreground">Primary learning preference</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        {/* Tabbed Content */}
+        <Tabs defaultValue="learning-style" className="w-full">
+          <TabsList className="grid w-full grid-cols-5">
+            <TabsTrigger value="learning-style">Learning Style</TabsTrigger>
+            <TabsTrigger value="test-results">Test Results</TabsTrigger>
+            <TabsTrigger value="content-skills">Content Skills</TabsTrigger>
+            <TabsTrigger value="subject-skills">Subject Skills</TabsTrigger>
+            <TabsTrigger value="progress">Progress</TabsTrigger>
+          </TabsList>
 
-        {/* Overall Learning Styles - NOW SCROLLABLE SINGLE COLUMN */}
-        <Card className="mb-8">
-          <CardHeader>
-            <CardTitle>Overall Learning Style Profile</CardTitle>
-            <p className="text-muted-foreground">General learning preferences across all subjects</p>
-          </CardHeader>
-          <CardContent>
-            <ScrollArea className="h-96 w-full">
-              <div className="space-y-4 pr-4">
-                {learningStyles.map((style, index) => (
-                  <LearningStyleProgressBar
-                    key={index}
-                    type={style.type}
-                    strength={style.strength}
-                    color={style.color}
-                  />
-                ))}
-              </div>
-            </ScrollArea>
-          </CardContent>
-        </Card>
+          <TabsContent value="learning-style" className="space-y-8">
+            {/* Dominant Learning Style */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Dominant Learning Style</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-center gap-4 p-4 bg-secondary rounded-lg">
+                  <div 
+                    className="w-12 h-12 rounded-full flex items-center justify-center text-white font-bold text-lg"
+                    style={{ backgroundColor: dominantStyle.color }}
+                  >
+                    {dominantStyle.strength}%
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold">{dominantStyle.type}</h3>
+                    <p className="text-muted-foreground">Primary learning preference</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
 
-        {/* Learning Style Profile per Subject - STILL USES CIRCLES */}
-        <LearningStyleBySubject 
-          studentName={student.name}
-          enrolledClasses={enrolledClasses}
-        />
+            {/* Overall Learning Styles */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Overall Learning Style Profile</CardTitle>
+                <p className="text-muted-foreground">General learning preferences across all subjects</p>
+              </CardHeader>
+              <CardContent>
+                <ScrollArea className="h-96 w-full">
+                  <div className="space-y-4 pr-4">
+                    {learningStyles.map((style, index) => (
+                      <LearningStyleProgressBar
+                        key={index}
+                        type={style.type}
+                        strength={style.strength}
+                        color={style.color}
+                      />
+                    ))}
+                  </div>
+                </ScrollArea>
+              </CardContent>
+            </Card>
+
+            {/* Learning Style Profile per Subject */}
+            <LearningStyleBySubject 
+              studentName={student.name}
+              enrolledClasses={enrolledClasses}
+            />
+          </TabsContent>
+
+          <TabsContent value="test-results">
+            <StudentTestResults 
+              testResults={testResults}
+              testResultsLoading={testResultsLoading}
+            />
+          </TabsContent>
+
+          <TabsContent value="content-skills">
+            <StudentContentSkills
+              contentSkillScores={contentSkillScores}
+              contentSkillsLoading={contentSkillsLoading}
+              onGeneratePracticeTest={handleGeneratePracticeTest}
+            />
+          </TabsContent>
+
+          <TabsContent value="subject-skills">
+            <StudentSubjectSkills
+              comprehensiveSubjectSkillData={subjectSkillScores}
+              subjectSkillsLoading={subjectSkillsLoading}
+              classSubjectSkillsLoading={false}
+              isClassView={isClassView}
+              classSubjectSkills={[]}
+              onGeneratePracticeTest={handleGeneratePracticeTest}
+            />
+          </TabsContent>
+
+          <TabsContent value="progress">
+            <StudentProgressChart
+              testResults={testResults}
+              isClassView={isClassView}
+              student={student}
+            />
+          </TabsContent>
+        </Tabs>
       </div>
     </div>
   );
