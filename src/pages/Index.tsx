@@ -6,13 +6,13 @@ import { LearnerProfileDisplay } from "@/components/LearnerProfileDisplay";
 import { ClassView } from "@/components/ClassView";
 import { StudentPortals } from "@/components/StudentPortals";
 import { DashboardSidebar } from "@/components/DashboardSidebar";
+import { DashboardHeader } from "@/components/DashboardHeader";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { useDevRole } from "@/contexts/DevRoleContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { DEV_CONFIG } from "@/config/devConfig";
 import { Navigate } from "react-router-dom";
-import StudentDashboardPage from "./StudentDashboard";
 
 const Index = () => {
   const [selectedStudent, setSelectedStudent] = useState<string | null>(null);
@@ -67,19 +67,54 @@ const Index = () => {
 
     switch (activeView) {
       case 'search':
-        return <StudentSearch onSelectStudent={handleSelectStudent} />;
+        return (
+          <div className="p-6">
+            <DashboardHeader title="Student Search" subtitle="Find and view student profiles" />
+            <StudentSearch onSelectStudent={handleSelectStudent} />
+          </div>
+        );
       case 'classes':
-        return <ClassView onSelectStudent={handleSelectStudent} />;
+        return (
+          <div className="p-6">
+            <DashboardHeader title="Class Management" subtitle="Manage your classes and students" />
+            <ClassView onSelectStudent={handleSelectStudent} />
+          </div>
+        );
       case 'analytics':
-        return <div className="p-6"><h2 className="text-2xl font-bold">Analytics Dashboard</h2><p className="text-gray-600 mt-2">Coming soon...</p></div>;
+        return (
+          <div className="p-6">
+            <DashboardHeader title="Analytics Dashboard" subtitle="View performance insights and trends" />
+            <p className="text-gray-600 mt-2">Coming soon...</p>
+          </div>
+        );
       case 'portals':
-        return <div className="p-6"><StudentPortals /></div>;
+        return (
+          <div className="p-6">
+            <DashboardHeader title="Student Portals" subtitle="Manage student access and assignments" />
+            <StudentPortals />
+          </div>
+        );
       case 'student-lesson-tracker':
-        return <div className="p-6"><h2 className="text-2xl font-bold">Student Lesson Tracker</h2><p className="text-gray-600 mt-2">Coming soon...</p></div>;
+        return (
+          <div className="p-6">
+            <DashboardHeader title="Student Lesson Tracker" subtitle="Track lesson progress and completion" />
+            <p className="text-gray-600 mt-2">Coming soon...</p>
+          </div>
+        );
       case 'learner-profiles':
-        return <div className="p-6"><h2 className="text-2xl font-bold">Learner Profiles</h2><p className="text-gray-600 mt-2">Coming soon...</p></div>;
+        return (
+          <div className="p-6">
+            <DashboardHeader title="Learner Profiles" subtitle="Detailed student learning analytics" />
+            <p className="text-gray-600 mt-2">Coming soon...</p>
+          </div>
+        );
       default:
-        return <StudentDashboard onSelectStudent={handleSelectStudent} />;
+        return (
+          <div className="p-6">
+            <DashboardHeader title="Teacher Dashboard" subtitle="Overview of student performance and class management" />
+            <StudentDashboard onSelectStudent={handleSelectStudent} />
+          </div>
+        );
     }
   };
 
