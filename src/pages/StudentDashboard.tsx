@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -13,51 +14,12 @@ import { toast } from "sonner";
 
 export default function StudentDashboard() {
   const { profile, signOut } = useAuth();
+  
+  // ALL HOOKS MUST BE CALLED BEFORE ANY CONDITIONAL LOGIC OR EARLY RETURNS
   const [classes, setClasses] = useState<ActiveClass[]>([]);
   const [selectedClass, setSelectedClass] = useState<string | null>(null);
   const [loadingClasses, setLoadingClasses] = useState(true);
   
-  // Get current role (dev or actual)
-  let currentRole: 'teacher' | 'student' = 'student';
-  try {
-    const { currentRole: devRole, isDevMode } = useDevRole();
-    if (isDevMode) {
-      currentRole = devRole;
-    } else if (profile?.role) {
-      currentRole = profile.role;
-    }
-  } catch {
-    currentRole = profile?.role || 'student';
-  }
-
-  // If in teacher view, redirect to main dashboard
-  if (currentRole === 'teacher') {
-    return <Navigate to="/" replace />;
-  }
-
-  useEffect(() => {
-    loadClasses();
-  }, []);
-
-  const loadClasses = async () => {
-    try {
-      setLoadingClasses(true);
-      const classesData = await getAllActiveClasses();
-      
-      // Filter classes that include this student (Pablo's ID)
-      const studentClasses = classesData.filter(cls => 
-        cls.students.includes(profile?.id || '')
-      );
-      
-      setClasses(studentClasses);
-    } catch (error) {
-      console.error('Error loading classes:', error);
-      toast.error('Failed to load classes');
-    } finally {
-      setLoadingClasses(false);
-    }
-  };
-
   const [notifications] = useState([
     {
       id: 1,
@@ -95,6 +57,48 @@ export default function StudentDashboard() {
       status: "pending"
     }
   ]);
+
+  // Get current role (dev or actual)
+  let currentRole: 'teacher' | 'student' = 'student';
+  try {
+    const { currentRole: devRole, isDevMode } = useDevRole();
+    if (isDevMode) {
+      currentRole = devRole;
+    } else if (profile?.role) {
+      currentRole = profile.role;
+    }
+  } catch {
+    currentRole = profile?.role || 'student';
+  }
+
+  useEffect(() => {
+    loadClasses();
+  }, []);
+
+  const loadClasses = async () => {
+    try {
+      setLoadingClasses(true);
+      const classesData = await getAllActiveClasses();
+      
+      // Filter classes that include this student (Pablo's ID)
+      const studentClasses = classesData.filter(cls => 
+        cls.students.includes(profile?.id || '')
+      );
+      
+      setClasses(studentClasses);
+    } catch (error) {
+      console.error('Error loading classes:', error);
+      toast.error('Failed to load classes');
+    } finally {
+      setLoadingClasses(false);
+    }
+  };
+
+  // CONDITIONAL LOGIC AND EARLY RETURNS MUST COME AFTER ALL HOOKS
+  // If in teacher view, redirect to main dashboard
+  if (currentRole === 'teacher') {
+    return <Navigate to="/" replace />;
+  }
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('en-US', {
