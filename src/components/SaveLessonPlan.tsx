@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Save, Loader2, Calendar, Clock } from "lucide-react";
 import { toast } from "sonner";
 import { saveLessonPlan } from "@/services/lessonPlanService";
-import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 import { getNextClassDate } from "@/utils/nextClassCalculator";
 import type { ActiveClassWithDuration } from "@/services/examService";
 
@@ -30,6 +30,7 @@ export function SaveLessonPlan({ classId, className, classData, students, onLess
   const [open, setOpen] = useState(false);
   const [lessonTitle, setLessonTitle] = useState(`${className} - ${new Date().toLocaleDateString()}`);
   const [loading, setLoading] = useState(false);
+  const { profile } = useAuth();
 
   // Calculate next class date automatically
   const nextClassInfo = getNextClassDate(classData);
@@ -57,21 +58,13 @@ export function SaveLessonPlan({ classId, className, classData, students, onLess
       return;
     }
 
+    if (!profile) {
+      toast.error("User not authenticated");
+      return;
+    }
+
     setLoading(true);
     try {
-      // Get current user (teacher)
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        throw new Error("User not authenticated");
-      }
-
-      // Get teacher profile for name
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('full_name')
-        .eq('id', user.id)
-        .single();
-
       // Prepare students data with their primary skill (first skill in the array)
       const studentsForLessonPlan = students.map(student => ({
         studentId: student.studentId,
@@ -83,7 +76,7 @@ export function SaveLessonPlan({ classId, className, classData, students, onLess
       const lessonPlanData = {
         classId,
         className,
-        teacherName: profile?.full_name || "Unknown Teacher",
+        teacherName: profile.full_name || "Unknown Teacher",
         subject: classData?.subject || "Unknown Subject",
         grade: classData?.grade || "Unknown Grade",
         scheduledDate: nextClassInfo.date,
