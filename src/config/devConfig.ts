@@ -13,14 +13,14 @@ export const MOCK_USER_DATA = {
   teacher: {
     user: {
       id: 'dev-teacher-123',
-      email: 'teacher@dev.com',
+      email: 'mr.cullen@school.edu',
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     },
     profile: {
       id: 'dev-teacher-123',
-      email: 'teacher@dev.com',
-      full_name: 'Dev Teacher',
+      email: 'mr.cullen@school.edu',
+      full_name: 'Mr. Cullen',
       role: 'teacher' as const,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
