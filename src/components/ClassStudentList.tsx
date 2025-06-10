@@ -94,13 +94,13 @@ function SkillCircle({ skill, index, isClickable, onClick, isRemovable, onRemove
     if (skill.isEditedDefault) {
       return {
         icon: <Edit2 className="h-2.5 w-2.5 text-purple-600 flex-shrink-0" />,
-        label: "Edited Default",
+        label: "Edited Weakest",
         colorClass: "text-purple-700"
       };
     } else if (skill.isDefault) {
       return {
         icon: <TrendingDown className="h-2.5 w-2.5 text-orange-600 flex-shrink-0" />,
-        label: "Default (Weakest)",
+        label: "Weakest",
         colorClass: "text-orange-700"
       };
     } else if (skill.isAdditional) {
@@ -112,7 +112,7 @@ function SkillCircle({ skill, index, isClickable, onClick, isRemovable, onRemove
     }
     return {
       icon: <TrendingDown className="h-2.5 w-2.5 text-orange-600 flex-shrink-0" />,
-      label: "Default",
+      label: "Weakest",
       colorClass: "text-orange-700"
     };
   };
@@ -189,9 +189,9 @@ function SkillCircle({ skill, index, isClickable, onClick, isRemovable, onRemove
               <div className="flex items-center gap-1 justify-center mb-1">
                 {skillTypeInfo.icon}
                 <span className={`text-xs font-semibold ${skillTypeInfo.colorClass}`}>
-                  {skill.isDefault && !skill.isEditedDefault ? 'Default' : 
+                  {skill.isDefault && !skill.isEditedDefault ? 'Weakest' : 
                    skill.isEditedDefault ? 'Edited' : 
-                   skill.isAdditional ? 'Added' : 'Default'}
+                   skill.isAdditional ? 'Added' : 'Weakest'}
                 </span>
               </div>
               <p className="text-xs text-slate-800 font-medium leading-tight text-center px-1 line-clamp-2" style={{ 
@@ -207,7 +207,7 @@ function SkillCircle({ skill, index, isClickable, onClick, isRemovable, onRemove
           <div className="max-w-xs text-sm">
             <p className="font-medium">{skill.skill_name || "Unknown Skill"}</p>
             <p className="text-xs text-muted-foreground mt-1">
-              {isClickable ? "Click to edit this default skill" : 
+              {isClickable ? "Click to edit this weakest skill" : 
                isRemovable ? "Hover and click X to remove this added skill" :
                skillTypeInfo.label}
             </p>
@@ -270,7 +270,7 @@ function StudentCard({ student, classId, className, onEditDefault, onAddSkills, 
                   onEditDefault(student.id);
                 }}
                 className="h-7 px-2 text-xs"
-                title="Edit the default skill for lesson planning"
+                title="Edit the weakest skill for lesson planning"
               >
                 <Edit2 className="h-3 w-3 mr-1" />
                 Edit Skill
@@ -482,7 +482,7 @@ export function ClassStudentList({ classId, className, onSelectStudent }: ClassS
               Recommended Lesson Plan based on Student Performance
             </h3>
             <p className="text-sm text-slate-600">
-              Click on default skills or use "Edit Skill" to change them, or use "Add Skills" for additional content. Hover over added skills to remove them.
+              Click on weakest skills or use "Edit Skill" to change them, or use "Add Skills" for additional content. Hover over added skills to remove them.
             </p>
           </div>
           
