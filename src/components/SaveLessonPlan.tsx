@@ -36,6 +36,25 @@ interface StudentExercise {
   exerciseData: any;
 }
 
+interface SkillGroup {
+  skillName: string;
+  students: Array<{
+    studentId: string;
+    studentName: string;
+    targetSkillScore: number;
+  }>;
+}
+
+interface SkillGenerationResult {
+  skillName: string;
+  studentCount: number;
+  studentNames: string[];
+  status: 'pending' | 'generating' | 'completed' | 'failed';
+  exerciseData?: any;
+  error?: string;
+  retryable?: boolean;
+}
+
 interface ExerciseGenerationResult {
   studentId: string;
   studentName: string;
@@ -53,6 +72,7 @@ export function SaveLessonPlan({ classId, className, classData, students, onLess
   const [step, setStep] = useState<'basic' | 'exercises' | 'preview'>('basic');
   const [generatedExercises, setGeneratedExercises] = useState<StudentExercise[]>([]);
   const [exerciseResults, setExerciseResults] = useState<ExerciseGenerationResult[]>([]);
+  const [skillResults, setSkillResults] = useState<SkillGenerationResult[]>([]);
   const { profile } = useAuth();
 
   // Calculate next class date automatically
@@ -71,37 +91,58 @@ export function SaveLessonPlan({ classId, className, classData, students, onLess
       setStep('basic');
       setGeneratedExercises([]);
       setExerciseResults([]);
+      setSkillResults([]);
       setQuestionCount(5); // Reset to default
     }
   }, [open]);
 
-  const generateExerciseForStudent = async (student: any, resultIndex: number): Promise<StudentExercise> => {
-    const primarySkill = student.skills[0];
+  // Group students by their primary skill
+  const groupStudentsBySkill = (students: Array<{
+    studentId: string;
+    studentName: string;
+    skills: Array<{ skill_name: string; score: number; }>;
+  }>): SkillGroup[] => {
+    const skillMap = new Map<string, SkillGroup>();
     
-    if (!primarySkill) {
-      throw new Error(`No skill found for student ${student.studentName}`);
-    }
+    students.forEach(student => {
+      const primarySkill = student.skills[0];
+      if (!primarySkill) return;
+      
+      const skillName = primarySkill.skill_name;
+      if (!skillMap.has(skillName)) {
+        skillMap.set(skillName, {
+          skillName,
+          students: []
+        });
+      }
+      
+      skillMap.get(skillName)!.students.push({
+        studentId: student.studentId,
+        studentName: student.studentName,
+        targetSkillScore: primarySkill.score
+      });
+    });
+    
+    return Array.from(skillMap.values());
+  };
 
+  const generateExerciseForSkill = async (skillGroup: SkillGroup): Promise<any> => {
+    const firstStudent = skillGroup.students[0];
+    
     try {
       const exerciseData = await generatePracticeTest({
-        studentName: student.studentName,
+        studentName: firstStudent.studentName,
         className: className,
-        skillName: primarySkill.skill_name,
+        skillName: skillGroup.skillName,
         grade: classData?.grade || "Grade 10",
         subject: classData?.subject || "Math",
-        questionCount: questionCount, // Use selected question count
+        questionCount: questionCount,
         classId: classId
       });
 
-      return {
-        studentId: student.studentId,
-        studentName: student.studentName,
-        targetSkillName: primarySkill.skill_name,
-        targetSkillScore: primarySkill.score,
-        exerciseData: exerciseData
-      };
+      return exerciseData;
     } catch (error) {
-      console.error(`Failed to generate exercise for ${student.studentName}:`, error);
+      console.error(`Failed to generate exercise for skill ${skillGroup.skillName}:`, error);
       throw error;
     }
   };
@@ -114,7 +155,19 @@ export function SaveLessonPlan({ classId, className, classData, students, onLess
 
     setStep('exercises');
     
-    // Initialize results state
+    // Group students by skills
+    const skillGroups = groupStudentsBySkill(students);
+    
+    // Initialize skill results state
+    const initialSkillResults: SkillGenerationResult[] = skillGroups.map(group => ({
+      skillName: group.skillName,
+      studentCount: group.students.length,
+      studentNames: group.students.map(s => s.studentName),
+      status: 'pending'
+    }));
+    setSkillResults(initialSkillResults);
+    
+    // Initialize individual student results for compatibility
     const initialResults: ExerciseGenerationResult[] = students.map(student => ({
       studentId: student.studentId,
       studentName: student.studentName,
@@ -125,23 +178,49 @@ export function SaveLessonPlan({ classId, className, classData, students, onLess
     const completedExercises: StudentExercise[] = [];
     
     try {
-      // Generate exercises for each student sequentially to avoid rate limits
-      for (let i = 0; i < students.length; i++) {
-        const student = students[i];
+      // Generate exercises for each unique skill
+      for (let i = 0; i < skillGroups.length; i++) {
+        const skillGroup = skillGroups[i];
         
-        // Update status to generating
-        setExerciseResults(prev => prev.map((result, index) => 
+        // Update skill status to generating
+        setSkillResults(prev => prev.map((result, index) => 
           index === i ? { ...result, status: 'generating' } : result
         ));
+        
+        // Update student statuses to generating for this skill
+        setExerciseResults(prev => prev.map(result => {
+          const studentInSkillGroup = skillGroup.students.find(s => s.studentId === result.studentId);
+          return studentInSkillGroup ? { ...result, status: 'generating' } : result;
+        }));
 
         try {
-          const exercise = await generateExerciseForStudent(student, i);
-          completedExercises.push(exercise);
+          const exerciseData = await generateExerciseForSkill(skillGroup);
           
-          // Update status to completed
-          setExerciseResults(prev => prev.map((result, index) => 
-            index === i ? { ...result, status: 'completed', exercise } : result
+          // Create exercise objects for all students with this skill
+          const skillExercises: StudentExercise[] = skillGroup.students.map(student => ({
+            studentId: student.studentId,
+            studentName: student.studentName,
+            targetSkillName: skillGroup.skillName,
+            targetSkillScore: student.targetSkillScore,
+            exerciseData: exerciseData
+          }));
+          
+          completedExercises.push(...skillExercises);
+          
+          // Update skill status to completed
+          setSkillResults(prev => prev.map((result, index) => 
+            index === i ? { ...result, status: 'completed', exerciseData } : result
           ));
+          
+          // Update student statuses to completed for this skill
+          setExerciseResults(prev => prev.map(result => {
+            const studentInSkillGroup = skillGroup.students.find(s => s.studentId === result.studentId);
+            if (studentInSkillGroup) {
+              const exercise = skillExercises.find(ex => ex.studentId === result.studentId);
+              return { ...result, status: 'completed', exercise };
+            }
+            return result;
+          }));
           
         } catch (error) {
           const errorMessage = error instanceof Error ? error.message : 'Unknown error';
@@ -149,8 +228,8 @@ export function SaveLessonPlan({ classId, className, classData, students, onLess
                              errorMessage.includes('server had an error') ||
                              errorMessage.includes('rate limit');
           
-          // Update status to failed
-          setExerciseResults(prev => prev.map((result, index) => 
+          // Update skill status to failed
+          setSkillResults(prev => prev.map((result, index) => 
             index === i ? { 
               ...result, 
               status: 'failed', 
@@ -159,7 +238,18 @@ export function SaveLessonPlan({ classId, className, classData, students, onLess
             } : result
           ));
           
-          console.error(`Failed to generate exercise for ${student.studentName}:`, error);
+          // Update student statuses to failed for this skill
+          setExerciseResults(prev => prev.map(result => {
+            const studentInSkillGroup = skillGroup.students.find(s => s.studentId === result.studentId);
+            return studentInSkillGroup ? { 
+              ...result, 
+              status: 'failed', 
+              error: errorMessage,
+              retryable: isRetryable
+            } : result;
+          }));
+          
+          console.error(`Failed to generate exercise for skill ${skillGroup.skillName}:`, error);
         }
       }
 
@@ -168,13 +258,15 @@ export function SaveLessonPlan({ classId, className, classData, students, onLess
         setStep('preview');
         
         const failedCount = students.length - completedExercises.length;
+        const skillsGenerated = skillGroups.filter((_, i) => skillResults[i]?.status === 'completed' || completedExercises.some(ex => ex.targetSkillName === skillGroups[i].skillName)).length;
+        
         if (failedCount > 0) {
-          toast.error(`Generated exercises for ${completedExercises.length} students. ${failedCount} failed - you can retry them.`);
+          toast.error(`Generated ${skillsGenerated} skill-based exercises for ${completedExercises.length} students. ${failedCount} failed - you can retry them.`);
         } else {
-          toast.success(`Generated exercises for all ${completedExercises.length} students!`);
+          toast.success(`Generated ${skillsGenerated} skill-based exercises for all ${completedExercises.length} students!`);
         }
       } else {
-        toast.error('Failed to generate exercises for any students. Please try again.');
+        toast.error('Failed to generate exercises for any skills. Please try again.');
         setStep('basic');
       }
     } catch (error) {
@@ -185,48 +277,87 @@ export function SaveLessonPlan({ classId, className, classData, students, onLess
   };
 
   const retryFailedExercises = async () => {
-    const failedResults = exerciseResults.filter(result => result.status === 'failed' && result.retryable);
+    const failedSkillResults = skillResults.filter(result => result.status === 'failed' && result.retryable);
     
-    if (failedResults.length === 0) {
+    if (failedSkillResults.length === 0) {
       return;
     }
 
-    for (const failedResult of failedResults) {
-      const studentIndex = exerciseResults.findIndex(r => r.studentId === failedResult.studentId);
-      const student = students.find(s => s.studentId === failedResult.studentId);
+    // Group students by skills again for retry
+    const skillGroups = groupStudentsBySkill(students);
+    
+    for (const failedSkillResult of failedSkillResults) {
+      const skillGroup = skillGroups.find(group => group.skillName === failedSkillResult.skillName);
+      if (!skillGroup) continue;
       
-      if (!student) continue;
+      const skillIndex = skillResults.findIndex(r => r.skillName === failedSkillResult.skillName);
 
-      // Update status to generating
-      setExerciseResults(prev => prev.map((result, index) => 
-        index === studentIndex ? { ...result, status: 'generating', error: undefined } : result
+      // Update skill status to generating
+      setSkillResults(prev => prev.map((result, index) => 
+        index === skillIndex ? { ...result, status: 'generating', error: undefined } : result
       ));
+      
+      // Update student statuses to generating for this skill
+      setExerciseResults(prev => prev.map(result => {
+        const studentInSkillGroup = skillGroup.students.find(s => s.studentId === result.studentId);
+        return studentInSkillGroup ? { ...result, status: 'generating', error: undefined } : result;
+      }));
 
       try {
-        const exercise = await generateExerciseForStudent(student, studentIndex);
+        const exerciseData = await generateExerciseForSkill(skillGroup);
         
-        // Update status to completed
-        setExerciseResults(prev => prev.map((result, index) => 
-          index === studentIndex ? { ...result, status: 'completed', exercise } : result
+        // Create exercise objects for all students with this skill
+        const skillExercises: StudentExercise[] = skillGroup.students.map(student => ({
+          studentId: student.studentId,
+          studentName: student.studentName,
+          targetSkillName: skillGroup.skillName,
+          targetSkillScore: student.targetSkillScore,
+          exerciseData: exerciseData
+        }));
+        
+        // Update skill status to completed
+        setSkillResults(prev => prev.map((result, index) => 
+          index === skillIndex ? { ...result, status: 'completed', exerciseData } : result
         ));
         
+        // Update student statuses to completed for this skill
+        setExerciseResults(prev => prev.map(result => {
+          const studentInSkillGroup = skillGroup.students.find(s => s.studentId === result.studentId);
+          if (studentInSkillGroup) {
+            const exercise = skillExercises.find(ex => ex.studentId === result.studentId);
+            return { ...result, status: 'completed', exercise };
+          }
+          return result;
+        }));
+        
         // Add to generated exercises
-        setGeneratedExercises(prev => [...prev, exercise]);
+        setGeneratedExercises(prev => [...prev, ...skillExercises]);
         
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         const isRetryable = errorMessage.includes('temporarily unavailable') || 
                            errorMessage.includes('server had an error');
         
-        // Update status to failed
-        setExerciseResults(prev => prev.map((result, index) => 
-          index === studentIndex ? { 
+        // Update skill status to failed
+        setSkillResults(prev => prev.map((result, index) => 
+          index === skillIndex ? { 
             ...result, 
             status: 'failed', 
             error: errorMessage,
             retryable: isRetryable
           } : result
         ));
+        
+        // Update student statuses to failed for this skill
+        setExerciseResults(prev => prev.map(result => {
+          const studentInSkillGroup = skillGroup.students.find(s => s.studentId === result.studentId);
+          return studentInSkillGroup ? { 
+            ...result, 
+            status: 'failed', 
+            error: errorMessage,
+            retryable: isRetryable
+          } : result;
+        }));
       }
     }
   };
@@ -283,6 +414,7 @@ export function SaveLessonPlan({ classId, className, classData, students, onLess
       setStep('basic');
       setGeneratedExercises([]);
       setExerciseResults([]);
+      setSkillResults([]);
       
       // Reset lesson title for next time
       if (nextClassInfo) {
@@ -314,13 +446,17 @@ export function SaveLessonPlan({ classId, className, classData, students, onLess
     setStep('basic');
     setGeneratedExercises([]);
     setExerciseResults([]);
+    setSkillResults([]);
   };
 
   const renderExerciseGenerationStep = () => {
     const completedCount = exerciseResults.filter(r => r.status === 'completed').length;
     const failedCount = exerciseResults.filter(r => r.status === 'failed').length;
     const generatingCount = exerciseResults.filter(r => r.status === 'generating').length;
-    const retryableFailures = exerciseResults.filter(r => r.status === 'failed' && r.retryable).length;
+    const retryableFailures = skillResults.filter(r => r.status === 'failed' && r.retryable).length;
+    
+    const completedSkills = skillResults.filter(r => r.status === 'completed').length;
+    const totalSkills = skillResults.length;
 
     return (
       <div className="space-y-4">
@@ -328,18 +464,18 @@ export function SaveLessonPlan({ classId, className, classData, students, onLess
           <div className="flex items-center justify-center gap-2 mb-4">
             <Loader2 className="h-6 w-6 animate-spin text-blue-600" />
             <h3 className="text-lg font-semibold text-slate-900">
-              Generating Exercises
+              Generating Skill-Based Exercises
             </h3>
           </div>
           <p className="text-sm text-slate-600 mb-4">
-            Creating {questionCount} question exercises for {students.length} students...
+            Creating {questionCount} question exercises for {totalSkills} unique skills across {students.length} students...
           </p>
           
           <div className="bg-blue-50 p-4 rounded-lg mb-4">
             <div className="grid grid-cols-3 gap-4 text-center">
               <div>
                 <div className="text-2xl font-bold text-green-600">{completedCount}</div>
-                <div className="text-xs text-green-700">Completed</div>
+                <div className="text-xs text-green-700">Students Complete</div>
               </div>
               <div>
                 <div className="text-2xl font-bold text-blue-600">{generatingCount}</div>
@@ -350,35 +486,45 @@ export function SaveLessonPlan({ classId, className, classData, students, onLess
                 <div className="text-xs text-red-700">Failed</div>
               </div>
             </div>
+            <div className="mt-2 text-sm text-blue-600">
+              Skills: {completedSkills}/{totalSkills} completed
+            </div>
           </div>
         </div>
 
+        {/* Show skill-level progress */}
         <div className="space-y-2">
-          {exerciseResults.map((result, index) => (
-            <div key={result.studentId} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
-              <span className="font-medium">{result.studentName}</span>
-              <div className="flex items-center gap-2">
-                {result.status === 'completed' && (
-                  <span className="text-green-600 text-sm">✓ Complete</span>
-                )}
-                {result.status === 'generating' && (
-                  <div className="flex items-center gap-2">
-                    <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
-                    <span className="text-blue-600 text-sm">Generating...</span>
-                  </div>
-                )}
-                {result.status === 'failed' && (
-                  <div className="flex items-center gap-2">
-                    <AlertCircle className="h-4 w-4 text-red-600" />
-                    <span className="text-red-600 text-sm">Failed</span>
-                    {result.retryable && (
-                      <span className="text-orange-600 text-xs">(Retryable)</span>
-                    )}
-                  </div>
-                )}
-                {result.status === 'pending' && (
-                  <span className="text-slate-400 text-sm">Waiting...</span>
-                )}
+          <h4 className="font-medium text-slate-700">Skills Progress:</h4>
+          {skillResults.map((skillResult, index) => (
+            <div key={skillResult.skillName} className="p-3 bg-slate-50 rounded-lg">
+              <div className="flex items-center justify-between mb-2">
+                <span className="font-medium">{skillResult.skillName}</span>
+                <div className="flex items-center gap-2">
+                  {skillResult.status === 'completed' && (
+                    <span className="text-green-600 text-sm">✓ Complete</span>
+                  )}
+                  {skillResult.status === 'generating' && (
+                    <div className="flex items-center gap-2">
+                      <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
+                      <span className="text-blue-600 text-sm">Generating...</span>
+                    </div>
+                  )}
+                  {skillResult.status === 'failed' && (
+                    <div className="flex items-center gap-2">
+                      <AlertCircle className="h-4 w-4 text-red-600" />
+                      <span className="text-red-600 text-sm">Failed</span>
+                      {skillResult.retryable && (
+                        <span className="text-orange-600 text-xs">(Retryable)</span>
+                      )}
+                    </div>
+                  )}
+                  {skillResult.status === 'pending' && (
+                    <span className="text-slate-400 text-sm">Waiting...</span>
+                  )}
+                </div>
+              </div>
+              <div className="text-xs text-slate-500">
+                Students: {skillResult.studentNames.join(', ')} ({skillResult.studentCount} total)
               </div>
             </div>
           ))}
@@ -393,7 +539,7 @@ export function SaveLessonPlan({ classId, className, classData, students, onLess
                 variant="outline"
               >
                 <RefreshCw className="h-4 w-4 mr-2" />
-                Retry Failed Exercises ({retryableFailures})
+                Retry Failed Skills ({retryableFailures})
               </Button>
             )}
             
@@ -427,7 +573,9 @@ export function SaveLessonPlan({ classId, className, classData, students, onLess
       );
     }
 
-    // Basic step
+    // Basic step - group students by skill for display
+    const skillGroups = groupStudentsBySkill(students);
+
     return (
       <div className="space-y-4">
         <div>
@@ -498,9 +646,9 @@ export function SaveLessonPlan({ classId, className, classData, students, onLess
             <strong>Lesson plan will include:</strong>
           </p>
           <ul className="text-xs text-blue-700 space-y-1">
-            <li>• {students.length} students with individualized skills</li>
-            <li>• {questionCount} questions per exercise</li>
-            <li>• {students.reduce((total, student) => total + student.skills.length, 0)} total skill targets</li>
+            <li>• {students.length} students across {skillGroups.length} unique skills</li>
+            <li>• {questionCount} questions per exercise (skill-based generation)</li>
+            <li>• Efficient generation: {skillGroups.length} API calls instead of {students.length}</li>
             <li>• Ready to use for starting class sessions</li>
             {nextClassInfo && (
               <li>• Scheduled for {nextClassInfo.formattedDate} at {nextClassInfo.formattedTime}</li>
@@ -559,7 +707,7 @@ export function SaveLessonPlan({ classId, className, classData, students, onLess
         <DialogHeader>
           <DialogTitle>
             {step === 'preview' ? 'Preview & Edit Exercises' : 
-             step === 'exercises' ? 'Generating Exercises' : 'Save Lesson Plan'}
+             step === 'exercises' ? 'Generating Skill-Based Exercises' : 'Save Lesson Plan'}
           </DialogTitle>
         </DialogHeader>
         
