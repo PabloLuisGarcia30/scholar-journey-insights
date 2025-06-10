@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { BookOpen, Clock, Play, CheckCircle, AlertCircle, Brain } from "lucide-react";
+import { BookOpen, Clock, Play, CheckCircle, AlertCircle, Brain, Tag } from "lucide-react";
 import { getStudentExercises, updateExerciseStatus, type StudentExercise } from "@/services/classSessionService";
 import { SmartAnswerGradingService, type GradingResult } from "@/services/smartAnswerGradingService";
 import { supabase } from "@/integrations/supabase/client";
@@ -85,6 +85,18 @@ export function TailoredExercises() {
     }
   };
 
+  // Helper function to get skill type from exercise data
+  const getSkillType = (exercise: StudentExercise): 'content' | 'subject' | null => {
+    return exercise.exercise_data?.skillType || 
+           exercise.exercise_data?.skillMetadata?.skillType || 
+           null;
+  };
+
+  // Helper function to get skill metadata
+  const getSkillMetadata = (exercise: StudentExercise) => {
+    return exercise.exercise_data?.skillMetadata || null;
+  };
+
   if (loading) {
     return (
       <Card>
@@ -130,77 +142,107 @@ export function TailoredExercises() {
       </div>
 
       <div className="grid gap-4">
-        {exercises.map((exercise) => (
-          <Card key={exercise.id} className="hover:shadow-md transition-shadow">
-            <CardContent className="p-6">
-              <div className="flex items-start justify-between">
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-2">
-                    <h3 className="font-semibold text-lg">{exercise.skill_name}</h3>
-                    <Badge 
-                      variant={
-                        exercise.status === 'completed' ? 'default' :
-                        exercise.status === 'in_progress' ? 'secondary' : 'outline'
-                      }
-                    >
-                      {exercise.status === 'completed' ? 'Completed' :
-                       exercise.status === 'in_progress' ? 'In Progress' : 'Available'}
-                    </Badge>
-                  </div>
-                  
-                  <p className="text-slate-600 mb-3">
-                    {exercise.exercise_data?.description || 'Practice exercise for skill improvement'}
-                  </p>
-                  
-                  <div className="flex items-center gap-4 text-sm text-slate-500">
-                    <div className="flex items-center gap-1">
-                      <Clock className="h-4 w-4" />
-                      {exercise.exercise_data?.estimated_time_minutes || 15} min
+        {exercises.map((exercise) => {
+          const skillType = getSkillType(exercise);
+          const skillMetadata = getSkillMetadata(exercise);
+          
+          return (
+            <Card key={exercise.id} className="hover:shadow-md transition-shadow">
+              <CardContent className="p-6">
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-2">
+                      <h3 className="font-semibold text-lg">{exercise.skill_name}</h3>
+                      <Badge 
+                        variant={
+                          exercise.status === 'completed' ? 'default' :
+                          exercise.status === 'in_progress' ? 'secondary' : 'outline'
+                        }
+                      >
+                        {exercise.status === 'completed' ? 'Completed' :
+                         exercise.status === 'in_progress' ? 'In Progress' : 'Available'}
+                      </Badge>
+                      
+                      {/* Skill Type Badge */}
+                      {skillType && (
+                        <Badge variant="outline" className="text-xs">
+                          <Tag className="h-3 w-3 mr-1" />
+                          {skillType === 'content' ? 'Content Skill' : 'Subject Skill'}
+                        </Badge>
+                      )}
                     </div>
-                    <div className="flex items-center gap-1">
-                      <BookOpen className="h-4 w-4" />
-                      {exercise.exercise_data?.questions?.length || 0} questions
-                    </div>
-                    <div>
-                      Current Score: {Math.round(exercise.skill_score)}%
-                    </div>
-                  </div>
-
-                  {exercise.status === 'completed' && exercise.score && (
-                    <div className="mt-3">
-                      <div className="flex items-center gap-2 mb-1">
-                        <CheckCircle className="h-4 w-4 text-green-600" />
-                        <span className="text-sm font-medium">Exercise Score: {Math.round(exercise.score)}%</span>
+                    
+                    <p className="text-slate-600 mb-3">
+                      {exercise.exercise_data?.description || 'Practice exercise for skill improvement'}
+                    </p>
+                    
+                    {/* Enhanced skill metadata display */}
+                    {skillMetadata && (
+                      <div className="mb-3 p-2 bg-slate-50 rounded text-xs text-slate-600">
+                        <div className="flex items-center gap-4">
+                          {skillMetadata.subject && (
+                            <span>Subject: {skillMetadata.subject}</span>
+                          )}
+                          {skillMetadata.grade && (
+                            <span>Grade: {skillMetadata.grade}</span>
+                          )}
+                          {skillMetadata.skillCategory && (
+                            <span>Category: {skillMetadata.skillCategory}</span>
+                          )}
+                        </div>
                       </div>
-                      <Progress value={exercise.score} className="h-2" />
+                    )}
+                    
+                    <div className="flex items-center gap-4 text-sm text-slate-500">
+                      <div className="flex items-center gap-1">
+                        <Clock className="h-4 w-4" />
+                        {exercise.exercise_data?.estimated_time_minutes || 15} min
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <BookOpen className="h-4 w-4" />
+                        {exercise.exercise_data?.questions?.length || 0} questions
+                      </div>
+                      <div>
+                        Current Score: {Math.round(exercise.skill_score)}%
+                      </div>
                     </div>
-                  )}
-                </div>
 
-                <div className="ml-4">
-                  {exercise.status === 'available' && (
-                    <Button onClick={() => handleStartExercise(exercise)}>
-                      <Play className="h-4 w-4 mr-2" />
-                      Start
-                    </Button>
-                  )}
-                  
-                  {exercise.status === 'in_progress' && (
-                    <Button variant="secondary" onClick={() => setSelectedExercise(exercise)}>
-                      Continue
-                    </Button>
-                  )}
-                  
-                  {exercise.status === 'completed' && (
-                    <Button variant="outline" onClick={() => setSelectedExercise(exercise)}>
-                      Review
-                    </Button>
-                  )}
+                    {exercise.status === 'completed' && exercise.score && (
+                      <div className="mt-3">
+                        <div className="flex items-center gap-2 mb-1">
+                          <CheckCircle className="h-4 w-4 text-green-600" />
+                          <span className="text-sm font-medium">Exercise Score: {Math.round(exercise.score)}%</span>
+                        </div>
+                        <Progress value={exercise.score} className="h-2" />
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="ml-4">
+                    {exercise.status === 'available' && (
+                      <Button onClick={() => handleStartExercise(exercise)}>
+                        <Play className="h-4 w-4 mr-2" />
+                        Start
+                      </Button>
+                    )}
+                    
+                    {exercise.status === 'in_progress' && (
+                      <Button variant="secondary" onClick={() => setSelectedExercise(exercise)}>
+                        Continue
+                      </Button>
+                    )}
+                    
+                    {exercise.status === 'completed' && (
+                      <Button variant="outline" onClick={() => setSelectedExercise(exercise)}>
+                        Review
+                      </Button>
+                    )}
+                  </div>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
+              </CardContent>
+            </Card>
+          );
+        })}
       </div>
     </div>
   );
@@ -221,6 +263,8 @@ function ExercisePlayer({ exercise, onComplete, onBack }: ExercisePlayerProps) {
 
   const questions = exercise.exercise_data?.questions || [];
   const isCompleted = exercise.status === 'completed';
+  const skillType = exercise.exercise_data?.skillType;
+  const skillMetadata = exercise.exercise_data?.skillMetadata;
 
   const handleAnswerSelect = (questionId: number, answer: string) => {
     setAnswers(prev => ({ ...prev, [questionId]: answer }));
@@ -324,6 +368,12 @@ function ExercisePlayer({ exercise, onComplete, onBack }: ExercisePlayerProps) {
           <CardTitle className="flex items-center gap-2">
             <Brain className="h-5 w-5" />
             Exercise Complete!
+            {skillType && (
+              <Badge variant="outline" className="ml-2">
+                <Tag className="h-3 w-3 mr-1" />
+                {skillType === 'content' ? 'Content' : 'Subject'} Skill
+              </Badge>
+            )}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -385,9 +435,29 @@ function ExercisePlayer({ exercise, onComplete, onBack }: ExercisePlayerProps) {
     <Card className="max-w-4xl mx-auto">
       <CardHeader>
         <div className="flex items-center justify-between">
-          <CardTitle>{exercise.exercise_data?.title}</CardTitle>
+          <div className="flex items-center gap-2">
+            <CardTitle>{exercise.exercise_data?.title}</CardTitle>
+            {skillType && (
+              <Badge variant="outline">
+                <Tag className="h-3 w-3 mr-1" />
+                {skillType === 'content' ? 'Content' : 'Subject'} Skill
+              </Badge>
+            )}
+          </div>
           <Button variant="ghost" onClick={onBack}>Back</Button>
         </div>
+        
+        {/* Enhanced skill metadata display */}
+        {skillMetadata && (
+          <div className="text-sm text-slate-600 bg-slate-50 p-2 rounded">
+            <div className="flex items-center gap-4">
+              {skillMetadata.subject && <span>Subject: {skillMetadata.subject}</span>}
+              {skillMetadata.grade && <span>Grade: {skillMetadata.grade}</span>}
+              {skillMetadata.skillCategory && <span>Category: {skillMetadata.skillCategory}</span>}
+            </div>
+          </div>
+        )}
+        
         <Progress value={(currentQuestion + 1) / questions.length * 100} className="w-full" />
         <p className="text-sm text-slate-600">
           Question {currentQuestion + 1} of {questions.length}

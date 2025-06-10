@@ -39,8 +39,8 @@ export class PracticeExerciseSkillService {
         throw new Error('Student profile not found');
       }
 
-      // Analyze exercise to extract skill scores
-      const skillScores = await this.analyzeExerciseForSkillScores(update);
+      // Extract skill metadata from exercise data
+      const skillScores = await this.extractSkillScoresFromExerciseData(update);
       
       // Calculate updated skill scores
       const skillUpdates: SkillScoreCalculation[] = [];
@@ -93,19 +93,32 @@ export class PracticeExerciseSkillService {
   }
 
   /**
-   * Analyze practice exercise to extract skill-based scores
+   * Extract skill scores from exercise data using stored metadata
    */
-  private async analyzeExerciseForSkillScores(update: PracticeExerciseSkillUpdate): Promise<Array<{
+  private async extractSkillScoresFromExerciseData(update: PracticeExerciseSkillUpdate): Promise<Array<{
     skillName: string;
     skillType: 'content' | 'subject';
     score: number;
     pointsEarned: number;
     pointsPossible: number;
   }>> {
-    // For now, we'll create a simple mapping based on the exercise data
-    // In a real implementation, this could use AI to analyze the questions
-    
     const exerciseData = update.exerciseData;
+    
+    // Extract skill type from stored metadata (preferred method)
+    let skillType: 'content' | 'subject' = 'content'; // fallback default
+    
+    if (exerciseData?.skillType) {
+      skillType = exerciseData.skillType;
+      console.log('✅ Using stored skill type from exercise data:', skillType);
+    } else if (exerciseData?.skillMetadata?.skillType) {
+      skillType = exerciseData.skillMetadata.skillType;
+      console.log('✅ Using skill type from metadata:', skillType);
+    } else {
+      // Fallback to pattern-based detection only if no metadata available
+      console.warn('⚠️ No skill type metadata found, using fallback detection for:', update.skillName);
+      skillType = this.detectSkillTypeFallback(update.skillName);
+    }
+    
     const totalQuestions = exerciseData?.questions?.length || 5;
     const scorePercentage = update.exerciseScore;
     
@@ -113,16 +126,65 @@ export class PracticeExerciseSkillService {
     const pointsEarned = Math.round((scorePercentage / 100) * totalQuestions);
     const pointsPossible = totalQuestions;
 
-    // Return skill scores - we'll primarily focus on the target skill
-    return [
-      {
-        skillName: update.skillName,
-        skillType: 'content', // Default to content skill for practice exercises
-        score: scorePercentage,
-        pointsEarned,
-        pointsPossible
+    // Support for multiple skills if exercise data provides them
+    const skills = [];
+    
+    // Primary skill (always included)
+    skills.push({
+      skillName: update.skillName,
+      skillType,
+      score: scorePercentage,
+      pointsEarned,
+      pointsPossible
+    });
+    
+    // Additional skills from metadata (if available)
+    if (exerciseData?.skillMetadata?.additionalSkills) {
+      for (const additionalSkill of exerciseData.skillMetadata.additionalSkills) {
+        skills.push({
+          skillName: additionalSkill.name,
+          skillType: additionalSkill.type || skillType,
+          score: scorePercentage * (additionalSkill.weight || 0.5), // Weighted score
+          pointsEarned: Math.round(pointsEarned * (additionalSkill.weight || 0.5)),
+          pointsPossible: Math.round(pointsPossible * (additionalSkill.weight || 0.5))
+        });
       }
+    }
+
+    console.log(`📊 Extracted ${skills.length} skill(s) with metadata-based classification`);
+    return skills;
+  }
+
+  /**
+   * Fallback skill type detection (only used when no metadata available)
+   */
+  private detectSkillTypeFallback(skillName: string): 'content' | 'subject' {
+    const skillLower = skillName.toLowerCase();
+    
+    const contentPatterns = [
+      'algebra', 'geometry', 'calculus', 'trigonometry', 'fractions', 'equations',
+      'chemistry', 'physics', 'biology', 'grammar', 'vocabulary', 'literature'
     ];
+    
+    const subjectPatterns = [
+      'critical thinking', 'problem solving', 'reading comprehension', 'analytical reasoning',
+      'communication', 'research skills', 'study skills'
+    ];
+    
+    for (const pattern of contentPatterns) {
+      if (skillLower.includes(pattern)) {
+        return 'content';
+      }
+    }
+    
+    for (const pattern of subjectPatterns) {
+      if (skillLower.includes(pattern)) {
+        return 'subject';
+      }
+    }
+    
+    // Default fallback
+    return 'content';
   }
 
   /**
@@ -272,7 +334,7 @@ export class PracticeExerciseSkillService {
         throw new Error(`Failed to insert skill score: ${skillError.message}`);
       }
 
-      console.log(`✅ Inserted ${skillType} skill score for ${skillName}: ${score}%`);
+      console.log(`✅ Inserted ${skillType} skill score for ${skillName}: ${score}% (using stored metadata)`);
       
     } catch (error) {
       console.error('Error inserting practice exercise skill score:', error);

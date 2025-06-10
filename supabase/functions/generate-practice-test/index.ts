@@ -25,25 +25,103 @@ interface HistoricalQuestion {
   exam_title?: string;
 }
 
+// Enhanced skill type detection based on skill name patterns
+function detectSkillType(skillName: string, subject: string): 'content' | 'subject' {
+  const contentSkillPatterns = [
+    // Math content skills
+    'algebra', 'geometry', 'calculus', 'trigonometry', 'statistics', 'probability',
+    'fractions', 'decimals', 'integers', 'equations', 'functions', 'graphing',
+    'polynomials', 'logarithms', 'matrices', 'sequences', 'series',
+    
+    // Science content skills
+    'chemistry', 'physics', 'biology', 'atomic structure', 'periodic table',
+    'chemical bonds', 'reactions', 'thermodynamics', 'mechanics', 'waves',
+    'electricity', 'magnetism', 'genetics', 'evolution', 'ecology',
+    
+    // English content skills
+    'grammar', 'vocabulary', 'syntax', 'phonics', 'spelling', 'punctuation',
+    'literature', 'poetry', 'prose', 'rhetoric', 'composition',
+    
+    // History content skills
+    'ancient history', 'medieval', 'renaissance', 'industrial revolution',
+    'world wars', 'cold war', 'civilizations', 'empires'
+  ];
+
+  const subjectSkillPatterns = [
+    // Cross-subject cognitive skills
+    'critical thinking', 'problem solving', 'analytical reasoning', 'logical reasoning',
+    'reading comprehension', 'written communication', 'oral communication',
+    'research skills', 'data analysis', 'interpretation', 'synthesis',
+    'evaluation', 'application', 'comprehension', 'knowledge recall',
+    'creative thinking', 'decision making', 'time management', 'organization',
+    'collaboration', 'leadership', 'presentation skills', 'study skills'
+  ];
+
+  const skillLower = skillName.toLowerCase();
+  
+  // Check for content skill patterns
+  for (const pattern of contentSkillPatterns) {
+    if (skillLower.includes(pattern)) {
+      return 'content';
+    }
+  }
+  
+  // Check for subject skill patterns
+  for (const pattern of subjectSkillPatterns) {
+    if (skillLower.includes(pattern)) {
+      return 'subject';
+    }
+  }
+  
+  // Default classification based on skill name characteristics
+  if (skillLower.includes('understanding') || skillLower.includes('knowledge') || 
+      skillLower.includes('concepts') || skillLower.includes('principles')) {
+    return 'content';
+  }
+  
+  if (skillLower.includes('skills') || skillLower.includes('ability') || 
+      skillLower.includes('thinking') || skillLower.includes('reasoning')) {
+    return 'subject';
+  }
+  
+  // Final fallback: content skills for specific subjects, subject skills for general
+  const specificSubjects = ['math', 'science', 'english', 'history', 'physics', 'chemistry', 'biology'];
+  if (specificSubjects.some(subj => subject.toLowerCase().includes(subj))) {
+    return 'content';
+  }
+  
+  return 'subject'; // Default to subject skill
+}
+
+// Generate skill metadata
+function generateSkillMetadata(skillName: string, skillType: 'content' | 'subject', subject: string, grade: string) {
+  return {
+    skillType,
+    skillCategory: skillType === 'content' ? 'domain_specific' : 'cross_curricular',
+    subject: subject,
+    grade: grade,
+    detectedPatterns: skillType === 'content' ? ['subject_specific_content'] : ['cognitive_skill'],
+    confidence: 0.8, // High confidence in our classification
+    classificationMethod: 'pattern_matching_enhanced'
+  };
+}
+
 // Retry configuration
 const RETRY_CONFIG = {
   maxAttempts: 3,
-  baseDelay: 1000, // 1 second
-  maxDelay: 8000,  // 8 seconds
+  baseDelay: 1000,
+  maxDelay: 8000,
   backoffMultiplier: 2
 };
 
-// Add jitter to prevent thundering herd
 function addJitter(delay: number): number {
   return delay + Math.random() * 1000;
 }
 
-// Sleep function for delays
 function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-// Retry wrapper with exponential backoff
 async function withRetry<T>(
   operation: () => Promise<T>,
   attempt: number = 1
@@ -57,7 +135,6 @@ async function withRetry<T>(
       throw error;
     }
 
-    // Check if error is retryable (server errors, rate limits)
     const isRetryable = error.message.includes('server had an error') || 
                        error.message.includes('rate limit') ||
                        error.message.includes('timeout') ||
@@ -67,7 +144,6 @@ async function withRetry<T>(
       throw error;
     }
 
-    // Calculate delay with exponential backoff and jitter
     const baseDelay = Math.min(
       RETRY_CONFIG.baseDelay * Math.pow(RETRY_CONFIG.backoffMultiplier, attempt - 1),
       RETRY_CONFIG.maxDelay
@@ -85,7 +161,6 @@ async function getHistoricalQuestionsForSkill(supabase: any, classId: string, sk
   console.log('Fetching historical questions for class:', classId, 'skill:', skillName);
   
   try {
-    // Get exams for this class
     const { data: exams, error: examError } = await supabase
       .from('exams')
       .select('exam_id, title')
@@ -104,7 +179,6 @@ async function getHistoricalQuestionsForSkill(supabase: any, classId: string, sk
     const examIds = exams.map((exam: any) => exam.exam_id);
     console.log('Found exams:', examIds);
 
-    // Get answer keys for these exams
     const { data: questions, error: questionsError } = await supabase
       .from('answer_keys')
       .select('question_text, question_type, options, points, exam_id')
@@ -121,7 +195,6 @@ async function getHistoricalQuestionsForSkill(supabase: any, classId: string, sk
       return [];
     }
 
-    // Enhance questions with exam titles
     const enhancedQuestions = questions.map((q: any) => {
       const exam = exams.find((e: any) => e.exam_id === q.exam_id);
       return {
@@ -147,7 +220,7 @@ async function callOpenAIWithRetry(prompt: string, model: string = 'gpt-4o-mini'
   }
 
   return withRetry(async () => {
-    console.log(`Sending request to OpenAI ${model} with enhanced prompt including historical questions`);
+    console.log(`Sending request to OpenAI ${model} with enhanced prompt including skill metadata`);
     
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
@@ -194,7 +267,7 @@ serve(async (req) => {
   }
 
   try {
-    console.log('Generate-practice-test function called');
+    console.log('Generate-practice-test function called with skill metadata support');
     
     const {
       studentName,
@@ -209,18 +282,22 @@ serve(async (req) => {
 
     console.log(`Generating practice test for: ${studentName} in class: ${className} skill: ${skillName} grade: ${grade} subject: ${subject} questionCount: ${questionCount} classId: ${classId}`);
 
-    // Initialize Supabase client
+    // Detect skill type and generate metadata
+    const skillType = detectSkillType(skillName, subject);
+    const skillMetadata = generateSkillMetadata(skillName, skillType, subject, grade);
+    
+    console.log(`Detected skill type: ${skillType} for skill: ${skillName}`);
+    console.log('Skill metadata:', skillMetadata);
+
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Get historical questions if classId is provided
     let historicalQuestions: HistoricalQuestion[] = [];
     if (classId) {
       historicalQuestions = await getHistoricalQuestionsForSkill(supabase, classId, skillName);
     }
 
-    // Build enhanced prompt with historical context and answer patterns
     let historicalContext = '';
     if (historicalQuestions.length > 0) {
       historicalContext = `\n\nHere are some example questions from previous exams in this class for context:\n${
@@ -242,6 +319,8 @@ RESPONSE FORMAT - Return valid JSON only with enhanced answer patterns:
 {
   "title": "Practice Test Title",
   "description": "Brief description focusing on ${skillName}",
+  "skillType": "${skillType}",
+  "skillMetadata": ${JSON.stringify(skillMetadata)},
   "questions": [
     {
       "id": "Q1",
@@ -262,6 +341,8 @@ RESPONSE FORMAT - Return valid JSON only:
 {
   "title": "Practice Test Title",
   "description": "Brief description focusing on ${skillName}",
+  "skillType": "${skillType}",
+  "skillMetadata": ${JSON.stringify(skillMetadata)},
   "questions": [
     {
       "id": "Q1",
@@ -279,6 +360,7 @@ RESPONSE FORMAT - Return valid JSON only:
     const prompt = `Create a targeted practice test for a ${grade} ${subject} student named ${studentName}.
 
 SKILL FOCUS: ${skillName}
+SKILL TYPE: ${skillType} (${skillType === 'content' ? 'subject-specific content knowledge' : 'cross-curricular cognitive skill'})
 CLASS: ${className}
 NUMBER OF QUESTIONS: ${questionCount}
 ${historicalContext}
@@ -290,27 +372,23 @@ REQUIREMENTS:
 4. Each question should have clear, educational value
 5. Provide detailed but concise correct answers
 6. Points should reflect question difficulty (1-3 points each)
+7. Include the skill type (${skillType}) and metadata in the response
 ${answerPatternInstructions}
 
 Generate exactly ${questionCount} questions focused on "${skillName}".`;
 
-    // Call OpenAI with retry logic
     const data = await callOpenAIWithRetry(prompt);
     
     const content = data.choices[0].message.content;
     console.log('Raw OpenAI response content:', content);
 
-    // Extract JSON from the response
     let practiceTest;
     try {
       console.log('Successfully extracted JSON from GPT-4o-mini response');
-      
-      // Try to parse the content directly first
       practiceTest = JSON.parse(content);
     } catch (parseError) {
       console.log('Direct JSON parse failed, attempting to extract JSON from response');
       
-      // Try to extract JSON from markdown code blocks or other formatting
       const jsonMatch = content.match(/```(?:json)?\s*(\{[\s\S]*\})\s*```/) || content.match(/(\{[\s\S]*\})/);
       if (jsonMatch) {
         practiceTest = JSON.parse(jsonMatch[1]);
@@ -319,7 +397,6 @@ Generate exactly ${questionCount} questions focused on "${skillName}".`;
       }
     }
 
-    // Validate the practice test structure
     if (!practiceTest.questions || !Array.isArray(practiceTest.questions)) {
       throw new Error('Invalid practice test format: missing questions array');
     }
@@ -328,22 +405,28 @@ Generate exactly ${questionCount} questions focused on "${skillName}".`;
       throw new Error('No questions generated in practice test');
     }
 
-    // Ensure all questions have required fields and enhance answer patterns
+    // Ensure skill metadata is included
+    if (!practiceTest.skillType) {
+      practiceTest.skillType = skillType;
+    }
+    
+    if (!practiceTest.skillMetadata) {
+      practiceTest.skillMetadata = skillMetadata;
+    }
+
+    // Validate and enhance questions
     practiceTest.questions.forEach((q: any, index: number) => {
       if (!q.question || !q.correctAnswer || !q.type) {
         throw new Error(`Question ${index + 1} is missing required fields`);
       }
-      if (!q.points) q.points = 1; // Default points
-      if (!q.id) q.id = `Q${index + 1}`; // Default ID
+      if (!q.points) q.points = 1;
+      if (!q.id) q.id = `Q${index + 1}`;
       
-      // Enhance short answer questions with better patterns if not provided
       if (q.type === 'short-answer' && enhancedAnswerPatterns) {
         if (!q.acceptableAnswers) {
-          // Generate some basic acceptable variations
           q.acceptableAnswers = [q.correctAnswer];
         }
         if (!q.keywords) {
-          // Extract basic keywords from the correct answer
           q.keywords = q.correctAnswer.toLowerCase()
             .split(/\s+/)
             .filter((word: string) => word.length > 3)
@@ -352,18 +435,16 @@ Generate exactly ${questionCount} questions focused on "${skillName}".`;
       }
     });
 
-    // Calculate total points if not provided
     if (!practiceTest.totalPoints) {
       practiceTest.totalPoints = practiceTest.questions.reduce((sum: number, q: any) => sum + (q.points || 1), 0);
     }
 
-    // Set default estimated time if not provided
     if (!practiceTest.estimatedTime) {
-      practiceTest.estimatedTime = Math.max(10, practiceTest.questions.length * 3); // 3 minutes per question minimum
+      practiceTest.estimatedTime = Math.max(10, practiceTest.questions.length * 3);
     }
 
-    console.log(`Successfully parsed and validated practice test with ${practiceTest.questions.length} questions using GPT-4o-mini`);
-    console.log('Practice test generated using historical question patterns from class');
+    console.log(`Successfully parsed and validated practice test with ${practiceTest.questions.length} questions`);
+    console.log(`Skill metadata included: type=${practiceTest.skillType}, category=${practiceTest.skillMetadata?.skillCategory}`);
 
     return new Response(JSON.stringify(practiceTest), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -373,7 +454,6 @@ Generate exactly ${questionCount} questions focused on "${skillName}".`;
   } catch (error) {
     console.error('Error in generate-practice-test function:', error);
     
-    // Provide more specific error messages
     let userFriendlyMessage = 'Failed to generate practice test. Please try again.';
     
     if (error.message.includes('OpenAI API')) {

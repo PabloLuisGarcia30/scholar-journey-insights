@@ -31,10 +31,17 @@ export function usePracticeExerciseCompletion({
     }) => {
       console.log('🎯 Completing practice exercise:', { exerciseId, score, skillName });
       
+      // Log skill metadata usage
+      if (exerciseData?.skillType) {
+        console.log('✅ Using stored skill type from exercise:', exerciseData.skillType);
+      } else {
+        console.warn('⚠️ No skill type metadata found in exercise data');
+      }
+      
       // First update the exercise status
       await updateExerciseStatus(exerciseId, 'completed', score);
       
-      // Then process skill score updates
+      // Then process skill score updates with complete exercise data
       setIsUpdatingSkills(true);
       
       const skillUpdateResult = await practiceExerciseSkillService.processPracticeExerciseCompletion({
@@ -42,7 +49,7 @@ export function usePracticeExerciseCompletion({
         exerciseId,
         skillName,
         exerciseScore: score,
-        exerciseData
+        exerciseData // Pass complete exercise data including metadata
       });
 
       if (!skillUpdateResult.success) {
@@ -51,15 +58,18 @@ export function usePracticeExerciseCompletion({
       } else {
         console.log('✅ Skill scores updated successfully:', skillUpdateResult.skillUpdates);
         
-        // Show success message with skill improvements
+        // Enhanced success message with skill type information
+        const skillType = exerciseData?.skillType;
         const improvementMessages = skillUpdateResult.skillUpdates
           .filter(update => update.updatedScore > update.currentScore)
-          .map(update => `${update.skillName}: ${update.currentScore}% → ${update.updatedScore}%`);
+          .map(update => `${update.skillName} (${update.skillType}): ${update.currentScore}% → ${update.updatedScore}%`);
 
         if (improvementMessages.length > 0) {
-          toast.success(`Exercise completed! Skill improvements: ${improvementMessages.join(', ')}`);
+          const skillTypeMsg = skillType ? ` [${skillType === 'content' ? 'Content' : 'Subject'} Skill]` : '';
+          toast.success(`Exercise completed!${skillTypeMsg} Skill improvements: ${improvementMessages.join(', ')}`);
         } else {
-          toast.success('Exercise completed successfully!');
+          const skillTypeMsg = skillType ? ` [${skillType === 'content' ? 'Content' : 'Subject'} Skill]` : '';
+          toast.success(`Exercise completed successfully!${skillTypeMsg}`);
         }
 
         // Notify parent component
