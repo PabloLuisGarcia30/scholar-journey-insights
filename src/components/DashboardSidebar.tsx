@@ -133,6 +133,10 @@ export function DashboardSidebar({ activeView, onViewChange }: DashboardSidebarP
     {
       title: "Lesson Tracker",
       href: "/student-lesson-tracker"
+    },
+    {
+      title: "ClassRunner",
+      href: "/class-runner"
     }
   ];
 

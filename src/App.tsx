@@ -17,6 +17,7 @@ import CreateQuizLink from "./pages/CreateQuizLink";
 import StudentLessonTracker from "./pages/StudentLessonTracker";
 import StudentLearnerProfile from "./pages/StudentLearnerProfile";
 import StudentQuiz from "./pages/StudentQuiz";
+import ClassRunner from "./pages/ClassRunner";
 import { DEV_CONFIG } from "./config/devConfig";
 
 const queryClient = new QueryClient();
@@ -123,6 +124,15 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <StudentLearnerProfile />
+          </ProtectedRoute>
+        } 
+      />
+
+      <Route 
+        path="/class-runner" 
+        element={
+          <ProtectedRoute requiredRole={DEV_CONFIG.DISABLE_AUTH_FOR_DEV ? undefined : "teacher"}>
+            <ClassRunner />
           </ProtectedRoute>
         } 
       />
