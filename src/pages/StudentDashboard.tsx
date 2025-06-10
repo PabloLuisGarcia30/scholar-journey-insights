@@ -5,9 +5,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { BookOpen, GraduationCap, LineChart, User } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { useState, useEffect } from "react";
 import { TailoredExercises } from "@/components/TailoredExercises";
-import { DevRoleToggle } from "@/components/DevRoleToggle";
+import { DashboardHeader } from "@/components/DashboardHeader";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface StudentProfile {
   id: string;
@@ -18,29 +18,7 @@ interface StudentProfile {
 }
 
 export default function StudentDashboard() {
-  const [user, setUser] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    // Get current user
-    const getUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      setUser(user);
-      setLoading(false);
-    };
-
-    getUser();
-
-    // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        setUser(session?.user ?? null);
-        setLoading(false);
-      }
-    );
-
-    return () => subscription.unsubscribe();
-  }, []);
+  const { user, loading } = useAuth();
 
   const { data: studentProfile, isLoading: profileLoading } = useQuery({
     queryKey: ['studentProfile', user?.id],
@@ -87,18 +65,10 @@ export default function StudentDashboard() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50/30">
       <div className="max-w-7xl mx-auto px-6 py-8">
-        {/* Header with Dev Toggle */}
-        <div className="mb-8 flex items-center justify-between">
-          <div>
-            <h1 className="text-4xl font-bold bg-gradient-to-r from-slate-900 via-slate-700 to-blue-800 bg-clip-text text-transparent">
-              Student Dashboard
-            </h1>
-            <p className="text-lg text-slate-600 mt-2">
-              Welcome, {studentProfile?.name || 'Student'}!
-            </p>
-          </div>
-          <DevRoleToggle />
-        </div>
+        <DashboardHeader 
+          title="Student Dashboard" 
+          subtitle={`Welcome, ${studentProfile?.name || 'Student'}!`}
+        />
 
         <Tabs defaultValue="overview" className="space-y-6">
           <TabsList className="grid w-full grid-cols-4">
