@@ -282,7 +282,7 @@ export function ClassStudentList({ classId, className, onSelectStudent }: ClassS
               onClick={handleLockLessonPlan}
               className="bg-green-600 hover:bg-green-700 text-white"
             >
-              Lock in Lesson Plan
+              Lock in Lesson Plan & Generate Exercises
             </Button>
           )}
         </div>
@@ -304,8 +304,7 @@ export function ClassStudentList({ classId, className, onSelectStudent }: ClassS
         onOpenChange={setShowLockDialog}
         lessonPlanData={lessonPlanData}
         onSuccess={() => {
-          // Could add additional success handling here
-          console.log('Lesson plan saved successfully');
+          console.log('Lesson plan with exercises saved successfully');
         }}
       />
     </div>

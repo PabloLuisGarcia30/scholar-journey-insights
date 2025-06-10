@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -12,8 +11,13 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Calendar, Clock, Users, Target, BookOpen } from "lucide-react";
 import { toast } from "sonner";
-import { saveLessonPlan, type LessonPlanData } from "@/services/lessonPlanService";
+import { 
+  saveLessonPlanWithExercises, 
+  type LessonPlanData, 
+  type ExerciseGenerationProgress 
+} from "@/services/lessonPlanService";
 import { useStudentProfileData } from "@/hooks/useStudentProfileData";
+import { ExerciseGenerationProgress } from "./ExerciseGenerationProgress";
 
 interface LockLessonPlanDialogProps {
   open: boolean;
@@ -99,6 +103,9 @@ export function LockLessonPlanDialog({
 }: LockLessonPlanDialogProps) {
   const [saving, setSaving] = useState(false);
   const [studentSkillData, setStudentSkillData] = useState<StudentSkillData[]>([]);
+  const [exerciseProgress, setExerciseProgress] = useState<ExerciseGenerationProgress[]>([]);
+  const [isGeneratingExercises, setIsGeneratingExercises] = useState(false);
+  const [exerciseGenerationComplete, setExerciseGenerationComplete] = useState(false);
 
   const handleSkillData = (data: StudentSkillData) => {
     setStudentSkillData(prev => {
@@ -134,13 +141,45 @@ export function LockLessonPlanDialog({
 
     try {
       setSaving(true);
-      await saveLessonPlan(finalLessonPlanData);
-      toast.success("Lesson plan locked in successfully!");
+      setIsGeneratingExercises(true);
+      setExerciseGenerationComplete(false);
+      setExerciseProgress([]);
+
+      console.log('Starting lesson plan save with exercise generation...');
+      
+      const result = await saveLessonPlanWithExercises(
+        finalLessonPlanData,
+        (progress) => {
+          console.log('Exercise generation progress:', progress);
+          setExerciseProgress(progress);
+        }
+      );
+
+      setExerciseGenerationComplete(true);
+      
+      const completedCount = result.exercises?.length || 0;
+      const totalCount = finalLessonPlanData.students.length;
+      
+      toast.success(
+        `Lesson plan locked in successfully! Generated ${completedCount} of ${totalCount} practice exercises.`
+      );
+      
       onSuccess();
-      onOpenChange(false);
+      
+      // Keep dialog open briefly to show completion, then close
+      setTimeout(() => {
+        onOpenChange(false);
+        // Reset states for next time
+        setExerciseProgress([]);
+        setIsGeneratingExercises(false);
+        setExerciseGenerationComplete(false);
+      }, 2000);
+      
     } catch (error) {
-      console.error('Error saving lesson plan:', error);
+      console.error('Error saving lesson plan with exercises:', error);
       toast.error("Failed to save lesson plan. Please try again.");
+      setIsGeneratingExercises(false);
+      setExerciseGenerationComplete(false);
     } finally {
       setSaving(false);
     }
@@ -170,77 +209,101 @@ export function LockLessonPlanDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <BookOpen className="h-5 w-5" />
-            Lock in Lesson Plan
+            Lock in Lesson Plan & Generate Exercises
           </DialogTitle>
           <DialogDescription>
-            Review and confirm your lesson plan details before locking it in.
+            Review your lesson plan details. When you lock it in, we'll automatically generate personalized practice exercises for each student based on their target skills.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-6">
-          {/* Class Information */}
-          <div className="p-4 bg-blue-50 rounded-lg">
-            <h3 className="font-semibold text-blue-900 mb-2 flex items-center gap-2">
-              <BookOpen className="h-4 w-4" />
-              Class Information
-            </h3>
-            <div className="space-y-2 text-sm">
-              <div><strong>Class:</strong> {lessonPlanData.className}</div>
-              <div><strong>Subject:</strong> {lessonPlanData.subject}</div>
-              <div><strong>Grade:</strong> {lessonPlanData.grade}</div>
-              <div><strong>Teacher:</strong> {lessonPlanData.teacherName}</div>
-            </div>
-          </div>
+          {/* Show exercise generation progress if in progress */}
+          {isGeneratingExercises && (
+            <ExerciseGenerationProgress 
+              progress={exerciseProgress}
+              isComplete={exerciseGenerationComplete}
+            />
+          )}
 
-          {/* Schedule Information */}
-          <div className="p-4 bg-green-50 rounded-lg">
-            <h3 className="font-semibold text-green-900 mb-2 flex items-center gap-2">
-              <Calendar className="h-4 w-4" />
-              Schedule
-            </h3>
-            <div className="space-y-2 text-sm">
-              <div className="flex items-center gap-2">
-                <Calendar className="h-4 w-4" />
-                <span>{formatDate(lessonPlanData.scheduledDate)}</span>
+          {/* Only show lesson plan details if not generating exercises */}
+          {!isGeneratingExercises && (
+            <>
+              {/* Class Information */}
+              <div className="p-4 bg-blue-50 rounded-lg">
+                <h3 className="font-semibold text-blue-900 mb-2 flex items-center gap-2">
+                  <BookOpen className="h-4 w-4" />
+                  Class Information
+                </h3>
+                <div className="space-y-2 text-sm">
+                  <div><strong>Class:</strong> {lessonPlanData.className}</div>
+                  <div><strong>Subject:</strong> {lessonPlanData.subject}</div>
+                  <div><strong>Grade:</strong> {lessonPlanData.grade}</div>
+                  <div><strong>Teacher:</strong> {lessonPlanData.teacherName}</div>
+                </div>
               </div>
-              <div className="flex items-center gap-2">
-                <Clock className="h-4 w-4" />
-                <span>{formatTime(lessonPlanData.scheduledTime)}</span>
-              </div>
-            </div>
-          </div>
 
-          {/* Students and Target Skills */}
-          <div className="p-4 bg-orange-50 rounded-lg">
-            <h3 className="font-semibold text-orange-900 mb-3 flex items-center gap-2">
-              <Users className="h-4 w-4" />
-              Students & Target Skills ({lessonPlanData.students.length} students)
-            </h3>
-            <div className="space-y-3">
-              {lessonPlanData.students.map((student) => (
-                <StudentSkillFetcher
-                  key={student.studentId}
-                  studentId={student.studentId}
-                  studentName={student.studentName}
-                  classId={lessonPlanData.classId}
-                  className={lessonPlanData.className}
-                  onSkillData={handleSkillData}
-                />
-              ))}
-            </div>
-          </div>
+              {/* Schedule Information */}
+              <div className="p-4 bg-green-50 rounded-lg">
+                <h3 className="font-semibold text-green-900 mb-2 flex items-center gap-2">
+                  <Calendar className="h-4 w-4" />
+                  Schedule
+                </h3>
+                <div className="space-y-2 text-sm">
+                  <div className="flex items-center gap-2">
+                    <Calendar className="h-4 w-4" />
+                    <span>{formatDate(lessonPlanData.scheduledDate)}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Clock className="h-4 w-4" />
+                    <span>{formatTime(lessonPlanData.scheduledTime)}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Students and Target Skills */}
+              <div className="p-4 bg-orange-50 rounded-lg">
+                <h3 className="font-semibold text-orange-900 mb-3 flex items-center gap-2">
+                  <Users className="h-4 w-4" />
+                  Students & Target Skills ({lessonPlanData.students.length} students)
+                </h3>
+                <div className="space-y-3">
+                  {lessonPlanData.students.map((student) => (
+                    <StudentSkillFetcher
+                      key={student.studentId}
+                      studentId={student.studentId}
+                      studentName={student.studentName}
+                      classId={lessonPlanData.classId}
+                      className={lessonPlanData.className}
+                      onSkillData={handleSkillData}
+                    />
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+          <Button 
+            variant="outline" 
+            onClick={() => onOpenChange(false)}
+            disabled={saving}
+          >
             Cancel
           </Button>
-          <Button onClick={handleSave} disabled={saving}>
-            {saving ? "Saving..." : "Lock in Lesson Plan"}
+          <Button 
+            onClick={handleSave} 
+            disabled={saving || isGeneratingExercises}
+            className="bg-green-600 hover:bg-green-700"
+          >
+            {saving ? 
+              (isGeneratingExercises ? "Generating Exercises..." : "Saving...") : 
+              "Lock in Lesson Plan & Generate Exercises"
+            }
           </Button>
         </DialogFooter>
       </DialogContent>

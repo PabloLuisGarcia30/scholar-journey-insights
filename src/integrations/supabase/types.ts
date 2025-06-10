@@ -552,6 +552,47 @@ export type Database = {
         }
         Relationships: []
       }
+      lesson_plan_practice_exercises: {
+        Row: {
+          created_at: string
+          exercise_data: Json
+          exercise_type: string
+          generated_at: string
+          id: string
+          lesson_plan_id: string
+          student_id: string
+          student_name: string
+        }
+        Insert: {
+          created_at?: string
+          exercise_data: Json
+          exercise_type?: string
+          generated_at?: string
+          id?: string
+          lesson_plan_id: string
+          student_id: string
+          student_name: string
+        }
+        Update: {
+          created_at?: string
+          exercise_data?: Json
+          exercise_type?: string
+          generated_at?: string
+          id?: string
+          lesson_plan_id?: string
+          student_id?: string
+          student_name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lesson_plan_practice_exercises_lesson_plan_id_fkey"
+            columns: ["lesson_plan_id"]
+            isOneToOne: false
+            referencedRelation: "lesson_plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       lesson_plan_students: {
         Row: {
           created_at: string
