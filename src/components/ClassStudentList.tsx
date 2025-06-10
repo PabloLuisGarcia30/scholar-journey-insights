@@ -367,11 +367,14 @@ export function ClassStudentList({ classId, className, onSelectStudent }: ClassS
   };
 
   // Prepare data for StartClassSession component
-  const studentsWithSkills = classStudents.map(student => ({
-    studentId: student.id,
-    studentName: student.name,
-    skills: getStudentSkills(student.id).filter(skill => skill.skill_name !== '__WEAKEST_PLACEHOLDER__')
-  })).filter(student => student.skills.length > 0);
+  const studentsWithSkills = classStudents.map(student => {
+    const skills = getStudentSkills(student.id).filter(skill => skill.skill_name !== '__WEAKEST_PLACEHOLDER__');
+    return {
+      studentId: student.id,
+      studentName: student.name,
+      skills: skills
+    };
+  });
 
   if (isLoading) {
     return (
@@ -452,11 +455,14 @@ export function ClassStudentList({ classId, className, onSelectStudent }: ClassS
             </p>
           </div>
           
-          {studentsWithSkills.length > 0 && (
-            <StartClassSession
+          {/* Show Start Class Session button immediately when students are present */}
+          {classStudents.length > 0 && (
+            <StartClassSessionWithDefaults
               classId={classId}
               className={className}
-              students={studentsWithSkills}
+              students={classStudents}
+              studentTargetSkills={studentTargetSkills}
+              studentAdditionalSkills={studentAdditionalSkills}
             />
           )}
         </div>
@@ -477,6 +483,122 @@ export function ClassStudentList({ classId, className, onSelectStudent }: ClassS
         ))}
       </div>
     </div>
+  );
+}
+
+// New component that handles the Start Class Session with default skills
+function StartClassSessionWithDefaults({ 
+  classId, 
+  className, 
+  students,
+  studentTargetSkills,
+  studentAdditionalSkills
+}: {
+  classId: string;
+  className: string;
+  students: any[];
+  studentTargetSkills: Record<string, StudentSkill | null>;
+  studentAdditionalSkills: Record<string, StudentSkill[]>;
+}) {
+  // Prepare data including default weakest skills for students without selections
+  const studentsWithSkills = useMemo(() => {
+    return students.map(student => {
+      const skills: StudentSkill[] = [];
+      const targetSkill = studentTargetSkills[student.id];
+      const additionalSkills = studentAdditionalSkills[student.id] || [];
+      
+      // Add target skill if set
+      if (targetSkill) {
+        skills.push(targetSkill);
+      }
+      
+      // Add additional skills
+      skills.push(...additionalSkills);
+      
+      // If no skills are selected, we'll use the weakest skill from the student's data
+      // This will be handled by the StudentCardWithWeakestSkill component's logic
+      return {
+        studentId: student.id,
+        studentName: student.name,
+        skills: skills.length > 0 ? skills : [] // Will be populated with default skills
+      };
+    });
+  }, [students, studentTargetSkills, studentAdditionalSkills]);
+
+  return (
+    <StudentsWithDefaultSkills
+      classId={classId}
+      className={className}
+      students={students}
+      studentsWithSkills={studentsWithSkills}
+    />
+  );
+}
+
+// Component that fetches default skills for students and prepares data for StartClassSession
+function StudentsWithDefaultSkills({
+  classId,
+  className,
+  students,
+  studentsWithSkills
+}: {
+  classId: string;
+  className: string;
+  students: any[];
+  studentsWithSkills: Array<{
+    studentId: string;
+    studentName: string;
+    skills: StudentSkill[];
+  }>;
+}) {
+  // Get skill data for all students to determine default weakest skills
+  const studentSkillData = students.map(student => {
+    const { contentSkillScores } = useStudentProfileData({
+      studentId: student.id,
+      classId,
+      className
+    });
+    return {
+      studentId: student.id,
+      studentName: student.name,
+      contentSkillScores
+    };
+  });
+
+  // Prepare final data with default weakest skills for students without selections
+  const finalStudentsWithSkills = useMemo(() => {
+    return studentsWithSkills.map(studentWithSkills => {
+      // If student already has skills selected, use those
+      if (studentWithSkills.skills.length > 0) {
+        return studentWithSkills;
+      }
+      
+      // Otherwise, find their weakest skill from the skill data
+      const studentData = studentSkillData.find(s => s.studentId === studentWithSkills.studentId);
+      if (studentData && studentData.contentSkillScores.length > 0) {
+        const weakestSkill = studentData.contentSkillScores.reduce((weakest, current) => 
+          current.score < weakest.score ? current : weakest
+        );
+        
+        return {
+          ...studentWithSkills,
+          skills: [{
+            skill_name: weakestSkill.skill_name,
+            score: weakestSkill.score
+          }]
+        };
+      }
+      
+      return studentWithSkills;
+    }).filter(student => student.skills.length > 0); // Only include students with skills
+  }, [studentsWithSkills, studentSkillData]);
+
+  return (
+    <StartClassSession
+      classId={classId}
+      className={className}
+      students={finalStudentsWithSkills}
+    />
   );
 }
 
