@@ -7,6 +7,8 @@ import { getAllActiveStudents, getActiveClassById } from "@/services/examService
 import { useStudentProfileData } from "@/hooks/useStudentProfileData";
 import { getMasteryColor } from "@/utils/studentProfileUtils";
 import { useState } from "react";
+import { LockLessonPlanDialog } from "./LockLessonPlanDialog";
+import { type LessonPlanData } from "@/services/lessonPlanService";
 
 interface ClassStudentListProps {
   classId: string;
@@ -186,6 +188,8 @@ function StudentCard({ student, classId, className }: StudentCardProps) {
 }
 
 export function ClassStudentList({ classId, className, onSelectStudent }: ClassStudentListProps) {
+  const [showLockDialog, setShowLockDialog] = useState(false);
+  
   const { data: allStudents = [], isLoading: studentsLoading } = useQuery({
     queryKey: ['allActiveStudents'],
     queryFn: getAllActiveStudents,
@@ -203,6 +207,60 @@ export function ClassStudentList({ classId, className, onSelectStudent }: ClassS
   );
 
   const isLoading = studentsLoading || classLoading;
+
+  const handleLockLessonPlan = () => {
+    setShowLockDialog(true);
+  };
+
+  const prepareLessonPlanData = (): LessonPlanData | null => {
+    if (!classData || classStudents.length === 0) return null;
+
+    // Get current date and time for the lesson plan
+    const today = new Date();
+    const scheduledDate = today.toISOString().split('T')[0]; // YYYY-MM-DD format
+    const scheduledTime = "13:30"; // Default time, could be made dynamic
+
+    const studentsWithSkills = classStudents
+      .map(student => {
+        // Get weakest skill for this student from the StudentCard logic
+        const { contentSkillScores } = useStudentProfileData({
+          studentId: student.id,
+          classId,
+          className
+        });
+
+        const weakestSkill = contentSkillScores
+          .sort((a, b) => a.score - b.score)[0];
+
+        if (!weakestSkill) return null;
+
+        return {
+          studentId: student.id,
+          studentName: student.name,
+          targetSkillName: weakestSkill.skill_name,
+          targetSkillScore: weakestSkill.score
+        };
+      })
+      .filter(Boolean) as Array<{
+        studentId: string;
+        studentName: string;
+        targetSkillName: string;
+        targetSkillScore: number;
+      }>;
+
+    if (studentsWithSkills.length === 0) return null;
+
+    return {
+      classId: classData.id,
+      className: classData.name,
+      teacherName: classData.teacher,
+      subject: classData.subject,
+      grade: classData.grade,
+      scheduledDate,
+      scheduledTime,
+      students: studentsWithSkills
+    };
+  };
 
   if (isLoading) {
     return (
@@ -231,12 +289,24 @@ export function ClassStudentList({ classId, className, onSelectStudent }: ClassS
   return (
     <div className="mt-6">
       <div className="mb-4">
-        <h3 className="text-lg font-semibold text-slate-900 mb-1">
-          Recommended Lesson Plan
-        </h3>
-        <p className="text-sm text-slate-600">
-          View each student's weakest content skill in {className} - automatically identified based on their performance
-        </p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-lg font-semibold text-slate-900 mb-1">
+              Recommended Lesson Plan
+            </h3>
+            <p className="text-sm text-slate-600">
+              View each student's weakest content skill in {className} - automatically identified based on their performance
+            </p>
+          </div>
+          {classStudents.length > 0 && !isLoading && (
+            <Button 
+              onClick={handleLockLessonPlan}
+              className="bg-green-600 hover:bg-green-700 text-white"
+            >
+              Lock in Lesson Plan
+            </Button>
+          )}
+        </div>
       </div>
 
       <div className="space-y-2 max-w-2xl">
@@ -249,6 +319,16 @@ export function ClassStudentList({ classId, className, onSelectStudent }: ClassS
           />
         ))}
       </div>
+
+      <LockLessonPlanDialog
+        open={showLockDialog}
+        onOpenChange={setShowLockDialog}
+        lessonPlanData={prepareLessonPlanData()}
+        onSuccess={() => {
+          // Could add additional success handling here
+          console.log('Lesson plan saved successfully');
+        }}
+      />
     </div>
   );
 }

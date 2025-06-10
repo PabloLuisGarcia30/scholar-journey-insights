@@ -552,6 +552,86 @@ export type Database = {
         }
         Relationships: []
       }
+      lesson_plan_students: {
+        Row: {
+          created_at: string
+          id: string
+          lesson_plan_id: string
+          student_id: string
+          student_name: string
+          target_skill_name: string
+          target_skill_score: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          lesson_plan_id: string
+          student_id: string
+          student_name: string
+          target_skill_name: string
+          target_skill_score: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          lesson_plan_id?: string
+          student_id?: string
+          student_name?: string
+          target_skill_name?: string
+          target_skill_score?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lesson_plan_students_lesson_plan_id_fkey"
+            columns: ["lesson_plan_id"]
+            isOneToOne: false
+            referencedRelation: "lesson_plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lesson_plans: {
+        Row: {
+          class_id: string
+          class_name: string
+          created_at: string
+          grade: string
+          id: string
+          scheduled_date: string
+          scheduled_time: string
+          status: string
+          subject: string
+          teacher_name: string
+          updated_at: string
+        }
+        Insert: {
+          class_id: string
+          class_name: string
+          created_at?: string
+          grade: string
+          id?: string
+          scheduled_date: string
+          scheduled_time: string
+          status?: string
+          subject: string
+          teacher_name: string
+          updated_at?: string
+        }
+        Update: {
+          class_id?: string
+          class_name?: string
+          created_at?: string
+          grade?: string
+          id?: string
+          scheduled_date?: string
+          scheduled_time?: string
+          status?: string
+          subject?: string
+          teacher_name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       notifications: {
         Row: {
           assignment_id: string | null
