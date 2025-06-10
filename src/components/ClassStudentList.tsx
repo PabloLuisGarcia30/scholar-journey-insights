@@ -1,8 +1,8 @@
-
 import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { User, TrendingDown, Edit, Target, Plus } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { getAllActiveStudents, getActiveClassById } from "@/services/examService";
@@ -82,71 +82,79 @@ function SkillCircle({ skill, index }: { skill: StudentSkill; index: number }) {
   const gradientId = `gradient-skill-${index}-${Math.random().toString(36).substr(2, 9)}`;
 
   return (
-    <div className="flex flex-col items-center w-20 mx-1">
-      <div 
-        className="relative w-12 h-12 mb-2 flex-shrink-0"
-        onMouseEnter={() => setIsHovered(true)}
-        onMouseLeave={() => setIsHovered(false)}
-        title={skill.skill_name || "Unknown Skill"}
-      >
-        <svg className="w-12 h-12" viewBox="0 0 48 48">
-          <defs>
-            <linearGradient id={gradientId} x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor={gradientColors.color1} />
-              <stop offset="50%" stopColor={gradientColors.color2} />
-              <stop offset="100%" stopColor={gradientColors.color3} />
-            </linearGradient>
-          </defs>
-          <circle
-            cx="24"
-            cy="24"
-            r="18"
-            fill={`url(#${gradientId})`}
-            style={{ 
-              filter: isHovered ? 'brightness(1.1)' : 'brightness(1)',
-              transform: isHovered ? 'scale(1.05)' : 'scale(1)',
-              transformOrigin: 'center',
-            }}
-            className="transition-all duration-300 ease-in-out"
-          />
-        </svg>
-        
-        {/* Percentage in center */}
-        <div className="absolute inset-0 flex items-center justify-center">
-          <span className="text-xs font-bold text-white drop-shadow-sm">
-            {Math.round(skill.score || 0)}%
-          </span>
-        </div>
-      </div>
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <div className="flex flex-col items-center w-20 mx-1">
+            <div 
+              className="relative w-12 h-12 mb-2 flex-shrink-0 cursor-help"
+              onMouseEnter={() => setIsHovered(true)}
+              onMouseLeave={() => setIsHovered(false)}
+            >
+              <svg className="w-12 h-12" viewBox="0 0 48 48">
+                <defs>
+                  <linearGradient id={gradientId} x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stopColor={gradientColors.color1} />
+                    <stop offset="50%" stopColor={gradientColors.color2} />
+                    <stop offset="100%" stopColor={gradientColors.color3} />
+                  </linearGradient>
+                </defs>
+                <circle
+                  cx="24"
+                  cy="24"
+                  r="18"
+                  fill={`url(#${gradientId})`}
+                  style={{ 
+                    filter: isHovered ? 'brightness(1.1)' : 'brightness(1)',
+                    transform: isHovered ? 'scale(1.05)' : 'scale(1)',
+                    transformOrigin: 'center',
+                  }}
+                  className="transition-all duration-300 ease-in-out"
+                />
+              </svg>
+              
+              {/* Percentage in center */}
+              <div className="absolute inset-0 flex items-center justify-center">
+                <span className="text-xs font-bold text-white drop-shadow-sm">
+                  {Math.round(skill.score || 0)}%
+                </span>
+              </div>
+            </div>
 
-      {/* Skill name and context - improved height and layout */}
-      <div className="text-center w-full h-14 flex flex-col justify-start">
-        <div className="flex items-center gap-1 justify-center mb-1">
-          {skill.isTarget ? (
-            <>
-              <Target className="h-2.5 w-2.5 text-blue-600 flex-shrink-0" />
-              <span className="text-xs font-semibold text-blue-700">Target</span>
-            </>
-          ) : skill.isAdditional ? (
-            <>
-              <Plus className="h-2.5 w-2.5 text-green-600 flex-shrink-0" />
-              <span className="text-xs font-semibold text-green-700">Added</span>
-            </>
-          ) : (
-            <>
-              <TrendingDown className="h-2.5 w-2.5 text-orange-600 flex-shrink-0" />
-              <span className="text-xs font-semibold text-orange-700">Weakest</span>
-            </>
-          )}
-        </div>
-        <p className="text-xs text-slate-800 font-medium leading-tight text-center px-1 line-clamp-2" style={{ 
-          wordBreak: 'break-word',
-          hyphens: 'auto'
-        }}>
-          {truncatedSkillName}
-        </p>
-      </div>
-    </div>
+            {/* Skill name and context - improved height and layout */}
+            <div className="text-center w-full h-14 flex flex-col justify-start">
+              <div className="flex items-center gap-1 justify-center mb-1">
+                {skill.isTarget ? (
+                  <>
+                    <Target className="h-2.5 w-2.5 text-blue-600 flex-shrink-0" />
+                    <span className="text-xs font-semibold text-blue-700">Target</span>
+                  </>
+                ) : skill.isAdditional ? (
+                  <>
+                    <Plus className="h-2.5 w-2.5 text-green-600 flex-shrink-0" />
+                    <span className="text-xs font-semibold text-green-700">Added</span>
+                  </>
+                ) : (
+                  <>
+                    <TrendingDown className="h-2.5 w-2.5 text-orange-600 flex-shrink-0" />
+                    <span className="text-xs font-semibold text-orange-700">Weakest</span>
+                  </>
+                )}
+              </div>
+              <p className="text-xs text-slate-800 font-medium leading-tight text-center px-1 line-clamp-2" style={{ 
+                wordBreak: 'break-word',
+                hyphens: 'auto'
+              }}>
+                {truncatedSkillName}
+              </p>
+            </div>
+          </div>
+        </TooltipTrigger>
+        <TooltipContent>
+          <p className="max-w-xs text-sm">{skill.skill_name || "Unknown Skill"}</p>
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
   );
 }
 
@@ -534,3 +542,5 @@ function StudentCardWithWeakestSkill({
     />
   );
 }
+
+export default ClassStudentList;
