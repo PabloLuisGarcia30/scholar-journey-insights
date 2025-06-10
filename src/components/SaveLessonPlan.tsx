@@ -1,7 +1,7 @@
-
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Save, Loader2, Calendar, Clock, Sparkles, AlertCircle, RefreshCw } from "lucide-react";
@@ -62,6 +62,8 @@ export function SaveLessonPlan({ classId, className, classData, students, onLess
   const [step, setStep] = useState<'basic' | 'exercises' | 'preview'>('basic');
   const [generatedExercises, setGeneratedExercises] = useState<StudentExercise[]>([]);
   const [exerciseResults, setExerciseResults] = useState<ExerciseGenerationResult[]>([]);
+  const [showSaveConfirmation, setShowSaveConfirmation] = useState(false);
+  const [exercisesToSave, setExercisesToSave] = useState<StudentExercise[]>([]);
   const { profile } = useAuth();
 
   // Calculate next class date automatically
@@ -370,6 +372,8 @@ export function SaveLessonPlan({ classId, className, classData, students, onLess
       setStep('basic');
       setGeneratedExercises([]);
       setExerciseResults([]);
+      setShowSaveConfirmation(false);
+      setExercisesToSave([]);
       
       // Reset lesson title for next time
       if (nextClassInfo) {
@@ -390,7 +394,18 @@ export function SaveLessonPlan({ classId, className, classData, students, onLess
   };
 
   const handleSaveWithExercises = (editedExercises: StudentExercise[]) => {
-    handleSaveLessonPlan(editedExercises);
+    setExercisesToSave(editedExercises);
+    setShowSaveConfirmation(true);
+  };
+
+  const handleConfirmSave = () => {
+    setShowSaveConfirmation(false);
+    handleSaveLessonPlan(exercisesToSave);
+  };
+
+  const handleCancelSave = () => {
+    setShowSaveConfirmation(false);
+    setExercisesToSave([]);
   };
 
   const handleCancelExercisePreview = () => {
@@ -605,26 +620,55 @@ export function SaveLessonPlan({ classId, className, classData, students, onLess
   const hasPlan = students.length > 0;
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button 
-          className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700"
-          disabled={!hasPlan}
-        >
-          <Save className="h-4 w-4" />
-          Save Lesson Plan
-        </Button>
-      </DialogTrigger>
-      <DialogContent className="sm:max-w-4xl max-h-[80vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>
-            {step === 'preview' ? 'Preview & Edit Exercises' : 
-             step === 'exercises' ? 'Generating Skill-Based Exercises' : 'Save Lesson Plan'}
-          </DialogTitle>
-        </DialogHeader>
-        
-        {renderContent()}
-      </DialogContent>
-    </Dialog>
+    <>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogTrigger asChild>
+          <Button 
+            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700"
+            disabled={!hasPlan}
+          >
+            <Save className="h-4 w-4" />
+            Save Lesson Plan
+          </Button>
+        </DialogTrigger>
+        <DialogContent className="sm:max-w-4xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              {step === 'preview' ? 'Preview & Edit Exercises' : 
+               step === 'exercises' ? 'Generating Skill-Based Exercises' : 'Save Lesson Plan'}
+            </DialogTitle>
+          </DialogHeader>
+          
+          {renderContent()}
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={showSaveConfirmation} onOpenChange={setShowSaveConfirmation}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Save Lesson Plan with Exercises</AlertDialogTitle>
+            <AlertDialogDescription>
+              These practice exercises will be available to Students, through the Student Dashboard, when you Start your next class Session on ClassRunner.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={handleCancelSave}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmSave} disabled={loading}>
+              {loading ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <Save className="h-4 w-4 mr-2" />
+                  Save Lesson Plan
+                </>
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }
