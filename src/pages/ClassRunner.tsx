@@ -1,6 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Play, Users, Calendar, Settings, BookOpen, ArrowLeft } from "lucide-react";
+import { Play, Users, Calendar, Settings, BookOpen, ArrowLeft, FileText } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -51,6 +51,16 @@ export default function ClassRunner() {
     if (currentHour < 13) return "1:15 PM";
     if (currentHour < 14) return "2:45 PM";
     return "Tomorrow 10:30 AM";
+  };
+
+  const handlePlanClass = (classItem: any) => {
+    console.log('Planning class:', classItem.name);
+    // TODO: Implement lesson planning functionality
+  };
+
+  const handleStartClass = (classItem: any) => {
+    console.log('Starting class:', classItem.name);
+    // TODO: Implement class session start functionality
   };
 
   return (
@@ -157,7 +167,7 @@ export default function ClassRunner() {
                   </div>
                 ) : activeClasses.length > 0 ? (
                   <div className="space-y-4">
-                    {activeClasses.map((classItem, index) => (
+                    {activeClasses.map((classItem) => (
                       <div key={classItem.id} className="p-4 rounded-lg border bg-white/50">
                         <div className="flex items-center justify-between mb-3">
                           <div>
@@ -166,16 +176,26 @@ export default function ClassRunner() {
                               {classItem.subject} • {classItem.grade}
                             </p>
                           </div>
-                          <Button size="sm" variant={index === 0 ? "default" : "outline"}>
-                            {index === 0 ? (
-                              <>
-                                <Play className="h-4 w-4 mr-2" />
-                                Start
-                              </>
-                            ) : (
-                              "Schedule"
-                            )}
-                          </Button>
+                          <div className="flex items-center gap-2">
+                            <Button 
+                              size="sm" 
+                              variant="outline" 
+                              onClick={() => handlePlanClass(classItem)}
+                              className="flex items-center gap-2"
+                            >
+                              <FileText className="h-4 w-4" />
+                              Plan
+                            </Button>
+                            <Button 
+                              size="sm" 
+                              variant="default" 
+                              onClick={() => handleStartClass(classItem)}
+                              className="flex items-center gap-2"
+                            >
+                              <Play className="h-4 w-4" />
+                              Start
+                            </Button>
+                          </div>
                         </div>
                         <div className="flex items-center gap-4 text-sm text-slate-600">
                           <span>{classItem.student_count || 0} students</span>
