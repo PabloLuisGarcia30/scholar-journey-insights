@@ -1,5 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import { StudentIdGenerationService } from "./studentIdGenerationService";
+import { calculateClassDuration, getClassDurationInMinutes, formatDurationShort, DurationInfo } from "@/utils/classDurationUtils";
 import type { Question } from "@/utils/pdfGenerator";
 
 export interface ExamData {
@@ -51,6 +52,12 @@ export interface ActiveClass {
   end_time?: string;
   created_at: string;
   updated_at: string;
+}
+
+export interface ActiveClassWithDuration extends ActiveClass {
+  duration?: DurationInfo;
+  durationMinutes?: number;
+  durationFormatted?: string;
 }
 
 export interface StudentProfile {
@@ -1088,6 +1095,98 @@ export const getStudentEnrolledClasses = async (studentId: string): Promise<Acti
     return data || [];
   } catch (error) {
     console.error('Error in getStudentEnrolledClasses:', error);
+    throw error;
+  }
+};
+
+/**
+ * Get class duration information for a single class
+ */
+export const getClassDuration = (activeClass: ActiveClass): DurationInfo | null => {
+  return calculateClassDuration(activeClass.class_time, activeClass.end_time);
+};
+
+/**
+ * Get class duration in minutes for a single class
+ */
+export const getClassDurationMinutes = (activeClass: ActiveClass): number => {
+  return getClassDurationInMinutes(activeClass.class_time, activeClass.end_time);
+};
+
+/**
+ * Get formatted duration string for a single class
+ */
+export const getClassDurationFormatted = (activeClass: ActiveClass): string => {
+  const duration = getClassDuration(activeClass);
+  return duration?.formattedDuration || 'Duration not available';
+};
+
+/**
+ * Get short formatted duration for a single class
+ */
+export const getClassDurationShort = (activeClass: ActiveClass): string => {
+  const duration = getClassDuration(activeClass);
+  return duration?.shortFormat || 'N/A';
+};
+
+/**
+ * Enhance active classes with duration information
+ */
+export const enhanceClassesWithDuration = (classes: ActiveClass[]): ActiveClassWithDuration[] => {
+  return classes.map(activeClass => {
+    const duration = getClassDuration(activeClass);
+    return {
+      ...activeClass,
+      duration,
+      durationMinutes: duration?.totalMinutes,
+      durationFormatted: duration?.formattedDuration
+    };
+  });
+};
+
+/**
+ * Get all active classes with duration information
+ */
+export const getAllActiveClassesWithDuration = async (): Promise<ActiveClassWithDuration[]> => {
+  try {
+    const classes = await getAllActiveClasses();
+    return enhanceClassesWithDuration(classes);
+  } catch (error) {
+    console.error('Error in getAllActiveClassesWithDuration:', error);
+    throw error;
+  }
+};
+
+/**
+ * Get active class by ID with duration information
+ */
+export const getActiveClassByIdWithDuration = async (classId: string): Promise<ActiveClassWithDuration | null> => {
+  try {
+    const activeClass = await getActiveClassById(classId);
+    if (!activeClass) return null;
+    
+    const duration = getClassDuration(activeClass);
+    return {
+      ...activeClass,
+      duration,
+      durationMinutes: duration?.totalMinutes,
+      durationFormatted: duration?.formattedDuration
+    };
+  } catch (error) {
+    console.error('Error in getActiveClassByIdWithDuration:', error);
+    throw error;
+  }
+};
+
+/**
+ * Get student enrolled classes with duration information
+ */
+export const getStudentEnrolledClassesWithDuration = async (studentId: string): Promise<ActiveClassWithDuration[]> => {
+  try {
+    const classes = await getStudentEnrolledClasses(studentId);
+    return enhanceClassesWithDuration(classes);
+  } catch (error) {
+    console.error('Error in getStudentEnrolledClassesWithDuration:', error);
     throw error;
   }
 };
