@@ -1,3 +1,4 @@
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -388,7 +389,7 @@ function extractKeywords(answer: string, question: string): string[] {
   return keywords.length > 0 ? keywords : ['concept', 'skill', 'analysis'];
 }
 
-// Enhanced fallback question generator with better educational content
+// Consolidated fallback question generator with better educational content
 function generateFallbackQuestions(
   skillDistribution: Array<{ skill_name: string; score: number; questions: number; contentSkillId?: string; isValidContentSkill?: boolean }>,
   subject: string,
@@ -569,36 +570,6 @@ function processOpenAIResponse(content: string): any {
   throw new Error('All JSON extraction strategies failed');
 }
 
-// Fallback question generator for critical failures with Content Skills support
-function generateFallbackQuestions(
-  skillDistribution: Array<{ skill_name: string; score: number; questions: number; contentSkillId?: string; isValidContentSkill?: boolean }>,
-  subject: string,
-  grade: string
-): ValidatedQuestion[] {
-  console.log('🆘 Generating fallback questions for emergency recovery');
-
-  const fallbackQuestions: ValidatedQuestion[] = [];
-  let questionId = 1;
-
-  for (const skill of skillDistribution) {
-    for (let i = 0; i < skill.questions; i++) {
-      fallbackQuestions.push({
-        id: `Q${questionId++}`,
-        type: 'short-answer',
-        question: `Practice question for ${skill.skill_name}. Please describe a key concept or skill related to this topic.`,
-        correctAnswer: 'Please review with instructor',
-        acceptableAnswers: ['Please review with instructor'],
-        keywords: ['practice', 'review', 'concept'],
-        points: 1,
-        targetSkill: skill.skill_name,
-        contentSkillId: skill.contentSkillId
-      });
-    }
-  }
-
-  return fallbackQuestions;
-}
-
 // Retry configuration
 const RETRY_CONFIG = {
   maxAttempts: 3,
@@ -643,7 +614,7 @@ async function withRetry<T>(
     );
     const delayWithJitter = addJitter(baseDelay);
     
-    console.log(`Retrying in ${delayWithJitter}ms... (attempt ${attempt + 1}/${RETRY_CONFIG.maxAttempts})`);
+    console.log(`⏱️ Retrying in ${delayWithJitter}ms... (attempt ${attempt + 1}/${RETRY_CONFIG.maxAttempts})`);
     await sleep(delayWithJitter);
     
     return withRetry(operation, attempt + 1);
@@ -703,78 +674,6 @@ async function getHistoricalQuestionsForSkill(supabase: any, classId: string, sk
     console.error('Unexpected error fetching historical questions:', error);
     return [];
   }
-}
-
-// Enhanced prompt builder with hybrid approach
-function buildEnhancedPrompt(
-  studentName: string,
-  className: string,
-  grade: string,
-  subject: string,
-  questionCount: number,
-  skillType: string,
-  skillMetadata: any,
-  isMultiSkill: boolean,
-  validatedSkillDistribution: any[],
-  skillName: string,
-  classContentSkills: ContentSkill[],
-  historicalContext: string
-): string {
-  // Build Content Skills context
-  const contentSkillsContext = classContentSkills.length > 0 
-    ? `\n\nCONTENT SKILLS CONTEXT:\nThis class defines ${classContentSkills.length} specific Content Skills. Generate questions that explicitly align with these skills:\n${classContentSkills.map(skill => `- ${skill.skill_name}: ${skill.skill_description} (Topic: ${skill.topic})`).join('\n')}`
-    : '';
-
-  // Build skill focus section
-  const skillFocusSection = isMultiSkill && validatedSkillDistribution
-    ? `\n\nMULTI-SKILL DISTRIBUTION:\nDistribute questions exactly as follows:\n${validatedSkillDistribution.map(s => `- ${s.skill_name}: ${s.questions} questions (current score: ${s.score}%)${s.contentSkillId ? ` [Content Skill ID: ${s.contentSkillId}]` : ''}`).join('\n')}`
-    : `\n\nSKILL FOCUS:\nAll questions must target: "${skillName}"`;
-
-  return `You are an expert educational content creator specialized in generating precise, high-quality practice tests based on detailed educational context and skill metadata.
-
-Generate exactly ${questionCount} practice questions for ${studentName}, a ${grade}-level student in ${subject}, attending ${className}.${contentSkillsContext}${skillFocusSection}${historicalContext}
-
-CRITICAL INSTRUCTIONS:
-1. Each question MUST target EXACTLY ONE Content Skill from the provided list
-2. Match the provided skill names exactly for accurate progress tracking
-3. Ensure difficulty is suitable for a ${grade}-level student
-4. Provide clear, concise language optimized for educational clarity
-5. Mix question types: multiple-choice (preferred), short-answer, true-false
-6. Questions should logically progress from basic to advanced concepts
-7. Use the EXACT skill names provided to ensure proper progress tracking
-
-STRICT JSON RESPONSE FORMAT (respond ONLY in this format; NO extra text, markdown, or explanations):
-
-{
-  "title": "Brief, descriptive test title",
-  "description": "Concise description summarizing test objectives and Content Skills covered",
-  "skillType": "${skillType}",
-  "skillMetadata": ${JSON.stringify(skillMetadata)},
-  "questions": [
-    {
-      "id": "Q1",
-      "type": "multiple-choice" | "short-answer" | "true-false",
-      "question": "Clear, specific question text",
-      "targetSkill": "${isMultiSkill ? 'Exact skill name from distribution list' : skillName}",
-      "contentSkillId": "Matching Content Skill ID (if provided)",
-      "options": ["A", "B", "C", "D"] (ONLY for multiple-choice),
-      "correctAnswer": "Clearly indicated correct answer",
-      "acceptableAnswers": ["Alternative answer 1", "Alternative answer 2"] (for short-answer only),
-      "keywords": ["key concept 1", "key concept 2"] (important concepts, short-answer only),
-      "points": 1-3 (difficulty-based scoring)
-    }
-  ],
-  "totalPoints": sum of all question points,
-  "estimatedTime": estimated completion time in minutes
-}
-
-CONFIRM BEFORE RESPONDING:
-- JSON format precisely matches the structure provided
-- All questions explicitly align with the specified Content Skills
-- Difficulty and content are appropriate for ${grade} students
-- Each question targets exactly one skill from the provided list
-
-ONLY return the JSON. Begin your JSON response now.`;
 }
 
 async function callOpenAIWithRetry(prompt: string, model: string = 'gpt-4o-mini'): Promise<any> {
