@@ -1,10 +1,10 @@
-
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { BookOpen, Link, CheckCircle } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -397,45 +397,49 @@ export function ClassContentSkills({ activeClass }: ClassContentSkillsProps) {
           </div>
         </div>
       </CardHeader>
-      <CardContent>
-        {availableSkills.length === 0 ? (
-          <div className="text-center py-8">
-            <BookOpen className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">No content skills available</h3>
-            <p className="text-gray-600">
-              No content-specific skills are defined for {activeClass.subject} {activeClass.grade}
-            </p>
-          </div>
-        ) : (
-          <div className="space-y-6">
-            {topics.map((topic) => (
-              <div key={topic}>
-                <h3 className="text-lg font-semibold text-gray-900 mb-3">{topic}</h3>
-                <div className="space-y-3">
-                  {sortSkillsWithinTopic(groupedSkills[topic]).map((skill) => (
-                    <div key={skill.id} className="flex items-start gap-3 p-3 rounded-lg border border-gray-100">
-                      <Checkbox
-                        checked={selectedSkills.has(skill.id)}
-                        onCheckedChange={(checked) => handleSkillToggle(skill.id, !!checked)}
-                        className="mt-1"
-                      />
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="font-medium text-gray-900">{skill.skill_name}</span>
-                          {linkedSkills.some(linked => linked.id === skill.id) && (
-                            <CheckCircle className="h-4 w-4 text-green-600" />
-                          )}
-                        </div>
-                        <p className="text-sm text-gray-600">{skill.skill_description}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                {topic !== topics[topics.length - 1] && <Separator className="mt-6" />}
+      <CardContent className="p-0">
+        <ScrollArea className="h-[calc(100vh-280px)] w-full">
+          <div className="p-4">
+            {availableSkills.length === 0 ? (
+              <div className="text-center py-8">
+                <BookOpen className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-gray-900 mb-2">No content skills available</h3>
+                <p className="text-gray-600">
+                  No content-specific skills are defined for {activeClass.subject} {activeClass.grade}
+                </p>
               </div>
-            ))}
+            ) : (
+              <div className="space-y-6">
+                {topics.map((topic) => (
+                  <div key={topic}>
+                    <h3 className="text-lg font-semibold text-gray-900 mb-3">{topic}</h3>
+                    <div className="space-y-3">
+                      {sortSkillsWithinTopic(groupedSkills[topic]).map((skill) => (
+                        <div key={skill.id} className="flex items-start gap-3 p-3 rounded-lg border border-gray-100">
+                          <Checkbox
+                            checked={selectedSkills.has(skill.id)}
+                            onCheckedChange={(checked) => handleSkillToggle(skill.id, !!checked)}
+                            className="mt-1"
+                          />
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="font-medium text-gray-900">{skill.skill_name}</span>
+                              {linkedSkills.some(linked => linked.id === skill.id) && (
+                                <CheckCircle className="h-4 w-4 text-green-600" />
+                              )}
+                            </div>
+                            <p className="text-sm text-gray-600">{skill.skill_description}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    {topic !== topics[topics.length - 1] && <Separator className="mt-6" />}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
-        )}
+        </ScrollArea>
       </CardContent>
     </Card>
   );
