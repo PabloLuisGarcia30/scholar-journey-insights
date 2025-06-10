@@ -311,7 +311,7 @@ export function ClassStudentList({ classId, className, onSelectStudent }: ClassS
       <div className="mb-4">
         <div>
           <h3 className="text-lg font-semibold text-slate-900 mb-1">
-            Student Analysis
+            Recommended Lesson Plan based on Student Performance
           </h3>
           <p className="text-sm text-slate-600">
             View each student's skill focus for {className} - click Edit to select target skills for today's lesson
