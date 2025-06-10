@@ -1,4 +1,3 @@
-
 import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -202,6 +201,8 @@ function SkillCircle({ skill, index, isClickable, onClick }: {
 }
 
 function StudentCard({ student, classId, className, onEditDefault, onAddSkills, skills }: StudentCardProps) {
+  const hasDefaultSkill = skills.some(skill => skill.isDefault || skill.isEditedDefault);
+
   return (
     <Card className="group hover:shadow-lg transition-all duration-300 cursor-pointer border-0 bg-white/80 backdrop-blur-sm hover:bg-white hover:scale-[1.01] w-full max-w-4xl">
       <CardContent className="p-3">
@@ -240,8 +241,23 @@ function StudentCard({ student, classId, className, onEditDefault, onAddSkills, 
             </div>
           </div>
 
-          {/* Action Buttons Column - Only Add Skills button */}
+          {/* Action Buttons Column */}
           <div className="flex flex-col gap-2 pt-1">
+            {hasDefaultSkill && (
+              <Button 
+                size="sm" 
+                variant="outline"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onEditDefault(student.id);
+                }}
+                className="h-7 px-2 text-xs"
+                title="Edit the default skill for lesson planning"
+              >
+                <Edit2 className="h-3 w-3 mr-1" />
+                Edit Skill
+              </Button>
+            )}
             <Button 
               size="sm" 
               variant="outline"
@@ -436,7 +452,7 @@ export function ClassStudentList({ classId, className, onSelectStudent }: ClassS
               Recommended Lesson Plan based on Student Performance
             </h3>
             <p className="text-sm text-slate-600">
-              Click on default skills to edit them, or use "Add Skills" for additional content
+              Click on default skills or use "Edit Skill" to change them, or use "Add Skills" for additional content
             </p>
           </div>
           
