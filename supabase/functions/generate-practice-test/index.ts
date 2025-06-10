@@ -1,3 +1,4 @@
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -413,32 +414,19 @@ Generate exactly ${questionCount} questions focused on "${skillName}".`;
       practiceTest.skillMetadata = skillMetadata;
     }
 
-    // Validate and enhance questions with improved error handling
+    // Validate and enhance questions
     practiceTest.questions.forEach((q: any, index: number) => {
-      const questionNumber = index + 1;
-      
-      // Check only required fields
-      if (!q.question) {
-        throw new Error(`Question ${questionNumber} is missing 'question' field`);
+      if (!q.question || !q.correctAnswer || !q.type) {
+        throw new Error(`Question ${index + 1} is missing required fields`);
       }
-      if (!q.correctAnswer) {
-        throw new Error(`Question ${questionNumber} is missing 'correctAnswer' field`);
-      }
-      if (!q.type) {
-        throw new Error(`Question ${questionNumber} is missing 'type' field`);
-      }
-      
-      // Add fallbacks for missing optional fields
       if (!q.points) q.points = 1;
-      if (!q.id) q.id = `Q${questionNumber}`;
+      if (!q.id) q.id = `Q${index + 1}`;
       
-      // Enhanced fields fallbacks (only for short-answer questions)
-      if (q.type === 'short-answer') {
+      if (q.type === 'short-answer' && enhancedAnswerPatterns) {
         if (!q.acceptableAnswers) {
           q.acceptableAnswers = [q.correctAnswer];
         }
         if (!q.keywords) {
-          // Extract keywords from correct answer
           q.keywords = q.correctAnswer.toLowerCase()
             .split(/\s+/)
             .filter((word: string) => word.length > 3)
@@ -474,8 +462,6 @@ Generate exactly ${questionCount} questions focused on "${skillName}".`;
       userFriendlyMessage = 'Generated content format error. Please try again.';
     } else if (error.message.includes('API key')) {
       userFriendlyMessage = 'API configuration error. Please contact support.';
-    } else if (error.message.includes('missing') && error.message.includes('field')) {
-      userFriendlyMessage = `Validation error: ${error.message}. Please try generating again.`;
     }
 
     return new Response(
