@@ -1,4 +1,3 @@
-
 import { type SkillScore } from "@/services/examService";
 
 export const mockClassData = {
@@ -295,26 +294,43 @@ export const mockBettyTestResults = [
 ];
 
 // Geography skills for Betty (if needed for specific geography classes)
-export const mockBettyGeographyContentSkillScores: SkillScore[] = [
-  // PHYSICAL GEOGRAPHY
-  { id: 'betty-geo-1', test_result_id: 'betty-geo-test-1', skill_name: 'Understanding Climate Patterns', score: 89, points_earned: 18, points_possible: 20, created_at: '2024-02-10' },
-  { id: 'betty-geo-2', test_result_id: 'betty-geo-test-1', skill_name: 'Analyzing Landform Development', score: 92, points_earned: 22, points_possible: 24, created_at: '2024-02-10' },
-  { id: 'betty-geo-3', test_result_id: 'betty-geo-test-1', skill_name: 'Water Cycle and Hydrosphere', score: 87, points_earned: 17, points_possible: 20, created_at: '2024-02-10' },
-  
-  // HUMAN GEOGRAPHY
-  { id: 'betty-geo-4', test_result_id: 'betty-geo-test-2', skill_name: 'Urban Planning and Development', score: 91, points_earned: 22, points_possible: 24, created_at: '2024-03-10' },
-  { id: 'betty-geo-5', test_result_id: 'betty-geo-test-2', skill_name: 'Cultural Geography Analysis', score: 88, points_earned: 21, points_possible: 24, created_at: '2024-03-10' },
-  { id: 'betty-geo-6', test_result_id: 'betty-geo-test-2', skill_name: 'Migration and Demographics', score: 85, points_earned: 17, points_possible: 20, created_at: '2024-03-10' },
+export const mockBettyGeographyContentSkillScores = [
+  // PHYSICAL GEOGRAPHY - Natural Systems
+  { id: 'betty-geo-1', test_result_id: 'betty-geo-test', skill_name: 'Climate and Weather Patterns', score: 78, points_earned: 39, points_possible: 50, created_at: '2024-12-15T10:00:00Z' },
+  { id: 'betty-geo-2', test_result_id: 'betty-geo-test', skill_name: 'Landform Formation and Processes', score: 82, points_earned: 41, points_possible: 50, created_at: '2024-12-15T10:00:00Z' },
+  { id: 'betty-geo-3', test_result_id: 'betty-geo-test', skill_name: 'Water Cycle and Hydrology', score: 75, points_earned: 37, points_possible: 50, created_at: '2024-12-15T10:00:00Z' },
+  { id: 'betty-geo-4', test_result_id: 'betty-geo-test', skill_name: 'Ecosystem Interactions', score: 88, points_earned: 44, points_possible: 50, created_at: '2024-12-15T10:00:00Z' },
+  { id: 'betty-geo-5', test_result_id: 'betty-geo-test', skill_name: 'Natural Hazards and Disasters', score: 73, points_earned: 36, points_possible: 50, created_at: '2024-12-15T10:00:00Z' },
+
+  // HUMAN GEOGRAPHY - Population and Settlement
+  { id: 'betty-geo-6', test_result_id: 'betty-geo-test', skill_name: 'Population Distribution and Demographics', score: 85, points_earned: 42, points_possible: 50, created_at: '2024-12-15T10:00:00Z' },
+  { id: 'betty-geo-7', test_result_id: 'betty-geo-test', skill_name: 'Urban and Rural Settlement Patterns', score: 79, points_earned: 39, points_possible: 50, created_at: '2024-12-15T10:00:00Z' },
+  { id: 'betty-geo-8', test_result_id: 'betty-geo-test', skill_name: 'Migration Patterns and Causes', score: 81, points_earned: 40, points_possible: 50, created_at: '2024-12-15T10:00:00Z' },
+  { id: 'betty-geo-9', test_result_id: 'betty-geo-test', skill_name: 'Cultural Landscapes and Identity', score: 77, points_earned: 38, points_possible: 50, created_at: '2024-12-15T10:00:00Z' },
+
+  // ECONOMIC GEOGRAPHY - Resources and Development
+  { id: 'betty-geo-10', test_result_id: 'betty-geo-test', skill_name: 'Natural Resource Management', score: 71, points_earned: 35, points_possible: 50, created_at: '2024-12-15T10:00:00Z' },
+  { id: 'betty-geo-11', test_result_id: 'betty-geo-test', skill_name: 'Economic Development Patterns', score: 74, points_earned: 37, points_possible: 50, created_at: '2024-12-15T10:00:00Z' },
+  { id: 'betty-geo-12', test_result_id: 'betty-geo-test', skill_name: 'Trade and Globalization', score: 83, points_earned: 41, points_possible: 50, created_at: '2024-12-15T10:00:00Z' },
+  { id: 'betty-geo-13', test_result_id: 'betty-geo-test', skill_name: 'Agriculture and Food Systems', score: 76, points_earned: 38, points_possible: 50, created_at: '2024-12-15T10:00:00Z' },
+
+  // ENVIRONMENTAL GEOGRAPHY - Sustainability
+  { id: 'betty-geo-14', test_result_id: 'betty-geo-test', skill_name: 'Environmental Conservation', score: 89, points_earned: 44, points_possible: 50, created_at: '2024-12-15T10:00:00Z' },
+  { id: 'betty-geo-15', test_result_id: 'betty-geo-test', skill_name: 'Climate Change Impacts', score: 87, points_earned: 43, points_possible: 50, created_at: '2024-12-15T10:00:00Z' },
+  { id: 'betty-geo-16', test_result_id: 'betty-geo-test', skill_name: 'Sustainable Development Goals', score: 84, points_earned: 42, points_possible: 50, created_at: '2024-12-15T10:00:00Z' },
+  { id: 'betty-geo-17', test_result_id: 'betty-geo-test', skill_name: 'Human-Environment Interactions', score: 80, points_earned: 40, points_possible: 50, created_at: '2024-12-15T10:00:00Z' },
+
+  // GEOSPATIAL SKILLS - Analysis and Technology
+  { id: 'betty-geo-18', test_result_id: 'betty-geo-test', skill_name: 'Map Reading and Interpretation', score: 92, points_earned: 46, points_possible: 50, created_at: '2024-12-15T10:00:00Z' },
+  { id: 'betty-geo-19', test_result_id: 'betty-geo-test', skill_name: 'Geographic Information Systems (GIS)', score: 68, points_earned: 34, points_possible: 50, created_at: '2024-12-15T10:00:00Z' },
+  { id: 'betty-geo-20', test_result_id: 'betty-geo-test', skill_name: 'Spatial Analysis and Patterns', score: 72, points_earned: 36, points_possible: 50, created_at: '2024-12-15T10:00:00Z' }
 ];
 
-export const mockBettyGeographySubjectSkillScores: SkillScore[] = [
-  // GEOGRAPHIC INQUIRY
-  { id: 'betty-geo-subj-1', test_result_id: 'betty-geo-test-1', skill_name: 'Formulating geographic questions', score: 88, points_earned: 21, points_possible: 24, created_at: '2024-02-10' },
-  { id: 'betty-geo-subj-2', test_result_id: 'betty-geo-test-2', skill_name: 'Analyzing geographic data', score: 92, points_earned: 18, points_possible: 20, created_at: '2024-03-10' },
-  { id: 'betty-geo-subj-3', test_result_id: 'betty-geo-test-2', skill_name: 'Drawing geographic conclusions', score: 90, points_earned: 22, points_possible: 25, created_at: '2024-03-10' },
-  
-  // SPATIAL ANALYSIS
-  { id: 'betty-geo-subj-4', test_result_id: 'betty-geo-test-1', skill_name: 'Reading maps and graphs', score: 94, points_earned: 23, points_possible: 25, created_at: '2024-02-10' },
-  { id: 'betty-geo-subj-5', test_result_id: 'betty-geo-test-2', skill_name: 'Understanding scale and distance', score: 87, points_earned: 17, points_possible: 20, created_at: '2024-03-10' },
-  { id: 'betty-geo-subj-6', test_result_id: 'betty-geo-test-2', skill_name: 'Spatial pattern recognition', score: 91, points_earned: 22, points_possible: 24, created_at: '2024-03-10' },
+// Betty Johnson's Geography 11 Subject Skills - Updated to match curriculum
+export const mockBettyGeographySubjectSkillScores = [
+  { id: 'betty-geo-sub-1', test_result_id: 'betty-geo-test', skill_name: 'Geographic Inquiry and Research', score: 81, points_earned: 40, points_possible: 50, created_at: '2024-12-15T10:00:00Z' },
+  { id: 'betty-geo-sub-2', test_result_id: 'betty-geo-test', skill_name: 'Spatial Thinking and Analysis', score: 75, points_earned: 37, points_possible: 50, created_at: '2024-12-15T10:00:00Z' },
+  { id: 'betty-geo-sub-3', test_result_id: 'betty-geo-test', skill_name: 'Data Collection and Interpretation', score: 86, points_earned: 43, points_possible: 50, created_at: '2024-12-15T10:00:00Z' },
+  { id: 'betty-geo-sub-4', test_result_id: 'betty-geo-test', skill_name: 'Critical Analysis of Geographic Issues', score: 78, points_earned: 39, points_possible: 50, created_at: '2024-12-15T10:00:00Z' },
+  { id: 'betty-geo-sub-5', test_result_id: 'betty-geo-test', skill_name: 'Communication of Geographic Concepts', score: 84, points_earned: 42, points_possible: 50, created_at: '2024-12-15T10:00:00Z' }
 ];
