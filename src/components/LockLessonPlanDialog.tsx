@@ -21,6 +21,8 @@ import {
 import { useStudentProfileData } from "@/hooks/useStudentProfileData";
 import { ExerciseGenerationProgress as ExerciseProgressComponent } from "./ExerciseGenerationProgress";
 import { GeneratedExercisesViewerDialog } from "./GeneratedExercisesViewerDialog";
+import { useQuery } from "@tanstack/react-query";
+import { getAllActiveStudents } from "@/services/examService";
 
 interface LockLessonPlanDialogProps {
   open: boolean;
@@ -113,6 +115,13 @@ export function LockLessonPlanDialog({
   const [showExerciseViewer, setShowExerciseViewer] = useState(false);
   const [debugInfo, setDebugInfo] = useState<string[]>([]);
 
+  // Fetch all active students to get their names
+  const { data: allStudents = [] } = useQuery({
+    queryKey: ['allActiveStudents'],
+    queryFn: getAllActiveStudents,
+    enabled: open && !!lessonPlanData
+  });
+
   const addDebugInfo = (message: string) => {
     const timestamp = new Date().toLocaleTimeString();
     const debugMessage = `[${timestamp}] ${message}`;
@@ -143,22 +152,29 @@ export function LockLessonPlanDialog({
     addDebugInfo(`Starting lesson plan save for class: ${lessonPlanData.className}`);
     addDebugInfo(`Students count: ${lessonPlanData.students.length}`);
 
-    // Use the collected skill data or fallback to basic data
-    const studentsWithSkills = lessonPlanData.students.map(student => {
+    // Get student names from the allStudents data
+    const studentsWithNames = lessonPlanData.students.map(student => {
+      const studentData = allStudents.find(s => s.id === student.studentId);
+      const studentName = studentData?.name || student.studentName || `Student ${student.studentId.slice(0, 8)}`;
+      
       const skillData = studentSkillData.find(data => data.studentId === student.studentId);
-      const result = skillData || {
+      const result = skillData ? {
+        ...skillData,
+        studentName // Use the real name from database
+      } : {
         studentId: student.studentId,
-        studentName: student.studentName,
+        studentName,
         targetSkillName: "Assessment pending",
         targetSkillScore: 0
       };
-      addDebugInfo(`Student ${student.studentName}: target skill = ${result.targetSkillName} (${result.targetSkillScore}%)`);
+      
+      addDebugInfo(`Student ${studentName}: target skill = ${result.targetSkillName} (${result.targetSkillScore}%)`);
       return result;
     });
 
     const finalLessonPlanData = {
       ...lessonPlanData,
-      students: studentsWithSkills
+      students: studentsWithNames
     };
 
     try {
@@ -240,6 +256,15 @@ export function LockLessonPlanDialog({
       hour12: true
     });
   };
+
+  // Get students with proper names
+  const studentsWithNames = lessonPlanData.students.map(student => {
+    const studentData = allStudents.find(s => s.id === student.studentId);
+    return {
+      ...student,
+      studentName: studentData?.name || student.studentName || `Student ${student.studentId.slice(0, 8)}`
+    };
+  });
 
   return (
     <>
@@ -345,10 +370,10 @@ export function LockLessonPlanDialog({
                 <div className="p-4 bg-orange-50 rounded-lg">
                   <h3 className="font-semibold text-orange-900 mb-3 flex items-center gap-2">
                     <Users className="h-4 w-4" />
-                    Students & Target Skills ({lessonPlanData.students.length} students)
+                    Students & Target Skills ({studentsWithNames.length} students)
                   </h3>
                   <div className="space-y-3">
-                    {lessonPlanData.students.map((student) => (
+                    {studentsWithNames.map((student) => (
                       <StudentSkillFetcher
                         key={student.studentId}
                         studentId={student.studentId}
