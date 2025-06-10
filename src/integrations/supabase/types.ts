@@ -12,7 +12,9 @@ export type Database = {
       active_classes: {
         Row: {
           avg_gpa: number | null
+          class_time: string | null
           created_at: string
+          day_of_week: string | null
           grade: string
           id: string
           name: string
@@ -24,7 +26,9 @@ export type Database = {
         }
         Insert: {
           avg_gpa?: number | null
+          class_time?: string | null
           created_at?: string
+          day_of_week?: string | null
           grade: string
           id?: string
           name: string
@@ -36,7 +40,9 @@ export type Database = {
         }
         Update: {
           avg_gpa?: number | null
+          class_time?: string | null
           created_at?: string
+          day_of_week?: string | null
           grade?: string
           id?: string
           name?: string

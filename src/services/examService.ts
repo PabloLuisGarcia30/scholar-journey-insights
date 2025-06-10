@@ -46,6 +46,8 @@ export interface ActiveClass {
   student_count: number;
   avg_gpa: number;
   students: string[];
+  day_of_week?: string;
+  class_time?: string;
   created_at: string;
   updated_at: string;
 }
@@ -154,21 +156,33 @@ export const createActiveClass = async (classData: {
   subject: string;
   grade: string;
   teacher: string;
+  dayOfWeek?: string;
+  classTime?: string;
 }): Promise<ActiveClass> => {
   try {
     console.log('Creating active class:', classData);
     
+    const insertData: any = {
+      name: classData.name,
+      subject: classData.subject,
+      grade: classData.grade,
+      teacher: classData.teacher,
+      student_count: 0,
+      avg_gpa: 0,
+      students: []
+    };
+
+    // Add scheduling fields if provided
+    if (classData.dayOfWeek) {
+      insertData.day_of_week = classData.dayOfWeek;
+    }
+    if (classData.classTime) {
+      insertData.class_time = classData.classTime;
+    }
+
     const { data, error } = await supabase
       .from('active_classes')
-      .insert({
-        name: classData.name,
-        subject: classData.subject,
-        grade: classData.grade,
-        teacher: classData.teacher,
-        student_count: 0,
-        avg_gpa: 0,
-        students: []
-      })
+      .insert(insertData)
       .select()
       .single();
 
@@ -1072,4 +1086,3 @@ export const getStudentEnrolledClasses = async (studentId: string): Promise<Acti
     throw error;
   }
 };
-

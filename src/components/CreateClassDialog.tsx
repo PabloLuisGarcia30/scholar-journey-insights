@@ -21,6 +21,8 @@ interface CreateClassDialogProps {
     subject: string;
     grade: string;
     teacher: string;
+    dayOfWeek?: string;
+    classTime?: string;
   }) => void;
 }
 
@@ -30,17 +32,28 @@ export function CreateClassDialog({ onCreateClass }: CreateClassDialogProps) {
     name: '',
     subject: '',
     grade: '',
-    teacher: ''
+    teacher: '',
+    dayOfWeek: '',
+    classTime: ''
   });
 
   const subjects = ['Math', 'Science', 'English', 'History', 'Geography', 'Art', 'Music', 'Physical Education'];
   const grades = ['Kindergarten', 'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6', 'Grade 7', 'Grade 8', 'Grade 9', 'Grade 10', 'Grade 11', 'Grade 12'];
+  const daysOfWeek = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (formData.name && formData.subject && formData.grade && formData.teacher) {
-      onCreateClass(formData);
-      setFormData({ name: '', subject: '', grade: '', teacher: '' });
+      const classData = {
+        name: formData.name,
+        subject: formData.subject,
+        grade: formData.grade,
+        teacher: formData.teacher,
+        ...(formData.dayOfWeek && { dayOfWeek: formData.dayOfWeek }),
+        ...(formData.classTime && { classTime: formData.classTime })
+      };
+      onCreateClass(classData);
+      setFormData({ name: '', subject: '', grade: '', teacher: '', dayOfWeek: '', classTime: '' });
       setOpen(false);
     }
   };
@@ -116,6 +129,34 @@ export function CreateClassDialog({ onCreateClass }: CreateClassDialogProps) {
                 placeholder="Teacher name"
                 className="col-span-3"
                 required
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="dayOfWeek" className="text-right">
+                Day of Week
+              </Label>
+              <Select value={formData.dayOfWeek} onValueChange={(value) => setFormData({ ...formData, dayOfWeek: value })}>
+                <SelectTrigger className="col-span-3">
+                  <SelectValue placeholder="Select day (optional)" />
+                </SelectTrigger>
+                <SelectContent>
+                  {daysOfWeek.map((day) => (
+                    <SelectItem key={day} value={day}>{day}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="classTime" className="text-right">
+                Class Time
+              </Label>
+              <Input
+                id="classTime"
+                type="time"
+                value={formData.classTime}
+                onChange={(e) => setFormData({ ...formData, classTime: e.target.value })}
+                className="col-span-3"
+                placeholder="e.g., 09:00"
               />
             </div>
           </div>
