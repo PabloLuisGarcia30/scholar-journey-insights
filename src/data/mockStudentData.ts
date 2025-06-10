@@ -64,3 +64,67 @@ export const mockPabloContentSkillScores: SkillScore[] = [
   { id: 'mock-24', test_result_id: 'test-3', skill_name: 'Logical Reasoning', score: 80, points_earned: 19, points_possible: 24, created_at: '2024-03-05' },
   { id: 'mock-25', test_result_id: 'test-3', skill_name: 'Problem-Solving Strategies', score: 87, points_earned: 17, points_possible: 20, created_at: '2024-03-05' },
 ];
+
+// NEW: Mock Geography 11 content skills for Pablo Luis Garcia
+export const mockPabloGeographyContentSkillScores: SkillScore[] = [
+  // POPULATIONS IN TRANSITION
+  { id: 'mock-geo-1', test_result_id: 'geo-test-1', skill_name: 'Interpreting population pyramids', score: 89, points_earned: 18, points_possible: 20, created_at: '2024-01-15' },
+  { id: 'mock-geo-2', test_result_id: 'geo-test-1', skill_name: 'Analyzing demographic transition models', score: 82, points_earned: 20, points_possible: 24, created_at: '2024-01-15' },
+  { id: 'mock-geo-3', test_result_id: 'geo-test-1', skill_name: 'Calculating demographic rates', score: 76, points_earned: 15, points_possible: 20, created_at: '2024-01-15' },
+  { id: 'mock-geo-4', test_result_id: 'geo-test-2', skill_name: 'Evaluating aging population implications', score: 91, points_earned: 22, points_possible: 24, created_at: '2024-02-15' },
+  
+  // DISPARITIES IN WEALTH AND DEVELOPMENT
+  { id: 'mock-geo-5', test_result_id: 'geo-test-1', skill_name: 'Interpreting development indicators', score: 88, points_earned: 21, points_possible: 24, created_at: '2024-01-15' },
+  { id: 'mock-geo-6', test_result_id: 'geo-test-1', skill_name: 'Comparing disparities at different scales', score: 85, points_earned: 17, points_possible: 20, created_at: '2024-01-15' },
+  { id: 'mock-geo-7', test_result_id: 'geo-test-2', skill_name: 'Analyzing economic disparity case studies', score: 93, points_earned: 19, points_possible: 20, created_at: '2024-02-15' },
+  { id: 'mock-geo-8', test_result_id: 'geo-test-2', skill_name: 'Evaluating development strategies', score: 79, points_earned: 19, points_possible: 24, created_at: '2024-02-15' },
+  
+  // PATTERNS IN ENVIRONMENTAL QUALITY AND SUSTAINABILITY
+  { id: 'mock-geo-9', test_result_id: 'geo-test-1', skill_name: 'Understanding ecological footprints', score: 87, points_earned: 17, points_possible: 20, created_at: '2024-01-15' },
+  { id: 'mock-geo-10', test_result_id: 'geo-test-2', skill_name: 'Interpreting climate change data', score: 92, points_earned: 23, points_possible: 25, created_at: '2024-02-15' },
+  { id: 'mock-geo-11', test_result_id: 'geo-test-2', skill_name: 'Evaluating footprint reduction strategies', score: 84, points_earned: 21, points_possible: 25, created_at: '2024-02-15' },
+  { id: 'mock-geo-12', test_result_id: 'geo-test-3', skill_name: 'Assessing environmental impacts', score: 90, points_earned: 18, points_possible: 20, created_at: '2024-03-05' },
+  
+  // PATTERNS IN RESOURCE CONSUMPTION
+  { id: 'mock-geo-13', test_result_id: 'geo-test-1', skill_name: 'Analyzing global consumption trends', score: 86, points_earned: 21, points_possible: 24, created_at: '2024-01-15' },
+  { id: 'mock-geo-14', test_result_id: 'geo-test-2', skill_name: 'Calculating resource depletion rates', score: 78, points_earned: 16, points_possible: 20, created_at: '2024-02-15' },
+  { id: 'mock-geo-15', test_result_id: 'geo-test-2', skill_name: 'Evaluating resource management strategies', score: 88, points_earned: 22, points_possible: 25, created_at: '2024-02-15' },
+  { id: 'mock-geo-16', test_result_id: 'geo-test-3', skill_name: 'Interpreting energy and water security data', score: 83, points_earned: 20, points_possible: 24, created_at: '2024-03-05' },
+];
+
+// NEW: Mock test results for Pablo in Geography context
+export const mockPabloGeographyTestResults = [
+  {
+    id: 'geo-test-result-1',
+    student_id: 'pablo-student-id',
+    exam_id: 'geo-exam-1',
+    overall_score: 85.5,
+    total_points_earned: 171,
+    total_points_possible: 200,
+    created_at: '2024-01-15',
+    ai_feedback: 'Strong performance in interpreting population data and development indicators. Could improve on demographic calculations.',
+    detailed_analysis: 'Pablo shows excellent understanding of population dynamics and development concepts. His analysis of case studies is particularly strong.'
+  },
+  {
+    id: 'geo-test-result-2',
+    student_id: 'pablo-student-id',
+    exam_id: 'geo-exam-2',
+    overall_score: 88.2,
+    total_points_earned: 191,
+    total_points_possible: 216,
+    created_at: '2024-02-15',
+    ai_feedback: 'Excellent work on environmental sustainability topics. Shows good grasp of climate change data interpretation.',
+    detailed_analysis: 'Pablo demonstrates strong analytical skills in environmental geography. His understanding of resource management strategies is commendable.'
+  },
+  {
+    id: 'geo-test-result-3',
+    student_id: 'pablo-student-id',
+    exam_id: 'geo-exam-3',
+    overall_score: 86.8,
+    total_points_earned: 156,
+    total_points_possible: 180,
+    created_at: '2024-03-05',
+    ai_feedback: 'Consistent performance across all geography topics. Shows improvement in resource consumption analysis.',
+    detailed_analysis: 'Pablo maintains strong performance across all geography units. His ability to connect different geographical concepts is developing well.'
+  }
+];

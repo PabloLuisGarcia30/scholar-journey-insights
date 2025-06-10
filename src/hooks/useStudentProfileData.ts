@@ -1,3 +1,4 @@
+
 import { useQuery } from "@tanstack/react-query";
 import { useEffect } from "react";
 import { 
@@ -14,7 +15,11 @@ import {
   linkClassToSubjectSkills,
   getStudentEnrolledClasses
 } from "@/services/examService";
-import { mockPabloContentSkillScores } from "@/data/mockStudentData";
+import { 
+  mockPabloContentSkillScores, 
+  mockPabloGeographyContentSkillScores,
+  mockPabloGeographyTestResults 
+} from "@/data/mockStudentData";
 import { supabase } from "@/integrations/supabase/client";
 
 interface UseStudentProfileDataProps {
@@ -85,10 +90,16 @@ export function useStudentProfileData({ studentId, classId, className }: UseStud
     return classData && classData.subject === 'Geography' && classData.grade === 'Grade 11';
   };
 
-  // 🆕 ENHANCED: Fetch test results using student profile ID when available
+  // 🆕 ENHANCED: Fetch test results using student profile ID when available, with mock data support
   const { data: testResults = [], isLoading: testResultsLoading } = useQuery({
-    queryKey: ['studentTestResults', studentProfile?.id, studentId],
+    queryKey: ['studentTestResults', studentProfile?.id, studentId, classId, classData?.subject, classData?.grade],
     queryFn: async () => {
+      // Use mock data for Pablo Luis Garcia in Geography Grade 11 context
+      if (isPabloLuisGarcia && isGrade11GeographyClass()) {
+        console.log('Using mock Geography test results for Pablo Luis Garcia in Grade 11 Geography');
+        return Promise.resolve(mockPabloGeographyTestResults);
+      }
+
       // Try student profile ID first (for newly processed tests)
       if (studentProfile?.id) {
         console.log('📊 Fetching test results using student profile ID:', studentProfile.id);
@@ -110,9 +121,9 @@ export function useStudentProfileData({ studentId, classId, className }: UseStud
     enabled: !!(studentProfile?.id || studentId),
   });
 
-  // 🆕 ENHANCED: Fetch content skill scores using the correct student identifier
+  // 🆕 ENHANCED: Fetch content skill scores using the correct student identifier, with Geography mock data
   const { data: contentSkillScores = [], isLoading: contentSkillsLoading } = useQuery({
-    queryKey: ['studentContentSkills', studentProfile?.id, studentId, classId],
+    queryKey: ['studentContentSkills', studentProfile?.id, studentId, classId, classData?.subject, classData?.grade],
     queryFn: async () => {
       console.log('Fetching content skills for:', { 
         studentName: student?.name, 
@@ -128,9 +139,15 @@ export function useStudentProfileData({ studentId, classId, className }: UseStud
         studentProfileId: studentProfile?.id
       });
       
-      // Use mock data for Pablo Luis Garcia in any Grade 10 Math class context
-      if (isPabloLuisGarcia && classData && classData.subject === 'Math' && classData.grade === 'Grade 10') {
-        console.log('Using mock data for Pablo Luis Garcia in Grade 10 Math');
+      // Use mock Geography data for Pablo Luis Garcia in any Grade 11 Geography class context
+      if (isPabloLuisGarcia && isGrade11GeographyClass()) {
+        console.log('Using mock Geography data for Pablo Luis Garcia in Grade 11 Geography');
+        return Promise.resolve(mockPabloGeographyContentSkillScores);
+      }
+      
+      // Use mock Math data for Pablo Luis Garcia in any Grade 10 Math class context
+      if (isPabloLuisGarcia && isGrade10MathClass()) {
+        console.log('Using mock Math data for Pablo Luis Garcia in Grade 10 Math');
         return Promise.resolve(mockPabloContentSkillScores);
       }
       
@@ -139,7 +156,7 @@ export function useStudentProfileData({ studentId, classId, className }: UseStud
       return getStudentContentSkillScores(searchId);
     },
     enabled: !!student, // Wait for student data to load first
-    staleTime: isPabloLuisGarcia && classData && classData.subject === 'Math' && classData.grade === 'Grade 10' 
+    staleTime: isPabloLuisGarcia && (isGrade10MathClass() || isGrade11GeographyClass())
       ? 24 * 60 * 60 * 1000 // 24 hours cache for Pablo's mock data
       : 0, // No cache for regular data
   });
@@ -222,7 +239,9 @@ export function useStudentProfileData({ studentId, classId, className }: UseStud
     subjectSkillScoresCount: subjectSkillScores.length,
     enrolledClassesCount: enrolledClasses.length,
     classId,
-    className
+    className,
+    isGrade11Geography: isGrade11GeographyClass(),
+    usingMockData: isPabloLuisGarcia && (isGrade10MathClass() || isGrade11GeographyClass())
   });
 
   return {
