@@ -1,4 +1,3 @@
-
 import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -157,11 +156,6 @@ function StudentCard({ student, classId, className, onEdit, targetSkill }: Stude
               <h4 className="font-semibold text-sm text-slate-900 truncate group-hover:text-blue-700 transition-colors">
                 {student.name}
               </h4>
-              {isTargetSkill && (
-                <Badge variant="secondary" className="text-xs px-2 py-0.5 bg-blue-50 text-blue-700 border-blue-200">
-                  Target
-                </Badge>
-              )}
             </div>
             <p className="text-xs text-slate-500 truncate">{student.email || 'No email'}</p>
             
