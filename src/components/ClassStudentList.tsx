@@ -1,3 +1,4 @@
+
 import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -35,8 +36,10 @@ interface StudentCardProps {
 function SkillCircle({ skill, index }: { skill: StudentSkill; index: number }) {
   const [isHovered, setIsHovered] = useState(false);
   
-  // Truncate skill name to 20 characters max with better handling
-  const truncatedSkillName = skill.skill_name && skill.skill_name.length > 20 ? skill.skill_name.substring(0, 20) + "..." : skill.skill_name || "Unknown Skill";
+  // Improved skill name truncation - more aggressive for better display
+  const truncatedSkillName = skill.skill_name && skill.skill_name.length > 12 ? 
+    skill.skill_name.substring(0, 12) + "..." : 
+    skill.skill_name || "Unknown";
   
   const getGradientColors = (score: number) => {
     const percentage = score;
@@ -79,9 +82,9 @@ function SkillCircle({ skill, index }: { skill: StudentSkill; index: number }) {
   const gradientId = `gradient-skill-${index}-${Math.random().toString(36).substr(2, 9)}`;
 
   return (
-    <div className="flex flex-col items-center w-16 mx-1">
+    <div className="flex flex-col items-center w-20 mx-1">
       <div 
-        className="relative w-12 h-12 mb-1 flex-shrink-0"
+        className="relative w-12 h-12 mb-2 flex-shrink-0"
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
         title={skill.skill_name || "Unknown Skill"}
@@ -116,31 +119,29 @@ function SkillCircle({ skill, index }: { skill: StudentSkill; index: number }) {
         </div>
       </div>
 
-      {/* Skill name and context - fixed height container */}
-      <div className="text-center w-full h-10 flex flex-col justify-start">
-        <div className="flex items-center gap-1 justify-center mb-0.5">
+      {/* Skill name and context - improved height and layout */}
+      <div className="text-center w-full h-14 flex flex-col justify-start">
+        <div className="flex items-center gap-1 justify-center mb-1">
           {skill.isTarget ? (
             <>
-              <Target className="h-2 w-2 text-blue-600 flex-shrink-0" />
-              <span className="text-xs font-medium text-blue-700">Target</span>
+              <Target className="h-2.5 w-2.5 text-blue-600 flex-shrink-0" />
+              <span className="text-xs font-semibold text-blue-700">Target</span>
             </>
           ) : skill.isAdditional ? (
             <>
-              <Plus className="h-2 w-2 text-green-600 flex-shrink-0" />
-              <span className="text-xs font-medium text-green-700">Added</span>
+              <Plus className="h-2.5 w-2.5 text-green-600 flex-shrink-0" />
+              <span className="text-xs font-semibold text-green-700">Added</span>
             </>
           ) : (
             <>
-              <TrendingDown className="h-2 w-2 text-orange-600 flex-shrink-0" />
-              <span className="text-xs font-medium text-orange-700">Weakest</span>
+              <TrendingDown className="h-2.5 w-2.5 text-orange-600 flex-shrink-0" />
+              <span className="text-xs font-semibold text-orange-700">Weakest</span>
             </>
           )}
         </div>
-        <p className="text-xs text-slate-700 font-medium leading-tight text-center overflow-hidden px-1" style={{ 
-          display: '-webkit-box',
-          WebkitLineClamp: 1,
-          WebkitBoxOrient: 'vertical',
-          wordBreak: 'break-word'
+        <p className="text-xs text-slate-800 font-medium leading-tight text-center px-1 line-clamp-2" style={{ 
+          wordBreak: 'break-word',
+          hyphens: 'auto'
         }}>
           {truncatedSkillName}
         </p>
