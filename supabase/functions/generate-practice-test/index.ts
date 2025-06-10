@@ -203,8 +203,9 @@ serve(async (req) => {
       grade,
       subject,
       questionCount = 5,
-      classId
-    }: GeneratePracticeTestRequest = await req.json();
+      classId,
+      enhancedAnswerPatterns = false
+    }: GeneratePracticeTestRequest & { enhancedAnswerPatterns?: boolean } = await req.json();
 
     console.log(`Generating practice test for: ${studentName} in class: ${className} skill: ${skillName} grade: ${grade} subject: ${subject} questionCount: ${questionCount} classId: ${classId}`);
 
@@ -219,7 +220,7 @@ serve(async (req) => {
       historicalQuestions = await getHistoricalQuestionsForSkill(supabase, classId, skillName);
     }
 
-    // Build enhanced prompt with historical context
+    // Build enhanced prompt with historical context and answer patterns
     let historicalContext = '';
     if (historicalQuestions.length > 0) {
       historicalContext = `\n\nHere are some example questions from previous exams in this class for context:\n${
@@ -229,20 +230,33 @@ serve(async (req) => {
       }\n\nUse these examples to understand the style and difficulty level expected, but create completely new questions.`;
     }
 
-    const prompt = `Create a targeted practice test for a ${grade} ${subject} student named ${studentName}.
+    const answerPatternInstructions = enhancedAnswerPatterns ? `
 
-SKILL FOCUS: ${skillName}
-CLASS: ${className}
-NUMBER OF QUESTIONS: ${questionCount}
-${historicalContext}
+ENHANCED SHORT ANSWER REQUIREMENTS:
+- For short-answer questions, provide multiple acceptable answer variations
+- Include key concepts/keywords that should be present in correct answers
+- Consider different ways students might phrase correct responses
+- Account for synonyms and alternative terminology
 
-REQUIREMENTS:
-1. All questions must directly test the skill: "${skillName}"
-2. Questions should be appropriate for ${grade} level
-3. Include a mix of question types (multiple-choice, short-answer, true-false)
-4. Each question should have clear, educational value
-5. Provide detailed but concise correct answers
-6. Points should reflect question difficulty (1-3 points each)
+RESPONSE FORMAT - Return valid JSON only with enhanced answer patterns:
+{
+  "title": "Practice Test Title",
+  "description": "Brief description focusing on ${skillName}",
+  "questions": [
+    {
+      "id": "Q1",
+      "type": "multiple-choice" | "short-answer" | "true-false",
+      "question": "Question text here",
+      "options": ["A", "B", "C", "D"] (only for multiple-choice),
+      "correctAnswer": "Primary correct answer",
+      "acceptableAnswers": ["Alternative answer 1", "Alternative answer 2"] (for short-answer),
+      "keywords": ["key1", "key2", "key3"] (important concepts for short-answer),
+      "points": 1-3
+    }
+  ],
+  "totalPoints": sum of all question points,
+  "estimatedTime": estimated completion time in minutes
+}` : `
 
 RESPONSE FORMAT - Return valid JSON only:
 {
@@ -260,7 +274,23 @@ RESPONSE FORMAT - Return valid JSON only:
   ],
   "totalPoints": sum of all question points,
   "estimatedTime": estimated completion time in minutes
-}
+}`;
+
+    const prompt = `Create a targeted practice test for a ${grade} ${subject} student named ${studentName}.
+
+SKILL FOCUS: ${skillName}
+CLASS: ${className}
+NUMBER OF QUESTIONS: ${questionCount}
+${historicalContext}
+
+REQUIREMENTS:
+1. All questions must directly test the skill: "${skillName}"
+2. Questions should be appropriate for ${grade} level
+3. Include a mix of question types (multiple-choice, short-answer, true-false)
+4. Each question should have clear, educational value
+5. Provide detailed but concise correct answers
+6. Points should reflect question difficulty (1-3 points each)
+${answerPatternInstructions}
 
 Generate exactly ${questionCount} questions focused on "${skillName}".`;
 
@@ -298,13 +328,28 @@ Generate exactly ${questionCount} questions focused on "${skillName}".`;
       throw new Error('No questions generated in practice test');
     }
 
-    // Ensure all questions have required fields
+    // Ensure all questions have required fields and enhance answer patterns
     practiceTest.questions.forEach((q: any, index: number) => {
       if (!q.question || !q.correctAnswer || !q.type) {
         throw new Error(`Question ${index + 1} is missing required fields`);
       }
       if (!q.points) q.points = 1; // Default points
       if (!q.id) q.id = `Q${index + 1}`; // Default ID
+      
+      // Enhance short answer questions with better patterns if not provided
+      if (q.type === 'short-answer' && enhancedAnswerPatterns) {
+        if (!q.acceptableAnswers) {
+          // Generate some basic acceptable variations
+          q.acceptableAnswers = [q.correctAnswer];
+        }
+        if (!q.keywords) {
+          // Extract basic keywords from the correct answer
+          q.keywords = q.correctAnswer.toLowerCase()
+            .split(/\s+/)
+            .filter((word: string) => word.length > 3)
+            .slice(0, 3);
+        }
+      }
     });
 
     // Calculate total points if not provided

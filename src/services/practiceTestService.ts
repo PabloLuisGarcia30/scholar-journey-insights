@@ -17,6 +17,8 @@ export interface PracticeTestQuestion {
   question: string;
   options?: string[];
   correctAnswer: string;
+  acceptableAnswers?: string[]; // New: multiple acceptable answers
+  keywords?: string[]; // New: key concepts that should be present
   points: number;
 }
 
@@ -149,7 +151,10 @@ export async function generatePracticeTest(request: GeneratePracticeTestRequest)
   
   return withRetry(async () => {
     const { data, error } = await supabase.functions.invoke('generate-practice-test', {
-      body: request
+      body: {
+        ...request,
+        enhancedAnswerPatterns: true // Request enhanced answer patterns
+      }
     });
 
     if (error) {
