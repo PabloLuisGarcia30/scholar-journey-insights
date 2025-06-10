@@ -1,9 +1,10 @@
+
 import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { User, TrendingDown, Plus, Edit2 } from "lucide-react";
+import { User, TrendingDown, Plus, Edit2, X } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { getAllActiveStudents, getActiveClassById } from "@/services/examService";
 import { useStudentProfileData } from "@/hooks/useStudentProfileData";
@@ -31,14 +32,17 @@ interface StudentCardProps {
   className: string;
   onEditDefault: (studentId: string) => void;
   onAddSkills: (studentId: string) => void;
+  onRemoveSkill: (studentId: string, skillName: string) => void;
   skills: StudentSkill[];
 }
 
-function SkillCircle({ skill, index, isClickable, onClick }: { 
+function SkillCircle({ skill, index, isClickable, onClick, isRemovable, onRemove }: { 
   skill: StudentSkill; 
   index: number; 
   isClickable?: boolean;
   onClick?: () => void;
+  isRemovable?: boolean;
+  onRemove?: () => void;
 }) {
   const [isHovered, setIsHovered] = useState(false);
   
@@ -166,6 +170,19 @@ function SkillCircle({ skill, index, isClickable, onClick }: {
                   <Edit2 className="h-2 w-2 text-white" />
                 </div>
               )}
+
+              {/* Remove icon for removable additional skills */}
+              {isRemovable && isHovered && (
+                <div 
+                  className="absolute -top-1 -right-1 bg-red-600 rounded-full p-0.5 cursor-pointer hover:bg-red-700 transition-colors"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onRemove?.();
+                  }}
+                >
+                  <X className="h-2 w-2 text-white" />
+                </div>
+              )}
             </div>
 
             {/* Skill name and context - improved height and layout */}
@@ -191,7 +208,9 @@ function SkillCircle({ skill, index, isClickable, onClick }: {
           <div className="max-w-xs text-sm">
             <p className="font-medium">{skill.skill_name || "Unknown Skill"}</p>
             <p className="text-xs text-muted-foreground mt-1">
-              {isClickable ? "Click to edit this default skill" : skillTypeInfo.label}
+              {isClickable ? "Click to edit this default skill" : 
+               isRemovable ? "Hover and click X to remove this added skill" :
+               skillTypeInfo.label}
             </p>
           </div>
         </TooltipContent>
@@ -200,7 +219,7 @@ function SkillCircle({ skill, index, isClickable, onClick }: {
   );
 }
 
-function StudentCard({ student, classId, className, onEditDefault, onAddSkills, skills }: StudentCardProps) {
+function StudentCard({ student, classId, className, onEditDefault, onAddSkills, onRemoveSkill, skills }: StudentCardProps) {
   const hasDefaultSkill = skills.some(skill => skill.isDefault || skill.isEditedDefault);
 
   return (
@@ -280,6 +299,9 @@ function StudentCard({ student, classId, className, onEditDefault, onAddSkills, 
                 skills.map((skill, index) => {
                   // Default skills (not edited) are clickable for editing
                   const isClickableDefault = skill.isDefault && !skill.isEditedDefault;
+                  // Additional skills are removable
+                  const isRemovableAdditional = skill.isAdditional;
+                  
                   return (
                     <SkillCircle 
                       key={`${skill.skill_name}-${index}`} 
@@ -287,6 +309,8 @@ function StudentCard({ student, classId, className, onEditDefault, onAddSkills, 
                       index={index}
                       isClickable={isClickableDefault}
                       onClick={isClickableDefault ? () => onEditDefault(student.id) : undefined}
+                      isRemovable={isRemovableAdditional}
+                      onRemove={isRemovableAdditional ? () => onRemoveSkill(student.id, skill.skill_name) : undefined}
                     />
                   );
                 })
@@ -340,6 +364,13 @@ export function ClassStudentList({ classId, className, onSelectStudent }: ClassS
 
   const handleAddSkillsStudent = (studentId: string) => {
     setAddingSkillsStudentId(studentId);
+  };
+
+  const handleRemoveSkill = (studentId: string, skillName: string) => {
+    setStudentAdditionalSkills(prev => ({
+      ...prev,
+      [studentId]: (prev[studentId] || []).filter(skill => skill.skill_name !== skillName)
+    }));
   };
 
   const handleSaveEditedDefault = (studentId: string, editedSkill: { skill_name: string; score: number } | null) => {
@@ -452,7 +483,7 @@ export function ClassStudentList({ classId, className, onSelectStudent }: ClassS
               Recommended Lesson Plan based on Student Performance
             </h3>
             <p className="text-sm text-slate-600">
-              Click on default skills or use "Edit Skill" to change them, or use "Add Skills" for additional content
+              Click on default skills or use "Edit Skill" to change them, or use "Add Skills" for additional content. Hover over added skills to remove them.
             </p>
           </div>
           
@@ -478,6 +509,7 @@ export function ClassStudentList({ classId, className, onSelectStudent }: ClassS
             className={className}
             onEditDefault={handleEditDefaultSkill}
             onAddSkills={handleAddSkillsStudent}
+            onRemoveSkill={handleRemoveSkill}
             editedDefault={editedDefaultSkills[student.id]}
             additionalSkills={studentAdditionalSkills[student.id] || []}
           />
@@ -596,6 +628,7 @@ function StudentCardWithWeakestSkill({
   className, 
   onEditDefault, 
   onAddSkills,
+  onRemoveSkill,
   editedDefault,
   additionalSkills
 }: {
@@ -604,6 +637,7 @@ function StudentCardWithWeakestSkill({
   className: string;
   onEditDefault: (studentId: string) => void;
   onAddSkills: (studentId: string) => void;
+  onRemoveSkill: (studentId: string, skillName: string) => void;
   editedDefault?: StudentSkill | null;
   additionalSkills: StudentSkill[];
 }) {
@@ -646,6 +680,7 @@ function StudentCardWithWeakestSkill({
       className={className}
       onEditDefault={onEditDefault}
       onAddSkills={onAddSkills}
+      onRemoveSkill={onRemoveSkill}
       skills={skills}
     />
   );
