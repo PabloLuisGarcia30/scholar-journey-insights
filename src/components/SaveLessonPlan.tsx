@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -317,7 +318,7 @@ export function SaveLessonPlan({ classId, className, classData, students, onLess
     await Promise.allSettled(retryPromises);
   };
 
-  const handleSaveLessonPlan = async (exercisesToSave?: StudentExercise[]) => {
+  const handleSaveLessonPlan = async (exercisesToSave: StudentExercise[]) => {
     if (!lessonTitle.trim()) {
       toast.error("Please enter a lesson title");
       return;
@@ -357,7 +358,7 @@ export function SaveLessonPlan({ classId, className, classData, students, onLess
         scheduledDate: nextClassInfo.date,
         scheduledTime: nextClassInfo.time,
         students: studentsForLessonPlan,
-        exercisesData: exercisesToSave || null
+        exercisesData: exercisesToSave
       };
 
       const savedLessonPlan = await saveLessonPlan(lessonPlanData);
@@ -390,10 +391,6 @@ export function SaveLessonPlan({ classId, className, classData, students, onLess
 
   const handleSaveWithExercises = (editedExercises: StudentExercise[]) => {
     handleSaveLessonPlan(editedExercises);
-  };
-
-  const handleSaveWithoutExercises = () => {
-    handleSaveLessonPlan();
   };
 
   const handleCancelExercisePreview = () => {
@@ -599,23 +596,6 @@ export function SaveLessonPlan({ classId, className, classData, students, onLess
           >
             <Sparkles className="h-4 w-4 mr-2" />
             Generate & Preview Exercises
-          </Button>
-          <Button 
-            onClick={handleSaveWithoutExercises} 
-            disabled={loading || !nextClassInfo}
-            variant="outline"
-          >
-            {loading ? (
-              <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Saving...
-              </>
-            ) : (
-              <>
-                <Save className="h-4 w-4 mr-2" />
-                Save Without Exercises
-              </>
-            )}
           </Button>
         </div>
       </div>
