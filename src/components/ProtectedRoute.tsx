@@ -1,6 +1,7 @@
 
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth, UserRole } from '@/contexts/AuthContext';
+import { DEV_CONFIG } from '@/config/devConfig';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -15,6 +16,11 @@ export function ProtectedRoute({
 }: ProtectedRouteProps) {
   const { user, profile, loading } = useAuth();
   const location = useLocation();
+
+  // Bypass authentication in dev mode
+  if (DEV_CONFIG.DISABLE_AUTH_FOR_DEV) {
+    return <>{children}</>;
+  }
 
   if (loading) {
     return (
@@ -32,7 +38,6 @@ export function ProtectedRoute({
   }
 
   if (requiredRole && profile?.role !== requiredRole) {
-    // Redirect based on user's actual role
     const roleRedirect = profile?.role === 'student' ? '/student-dashboard' : '/';
     return <Navigate to={roleRedirect} replace />;
   }

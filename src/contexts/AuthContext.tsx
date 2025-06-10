@@ -1,8 +1,9 @@
-
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { DEV_CONFIG, MOCK_USER_DATA } from '@/config/devConfig';
+import { useDevRole } from '@/contexts/DevRoleContext';
 
 export type UserRole = 'teacher' | 'student';
 
@@ -42,7 +43,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // Get dev role context if available
+  let devRole: 'teacher' | 'student' = 'teacher';
+  try {
+    const devRoleContext = useDevRole();
+    devRole = devRoleContext.currentRole;
+  } catch {
+    // DevRoleContext not available, use default
+  }
+
   useEffect(() => {
+    // Check if we're in dev mode
+    if (DEV_CONFIG.DISABLE_AUTH_FOR_DEV) {
+      // Use mock data based on current dev role
+      const mockData = MOCK_USER_DATA[devRole];
+      setUser(mockData.user as any);
+      setProfile(mockData.profile);
+      setLoading(false);
+      return;
+    }
+
     // Set up auth state listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
@@ -86,9 +106,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     });
 
     return () => subscription.unsubscribe();
-  }, []);
+  }, [devRole]);
 
   const signUp = async (email: string, password: string, fullName: string, role: UserRole) => {
+    if (DEV_CONFIG.DISABLE_AUTH_FOR_DEV) {
+      toast.success('Auth disabled in dev mode');
+      return { error: null };
+    }
+
     try {
       const redirectUrl = `${window.location.origin}/`;
       
@@ -118,6 +143,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signIn = async (email: string, password: string) => {
+    if (DEV_CONFIG.DISABLE_AUTH_FOR_DEV) {
+      toast.success('Auth disabled in dev mode');
+      return { error: null };
+    }
+
     try {
       const { error } = await supabase.auth.signInWithPassword({
         email,
@@ -137,6 +167,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signOut = async () => {
+    if (DEV_CONFIG.DISABLE_AUTH_FOR_DEV) {
+      toast.success('Auth disabled in dev mode');
+      return;
+    }
+
     try {
       const { error } = await supabase.auth.signOut();
       if (error) {
@@ -153,6 +188,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const updateProfile = async (updates: Partial<UserProfile>) => {
+    if (DEV_CONFIG.DISABLE_AUTH_FOR_DEV) {
+      setProfile(prev => prev ? { ...prev, ...updates } : null);
+      toast.success('Profile updated (dev mode)');
+      return { error: null };
+    }
+
     try {
       if (!user) {
         return { error: { message: 'No user logged in' } };
@@ -168,7 +209,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return { error };
       }
 
-      // Update local profile state
       setProfile(prev => prev ? { ...prev, ...updates } : null);
       toast.success('Profile updated successfully');
       return { error: null };

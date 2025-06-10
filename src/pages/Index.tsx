@@ -8,11 +8,36 @@ import { StudentPortals } from "@/components/StudentPortals";
 import { DashboardSidebar } from "@/components/DashboardSidebar";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
+import { useDevRole } from "@/contexts/DevRoleContext";
+import { useAuth } from "@/contexts/AuthContext";
+import { DEV_CONFIG } from "@/config/devConfig";
+import { Navigate } from "react-router-dom";
+import StudentDashboardPage from "./StudentDashboard";
 
 const Index = () => {
   const [selectedStudent, setSelectedStudent] = useState<string | null>(null);
   const [selectedClass, setSelectedClass] = useState<{ id: string; name: string } | null>(null);
   const [activeView, setActiveView] = useState<'dashboard' | 'search' | 'classes' | 'analytics' | 'portals' | 'student-lesson-tracker' | 'learner-profiles'>('dashboard');
+  
+  const { profile } = useAuth();
+  
+  // Get current role (dev or actual)
+  let currentRole: 'teacher' | 'student' = 'teacher';
+  try {
+    const { currentRole: devRole, isDevMode } = useDevRole();
+    if (isDevMode) {
+      currentRole = devRole;
+    } else if (profile?.role) {
+      currentRole = profile.role;
+    }
+  } catch {
+    currentRole = profile?.role || 'teacher';
+  }
+
+  // If in student view, redirect to student dashboard
+  if (currentRole === 'student') {
+    return <Navigate to="/student-dashboard" replace />;
+  }
 
   const handleSelectStudent = (studentId: string, classId?: string, className?: string) => {
     setSelectedStudent(studentId);
@@ -59,7 +84,7 @@ const Index = () => {
   };
 
   return (
-    <ProtectedRoute requiredRole="teacher">
+    <ProtectedRoute requiredRole={DEV_CONFIG.DISABLE_AUTH_FOR_DEV ? undefined : "teacher"}>
       <SidebarProvider>
         <div className="min-h-screen flex w-full bg-gray-50">
           <DashboardSidebar activeView={activeView} onViewChange={setActiveView} />

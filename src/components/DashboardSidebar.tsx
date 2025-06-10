@@ -1,8 +1,10 @@
-
 import { BarChart3, Users, GraduationCap, Calendar, Brain, Home, User, LogOut } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
+import { useDevRole } from "@/contexts/DevRoleContext";
+import { DevRoleToggle } from "@/components/DevRoleToggle";
+import { DEV_CONFIG } from "@/config/devConfig";
 import {
   Sidebar,
   SidebarContent,
@@ -24,13 +26,26 @@ interface DashboardSidebarProps {
 export function DashboardSidebar({ activeView, onViewChange }: DashboardSidebarProps) {
   const location = useLocation();
   const { user, profile, signOut } = useAuth();
+  
+  // Get current role (dev or actual)
+  let currentRole: 'teacher' | 'student' = 'teacher';
+  try {
+    const { currentRole: devRole, isDevMode } = useDevRole();
+    if (isDevMode) {
+      currentRole = devRole;
+    } else if (profile?.role) {
+      currentRole = profile.role;
+    }
+  } catch {
+    currentRole = profile?.role || 'teacher';
+  }
 
-  // If user is not authenticated, don't show the sidebar
-  if (!user || !profile) {
+  // In dev mode, always show sidebar. In production, check for auth
+  if (!DEV_CONFIG.DISABLE_AUTH_FOR_DEV && (!user || !profile)) {
     return null;
   }
 
-  const isTeacherView = profile.role === 'teacher';
+  const isTeacherView = currentRole === 'teacher';
 
   const teacherNavigationItems = [
     {
@@ -123,6 +138,10 @@ export function DashboardSidebar({ activeView, onViewChange }: DashboardSidebarP
 
   const navigationItems = isTeacherView ? teacherNavigationItems : studentNavigationItems;
 
+  // Get display name and email
+  const displayName = profile?.full_name || 'User';
+  const displayEmail = profile?.email || user?.email || 'dev@example.com';
+
   return (
     <Sidebar className="border-r bg-white">
       <SidebarHeader className="p-4 border-b">
@@ -132,6 +151,9 @@ export function DashboardSidebar({ activeView, onViewChange }: DashboardSidebarP
             <span className="font-semibold text-slate-900">EduPlatform</span>
           </div>
 
+          {/* Dev Role Toggle */}
+          <DevRoleToggle />
+
           {/* User Info */}
           <div className="flex items-center gap-3 p-2 bg-blue-50 rounded-lg">
             <div className="w-8 h-8 bg-blue-200 rounded-full flex items-center justify-center">
@@ -139,9 +161,9 @@ export function DashboardSidebar({ activeView, onViewChange }: DashboardSidebarP
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-slate-900 truncate">
-                {profile.full_name || 'User'}
+                {displayName}
               </p>
-              <p className="text-xs text-slate-600">{user.email}</p>
+              <p className="text-xs text-slate-600">{displayEmail}</p>
             </div>
           </div>
         </div>
@@ -218,7 +240,7 @@ export function DashboardSidebar({ activeView, onViewChange }: DashboardSidebarP
           className="w-full justify-start"
         >
           <LogOut className="mr-2 h-4 w-4" />
-          Sign Out
+          {DEV_CONFIG.DISABLE_AUTH_FOR_DEV ? 'Sign Out (Dev)' : 'Sign Out'}
         </Button>
       </SidebarFooter>
     </Sidebar>

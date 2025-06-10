@@ -1,13 +1,35 @@
-
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Bell, BookOpen, TrendingUp, User, Calendar, Clock } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
+import { DevRoleToggle } from "@/components/DevRoleToggle";
+import { useDevRole } from "@/contexts/DevRoleContext";
+import { Navigate } from "react-router-dom";
+import { DEV_CONFIG } from "@/config/devConfig";
 
 export default function StudentDashboard() {
   const { profile, signOut } = useAuth();
+  
+  // Get current role (dev or actual)
+  let currentRole: 'teacher' | 'student' = 'student';
+  try {
+    const { currentRole: devRole, isDevMode } = useDevRole();
+    if (isDevMode) {
+      currentRole = devRole;
+    } else if (profile?.role) {
+      currentRole = profile.role;
+    }
+  } catch {
+    currentRole = profile?.role || 'student';
+  }
+
+  // If in teacher view, redirect to main dashboard
+  if (currentRole === 'teacher') {
+    return <Navigate to="/" replace />;
+  }
+
   const [notifications] = useState([
     {
       id: 1,
@@ -67,6 +89,11 @@ export default function StudentDashboard() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50/30">
       <div className="max-w-7xl mx-auto px-6 py-8">
+        {/* Dev Role Toggle */}
+        <div className="mb-6">
+          <DevRoleToggle />
+        </div>
+
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <div>
@@ -77,7 +104,7 @@ export default function StudentDashboard() {
           </div>
           <div className="flex items-center gap-4">
             <Button variant="outline" onClick={signOut}>
-              Sign Out
+              {DEV_CONFIG.DISABLE_AUTH_FOR_DEV ? 'Sign Out (Dev)' : 'Sign Out'}
             </Button>
           </div>
         </div>

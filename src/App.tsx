@@ -7,6 +7,7 @@ import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import StudentDashboard from "./pages/StudentDashboard";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
+import { DevRoleProvider, useDevRole } from "./contexts/DevRoleContext";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import NotFound from "./pages/NotFound";
 import TestCreator from "./pages/TestCreator";
@@ -16,13 +17,28 @@ import CreateQuizLink from "./pages/CreateQuizLink";
 import StudentLessonTracker from "./pages/StudentLessonTracker";
 import StudentLearnerProfile from "./pages/StudentLearnerProfile";
 import StudentQuiz from "./pages/StudentQuiz";
+import { DEV_CONFIG } from "./config/devConfig";
 
 const queryClient = new QueryClient();
 
 function AppRoutes() {
   const { user, profile, loading } = useAuth();
+  
+  // Get dev role for routing decisions
+  let currentRole: 'teacher' | 'student' = 'teacher';
+  try {
+    const { currentRole: devRole, isDevMode } = useDevRole();
+    if (isDevMode) {
+      currentRole = devRole;
+    } else if (profile?.role) {
+      currentRole = profile.role;
+    }
+  } catch {
+    // DevRoleContext not available, use profile role or default
+    currentRole = profile?.role || 'teacher';
+  }
 
-  if (loading) {
+  if (loading && !DEV_CONFIG.DISABLE_AUTH_FOR_DEV) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50/30 flex items-center justify-center">
         <div className="text-center">
@@ -43,7 +59,7 @@ function AppRoutes() {
         path="/" 
         element={
           <ProtectedRoute>
-            {profile?.role === 'student' ? <Navigate to="/student-dashboard" replace /> : <Index />}
+            {currentRole === 'student' ? <Navigate to="/student-dashboard" replace /> : <Index />}
           </ProtectedRoute>
         } 
       />
@@ -51,7 +67,7 @@ function AppRoutes() {
       <Route 
         path="/student-dashboard" 
         element={
-          <ProtectedRoute requiredRole="student">
+          <ProtectedRoute requiredRole={DEV_CONFIG.DISABLE_AUTH_FOR_DEV ? undefined : "student"}>
             <StudentDashboard />
           </ProtectedRoute>
         } 
@@ -60,7 +76,7 @@ function AppRoutes() {
       <Route 
         path="/test-creator" 
         element={
-          <ProtectedRoute requiredRole="teacher">
+          <ProtectedRoute requiredRole={DEV_CONFIG.DISABLE_AUTH_FOR_DEV ? undefined : "teacher"}>
             <TestCreator />
           </ProtectedRoute>
         } 
@@ -69,7 +85,7 @@ function AppRoutes() {
       <Route 
         path="/upload-test" 
         element={
-          <ProtectedRoute requiredRole="teacher">
+          <ProtectedRoute requiredRole={DEV_CONFIG.DISABLE_AUTH_FOR_DEV ? undefined : "teacher"}>
             <UploadTest />
           </ProtectedRoute>
         } 
@@ -87,7 +103,7 @@ function AppRoutes() {
       <Route 
         path="/create-quiz-link" 
         element={
-          <ProtectedRoute requiredRole="teacher">
+          <ProtectedRoute requiredRole={DEV_CONFIG.DISABLE_AUTH_FOR_DEV ? undefined : "teacher"}>
             <CreateQuizLink />
           </ProtectedRoute>
         } 
@@ -120,12 +136,14 @@ function App() {
   return (
     <BrowserRouter>
       <QueryClientProvider client={queryClient}>
-        <AuthProvider>
-          <TooltipProvider>
-            <Toaster />
-            <AppRoutes />
-          </TooltipProvider>
-        </AuthProvider>
+        <DevRoleProvider>
+          <AuthProvider>
+            <TooltipProvider>
+              <Toaster />
+              <AppRoutes />
+            </TooltipProvider>
+          </AuthProvider>
+        </DevRoleProvider>
       </QueryClientProvider>
     </BrowserRouter>
   );
