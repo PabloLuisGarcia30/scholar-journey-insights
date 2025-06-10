@@ -892,6 +892,49 @@ export const autoLinkMathClassToGrade10Skills = async (): Promise<void> => {
   }
 };
 
+export const autoLinkGeographyClassToGrade11Skills = async (): Promise<void> => {
+  try {
+    console.log('Auto-linking Geography 11 classes to Grade 11 Geography skills');
+    
+    // Find all Geography Grade 11 classes
+    const { data: geographyClasses, error: classError } = await supabase
+      .from('active_classes')
+      .select('*')
+      .eq('subject', 'Geography')
+      .eq('grade', 'Grade 11');
+
+    if (classError) {
+      console.error('Error finding Geography Grade 11 classes:', classError);
+      throw new Error(`Failed to find Geography Grade 11 classes: ${classError.message}`);
+    }
+
+    if (!geographyClasses || geographyClasses.length === 0) {
+      console.log('No Geography Grade 11 classes found, skipping auto-link');
+      return;
+    }
+
+    // Get all Grade 11 Geography content skills
+    const contentSkills = await getContentSkillsBySubjectAndGrade('Geography', 'Grade 11');
+    const skillIds = contentSkills.map(skill => skill.id);
+
+    if (skillIds.length === 0) {
+      console.log('No Geography Grade 11 skills found to link');
+      return;
+    }
+
+    // Link each Geography Grade 11 class to all Grade 11 Geography skills
+    for (const geographyClass of geographyClasses) {
+      await linkClassToContentSkills(geographyClass.id, skillIds);
+      console.log(`Successfully auto-linked ${geographyClass.name} to ${skillIds.length} Grade 11 Geography skills`);
+    }
+    
+    console.log(`Successfully auto-linked ${geographyClasses.length} Geography Grade 11 classes to Grade 11 Geography skills`);
+  } catch (error) {
+    console.error('Error in autoLinkGeographyClassToGrade11Skills:', error);
+    throw error;
+  }
+};
+
 export const getSubjectSkillsBySubjectAndGrade = async (subject: string, grade: string): Promise<SubjectSkill[]> => {
   const { data, error } = await supabase
     .from('subject_skills')
@@ -1029,3 +1072,4 @@ export const getStudentEnrolledClasses = async (studentId: string): Promise<Acti
     throw error;
   }
 };
+

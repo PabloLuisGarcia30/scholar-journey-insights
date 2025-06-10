@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -11,6 +12,7 @@ import {
   getLinkedContentSkillsForClass,
   linkClassToContentSkills,
   autoLinkMathClassToGrade10Skills,
+  autoLinkGeographyClassToGrade11Skills,
   type ContentSkill,
   type ActiveClass
 } from "@/services/examService";
@@ -37,13 +39,20 @@ export function ClassContentSkills({ activeClass }: ClassContentSkillsProps) {
     return activeClass.subject === 'Science' && activeClass.grade === 'Grade 10';
   };
 
+  // Helper function to check if this is a Grade 11 Geography class
+  const isGrade11GeographyClass = () => {
+    return activeClass.subject === 'Geography' && activeClass.grade === 'Grade 11';
+  };
+
   useEffect(() => {
     loadSkills();
-    // Auto-link any Grade 10 class on first load
+    // Auto-link any Grade 10 or Grade 11 class on first load
     if (isGrade10MathClass()) {
       autoLinkMathClass();
     } else if (isGrade10ScienceClass()) {
       autoLinkScienceClass();
+    } else if (isGrade11GeographyClass()) {
+      autoLinkGeographyClass();
     }
   }, [activeClass]);
 
@@ -89,6 +98,17 @@ export function ClassContentSkills({ activeClass }: ClassContentSkillsProps) {
       }
     } catch (error) {
       console.error('Error auto-linking science class:', error);
+      // Don't show error toast for auto-link as it's background operation
+    }
+  };
+
+  const autoLinkGeographyClass = async () => {
+    try {
+      await autoLinkGeographyClassToGrade11Skills();
+      await loadSkills(); // Refresh the data
+      toast.success('Grade 11 Geography class has been automatically linked to Grade 11 Geography skills!');
+    } catch (error) {
+      console.error('Error auto-linking geography class:', error);
       // Don't show error toast for auto-link as it's background operation
     }
   };
@@ -153,6 +173,18 @@ export function ClassContentSkills({ activeClass }: ClassContentSkillsProps) {
     // Add any remaining topics not in our ordered list
     const remainingTopics = Object.keys(groupedSkills).filter(topic => !scienceOrderedTopics.includes(topic));
     topics = [...topics, ...remainingTopics];
+  } else if (isGrade11GeographyClass()) {
+    const geographyOrderedTopics = [
+      'POPULATIONS IN TRANSITION',
+      'DISPARITIES IN WEALTH AND DEVELOPMENT',
+      'PATTERNS IN ENVIRONMENTAL QUALITY AND SUSTAINABILITY',
+      'PATTERNS IN RESOURCE CONSUMPTION'
+    ];
+    
+    topics = geographyOrderedTopics.filter(topic => groupedSkills[topic]);
+    // Add any remaining topics not in our ordered list
+    const remainingTopics = Object.keys(groupedSkills).filter(topic => !geographyOrderedTopics.includes(topic));
+    topics = [...topics, ...remainingTopics];
   }
 
   // Sort skills within each topic to maintain consistent ordering
@@ -197,7 +229,6 @@ export function ClassContentSkills({ activeClass }: ClassContentSkillsProps) {
         ]
       };
 
-      // Find the topic for these skills
       const topic = skills[0]?.topic;
       if (topic && skillOrders[topic]) {
         const order = skillOrders[topic];
@@ -250,10 +281,50 @@ export function ClassContentSkills({ activeClass }: ClassContentSkillsProps) {
         ]
       };
       
-      // Find the topic for these skills
       const topic = skills[0]?.topic;
       if (topic && scienceSkillOrders[topic]) {
         const order = scienceSkillOrders[topic];
+        return skills.sort((a, b) => {
+          const aIndex = order.indexOf(a.skill_name);
+          const bIndex = order.indexOf(b.skill_name);
+          if (aIndex === -1 && bIndex === -1) return 0;
+          if (aIndex === -1) return 1;
+          if (bIndex === -1) return -1;
+          return aIndex - bIndex;
+        });
+      }
+    } else if (isGrade11GeographyClass()) {
+      // Define skill ordering within each topic for Grade 11 Geography
+      const geographySkillOrders: Record<string, string[]> = {
+        'POPULATIONS IN TRANSITION': [
+          'Interpreting population pyramids',
+          'Analyzing demographic transition models',
+          'Calculating demographic rates',
+          'Evaluating aging population implications'
+        ],
+        'DISPARITIES IN WEALTH AND DEVELOPMENT': [
+          'Interpreting development indicators',
+          'Comparing disparities at different scales',
+          'Analyzing economic disparity case studies',
+          'Evaluating development strategies'
+        ],
+        'PATTERNS IN ENVIRONMENTAL QUALITY AND SUSTAINABILITY': [
+          'Understanding ecological footprints',
+          'Interpreting climate change data',
+          'Evaluating footprint reduction strategies',
+          'Assessing environmental impacts'
+        ],
+        'PATTERNS IN RESOURCE CONSUMPTION': [
+          'Analyzing global consumption trends',
+          'Calculating resource depletion rates',
+          'Evaluating resource management strategies',
+          'Interpreting energy and water security data'
+        ]
+      };
+      
+      const topic = skills[0]?.topic;
+      if (topic && geographySkillOrders[topic]) {
+        const order = geographySkillOrders[topic];
         return skills.sort((a, b) => {
           const aIndex = order.indexOf(a.skill_name);
           const bIndex = order.indexOf(b.skill_name);
@@ -304,6 +375,9 @@ export function ClassContentSkills({ activeClass }: ClassContentSkillsProps) {
             )}
             {isGrade10ScienceClass() && (
               <Badge variant="outline" className="ml-2">Science 10</Badge>
+            )}
+            {isGrade11GeographyClass() && (
+              <Badge variant="outline" className="ml-2">Geography 11</Badge>
             )}
           </CardTitle>
           <div className="flex items-center gap-2">

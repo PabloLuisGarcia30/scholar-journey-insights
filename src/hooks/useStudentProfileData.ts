@@ -80,6 +80,11 @@ export function useStudentProfileData({ studentId, classId, className }: UseStud
     return classData && classData.subject === 'Science' && classData.grade === 'Grade 10';
   };
 
+  // Helper function to check if this is a Grade 11 Geography class
+  const isGrade11GeographyClass = () => {
+    return classData && classData.subject === 'Geography' && classData.grade === 'Grade 11';
+  };
+
   // 🆕 ENHANCED: Fetch test results using student profile ID when available
   const { data: testResults = [], isLoading: testResultsLoading } = useQuery({
     queryKey: ['studentTestResults', studentProfile?.id, studentId],
@@ -115,6 +120,7 @@ export function useStudentProfileData({ studentId, classId, className }: UseStud
         isClassView, 
         isGrade10Math: isGrade10MathClass(),
         isGrade10Science: isGrade10ScienceClass(),
+        isGrade11Geography: isGrade11GeographyClass(),
         classId,
         className,
         classSubject: classData?.subject,
@@ -163,24 +169,24 @@ export function useStudentProfileData({ studentId, classId, className }: UseStud
     enabled: !!classId && isClassView,
   });
 
-  // Auto-link Grade 10 Math or Science classes to their skills when class data loads
+  // Auto-link Grade 10 Math, Science, or Grade 11 Geography classes to their skills when class data loads
   useEffect(() => {
     const autoLinkSkills = async () => {
-      if ((isGrade10MathClass() || isGrade10ScienceClass()) && classId) {
+      if ((isGrade10MathClass() || isGrade10ScienceClass() || isGrade11GeographyClass()) && classId) {
         try {
-          console.log(`Auto-linking Grade 10 ${classData?.subject} class to Grade 10 ${classData?.subject} skills`);
+          console.log(`Auto-linking ${classData?.grade} ${classData?.subject} class to ${classData?.grade} ${classData?.subject} skills`);
           
           // Link Content-Specific Skills
           const allContentSkills = await getContentSkillsBySubjectAndGrade(classData?.subject || '', classData?.grade || '');
           const contentSkillIds = allContentSkills.map(skill => skill.id);
           await linkClassToContentSkills(classId, contentSkillIds);
-          console.log(`Successfully linked class to ${contentSkillIds.length} Grade 10 ${classData?.subject} content skills`);
+          console.log(`Successfully linked class to ${contentSkillIds.length} ${classData?.grade} ${classData?.subject} content skills`);
           
           // Link Subject-Specific Skills
           const allSubjectSkills = await getSubjectSkillsBySubjectAndGrade(classData?.subject || '', classData?.grade || '');
           const subjectSkillIds = allSubjectSkills.map(skill => skill.id);
           await linkClassToSubjectSkills(classId, subjectSkillIds);
-          console.log(`Successfully linked class to ${subjectSkillIds.length} Grade 10 ${classData?.subject} subject skills`);
+          console.log(`Successfully linked class to ${subjectSkillIds.length} ${classData?.grade} ${classData?.subject} subject skills`);
           
           // Trigger refetch of both skill types
           if (classContentSkillsRefetch) {
@@ -190,7 +196,7 @@ export function useStudentProfileData({ studentId, classId, className }: UseStud
             classSubjectSkillsRefetch();
           }
         } catch (error) {
-          console.error(`Failed to auto-link Grade 10 ${classData?.subject} skills:`, error);
+          console.error(`Failed to auto-link ${classData?.grade} ${classData?.subject} skills:`, error);
         }
       }
     };
@@ -240,6 +246,7 @@ export function useStudentProfileData({ studentId, classId, className }: UseStud
     isPabloLuisGarcia,
     isClassView,
     isGrade10MathClass,
-    isGrade10ScienceClass
+    isGrade10ScienceClass,
+    isGrade11GeographyClass
   };
 }
