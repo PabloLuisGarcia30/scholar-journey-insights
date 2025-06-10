@@ -1,17 +1,23 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Play, Users, Calendar, Settings, BookOpen, ArrowLeft, FileText } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Play, Users, Calendar, Settings, BookOpen, ArrowLeft, FileText, Activity } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
+import { StartClassSession } from "@/components/StartClassSession";
+import { LiveSessionMonitoring } from "@/components/LiveSessionMonitoring";
+import { getActiveClassSessions } from "@/services/classSessionService";
+import { useState } from "react";
 
 export default function ClassRunner() {
   const { profile } = useAuth();
   const navigate = useNavigate();
+  const [activeTab, setActiveTab] = useState("classes");
 
-  // Fetch active classes for Mr. Cullen
+  // Fetch active classes for the teacher
   const { data: activeClasses = [], isLoading } = useQuery({
     queryKey: ['activeClasses', profile?.full_name],
     queryFn: async () => {
@@ -32,6 +38,17 @@ export default function ClassRunner() {
       return data || [];
     },
     enabled: !!profile?.full_name,
+  });
+
+  // Fetch active sessions for monitoring
+  const { data: activeSessions = [] } = useQuery({
+    queryKey: ['activeSessions', profile?.id],
+    queryFn: async () => {
+      if (!profile?.id) return [];
+      return await getActiveClassSessions(profile.id);
+    },
+    enabled: !!profile?.id,
+    refetchInterval: 30000, // Refresh every 30 seconds
   });
 
   const formatTime = (timeString: string) => {
@@ -59,10 +76,29 @@ export default function ClassRunner() {
     navigate(`/lesson-planner?class=${encodeURIComponent(classItem.name)}&classId=${classItem.id}`);
   };
 
-  const handleStartClass = (classItem: any) => {
-    console.log('Starting class:', classItem.name);
-    // TODO: Implement class session start functionality
+  const handleSessionStarted = (sessionId: string) => {
+    // Switch to monitoring tab when a session is started
+    setActiveTab("monitoring");
   };
+
+  const mockStudents = [
+    {
+      studentId: "student-1",
+      studentName: "Alice Johnson",
+      skills: [
+        { skill_name: "Algebra", score: 75 },
+        { skill_name: "Geometry", score: 82 }
+      ]
+    },
+    {
+      studentId: "student-2", 
+      studentName: "Bob Smith",
+      skills: [
+        { skill_name: "Algebra", score: 68 },
+        { skill_name: "Statistics", score: 71 }
+      ]
+    }
+  ];
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50/30">
@@ -85,69 +121,22 @@ export default function ClassRunner() {
           <p className="text-lg text-slate-600 mt-2">Manage and run your classes efficiently</p>
         </div>
 
-        {/* Quick Actions */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-sm hover:shadow-md transition-shadow cursor-pointer">
-            <CardContent className="p-6">
-              <div className="flex items-center gap-4">
-                <div className="p-3 bg-blue-100 rounded-xl">
-                  <Play className="h-6 w-6 text-blue-600" />
-                </div>
-                <div>
-                  <p className="text-sm text-slate-600">Start Session</p>
-                  <p className="text-lg font-semibold text-slate-900">Begin Class</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+          <TabsList className="grid w-full grid-cols-3">
+            <TabsTrigger value="classes">Active Classes</TabsTrigger>
+            <TabsTrigger value="monitoring" className="flex items-center gap-2">
+              <Activity className="h-4 w-4" />
+              Live Monitoring
+              {activeSessions.length > 0 && (
+                <span className="ml-1 px-2 py-1 text-xs bg-green-500 text-white rounded-full">
+                  {activeSessions.length}
+                </span>
+              )}
+            </TabsTrigger>
+            <TabsTrigger value="tools">Quick Tools</TabsTrigger>
+          </TabsList>
 
-          <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-sm hover:shadow-md transition-shadow cursor-pointer">
-            <CardContent className="p-6">
-              <div className="flex items-center gap-4">
-                <div className="p-3 bg-green-100 rounded-xl">
-                  <Users className="h-6 w-6 text-green-600" />
-                </div>
-                <div>
-                  <p className="text-sm text-slate-600">Attendance</p>
-                  <p className="text-lg font-semibold text-slate-900">Take Roll</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-sm hover:shadow-md transition-shadow cursor-pointer">
-            <CardContent className="p-6">
-              <div className="flex items-center gap-4">
-                <div className="p-3 bg-orange-100 rounded-xl">
-                  <Calendar className="h-6 w-6 text-orange-600" />
-                </div>
-                <div>
-                  <p className="text-sm text-slate-600">Schedule</p>
-                  <p className="text-lg font-semibold text-slate-900">View Calendar</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-sm hover:shadow-md transition-shadow cursor-pointer">
-            <CardContent className="p-6">
-              <div className="flex items-center gap-4">
-                <div className="p-3 bg-purple-100 rounded-xl">
-                  <Settings className="h-6 w-6 text-purple-600" />
-                </div>
-                <div>
-                  <p className="text-sm text-slate-600">Settings</p>
-                  <p className="text-lg font-semibold text-slate-900">Configure</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Main Content */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Active Classes */}
-          <div className="lg:col-span-2">
+          <TabsContent value="classes">
             <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-sm">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
@@ -187,15 +176,12 @@ export default function ClassRunner() {
                               <FileText className="h-4 w-4" />
                               Plan
                             </Button>
-                            <Button 
-                              size="sm" 
-                              variant="default" 
-                              onClick={() => handleStartClass(classItem)}
-                              className="flex items-center gap-2"
-                            >
-                              <Play className="h-4 w-4" />
-                              Start
-                            </Button>
+                            <StartClassSession
+                              classId={classItem.id}
+                              className={classItem.name}
+                              students={mockStudents}
+                              onSessionStarted={handleSessionStarted}
+                            />
                           </div>
                         </div>
                         <div className="flex items-center gap-4 text-sm text-slate-600">
@@ -223,10 +209,28 @@ export default function ClassRunner() {
                 )}
               </CardContent>
             </Card>
-          </div>
+          </TabsContent>
 
-          {/* Quick Tools */}
-          <div>
+          <TabsContent value="monitoring">
+            <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-sm">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Activity className="h-5 w-5" />
+                  Live Session Monitoring
+                  {activeSessions.length > 0 && (
+                    <span className="ml-2 px-2 py-1 text-xs bg-green-500 text-white rounded-full">
+                      {activeSessions.length} active
+                    </span>
+                  )}
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <LiveSessionMonitoring showAllSessions={true} />
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="tools">
             <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-sm">
               <CardHeader>
                 <CardTitle>Quick Tools</CardTitle>
@@ -250,8 +254,8 @@ export default function ClassRunner() {
                 </Button>
               </CardContent>
             </Card>
-          </div>
-        </div>
+          </TabsContent>
+        </Tabs>
       </div>
     </div>
   );

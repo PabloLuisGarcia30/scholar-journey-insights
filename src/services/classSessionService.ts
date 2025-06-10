@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 
 export interface ClassSession {
@@ -28,6 +27,29 @@ export interface StudentExercise {
   score?: number;
   created_at: string;
   updated_at: string;
+}
+
+export interface SessionMonitoringData {
+  id: string;
+  class_session_id: string;
+  student_id: string;
+  student_name: string;
+  skill_name: string;
+  original_skill_score: number;
+  status: 'available' | 'in_progress' | 'completed';
+  exercise_score?: number;
+  started_at?: string;
+  completed_at?: string;
+  created_at: string;
+  updated_at: string;
+  session_name: string;
+  teacher_id: string;
+  class_id: string;
+  is_active: boolean;
+  lesson_plan_id?: string;
+  class_name?: string;
+  subject?: string;
+  grade?: string;
 }
 
 export async function createClassSession(sessionData: {
@@ -162,6 +184,31 @@ export async function updateExerciseStatus(
     if (error) throw error;
   } catch (error) {
     console.error('Error updating exercise status:', error);
+    throw error;
+  }
+}
+
+export async function getSessionMonitoringData(sessionId?: string): Promise<SessionMonitoringData[]> {
+  try {
+    const { data, error } = await supabase.rpc('get_session_monitoring_data', {
+      session_id: sessionId || null
+    });
+
+    if (error) throw error;
+    return data as SessionMonitoringData[];
+  } catch (error) {
+    console.error('Error fetching session monitoring data:', error);
+    throw error;
+  }
+}
+
+export async function getAllActiveSessionsMonitoringData(): Promise<SessionMonitoringData[]> {
+  try {
+    const { data, error } = await supabase.rpc('get_session_monitoring_data');
+    if (error) throw error;
+    return data as SessionMonitoringData[];
+  } catch (error) {
+    console.error('Error fetching all session monitoring data:', error);
     throw error;
   }
 }

@@ -1288,6 +1288,31 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      get_session_monitoring_data: {
+        Args: { session_id?: string }
+        Returns: {
+          id: string
+          class_session_id: string
+          student_id: string
+          student_name: string
+          skill_name: string
+          original_skill_score: number
+          status: string
+          exercise_score: number
+          started_at: string
+          completed_at: string
+          created_at: string
+          updated_at: string
+          session_name: string
+          teacher_id: string
+          class_id: string
+          is_active: boolean
+          lesson_plan_id: string
+          class_name: string
+          subject: string
+          grade: string
+        }[]
+      }
       get_user_role: {
         Args: { user_id: string }
         Returns: Database["public"]["Enums"]["app_role"]

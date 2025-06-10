@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Play, Loader2 } from "lucide-react";
+import { Play, Loader2, Activity } from "lucide-react";
 import { toast } from "sonner";
 import { createClassSession, createStudentExercises } from "@/services/classSessionService";
 import { supabase } from "@/integrations/supabase/client";
@@ -20,9 +20,10 @@ interface StartClassSessionProps {
       score: number;
     }>;
   }>;
+  onSessionStarted?: (sessionId: string) => void;
 }
 
-export function StartClassSession({ classId, className, students }: StartClassSessionProps) {
+export function StartClassSession({ classId, className, students, onSessionStarted }: StartClassSessionProps) {
   const [open, setOpen] = useState(false);
   const [sessionName, setSessionName] = useState(`${className} - ${new Date().toLocaleDateString()}`);
   const [loading, setLoading] = useState(false);
@@ -95,6 +96,11 @@ export function StartClassSession({ classId, className, students }: StartClassSe
       setOpen(false);
       setSessionName(`${className} - ${new Date().toLocaleDateString()}`);
       
+      // Notify parent component about the new session
+      if (onSessionStarted) {
+        onSessionStarted(session.id);
+      }
+      
     } catch (error) {
       console.error('Error starting class session:', error);
       toast.error('Failed to start class session. Please try again.');
@@ -134,6 +140,7 @@ export function StartClassSession({ classId, className, students }: StartClassSe
               <li>• {students.length} students will receive tailored exercises</li>
               <li>• {students.reduce((total, student) => total + student.skills.length, 0)} total exercises will be generated</li>
               <li>• Students can access exercises on their dashboard during this session</li>
+              <li>• You can monitor progress in real-time on the monitoring dashboard</li>
             </ul>
           </div>
 
