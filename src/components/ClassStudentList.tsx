@@ -1,4 +1,3 @@
-
 import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -111,7 +110,7 @@ function WeakestSkillCircle({ skillName, score }: { skillName: string; score: nu
           {skillName}
         </p>
         <p className="text-xs text-slate-500 mt-1">
-          Needs attention
+          Focus area
         </p>
       </div>
     </div>
@@ -126,9 +125,8 @@ function StudentCard({ student, classId, className }: StudentCardProps) {
     className
   });
 
-  // Find the weakest content skill
+  // Find the weakest content skill (absolute lowest score)
   const weakestSkill = contentSkillScores
-    .filter(skill => skill.score < 0.8) // Focus on skills below 80%
     .sort((a, b) => a.score - b.score)[0]; // Get the lowest scoring skill
 
   return (
@@ -174,11 +172,11 @@ function StudentCard({ student, classId, className }: StudentCardProps) {
               />
             ) : (
               <div className="flex flex-col items-center w-16">
-                <div className="w-16 h-16 bg-gradient-to-br from-green-100 to-emerald-100 rounded-full flex items-center justify-center mb-2">
-                  <span className="text-xs font-bold text-emerald-700">✓</span>
+                <div className="w-16 h-16 bg-gradient-to-br from-slate-100 to-slate-200 rounded-full flex items-center justify-center mb-2">
+                  <span className="text-xs font-bold text-slate-500">?</span>
                 </div>
-                <p className="text-xs text-emerald-700 font-medium text-center">
-                  All skills strong!
+                <p className="text-xs text-slate-500 font-medium text-center">
+                  No skills data
                 </p>
               </div>
             )}
