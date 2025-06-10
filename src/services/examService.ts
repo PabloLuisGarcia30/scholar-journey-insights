@@ -1091,38 +1091,3 @@ export const getStudentEnrolledClasses = async (studentId: string): Promise<Acti
     throw error;
   }
 };
-
-export const getLinkedContentSkillsForClass = async (classId: string): Promise<ContentSkill[]> => {
-  try {
-    console.log('Fetching linked content skills for class:', classId);
-    
-    const { data, error } = await supabase
-      .from('class_content_skills')
-      .select(`
-        content_skills (
-          id,
-          subject,
-          grade,
-          topic,
-          skill_name,
-          skill_description,
-          created_at,
-          updated_at
-        )
-      `)
-      .eq('class_id', classId);
-
-    if (error) {
-      console.error('Error fetching linked content skills:', error);
-      throw new Error(`Failed to fetch linked content skills: ${error.message}`);
-    }
-
-    // Extract the content_skills from the nested structure
-    const contentSkills = data?.map((item: any) => item.content_skills).filter(Boolean) || [];
-    console.log('Found linked content skills:', contentSkills.length);
-    return contentSkills;
-  } catch (error) {
-    console.error('Error in getLinkedContentSkillsForClass:', error);
-    throw error;
-  }
-};
