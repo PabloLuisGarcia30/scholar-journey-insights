@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { GraduationCap, AlertTriangle, Settings, Search, Users, Plus } from "lucide-react";
 import { AddStudentDialog } from "@/components/AddStudentDialog";
 import { StudentIdManagement } from "@/components/StudentIdManagement";
-import { getAllActiveStudents, type ActiveStudent } from "@/services/examService";
+import { getAllActiveStudents, type ActiveStudent, getAllActiveClasses, type ActiveClass } from "@/services/examService";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -19,26 +19,36 @@ interface StudentSearchProps {
 interface StudentWithIdStatus extends ActiveStudent {
   hasStudentId?: boolean;
   studentIdFromProfile?: string;
+  enrolledClasses?: ActiveClass[];
 }
 
 export function StudentSearch({ onSelectStudent }: StudentSearchProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const [filterMajor, setFilterMajor] = useState<string>('all');
+  const [filterClass, setFilterClass] = useState<string>('all');
   const [filteredStudents, setFilteredStudents] = useState<StudentWithIdStatus[]>([]);
   const [allStudents, setAllStudents] = useState<StudentWithIdStatus[]>([]);
+  const [allClasses, setAllClasses] = useState<ActiveClass[]>([]);
   const [loading, setLoading] = useState(true);
   const [showManagement, setShowManagement] = useState(false);
 
   useEffect(() => {
-    loadStudents();
+    loadData();
   }, []);
 
-  const loadStudents = async () => {
+  const loadData = async () => {
     try {
       setLoading(true);
       
-      const students = await getAllActiveStudents();
+      // Load students and classes
+      const [students, classes] = await Promise.all([
+        getAllActiveStudents(),
+        getAllActiveClasses()
+      ]);
       
+      setAllClasses(classes);
+
+      // Get student profiles with IDs
       const { data: profiles, error } = await supabase
         .from('student_profiles')
         .select('student_name, student_id');
@@ -47,36 +57,55 @@ export function StudentSearch({ onSelectStudent }: StudentSearchProps) {
         console.error('Error fetching student profiles:', error);
       }
 
-      const studentsWithStatus: StudentWithIdStatus[] = students.map(student => {
-        const profile = profiles?.find(p => p.student_name === student.name);
-        return {
-          ...student,
-          hasStudentId: !!profile?.student_id,
-          studentIdFromProfile: profile?.student_id || undefined
-        };
-      });
+      // Enhance students with class enrollment data
+      const studentsWithStatus: StudentWithIdStatus[] = await Promise.all(
+        students.map(async (student) => {
+          const profile = profiles?.find(p => p.student_name === student.name);
+          
+          // Find classes where this student is enrolled
+          const enrolledClasses = classes.filter(cls => 
+            cls.students && cls.students.includes(student.id)
+          );
+
+          return {
+            ...student,
+            hasStudentId: !!profile?.student_id,
+            studentIdFromProfile: profile?.student_id || undefined,
+            enrolledClasses
+          };
+        })
+      );
 
       setAllStudents(studentsWithStatus);
       setFilteredStudents(studentsWithStatus);
     } catch (error) {
-      console.error('Error loading students:', error);
-      toast.error('Failed to load students');
+      console.error('Error loading data:', error);
+      toast.error('Failed to load data');
     } finally {
       setLoading(false);
     }
   };
 
+  const loadStudents = async () => {
+    await loadData();
+  };
+
   const handleSearch = (term: string) => {
     setSearchTerm(term);
-    applyFilters(term, filterMajor);
+    applyFilters(term, filterMajor, filterClass);
   };
 
   const handleMajorFilter = (majorFilter: string) => {
     setFilterMajor(majorFilter);
-    applyFilters(searchTerm, majorFilter);
+    applyFilters(searchTerm, majorFilter, filterClass);
   };
 
-  const applyFilters = (term: string, majorFilter: string) => {
+  const handleClassFilter = (classFilter: string) => {
+    setFilterClass(classFilter);
+    applyFilters(searchTerm, filterMajor, classFilter);
+  };
+
+  const applyFilters = (term: string, majorFilter: string, classFilter: string) => {
     let filtered = allStudents.filter(student =>
       student.name.toLowerCase().includes(term.toLowerCase()) ||
       (student.email && student.email.toLowerCase().includes(term.toLowerCase())) ||
@@ -86,6 +115,12 @@ export function StudentSearch({ onSelectStudent }: StudentSearchProps) {
 
     if (majorFilter !== 'all') {
       filtered = filtered.filter(student => student.major === majorFilter);
+    }
+
+    if (classFilter !== 'all') {
+      filtered = filtered.filter(student => 
+        student.enrolledClasses && student.enrolledClasses.some(cls => cls.id === classFilter)
+      );
     }
 
     setFilteredStudents(filtered);
@@ -171,7 +206,7 @@ export function StudentSearch({ onSelectStudent }: StudentSearchProps) {
 
           {/* Search and Filter */}
           <div className="bg-white/70 backdrop-blur-sm rounded-2xl p-6 shadow-sm border border-white/50">
-            <div className="flex flex-col sm:flex-row gap-4">
+            <div className="flex flex-col gap-4">
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-slate-400" />
                 <Input
@@ -182,17 +217,34 @@ export function StudentSearch({ onSelectStudent }: StudentSearchProps) {
                   className="pl-11 h-12 border-slate-200 rounded-xl bg-white/50 backdrop-blur-sm focus:bg-white transition-all duration-200"
                 />
               </div>
-              <Select value={filterMajor} onValueChange={handleMajorFilter}>
-                <SelectTrigger className="w-full sm:w-48 h-12 border-slate-200 rounded-xl bg-white/50 backdrop-blur-sm">
-                  <SelectValue placeholder="Filter by major" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Majors</SelectItem>
-                  {majors.map((major) => (
-                    <SelectItem key={major} value={major!}>{major}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              
+              <div className="flex flex-col sm:flex-row gap-4">
+                <Select value={filterMajor} onValueChange={handleMajorFilter}>
+                  <SelectTrigger className="w-full sm:w-48 h-12 border-slate-200 rounded-xl bg-white/50 backdrop-blur-sm">
+                    <SelectValue placeholder="Filter by major" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Majors</SelectItem>
+                    {majors.map((major) => (
+                      <SelectItem key={major} value={major!}>{major}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                <Select value={filterClass} onValueChange={handleClassFilter}>
+                  <SelectTrigger className="w-full sm:w-48 h-12 border-slate-200 rounded-xl bg-white/50 backdrop-blur-sm">
+                    <SelectValue placeholder="Filter by class" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Classes</SelectItem>
+                    {allClasses.map((cls) => (
+                      <SelectItem key={cls.id} value={cls.id}>
+                        {cls.name} ({cls.subject} - {cls.grade})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
             
             <div className="flex items-center justify-between mt-4 pt-4 border-t border-slate-200">
@@ -262,6 +314,22 @@ export function StudentSearch({ onSelectStudent }: StudentSearchProps) {
                         {student.major && (
                           <p className="text-sm text-slate-600 font-medium">{student.major}</p>
                         )}
+                        
+                        {student.enrolledClasses && student.enrolledClasses.length > 0 && (
+                          <div className="flex flex-wrap gap-1">
+                            {student.enrolledClasses.slice(0, 2).map((cls) => (
+                              <Badge key={cls.id} variant="outline" className="bg-purple-50 text-purple-700 border-purple-200 text-xs">
+                                {cls.name}
+                              </Badge>
+                            ))}
+                            {student.enrolledClasses.length > 2 && (
+                              <Badge variant="outline" className="bg-slate-50 text-slate-600 border-slate-200 text-xs">
+                                +{student.enrolledClasses.length - 2} more
+                              </Badge>
+                            )}
+                          </div>
+                        )}
+                        
                         <div className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${getGpaBackground(student.gpa)} ${getGpaColor(student.gpa)}`}>
                           GPA: {student.gpa ? Number(student.gpa).toFixed(2) : 'N/A'}
                         </div>
