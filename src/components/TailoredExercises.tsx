@@ -257,7 +257,7 @@ function ExercisePlayer({ exercise, onComplete, onBack }: ExercisePlayerProps) {
             studentAnswer,
             {
               text: question.correct_answer,
-              acceptableAnswers: question.acceptable_answers,
+              acceptableVariations: question.acceptable_answers,
               keywords: question.keywords
             },
             question.question,
