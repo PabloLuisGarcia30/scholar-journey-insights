@@ -1,17 +1,20 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, BookOpen, Plus } from "lucide-react";
+import { ArrowLeft, BookOpen, Plus, ChevronUp, ChevronDown } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { WeeklyCalendar } from "@/components/WeeklyCalendar";
+import { ClassStudentList } from "@/components/ClassStudentList";
 import { useQuery } from "@tanstack/react-query";
 import { getActiveClassByIdWithDuration } from "@/services/examService";
+import { useState } from "react";
 
 export default function LessonPlanner() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const className = searchParams.get('class') || 'Unknown Class';
   const classId = searchParams.get('classId');
+  const [showStudentList, setShowStudentList] = useState(false);
 
   // Fetch class data if classId is available
   const { data: classData, isLoading: isLoadingClass } = useQuery({
@@ -21,8 +24,13 @@ export default function LessonPlanner() {
   });
 
   const handlePlanNextClass = () => {
-    console.log('Plan Next Class clicked - functionality coming soon');
-    // TODO: Implement lesson planning functionality
+    setShowStudentList(!showStudentList);
+  };
+
+  const handleSelectStudent = (studentId: string, studentName: string) => {
+    console.log('Selected student for lesson planning:', { studentId, studentName });
+    // TODO: Navigate to individualized lesson planning for this student
+    // navigate(`/lesson-planner/student/${studentId}?class=${className}&classId=${classId}`);
   };
 
   return (
@@ -53,12 +61,17 @@ export default function LessonPlanner() {
             <div className="flex-shrink-0">
               <Button 
                 onClick={handlePlanNextClass}
-                className="flex flex-col items-center gap-1 bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 h-auto min-h-[3rem]"
+                className="flex flex-col items-center gap-1 bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 h-auto min-h-[3rem] relative"
                 size="lg"
               >
                 <div className="flex items-center gap-2">
                   <Plus className="h-5 w-5" />
                   <span className="text-base">Individualized Lesson plan</span>
+                  {showStudentList ? (
+                    <ChevronUp className="h-4 w-4 ml-1" />
+                  ) : (
+                    <ChevronDown className="h-4 w-4 ml-1" />
+                  )}
                 </div>
                 <span className="text-sm">for your next class</span>
               </Button>
@@ -74,6 +87,15 @@ export default function LessonPlanner() {
             </div>
           </div>
         </div>
+
+        {/* Student List - Shows when button is clicked */}
+        {showStudentList && classId && (
+          <ClassStudentList 
+            classId={classId}
+            className={className}
+            onSelectStudent={handleSelectStudent}
+          />
+        )}
 
         {/* Main Content */}
         <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-sm">
