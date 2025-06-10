@@ -1,3 +1,4 @@
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -28,6 +29,18 @@ interface HistoricalQuestion {
   options?: any;
   points: number;
   exam_title?: string;
+}
+
+interface ValidatedQuestion {
+  id: string;
+  type: 'multiple-choice' | 'true-false' | 'short-answer' | 'essay';
+  question: string;
+  options?: string[];
+  correctAnswer: string;
+  acceptableAnswers?: string[];
+  keywords?: string[];
+  points: number;
+  targetSkill: string;
 }
 
 // Enhanced skill type detection based on skill name patterns
@@ -106,9 +119,239 @@ function generateSkillMetadata(skillName: string, skillType: 'content' | 'subjec
     subject: subject,
     grade: grade,
     detectedPatterns: skillType === 'content' ? ['subject_specific_content'] : ['cognitive_skill'],
-    confidence: 0.8, // High confidence in our classification
+    confidence: 0.8,
     classificationMethod: 'pattern_matching_enhanced'
   };
+}
+
+// Enhanced skill distribution validator
+function validateAndFixSkillDistribution(
+  skillDistribution: Array<{ skill_name: string; score: number; questions: number }>,
+  totalQuestions: number
+): Array<{ skill_name: string; score: number; questions: number }> {
+  console.log('🔧 Validating skill distribution:', skillDistribution, 'total:', totalQuestions);
+
+  // Edge case: No skills provided
+  if (!skillDistribution || skillDistribution.length === 0) {
+    throw new Error('No skills provided for multi-skill test generation');
+  }
+
+  // Edge case: More skills than questions
+  if (skillDistribution.length > totalQuestions && totalQuestions > 0) {
+    console.log('⚠️ More skills than questions, selecting top skills by lowest score');
+    const sortedSkills = skillDistribution
+      .sort((a, b) => a.score - b.score) // Prioritize lower scores (need more practice)
+      .slice(0, totalQuestions)
+      .map((skill, index) => ({
+        ...skill,
+        questions: 1 // Assign 1 question per skill
+      }));
+    return sortedSkills;
+  }
+
+  // Calculate actual total from distribution
+  const distributionTotal = skillDistribution.reduce((sum, skill) => sum + skill.questions, 0);
+  
+  // Edge case: Distribution doesn't match total questions
+  if (distributionTotal !== totalQuestions) {
+    console.log(`⚠️ Distribution mismatch: ${distributionTotal} vs ${totalQuestions}, adjusting...`);
+    
+    const difference = totalQuestions - distributionTotal;
+    
+    if (difference > 0) {
+      // Add extra questions to skill with lowest score (needs most practice)
+      const lowestScoreSkill = skillDistribution.reduce((min, skill) => 
+        skill.score < min.score ? skill : min
+      );
+      lowestScoreSkill.questions += difference;
+    } else {
+      // Remove questions from skill with highest score (needs least practice)
+      let remaining = Math.abs(difference);
+      const sortedByScore = [...skillDistribution].sort((a, b) => b.score - a.score);
+      
+      for (const skill of sortedByScore) {
+        if (remaining <= 0) break;
+        const canRemove = Math.min(remaining, skill.questions - 1); // Keep at least 1 question
+        skill.questions -= canRemove;
+        remaining -= canRemove;
+      }
+    }
+  }
+
+  // Ensure minimum 1 question per skill (if possible)
+  const finalDistribution = skillDistribution.map(skill => ({
+    ...skill,
+    questions: Math.max(1, skill.questions)
+  }));
+
+  console.log('✅ Fixed skill distribution:', finalDistribution);
+  return finalDistribution;
+}
+
+// Enhanced question validator and repairer
+function validateAndRepairQuestion(question: any, index: number, targetSkill: string): ValidatedQuestion {
+  console.log(`🔧 Validating question ${index + 1}:`, question);
+
+  const repairs = [];
+
+  // Repair missing or invalid ID
+  if (!question.id || typeof question.id !== 'string') {
+    question.id = `Q${index + 1}`;
+    repairs.push('id');
+  }
+
+  // Repair missing or invalid type
+  const validTypes = ['multiple-choice', 'true-false', 'short-answer', 'essay'];
+  if (!question.type || !validTypes.includes(question.type)) {
+    question.type = 'multiple-choice'; // Default to multiple choice
+    repairs.push('type');
+  }
+
+  // Repair missing question text
+  if (!question.question || typeof question.question !== 'string' || question.question.trim().length === 0) {
+    question.question = `Practice question ${index + 1} for ${targetSkill}`;
+    repairs.push('question');
+  }
+
+  // Repair missing correct answer
+  if (!question.correctAnswer || typeof question.correctAnswer !== 'string' || question.correctAnswer.trim().length === 0) {
+    if (question.type === 'true-false') {
+      question.correctAnswer = 'True';
+    } else if (question.type === 'multiple-choice' && question.options && question.options.length > 0) {
+      question.correctAnswer = question.options[0];
+    } else {
+      question.correctAnswer = 'Please review this answer';
+    }
+    repairs.push('correctAnswer');
+  }
+
+  // Repair missing options for multiple choice
+  if (question.type === 'multiple-choice' && (!question.options || !Array.isArray(question.options) || question.options.length === 0)) {
+    question.options = [
+      question.correctAnswer,
+      'Option B',
+      'Option C',
+      'Option D'
+    ];
+    repairs.push('options');
+  }
+
+  // Repair missing points
+  if (!question.points || typeof question.points !== 'number' || question.points <= 0) {
+    question.points = 1;
+    repairs.push('points');
+  }
+
+  // Repair missing target skill
+  if (!question.targetSkill) {
+    question.targetSkill = targetSkill;
+    repairs.push('targetSkill');
+  }
+
+  // Set default acceptable answers and keywords for short-answer questions
+  if (question.type === 'short-answer') {
+    if (!question.acceptableAnswers || !Array.isArray(question.acceptableAnswers)) {
+      question.acceptableAnswers = [question.correctAnswer];
+    }
+    if (!question.keywords || !Array.isArray(question.keywords)) {
+      question.keywords = question.correctAnswer.toLowerCase()
+        .split(/\s+/)
+        .filter((word: string) => word.length > 3)
+        .slice(0, 3);
+    }
+  }
+
+  if (repairs.length > 0) {
+    console.log(`🔧 Repaired question ${index + 1} fields:`, repairs);
+  }
+
+  return question as ValidatedQuestion;
+}
+
+// Enhanced JSON response processor with multiple extraction strategies
+function processOpenAIResponse(content: string): any {
+  console.log('🔄 Processing OpenAI response with multiple extraction strategies');
+
+  const extractionStrategies = [
+    // Strategy 1: Direct JSON parse
+    () => {
+      console.log('📝 Trying direct JSON parse...');
+      return JSON.parse(content);
+    },
+
+    // Strategy 2: Extract from markdown code blocks
+    () => {
+      console.log('📝 Trying markdown code block extraction...');
+      const jsonMatch = content.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/);
+      if (jsonMatch) {
+        return JSON.parse(jsonMatch[1]);
+      }
+      throw new Error('No JSON found in markdown blocks');
+    },
+
+    // Strategy 3: Extract first complete JSON object
+    () => {
+      console.log('📝 Trying first JSON object extraction...');
+      const jsonMatch = content.match(/\{[\s\S]*?\}/);
+      if (jsonMatch) {
+        return JSON.parse(jsonMatch[0]);
+      }
+      throw new Error('No JSON object found');
+    },
+
+    // Strategy 4: Clean and parse
+    () => {
+      console.log('📝 Trying cleaned JSON parse...');
+      const cleaned = content
+        .trim()
+        .replace(/^```json\s*/, '')
+        .replace(/\s*```$/, '')
+        .replace(/[\r\n\t]/g, ' ')
+        .replace(/,(\s*[}\]])/g, '$1');
+      return JSON.parse(cleaned);
+    }
+  ];
+
+  for (let i = 0; i < extractionStrategies.length; i++) {
+    try {
+      const result = extractionStrategies[i]();
+      console.log(`✅ JSON extraction successful using strategy ${i + 1}`);
+      return result;
+    } catch (error) {
+      console.log(`❌ Strategy ${i + 1} failed:`, error.message);
+    }
+  }
+
+  throw new Error('All JSON extraction strategies failed');
+}
+
+// Fallback question generator for critical failures
+function generateFallbackQuestions(
+  skillDistribution: Array<{ skill_name: string; score: number; questions: number }>,
+  subject: string,
+  grade: string
+): ValidatedQuestion[] {
+  console.log('🆘 Generating fallback questions for emergency recovery');
+
+  const fallbackQuestions: ValidatedQuestion[] = [];
+  let questionId = 1;
+
+  for (const skill of skillDistribution) {
+    for (let i = 0; i < skill.questions; i++) {
+      fallbackQuestions.push({
+        id: `Q${questionId++}`,
+        type: 'short-answer',
+        question: `Practice question for ${skill.skill_name}. Please describe a key concept or skill related to this topic.`,
+        correctAnswer: 'Please review with instructor',
+        acceptableAnswers: ['Please review with instructor'],
+        keywords: ['practice', 'review', 'concept'],
+        points: 1,
+        targetSkill: skill.skill_name
+      });
+    }
+  }
+
+  return fallbackQuestions;
 }
 
 // Retry configuration
@@ -238,7 +481,7 @@ async function callOpenAIWithRetry(prompt: string, model: string = 'gpt-4o-mini'
         messages: [
           {
             role: 'system',
-            content: 'You are an expert educational content creator. Generate high-quality practice tests that are engaging, educational, and appropriately challenging for the student\'s level.'
+            content: 'You are an expert educational content creator. Generate high-quality practice tests that are engaging, educational, and appropriately challenging for the student\'s level. ALWAYS return valid JSON with complete question objects including all required fields: id, type, question, correctAnswer, points, and targetSkill.'
           },
           {
             role: 'user',
@@ -272,7 +515,7 @@ serve(async (req) => {
   }
 
   try {
-    console.log('Generate-practice-test function called with multi-skill support');
+    console.log('🚀 Generate-practice-test function called with enhanced edge case handling');
     
     const {
       studentName,
@@ -287,28 +530,45 @@ serve(async (req) => {
       enhancedAnswerPatterns = false
     }: GeneratePracticeTestRequest & { enhancedAnswerPatterns?: boolean } = await req.json();
 
-    console.log(`Generating practice test for: ${studentName} in class: ${className} skill(s): ${skillName} grade: ${grade} subject: ${subject} questionCount: ${questionCount} classId: ${classId} multiSkill: ${multiSkillSupport}`);
+    console.log(`🎯 Generating practice test for: ${studentName} in class: ${className} skill(s): ${skillName} grade: ${grade} subject: ${subject} questionCount: ${questionCount} classId: ${classId} multiSkill: ${multiSkillSupport}`);
 
-    // Detect if this is a multi-skill request
+    // Enhanced skill distribution validation
     const isMultiSkill = multiSkillSupport && skillDistribution && skillDistribution.length > 1;
+    let validatedSkillDistribution = skillDistribution;
+    
+    if (isMultiSkill) {
+      try {
+        validatedSkillDistribution = validateAndFixSkillDistribution(skillDistribution, questionCount);
+      } catch (error) {
+        console.error('❌ Skill distribution validation failed:', error);
+        return new Response(
+          JSON.stringify({ 
+            error: `Invalid skill distribution: ${error.message}`,
+            retryable: false
+          }),
+          {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            status: 400,
+          }
+        );
+      }
+    }
     
     let skillType: 'content' | 'subject';
     let skillMetadata: any;
     
-    if (isMultiSkill) {
-      // For multi-skill, detect based on the first skill but note it's multi-skill
-      skillType = detectSkillType(skillDistribution[0].skill_name, subject);
-      skillMetadata = generateSkillMetadata(`Multi-skill: ${skillDistribution.map(s => s.skill_name).join(', ')}`, skillType, subject, grade);
+    if (isMultiSkill && validatedSkillDistribution) {
+      skillType = detectSkillType(validatedSkillDistribution[0].skill_name, subject);
+      skillMetadata = generateSkillMetadata(`Multi-skill: ${validatedSkillDistribution.map(s => s.skill_name).join(', ')}`, skillType, subject, grade);
       skillMetadata.isMultiSkill = true;
-      skillMetadata.skillDistribution = skillDistribution;
+      skillMetadata.skillDistribution = validatedSkillDistribution;
     } else {
-      // Single skill logic (existing)
       skillType = detectSkillType(skillName, subject);
       skillMetadata = generateSkillMetadata(skillName, skillType, subject, grade);
     }
     
-    console.log(`Detected skill type: ${skillType} for skill(s): ${isMultiSkill ? 'multi-skill' : skillName}`);
-    console.log('Skill metadata:', skillMetadata);
+    console.log(`✅ Detected skill type: ${skillType} for skill(s): ${isMultiSkill ? 'multi-skill' : skillName}`);
+    console.log('📊 Skill metadata:', skillMetadata);
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -316,7 +576,7 @@ serve(async (req) => {
 
     let historicalQuestions: HistoricalQuestion[] = [];
     if (classId) {
-      historicalQuestions = await getHistoricalQuestionsForSkill(supabase, classId, isMultiSkill ? skillDistribution[0].skill_name : skillName);
+      historicalQuestions = await getHistoricalQuestionsForSkill(supabase, classId, isMultiSkill ? validatedSkillDistribution[0].skill_name : skillName);
     }
 
     let historicalContext = '';
@@ -328,13 +588,13 @@ serve(async (req) => {
       }\n\nUse these examples to understand the style and difficulty level expected, but create completely new questions.`;
     }
 
-    // Build the prompt based on whether it's multi-skill or single skill
+    // Build the enhanced prompt
     let skillFocusSection: string;
     let skillInstructions: string;
     
-    if (isMultiSkill && skillDistribution) {
+    if (isMultiSkill && validatedSkillDistribution) {
       skillFocusSection = `MULTI-SKILL FOCUS: Generate questions distributed across these skills:
-${skillDistribution.map(s => `- ${s.skill_name}: ${s.questions} questions (current score: ${s.score}%)`).join('\n')}`;
+${validatedSkillDistribution.map(s => `- ${s.skill_name}: ${s.questions} questions (current score: ${s.score}%)`).join('\n')}`;
       
       skillInstructions = `
 MULTI-SKILL REQUIREMENTS:
@@ -342,13 +602,15 @@ MULTI-SKILL REQUIREMENTS:
 2. Each question should clearly target one of the specified skills
 3. Ensure balanced difficulty across all skills
 4. Tag each question with its target skill in the response
-5. Maintain coherent flow between different skill areas`;
+5. Maintain coherent flow between different skill areas
+6. ENSURE ALL QUESTIONS HAVE COMPLETE REQUIRED FIELDS: id, type, question, correctAnswer, points, targetSkill`;
     } else {
       skillFocusSection = `SKILL FOCUS: ${skillName}`;
       skillInstructions = `
 SINGLE-SKILL REQUIREMENTS:
 1. All questions must directly test the skill: "${skillName}"
-2. Questions should build upon each other logically`;
+2. Questions should build upon each other logically
+3. ENSURE ALL QUESTIONS HAVE COMPLETE REQUIRED FIELDS: id, type, question, correctAnswer, points, targetSkill`;
     }
 
     const answerPatternInstructions = enhancedAnswerPatterns ? `
@@ -359,7 +621,7 @@ ENHANCED SHORT ANSWER REQUIREMENTS:
 - Consider different ways students might phrase correct responses
 - Account for synonyms and alternative terminology
 
-RESPONSE FORMAT - Return valid JSON only with enhanced answer patterns:
+CRITICAL: Return ONLY valid JSON with this exact structure:
 {
   "title": "Practice Test Title",
   "description": "Brief description focusing on ${isMultiSkill ? 'multiple skills' : skillName}",
@@ -382,7 +644,7 @@ RESPONSE FORMAT - Return valid JSON only with enhanced answer patterns:
   "estimatedTime": estimated completion time in minutes
 }` : `
 
-RESPONSE FORMAT - Return valid JSON only:
+CRITICAL: Return ONLY valid JSON with this exact structure:
 {
   "title": "Practice Test Title",
   "description": "Brief description focusing on ${isMultiSkill ? 'multiple skills' : skillName}",
@@ -423,90 +685,166 @@ ${answerPatternInstructions}
 
 Generate exactly ${questionCount} questions${isMultiSkill ? ' distributed across the specified skills' : ` focused on "${skillName}"`}.`;
 
-    const data = await callOpenAIWithRetry(prompt);
-    
-    const content = data.choices[0].message.content;
-    console.log('Raw OpenAI response content:', content);
-
-    let practiceTest;
     try {
-      console.log('Successfully extracted JSON from GPT-4o-mini response');
-      practiceTest = JSON.parse(content);
-    } catch (parseError) {
-      console.log('Direct JSON parse failed, attempting to extract JSON from response');
-      
-      const jsonMatch = content.match(/```(?:json)?\s*(\{[\s\S]*\})\s*```/) || content.match(/(\{[\s\S]*\})/);
-      if (jsonMatch) {
-        practiceTest = JSON.parse(jsonMatch[1]);
-      } else {
+      // Main generation attempt with enhanced error handling
+      const data = await callOpenAIWithRetry(prompt);
+      const content = data.choices[0].message.content;
+      console.log('📝 Raw OpenAI response received, processing...');
+
+      let practiceTest;
+      try {
+        practiceTest = processOpenAIResponse(content);
+        console.log('✅ JSON processing successful');
+      } catch (parseError) {
+        console.error('❌ All JSON extraction strategies failed:', parseError);
         throw new Error('Could not extract valid JSON from OpenAI response');
       }
-    }
 
-    if (!practiceTest.questions || !Array.isArray(practiceTest.questions)) {
-      throw new Error('Invalid practice test format: missing questions array');
-    }
-
-    if (practiceTest.questions.length === 0) {
-      throw new Error('No questions generated in practice test');
-    }
-
-    // Ensure skill metadata is included
-    if (!practiceTest.skillType) {
-      practiceTest.skillType = skillType;
-    }
-    
-    if (!practiceTest.skillMetadata) {
-      practiceTest.skillMetadata = skillMetadata;
-    }
-
-    // Validate and enhance questions
-    practiceTest.questions.forEach((q: any, index: number) => {
-      if (!q.question || !q.correctAnswer || !q.type) {
-        throw new Error(`Question ${index + 1} is missing required fields`);
-      }
-      if (!q.points) q.points = 1;
-      if (!q.id) q.id = `Q${index + 1}`;
-      
-      // Ensure targetSkill is set for multi-skill questions
-      if (isMultiSkill && !q.targetSkill) {
-        // Assign to first skill if not specified
-        q.targetSkill = skillDistribution[0].skill_name;
-      } else if (!isMultiSkill && !q.targetSkill) {
-        q.targetSkill = skillName;
-      }
-      
-      if (q.type === 'short-answer' && enhancedAnswerPatterns) {
-        if (!q.acceptableAnswers) {
-          q.acceptableAnswers = [q.correctAnswer];
-        }
-        if (!q.keywords) {
-          q.keywords = q.correctAnswer.toLowerCase()
-            .split(/\s+/)
-            .filter((word: string) => word.length > 3)
-            .slice(0, 3);
+      // Enhanced question validation and repair
+      if (!practiceTest.questions || !Array.isArray(practiceTest.questions)) {
+        console.error('❌ Invalid practice test format: missing questions array');
+        
+        // Emergency fallback: generate basic questions
+        if (isMultiSkill && validatedSkillDistribution) {
+          console.log('🆘 Using emergency fallback for multi-skill test');
+          practiceTest = {
+            title: `${subject} Practice Test`,
+            description: `Emergency practice test for ${studentName}`,
+            skillType,
+            skillMetadata,
+            questions: generateFallbackQuestions(validatedSkillDistribution, subject, grade),
+            totalPoints: questionCount,
+            estimatedTime: Math.max(10, questionCount * 3)
+          };
+        } else {
+          throw new Error('Invalid practice test format and cannot generate fallback');
         }
       }
-    });
 
-    if (!practiceTest.totalPoints) {
-      practiceTest.totalPoints = practiceTest.questions.reduce((sum: number, q: any) => sum + (q.points || 1), 0);
+      if (practiceTest.questions.length === 0) {
+        console.error('❌ No questions generated in practice test');
+        
+        // Emergency fallback
+        if (isMultiSkill && validatedSkillDistribution) {
+          console.log('🆘 Using emergency fallback for empty test');
+          practiceTest.questions = generateFallbackQuestions(validatedSkillDistribution, subject, grade);
+        } else {
+          throw new Error('No questions generated in practice test');
+        }
+      }
+
+      // Ensure skill metadata is included
+      if (!practiceTest.skillType) {
+        practiceTest.skillType = skillType;
+      }
+      
+      if (!practiceTest.skillMetadata) {
+        practiceTest.skillMetadata = skillMetadata;
+      }
+
+      // Enhanced question validation and repair
+      const validatedQuestions: ValidatedQuestion[] = [];
+      
+      if (isMultiSkill && validatedSkillDistribution) {
+        // For multi-skill, ensure questions are distributed correctly
+        let questionIndex = 0;
+        for (const skill of validatedSkillDistribution) {
+          for (let i = 0; i < skill.questions; i++) {
+            const originalQuestion = practiceTest.questions[questionIndex];
+            if (originalQuestion) {
+              const validatedQuestion = validateAndRepairQuestion(originalQuestion, questionIndex, skill.skill_name);
+              validatedQuestions.push(validatedQuestion);
+            } else {
+              // Generate fallback question for missing question
+              console.log(`🆘 Generating fallback question ${questionIndex + 1} for skill: ${skill.skill_name}`);
+              validatedQuestions.push({
+                id: `Q${questionIndex + 1}`,
+                type: 'short-answer',
+                question: `Practice question for ${skill.skill_name}. Describe a key concept related to this skill.`,
+                correctAnswer: 'Please review with instructor',
+                acceptableAnswers: ['Please review with instructor'],
+                keywords: ['practice', 'review'],
+                points: 1,
+                targetSkill: skill.skill_name
+              });
+            }
+            questionIndex++;
+          }
+        }
+      } else {
+        // For single skill, validate all questions
+        practiceTest.questions.forEach((q: any, index: number) => {
+          const validatedQuestion = validateAndRepairQuestion(q, index, skillName);
+          validatedQuestions.push(validatedQuestion);
+        });
+      }
+
+      practiceTest.questions = validatedQuestions;
+
+      // Final calculations
+      if (!practiceTest.totalPoints) {
+        practiceTest.totalPoints = practiceTest.questions.reduce((sum: number, q: ValidatedQuestion) => sum + q.points, 0);
+      }
+
+      if (!practiceTest.estimatedTime) {
+        practiceTest.estimatedTime = Math.max(10, practiceTest.questions.length * 3);
+      }
+
+      console.log(`✅ Successfully generated and validated practice test with ${practiceTest.questions.length} questions`);
+      console.log(`📊 Skill metadata: type=${practiceTest.skillType}, category=${practiceTest.skillMetadata?.skillCategory}, isMultiSkill=${practiceTest.skillMetadata?.isMultiSkill}`);
+
+      return new Response(JSON.stringify(practiceTest), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 200,
+      });
+
+    } catch (error) {
+      console.error('❌ Main generation failed, attempting graceful degradation:', error);
+      
+      // Graceful degradation: Generate emergency fallback
+      try {
+        let emergencyQuestions: ValidatedQuestion[];
+        
+        if (isMultiSkill && validatedSkillDistribution) {
+          emergencyQuestions = generateFallbackQuestions(validatedSkillDistribution, subject, grade);
+        } else {
+          emergencyQuestions = [{
+            id: 'Q1',
+            type: 'short-answer',
+            question: `Practice question for ${skillName}. Please describe a key concept or skill related to this topic.`,
+            correctAnswer: 'Please review with instructor',
+            acceptableAnswers: ['Please review with instructor'],
+            keywords: ['practice', 'review'],
+            points: 1,
+            targetSkill: skillName
+          }];
+        }
+
+        const emergencyTest = {
+          title: `${subject} Emergency Practice Test`,
+          description: `Emergency practice test generated for ${studentName}. Please review with instructor.`,
+          skillType,
+          skillMetadata,
+          questions: emergencyQuestions,
+          totalPoints: emergencyQuestions.reduce((sum, q) => sum + q.points, 0),
+          estimatedTime: Math.max(10, emergencyQuestions.length * 3)
+        };
+
+        console.log('🆘 Emergency practice test generated successfully');
+
+        return new Response(JSON.stringify(emergencyTest), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 200,
+        });
+
+      } catch (emergencyError) {
+        console.error('💥 Emergency fallback also failed:', emergencyError);
+        throw error; // Fall through to main error handler
+      }
     }
-
-    if (!practiceTest.estimatedTime) {
-      practiceTest.estimatedTime = Math.max(10, practiceTest.questions.length * 3);
-    }
-
-    console.log(`Successfully parsed and validated practice test with ${practiceTest.questions.length} questions`);
-    console.log(`Skill metadata included: type=${practiceTest.skillType}, category=${practiceTest.skillMetadata?.skillCategory}, isMultiSkill=${practiceTest.skillMetadata?.isMultiSkill}`);
-
-    return new Response(JSON.stringify(practiceTest), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      status: 200,
-    });
 
   } catch (error) {
-    console.error('Error in generate-practice-test function:', error);
+    console.error('💥 Complete failure in generate-practice-test function:', error);
     
     let userFriendlyMessage = 'Failed to generate practice test. Please try again.';
     
@@ -516,17 +854,22 @@ Generate exactly ${questionCount} questions${isMultiSkill ? ' distributed across
       userFriendlyMessage = 'Generated content format error. Please try again.';
     } else if (error.message.includes('API key')) {
       userFriendlyMessage = 'API configuration error. Please contact support.';
+    } else if (error.message.includes('Invalid skill distribution')) {
+      userFriendlyMessage = error.message;
     }
 
     return new Response(
       JSON.stringify({ 
         error: userFriendlyMessage,
         details: error.message,
-        retryable: error.message.includes('server had an error') || error.message.includes('temporarily unavailable')
+        retryable: !error.message.includes('Invalid skill distribution') && 
+                  (error.message.includes('server had an error') || 
+                   error.message.includes('temporarily unavailable') ||
+                   error.message.includes('rate limit'))
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 500,
+        status: error.message.includes('Invalid skill distribution') ? 400 : 500,
       }
     );
   }
