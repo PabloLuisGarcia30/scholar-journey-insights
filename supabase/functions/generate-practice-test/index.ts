@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -21,6 +20,7 @@ interface GeneratePracticeTestRequest {
     questions: number;
   }>;
   multiSkillSupport?: boolean;
+  exerciseId?: string; // New field to link answer keys
 }
 
 interface HistoricalQuestion {
@@ -725,6 +725,68 @@ async function callOpenAIWithRetry(prompt: string, model: string = 'gpt-4o-mini'
   });
 }
 
+// NEW: Function to save answer keys for practice exercises
+async function saveAnswerKeysForPracticeExercise(
+  supabase: any,
+  exerciseId: string,
+  questions: ValidatedQuestion[]
+): Promise<void> {
+  console.log(`💾 Saving answer keys for practice exercise: ${exerciseId}`);
+  
+  const examId = `PRACTICE_${exerciseId}`;
+  
+  try {
+    const answerKeyData = questions.map((question, index) => ({
+      exam_id: examId,
+      exercise_type: 'practice',
+      practice_exercise_id: exerciseId,
+      question_number: index + 1,
+      question_text: question.question,
+      question_type: question.type,
+      correct_answer: question.correctAnswer,
+      options: question.options ? { options: question.options } : null,
+      points: question.points,
+      explanation: generateQuestionExplanation(question),
+      acceptable_answers: question.acceptableAnswers || []
+    }));
+
+    const { error } = await supabase
+      .from('answer_keys')
+      .insert(answerKeyData);
+
+    if (error) {
+      console.error('❌ Error saving answer keys:', error);
+      throw new Error(`Failed to save answer keys: ${error.message}`);
+    }
+
+    console.log(`✅ Successfully saved ${answerKeyData.length} answer keys for exercise ${exerciseId}`);
+
+  } catch (error) {
+    console.error('💥 Failed to save answer keys:', error);
+    throw error;
+  }
+}
+
+// NEW: Generate educational explanations for questions
+function generateQuestionExplanation(question: ValidatedQuestion): string {
+  const { type, question: questionText, correctAnswer, targetSkill } = question;
+  
+  if (type === 'multiple-choice') {
+    return `The correct answer is "${correctAnswer}". This question tests your understanding of ${targetSkill.toLowerCase()}. Understanding this concept helps you analyze and interpret information effectively.`;
+  } else if (type === 'true-false') {
+    const explanation = correctAnswer.toLowerCase() === 'true' 
+      ? 'This statement is true because'
+      : 'This statement is false because';
+    return `${explanation} it accurately reflects the key principles of ${targetSkill.toLowerCase()}. This helps develop critical thinking skills in this subject area.`;
+  } else if (type === 'short-answer') {
+    return `This question requires you to demonstrate your understanding of ${targetSkill.toLowerCase()}. The key concepts to include are: ${question.keywords?.join(', ') || 'core principles'}. A complete answer should show both factual knowledge and analytical thinking.`;
+  } else if (type === 'essay') {
+    return `This essay question evaluates your comprehensive understanding of ${targetSkill.toLowerCase()}. Your response should include relevant examples, clear reasoning, and demonstrate how different concepts connect. Focus on providing specific evidence to support your analysis.`;
+  }
+  
+  return `This question assesses your knowledge of ${targetSkill.toLowerCase()}. Focus on the key concepts and apply your understanding to demonstrate mastery of this skill.`;
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -743,10 +805,11 @@ serve(async (req) => {
       classId,
       skillDistribution,
       multiSkillSupport = false,
-      enhancedAnswerPatterns = false
+      enhancedAnswerPatterns = false,
+      exerciseId // NEW: Extract exerciseId for answer key storage
     }: GeneratePracticeTestRequest & { enhancedAnswerPatterns?: boolean } = await req.json();
 
-    console.log(`🎯 Generating practice test for: ${studentName} in class: ${className} skill(s): ${skillName} grade: ${grade} subject: ${subject} questionCount: ${questionCount} classId: ${classId} multiSkill: ${multiSkillSupport}`);
+    console.log(`🎯 Generating practice test for: ${studentName} in class: ${className} skill(s): ${skillName} grade: ${grade} subject: ${subject} questionCount: ${questionCount} classId: ${classId} multiSkill: ${multiSkillSupport} exerciseId: ${exerciseId}`);
 
     // Initialize Supabase client
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
@@ -963,6 +1026,17 @@ serve(async (req) => {
 
       if (!practiceTest.estimatedTime) {
         practiceTest.estimatedTime = Math.max(10, practiceTest.questions.length * 3);
+      }
+
+      // NEW: Save answer keys if exerciseId is provided
+      if (exerciseId && practiceTest.questions.length > 0) {
+        try {
+          await saveAnswerKeysForPracticeExercise(supabase, exerciseId, practiceTest.questions);
+          console.log(`✅ Answer keys saved for exercise: ${exerciseId}`);
+        } catch (error) {
+          console.error(`❌ Failed to save answer keys for exercise ${exerciseId}:`, error);
+          // Don't fail the entire request if answer key saving fails
+        }
       }
 
       console.log(`✅ Successfully generated and validated practice test with enhanced answers: ${practiceTest.questions.length} questions`);

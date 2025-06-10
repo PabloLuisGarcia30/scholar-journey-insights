@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 
 export interface GeneratePracticeTestRequest {
@@ -50,6 +49,12 @@ export interface HistoricalQuestion {
   options?: any;
   points: number;
   exam_title?: string;
+}
+
+export interface SkillDistribution {
+  skill_name: string;
+  score: number;
+  questions: number;
 }
 
 // Enhanced retry configuration with adaptive strategies
@@ -285,6 +290,134 @@ export async function getHistoricalQuestionsForSkill(classId: string, skillName:
   }
 }
 
+export interface PracticeTestGenerationRequest {
+  studentName: string;
+  className: string;
+  skillName: string;
+  grade: string;
+  subject: string;
+  questionCount?: number;
+  classId?: string;
+  skillDistribution?: SkillDistribution[];
+  multiSkillSupport?: boolean;
+  exerciseId?: string; // NEW: Add exerciseId for answer key storage
+}
+
+export class PracticeTestService {
+  static async generatePracticeTest(request: PracticeTestGenerationRequest): Promise<PracticeTestData> {
+    console.log('🎯 Generating practice test with request:', request);
+    
+    try {
+      const { data, error } = await supabase.functions.invoke('generate-practice-test', {
+        body: {
+          studentName: request.studentName,
+          className: request.className,
+          skillName: request.skillName,
+          grade: request.grade,
+          subject: request.subject,
+          questionCount: request.questionCount || 5,
+          classId: request.classId,
+          skillDistribution: request.skillDistribution,
+          multiSkillSupport: request.multiSkillSupport || false,
+          exerciseId: request.exerciseId // NEW: Pass exerciseId to edge function
+        }
+      });
+
+      if (error) {
+        console.error('❌ Supabase function error:', error);
+        throw error;
+      }
+
+      if (!data) {
+        throw new Error('No data returned from practice test generation');
+      }
+
+      console.log('✅ Practice test generated successfully');
+      return data as PracticeTestData;
+
+    } catch (error) {
+      console.error('❌ Error generating practice test:', error);
+      throw error;
+    }
+  }
+
+  static async generateMultiplePracticeTests(
+    skills: Array<{ name: string; score: number }>,
+    baseRequest: Omit<GeneratePracticeTestRequest, 'skillName'>
+  ): Promise<MultiPracticeTestResult[]> {
+    console.log('🎯 Generating practice tests for multiple skills with enhanced error handling:', skills.map(s => s.name));
+    
+    // Enhanced input validation
+    if (!skills || skills.length === 0) {
+      throw new Error('No skills provided for practice test generation');
+    }
+
+    if (skills.length > 10) {
+      throw new Error('Too many skills requested. Maximum 10 skills per batch.');
+    }
+
+    const results: MultiPracticeTestResult[] = skills.map(skill => ({
+      skillName: skill.name,
+      skillScore: skill.score,
+      status: 'pending' as const
+    }));
+
+    // Enhanced processing with partial success handling
+    let successCount = 0;
+    let totalAttempts = 0;
+
+    for (let i = 0; i < skills.length; i++) {
+      const skill = skills[i];
+      results[i].status = 'generating';
+      totalAttempts++;
+      
+      try {
+        console.log(`🔄 Generating test ${i + 1}/${skills.length} for skill: ${skill.name}`);
+        
+        const testData = await this.generatePracticeTest({
+          ...baseRequest,
+          skillName: skill.name
+        });
+        
+        results[i].status = 'completed';
+        results[i].testData = testData;
+        successCount++;
+        
+        console.log(`✅ Successfully generated practice test ${i + 1}/${skills.length} for skill: ${skill.name}`);
+        
+        // Add small delay between requests to avoid overwhelming the service
+        if (i < skills.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+        
+      } catch (error) {
+        console.error(`❌ Failed to generate practice test for skill ${skill.name}:`, error);
+        results[i].status = 'error';
+        results[i].error = error instanceof Error ? error.message : 'Unknown error';
+        
+        // Continue with other skills instead of failing completely
+        console.log(`⏭️ Continuing with remaining skills...`);
+      }
+    }
+
+    // Enhanced reporting
+    const failureCount = totalAttempts - successCount;
+    const successRate = (successCount / totalAttempts) * 100;
+    
+    console.log(`📊 Batch generation complete: ${successCount}/${totalAttempts} successful (${successRate.toFixed(1)}% success rate)`);
+    
+    if (successCount === 0) {
+      throw new Error('Failed to generate any practice tests. Please try again or contact support.');
+    }
+
+    if (failureCount > 0) {
+      console.warn(`⚠️ ${failureCount} practice tests failed to generate. ${successCount} were successful.`);
+    }
+
+    return results;
+  }
+}
+
 export async function generatePracticeTest(request: GeneratePracticeTestRequest): Promise<PracticeTestData> {
   console.log('🎯 Calling generate-practice-test function with enhanced error handling:', request);
   
@@ -392,82 +525,6 @@ export async function generatePracticeTest(request: GeneratePracticeTestRequest)
     
     return { ...data, skillName: request.skillName } as PracticeTestData;
   }, `practice test generation for ${request.studentName}`);
-}
-
-export async function generateMultiplePracticeTests(
-  skills: Array<{ name: string; score: number }>,
-  baseRequest: Omit<GeneratePracticeTestRequest, 'skillName'>
-): Promise<MultiPracticeTestResult[]> {
-  console.log('🎯 Generating practice tests for multiple skills with enhanced error handling:', skills.map(s => s.name));
-  
-  // Enhanced input validation
-  if (!skills || skills.length === 0) {
-    throw new Error('No skills provided for practice test generation');
-  }
-
-  if (skills.length > 10) {
-    throw new Error('Too many skills requested. Maximum 10 skills per batch.');
-  }
-
-  const results: MultiPracticeTestResult[] = skills.map(skill => ({
-    skillName: skill.name,
-    skillScore: skill.score,
-    status: 'pending' as const
-  }));
-
-  // Enhanced processing with partial success handling
-  let successCount = 0;
-  let totalAttempts = 0;
-
-  for (let i = 0; i < skills.length; i++) {
-    const skill = skills[i];
-    results[i].status = 'generating';
-    totalAttempts++;
-    
-    try {
-      console.log(`🔄 Generating test ${i + 1}/${skills.length} for skill: ${skill.name}`);
-      
-      const testData = await generatePracticeTest({
-        ...baseRequest,
-        skillName: skill.name
-      });
-      
-      results[i].status = 'completed';
-      results[i].testData = testData;
-      successCount++;
-      
-      console.log(`✅ Successfully generated practice test ${i + 1}/${skills.length} for skill: ${skill.name}`);
-      
-      // Add small delay between requests to avoid overwhelming the service
-      if (i < skills.length - 1) {
-        await new Promise(resolve => setTimeout(resolve, 1000));
-      }
-      
-    } catch (error) {
-      console.error(`❌ Failed to generate practice test for skill ${skill.name}:`, error);
-      results[i].status = 'error';
-      results[i].error = error instanceof Error ? error.message : 'Unknown error';
-      
-      // Continue with other skills instead of failing completely
-      console.log(`⏭️ Continuing with remaining skills...`);
-    }
-  }
-
-  // Enhanced reporting
-  const failureCount = totalAttempts - successCount;
-  const successRate = (successCount / totalAttempts) * 100;
-  
-  console.log(`📊 Batch generation complete: ${successCount}/${totalAttempts} successful (${successRate.toFixed(1)}% success rate)`);
-  
-  if (successCount === 0) {
-    throw new Error('Failed to generate any practice tests. Please try again or contact support.');
-  }
-
-  if (failureCount > 0) {
-    console.warn(`⚠️ ${failureCount} practice tests failed to generate. ${successCount} were successful.`);
-  }
-
-  return results;
 }
 
 // Enhanced service health check

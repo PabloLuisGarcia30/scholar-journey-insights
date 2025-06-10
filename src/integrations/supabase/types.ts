@@ -92,34 +92,46 @@ export type Database = {
       }
       answer_keys: {
         Row: {
+          acceptable_answers: Json | null
           correct_answer: string
           created_at: string
           exam_id: string
+          exercise_type: string | null
+          explanation: string | null
           id: string
           options: Json | null
           points: number
+          practice_exercise_id: string | null
           question_number: number
           question_text: string
           question_type: string
         }
         Insert: {
+          acceptable_answers?: Json | null
           correct_answer: string
           created_at?: string
           exam_id: string
+          exercise_type?: string | null
+          explanation?: string | null
           id?: string
           options?: Json | null
           points?: number
+          practice_exercise_id?: string | null
           question_number: number
           question_text: string
           question_type: string
         }
         Update: {
+          acceptable_answers?: Json | null
           correct_answer?: string
           created_at?: string
           exam_id?: string
+          exercise_type?: string | null
+          explanation?: string | null
           id?: string
           options?: Json | null
           points?: number
+          practice_exercise_id?: string | null
           question_number?: number
           question_text?: string
           question_type?: string
@@ -131,6 +143,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "exams"
             referencedColumns: ["exam_id"]
+          },
+          {
+            foreignKeyName: "answer_keys_practice_exercise_id_fkey"
+            columns: ["practice_exercise_id"]
+            isOneToOne: false
+            referencedRelation: "student_exercises"
+            referencedColumns: ["id"]
           },
         ]
       }

@@ -1,543 +1,296 @@
-
-import { useState, useEffect } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { BookOpen, Clock, Play, CheckCircle, AlertCircle, Brain, Tag } from "lucide-react";
-import { getStudentExercises, updateExerciseStatus, type StudentExercise } from "@/services/classSessionService";
-import { SmartAnswerGradingService, type GradingResult } from "@/services/smartAnswerGradingService";
+import { useToast } from "@/components/ui/use-toast";
+import { useUser } from "@/context/UserContext";
+import { PracticeTestService, PracticeTestGenerationRequest } from "@/services/practiceTestService";
 import { supabase } from "@/integrations/supabase/client";
-import { toast } from "sonner";
+import { useEffect } from "react";
+import { PracticeExerciseRunner } from "./PracticeExerciseRunner";
 
-export function TailoredExercises() {
-  const [exercises, setExercises] = useState<StudentExercise[]>([]);
+interface TailoredExercisesProps {
+  studentId: string;
+  studentName: string;
+  classData: any;
+  onBack: () => void;
+}
+
+interface Exercise {
+  id: string;
+  class_session_id: string;
+  student_id: string;
+  student_name: string;
+  skill_name: string;
+  skill_score: number;
+  exercise_data: any;
+  status: string;
+}
+
+export function TailoredExercises({ 
+  studentId, 
+  studentName, 
+  classData, 
+  onBack 
+}: TailoredExercisesProps) {
+  const [exercises, setExercises] = useState<Exercise[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedExercise, setSelectedExercise] = useState<StudentExercise | null>(null);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [generatingSkill, setGeneratingSkill] = useState<string | null>(null);
+  const [selectedExercise, setSelectedExercise] = useState<Exercise | null>(null);
+  const { toast } = useToast();
+  const { user } = useUser();
+  const [sessionId, setSessionId] = useState<string | null>(null);
 
   useEffect(() => {
-    loadExercises();
-    
-    // Set up real-time subscription for new exercises
-    const channel = supabase
-      .channel('student-exercises-changes')
-      .on('postgres_changes', {
-        event: 'INSERT',
-        schema: 'public',
-        table: 'student_exercises'
-      }, () => {
-        loadExercises();
-      })
-      .subscribe();
+    if (!classData) return;
 
-    return () => {
-      supabase.removeChannel(channel);
+    const fetchExercises = async () => {
+      setLoading(true);
+      try {
+        const { data: existingExercises, error } = await supabase
+          .from('student_exercises')
+          .select('*')
+          .eq('student_id', studentId)
+          .eq('class_session_id', sessionId || 'null')
+          .order('skill_score', { ascending: false });
+
+        if (error) {
+          console.error("Error fetching exercises:", error);
+          toast({
+            title: "Error",
+            description: "Failed to load exercises. Please try again.",
+            variant: "destructive",
+          });
+        } else {
+          setExercises(existingExercises || []);
+        }
+      } finally {
+        setLoading(false);
+      }
     };
-  }, []);
 
-  const loadExercises = async () => {
+    const createSession = async () => {
+      const newSessionId = crypto.randomUUID();
+      setSessionId(newSessionId);
+
+      const { error: sessionError } = await supabase
+        .from('class_sessions')
+        .insert({
+          id: newSessionId,
+          class_id: classData.id,
+          start_time: new Date().toISOString(),
+          end_time: null,
+          created_by: user?.id
+        });
+
+      if (sessionError) {
+        console.error("Error creating class session:", sessionError);
+        toast({
+          title: "Error",
+          description: "Failed to create class session. Please refresh.",
+          variant: "destructive",
+        });
+      } else {
+        fetchExercises();
+      }
+    };
+
+    createSession();
+  }, [studentId, classData, toast, user, sessionId]);
+
+  const handleGeneratePracticeTest = async (skillName: string, skillScore: number) => {
+    if (!classData || isGenerating) return;
+
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      setIsGenerating(true);
+      setGeneratingSkill(skillName);
+      
+      // Generate a unique exercise ID
+      const exerciseId = crypto.randomUUID();
+      
+      const request: PracticeTestGenerationRequest = {
+        studentName,
+        className: classData.name,
+        skillName,
+        grade: classData.grade,
+        subject: classData.subject,
+        questionCount: 5,
+        classId: classData.id,
+        exerciseId // NEW: Pass the exercise ID for answer key storage
+      };
 
-      const studentExercises = await getStudentExercises(user.id);
-      setExercises(studentExercises);
+      const practiceTestData = await PracticeTestService.generatePracticeTest(request);
+      
+      const { data: newExercise, error: insertError } = await supabase
+        .from('student_exercises')
+        .insert({
+          id: exerciseId, // Use the same ID we passed to the generation
+          class_session_id: sessionId,
+          student_id: studentId,
+          student_name: studentName,
+          skill_name: skillName,
+          skill_score: skillScore,
+          exercise_data: practiceTestData,
+          status: 'available'
+        })
+        .select()
+        .single();
+
+      if (insertError) {
+        console.error("Error creating exercise:", insertError);
+        toast({
+          title: "Error",
+          description: "Failed to create exercise. Please try again.",
+          variant: "destructive",
+        });
+      } else {
+        setExercises(prevExercises => [...prevExercises, newExercise]);
+        toast({
+          title: "Success",
+          description: `New exercise created for ${skillName}!`,
+        });
+      }
     } catch (error) {
-      console.error('Error loading exercises:', error);
-      toast.error('Failed to load exercises');
+      console.error("Error generating practice test:", error);
+      toast({
+        title: "Error",
+        description: "Failed to generate practice test. Please try again.",
+        variant: "destructive",
+      });
     } finally {
-      setLoading(false);
+      setIsGenerating(false);
+      setGeneratingSkill(null);
     }
   };
 
-  const handleStartExercise = async (exercise: StudentExercise) => {
+  const handleExerciseComplete = async ({ exerciseId, score, answers, totalPoints, earnedPoints }: any) => {
     try {
-      await updateExerciseStatus(exercise.id, 'in_progress');
-      setSelectedExercise(exercise);
-      setExercises(prev => 
-        prev.map(ex => 
-          ex.id === exercise.id 
-            ? { ...ex, status: 'in_progress', started_at: new Date().toISOString() }
-            : ex
-        )
-      );
+      const { error: updateError } = await supabase
+        .from('student_exercises')
+        .update({
+          status: 'completed',
+          score: score,
+          answers: answers,
+          total_points: totalPoints,
+          earned_points: earnedPoints
+        })
+        .eq('id', exerciseId);
+
+      if (updateError) {
+        console.error("Error updating exercise:", updateError);
+        toast({
+          title: "Error",
+          description: "Failed to update exercise status. Please try again.",
+          variant: "destructive",
+        });
+      } else {
+        setExercises(prevExercises =>
+          prevExercises.map(ex =>
+            ex.id === exerciseId ? { ...ex, status: 'completed', score: score } : ex
+          )
+        );
+        toast({
+          title: "Success",
+          description: "Exercise completed and results saved!",
+        });
+      }
     } catch (error) {
-      console.error('Error starting exercise:', error);
-      toast.error('Failed to start exercise');
-    }
-  };
-
-  const handleCompleteExercise = async (exerciseId: string, score: number) => {
-    try {
-      await updateExerciseStatus(exerciseId, 'completed', score);
-      setExercises(prev => 
-        prev.map(ex => 
-          ex.id === exerciseId 
-            ? { ...ex, status: 'completed', completed_at: new Date().toISOString(), score }
-            : ex
-        )
-      );
+      console.error("Error completing exercise:", error);
+      toast({
+        title: "Error",
+        description: "Failed to complete exercise. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
       setSelectedExercise(null);
-      toast.success('Exercise completed successfully!');
-    } catch (error) {
-      console.error('Error completing exercise:', error);
-      toast.error('Failed to complete exercise');
     }
   };
 
-  // Helper function to get skill type from exercise data
-  const getSkillType = (exercise: StudentExercise): 'content' | 'subject' | null => {
-    return exercise.exercise_data?.skillType || 
-           exercise.exercise_data?.skillMetadata?.skillType || 
-           null;
+  const handleStartExercise = (exercise: Exercise) => {
+    setSelectedExercise(exercise);
   };
-
-  // Helper function to get skill metadata
-  const getSkillMetadata = (exercise: StudentExercise) => {
-    return exercise.exercise_data?.skillMetadata || null;
-  };
-
-  if (loading) {
-    return (
-      <Card>
-        <CardContent className="p-8 text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-slate-600">Loading your tailored exercises...</p>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  if (exercises.length === 0) {
-    return (
-      <Card>
-        <CardContent className="p-8 text-center">
-          <BookOpen className="h-12 w-12 text-slate-300 mx-auto mb-4" />
-          <h3 className="text-lg font-semibold text-slate-700 mb-2">No Active Exercises</h3>
-          <p className="text-slate-500">
-            When your teacher starts a class session, your personalized exercises will appear here.
-          </p>
-        </CardContent>
-      </Card>
-    );
-  }
 
   if (selectedExercise) {
     return (
-      <ExercisePlayer
+      <PracticeExerciseRunner
         exercise={selectedExercise}
-        onComplete={handleCompleteExercise}
+        onComplete={handleExerciseComplete}
         onBack={() => setSelectedExercise(null)}
       />
     );
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold text-slate-900">Tailored Exercises</h2>
-        <Badge variant="secondary">
-          {exercises.filter(ex => ex.status === 'available').length} Available
-        </Badge>
-      </div>
+    <div className="p-6">
+      <Button variant="ghost" onClick={onBack} className="mb-4">
+        ← Back to Student Profile
+      </Button>
 
-      <div className="grid gap-4">
-        {exercises.map((exercise) => {
-          const skillType = getSkillType(exercise);
-          const skillMetadata = getSkillMetadata(exercise);
-          
-          return (
-            <Card key={exercise.id} className="hover:shadow-md transition-shadow">
-              <CardContent className="p-6">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-2">
-                      <h3 className="font-semibold text-lg">{exercise.skill_name}</h3>
-                      <Badge 
-                        variant={
-                          exercise.status === 'completed' ? 'default' :
-                          exercise.status === 'in_progress' ? 'secondary' : 'outline'
-                        }
-                      >
-                        {exercise.status === 'completed' ? 'Completed' :
-                         exercise.status === 'in_progress' ? 'In Progress' : 'Available'}
-                      </Badge>
-                      
-                      {/* Skill Type Badge */}
-                      {skillType && (
-                        <Badge variant="outline" className="text-xs">
-                          <Tag className="h-3 w-3 mr-1" />
-                          {skillType === 'content' ? 'Content Skill' : 'Subject Skill'}
-                        </Badge>
+      <div className="max-w-3xl mx-auto space-y-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>Tailored Exercises</CardTitle>
+            <CardDescription>
+              Practice exercises tailored to {studentName}'s skill levels in {classData?.name}.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {loading ? (
+              <p>Loading exercises...</p>
+            ) : (
+              <div className="space-y-4">
+                {exercises.map((exercise) => (
+                  <Card key={exercise.id} className="border-l-4 border-l-blue-500">
+                    <CardHeader className="space-y-1">
+                      <CardTitle className="text-lg font-semibold">{exercise.skill_name}</CardTitle>
+                      <CardDescription>
+                        Skill Level: {exercise.skill_score}% | Status: {exercise.status}
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      {exercise.status === 'available' ? (
+                        <Button onClick={() => handleStartExercise(exercise)}>Start Exercise</Button>
+                      ) : (
+                        <p className="text-green-600">Exercise Completed - Score: {exercise.score}%</p>
                       )}
-                    </div>
-                    
-                    <p className="text-slate-600 mb-3">
-                      {exercise.exercise_data?.description || 'Practice exercise for skill improvement'}
-                    </p>
-                    
-                    {/* Enhanced skill metadata display */}
-                    {skillMetadata && (
-                      <div className="mb-3 p-2 bg-slate-50 rounded text-xs text-slate-600">
-                        <div className="flex items-center gap-4">
-                          {skillMetadata.subject && (
-                            <span>Subject: {skillMetadata.subject}</span>
-                          )}
-                          {skillMetadata.grade && (
-                            <span>Grade: {skillMetadata.grade}</span>
-                          )}
-                          {skillMetadata.skillCategory && (
-                            <span>Category: {skillMetadata.skillCategory}</span>
-                          )}
+                    </CardContent>
+                  </Card>
+                ))}
+
+                <Card className="border-l-4 border-l-green-500">
+                  <CardHeader>
+                    <CardTitle>Generate New Practice Test</CardTitle>
+                    <CardDescription>
+                      Generate a new practice test based on a specific skill.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="grid gap-4">
+                    {classData?.performance_bands?.map((band: any) => (
+                      <div key={band.skill_name} className="flex items-center justify-between">
+                        <div>
+                          <p className="font-medium">{band.skill_name}</p>
+                          <p className="text-sm text-gray-500">Current Score: {band.score}%</p>
                         </div>
-                      </div>
-                    )}
-                    
-                    <div className="flex items-center gap-4 text-sm text-slate-500">
-                      <div className="flex items-center gap-1">
-                        <Clock className="h-4 w-4" />
-                        {exercise.exercise_data?.estimated_time_minutes || 15} min
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <BookOpen className="h-4 w-4" />
-                        {exercise.exercise_data?.questions?.length || 0} questions
-                      </div>
-                      <div>
-                        Current Score: {Math.round(exercise.skill_score)}%
-                      </div>
-                    </div>
-
-                    {exercise.status === 'completed' && exercise.score && (
-                      <div className="mt-3">
-                        <div className="flex items-center gap-2 mb-1">
-                          <CheckCircle className="h-4 w-4 text-green-600" />
-                          <span className="text-sm font-medium">Exercise Score: {Math.round(exercise.score)}%</span>
-                        </div>
-                        <Progress value={exercise.score} className="h-2" />
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="ml-4">
-                    {exercise.status === 'available' && (
-                      <Button onClick={() => handleStartExercise(exercise)}>
-                        <Play className="h-4 w-4 mr-2" />
-                        Start
-                      </Button>
-                    )}
-                    
-                    {exercise.status === 'in_progress' && (
-                      <Button variant="secondary" onClick={() => setSelectedExercise(exercise)}>
-                        Continue
-                      </Button>
-                    )}
-                    
-                    {exercise.status === 'completed' && (
-                      <Button variant="outline" onClick={() => setSelectedExercise(exercise)}>
-                        Review
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-interface ExercisePlayerProps {
-  exercise: StudentExercise;
-  onComplete: (exerciseId: string, score: number) => void;
-  onBack: () => void;
-}
-
-function ExercisePlayer({ exercise, onComplete, onBack }: ExercisePlayerProps) {
-  const [currentQuestion, setCurrentQuestion] = useState(0);
-  const [answers, setAnswers] = useState<Record<number, string>>({});
-  const [showResults, setShowResults] = useState(false);
-  const [gradingResults, setGradingResults] = useState<Record<number, GradingResult>>({});
-  const [isGrading, setIsGrading] = useState(false);
-
-  const questions = exercise.exercise_data?.questions || [];
-  const isCompleted = exercise.status === 'completed';
-  const skillType = exercise.exercise_data?.skillType;
-  const skillMetadata = exercise.exercise_data?.skillMetadata;
-
-  const handleAnswerSelect = (questionId: number, answer: string) => {
-    setAnswers(prev => ({ ...prev, [questionId]: answer }));
-  };
-
-  const handleNext = () => {
-    if (currentQuestion < questions.length - 1) {
-      setCurrentQuestion(currentQuestion + 1);
-    } else {
-      setShowResults(true);
-    }
-  };
-
-  const handleComplete = async () => {
-    setIsGrading(true);
-    
-    try {
-      // Grade all answers using smart grading
-      const gradingPromises = questions.map(async (question: any, index: number) => {
-        const studentAnswer = answers[index] || '';
-        
-        if (question.type === 'multiple_choice' || question.type === 'true_false') {
-          // Use simple exact matching for multiple choice and true/false
-          const isCorrect = studentAnswer === question.correct_answer;
-          return {
-            isCorrect,
-            score: isCorrect ? 1 : 0,
-            confidence: 1,
-            method: 'exact_match' as const
-          };
-        } else if (question.type === 'short_answer') {
-          // Use smart grading for short answers
-          return await SmartAnswerGradingService.gradeShortAnswer(
-            studentAnswer,
-            {
-              text: question.correct_answer,
-              acceptableVariations: question.acceptable_answers,
-              keywords: question.keywords
-            },
-            question.question,
-            `${exercise.id}_q${index + 1}`
-          );
-        }
-        
-        // Fallback for other question types
-        return {
-          isCorrect: false,
-          score: 0,
-          confidence: 0.5,
-          method: 'exact_match' as const
-        };
-      });
-
-      const results = await Promise.all(gradingPromises);
-      
-      // Store grading results
-      const resultMap: Record<number, GradingResult> = {};
-      results.forEach((result, index) => {
-        resultMap[index] = result;
-      });
-      setGradingResults(resultMap);
-
-      // Calculate overall score
-      const totalScore = results.reduce((sum, result) => sum + result.score, 0);
-      const maxScore = questions.length;
-      const finalScore = (totalScore / maxScore) * 100;
-
-      onComplete(exercise.id, finalScore);
-      
-      // Show feedback for AI-graded questions
-      const aiGradedCount = results.filter(r => r.method === 'ai_graded').length;
-      if (aiGradedCount > 0) {
-        toast.success(`Exercise completed! ${aiGradedCount} short answers were graded using AI for accuracy.`);
-      }
-      
-    } catch (error) {
-      console.error('Error grading exercise:', error);
-      toast.error('Failed to grade exercise. Please try again.');
-    } finally {
-      setIsGrading(false);
-    }
-  };
-
-  if (questions.length === 0) {
-    return (
-      <Card>
-        <CardContent className="p-8 text-center">
-          <AlertCircle className="h-12 w-12 text-amber-500 mx-auto mb-4" />
-          <h3 className="text-lg font-semibold text-slate-700 mb-2">Exercise Not Ready</h3>
-          <p className="text-slate-500 mb-4">This exercise is still being prepared. Please try again in a moment.</p>
-          <Button onClick={onBack}>Back to Exercises</Button>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  if (showResults && !isCompleted) {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Brain className="h-5 w-5" />
-            Exercise Complete!
-            {skillType && (
-              <Badge variant="outline" className="ml-2">
-                <Tag className="h-3 w-3 mr-1" />
-                {skillType === 'content' ? 'Content' : 'Subject'} Skill
-              </Badge>
-            )}
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {isGrading ? (
-            <div className="text-center py-4">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
-              <p className="text-slate-600">Grading your answers using smart AI analysis...</p>
-            </div>
-          ) : (
-            <>
-              <p>You've answered all questions. Ready to submit your exercise?</p>
-              {Object.keys(gradingResults).length > 0 && (
-                <div className="space-y-2">
-                  <h4 className="font-semibold">Grading Preview:</h4>
-                  {questions.map((question: any, index: number) => {
-                    const result = gradingResults[index];
-                    if (!result) return null;
-                    
-                    return (
-                      <div key={index} className="text-sm p-2 border rounded">
-                        <div className="flex items-center justify-between">
-                          <span>Question {index + 1}</span>
-                          <div className="flex items-center gap-2">
-                            <Badge variant={result.isCorrect ? "default" : "secondary"}>
-                              {result.score >= 1 ? "Correct" : result.score > 0 ? "Partial" : "Incorrect"}
-                            </Badge>
-                            {result.method === 'ai_graded' && (
-                              <Badge variant="outline" className="text-xs">
-                                <Brain className="h-3 w-3 mr-1" />
-                                AI
-                              </Badge>
-                            )}
-                          </div>
-                        </div>
-                        {result.feedback && (
-                          <p className="text-xs text-slate-600 mt-1">{result.feedback}</p>
+                        {isGenerating && generatingSkill === band.skill_name ? (
+                          <Progress value={50} className="w-40" />
+                        ) : (
+                          <Button
+                            onClick={() => handleGeneratePracticeTest(band.skill_name, band.score)}
+                            disabled={isGenerating}
+                          >
+                            Generate Test
+                          </Button>
                         )}
                       </div>
-                    );
-                  })}
-                </div>
-              )}
-              <div className="flex gap-2">
-                <Button onClick={handleComplete} disabled={isGrading}>
-                  {isGrading ? 'Grading...' : 'Submit Exercise'}
-                </Button>
-                <Button variant="outline" onClick={() => setShowResults(false)}>Review Answers</Button>
+                    ))}
+                  </CardContent>
+                </Card>
               </div>
-            </>
-          )}
-        </CardContent>
-      </Card>
-    );
-  }
-
-  const question = questions[currentQuestion];
-
-  return (
-    <Card className="max-w-4xl mx-auto">
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <CardTitle>{exercise.exercise_data?.title}</CardTitle>
-            {skillType && (
-              <Badge variant="outline">
-                <Tag className="h-3 w-3 mr-1" />
-                {skillType === 'content' ? 'Content' : 'Subject'} Skill
-              </Badge>
             )}
-          </div>
-          <Button variant="ghost" onClick={onBack}>Back</Button>
-        </div>
-        
-        {/* Enhanced skill metadata display */}
-        {skillMetadata && (
-          <div className="text-sm text-slate-600 bg-slate-50 p-2 rounded">
-            <div className="flex items-center gap-4">
-              {skillMetadata.subject && <span>Subject: {skillMetadata.subject}</span>}
-              {skillMetadata.grade && <span>Grade: {skillMetadata.grade}</span>}
-              {skillMetadata.skillCategory && <span>Category: {skillMetadata.skillCategory}</span>}
-            </div>
-          </div>
-        )}
-        
-        <Progress value={(currentQuestion + 1) / questions.length * 100} className="w-full" />
-        <p className="text-sm text-slate-600">
-          Question {currentQuestion + 1} of {questions.length}
-        </p>
-      </CardHeader>
-      
-      <CardContent className="space-y-6">
-        <div>
-          <h3 className="text-lg font-semibold mb-4">{question.question}</h3>
-          
-          {question.type === 'multiple_choice' && (
-            <div className="space-y-2">
-              {question.options?.map((option: string, index: number) => (
-                <button
-                  key={index}
-                  onClick={() => handleAnswerSelect(currentQuestion, option)}
-                  className={`w-full p-3 text-left border rounded-lg hover:bg-slate-50 transition-colors ${
-                    answers[currentQuestion] === option 
-                      ? 'border-blue-500 bg-blue-50' 
-                      : 'border-slate-200'
-                  }`}
-                >
-                  {option}
-                </button>
-              ))}
-            </div>
-          )}
-
-          {question.type === 'short_answer' && (
-            <div className="space-y-2">
-              <textarea
-                value={answers[currentQuestion] || ''}
-                onChange={(e) => handleAnswerSelect(currentQuestion, e.target.value)}
-                className="w-full p-3 border border-slate-200 rounded-lg"
-                rows={4}
-                placeholder="Enter your answer here..."
-              />
-              <div className="text-xs text-slate-500">
-                <Brain className="h-3 w-3 inline mr-1" />
-                This short answer will be graded using smart AI analysis for accuracy
-              </div>
-            </div>
-          )}
-
-          {question.type === 'true_false' && (
-            <div className="flex gap-4">
-              {['True', 'False'].map((option) => (
-                <button
-                  key={option}
-                  onClick={() => handleAnswerSelect(currentQuestion, option)}
-                  className={`px-6 py-3 border rounded-lg hover:bg-slate-50 transition-colors ${
-                    answers[currentQuestion] === option 
-                      ? 'border-blue-500 bg-blue-50' 
-                      : 'border-slate-200'
-                  }`}
-                >
-                  {option}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-
-        <div className="flex justify-between">
-          <Button 
-            variant="outline" 
-            onClick={() => setCurrentQuestion(Math.max(0, currentQuestion - 1))}
-            disabled={currentQuestion === 0}
-          >
-            Previous
-          </Button>
-          
-          <Button 
-            onClick={handleNext}
-            disabled={!answers[currentQuestion]}
-          >
-            {currentQuestion === questions.length - 1 ? 'Finish' : 'Next'}
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
   );
 }

@@ -1,338 +1,256 @@
+import React, { useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Textarea } from "@/components/ui/textarea";
+import { CheckCircle, BookOpen } from "lucide-react";
+import { toast } from "sonner";
+import { PracticeExerciseReview } from "./PracticeExerciseReview";
 
-import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { Label } from '@/components/ui/label';
-import { Progress } from '@/components/ui/progress';
-import { CheckCircle, XCircle, Clock, BookOpen } from 'lucide-react';
-import { PracticeExerciseGradingService, type PracticeExerciseAnswer, type ExerciseSubmissionResult } from '@/services/practiceExerciseGradingService';
+interface PracticeExerciseRunnerProps {
+  exercise: any;
+  onComplete: (result: { exerciseId: string; score: number; answers: any; totalPoints: number; earnedPoints: number }) => void;
+  onBack: () => void;
+}
 
-interface PracticeQuestion {
+interface Question {
   id: string;
-  type: 'multiple-choice' | 'true-false' | 'short-answer' | 'essay';
+  type: string;
   question: string;
   options?: string[];
-  correctAnswer: string;
-  acceptableAnswers?: string[];
-  keywords?: string[];
-  points: number;
-  targetSkill: string;
+  correctAnswer?: string;
+  points?: number;
 }
 
-interface PracticeExerciseData {
-  title: string;
-  description: string;
-  questions: PracticeQuestion[];
-  totalPoints: number;
-  estimatedTime: number;
-}
-
-interface Props {
-  exerciseData: PracticeExerciseData;
-  onComplete: (results: ExerciseSubmissionResult) => void;
-  onExit?: () => void;
-}
-
-export function PracticeExerciseRunner({ exerciseData, onComplete, onExit }: Props) {
+export function PracticeExerciseRunner({ 
+  exercise, 
+  onComplete, 
+  onBack 
+}: PracticeExerciseRunnerProps) {
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
-  const [answers, setAnswers] = useState<Record<string, string>>({});
+  const [currentAnswers, setCurrentAnswers] = useState<Record<string, any>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [startTime] = useState(new Date());
-  const [timeElapsed, setTimeElapsed] = useState(0);
+  const [showResults, setShowResults] = useState(false);
+  const [score, setScore] = useState(0);
+  const [showReview, setShowReview] = useState(false);
 
-  const currentQuestion = exerciseData.questions[currentQuestionIndex];
-  const progress = ((currentQuestionIndex + 1) / exerciseData.questions.length) * 100;
-  const isLastQuestion = currentQuestionIndex === exerciseData.questions.length - 1;
-  const hasAnsweredCurrent = answers[currentQuestion.id]?.trim().length > 0;
+  const questions = exercise?.exercise_data?.questions as Question[];
+  const currentQuestion = questions?.[currentQuestionIndex];
 
-  // Timer effect
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setTimeElapsed(Math.floor((Date.now() - startTime.getTime()) / 1000));
-    }, 1000);
-
-    return () => clearInterval(timer);
-  }, [startTime]);
-
-  const handleAnswerChange = (questionId: string, answer: string) => {
-    setAnswers(prev => ({ ...prev, [questionId]: answer }));
+  const handleNextQuestion = () => {
+    setCurrentQuestionIndex((prev) => Math.min(prev + 1, (questions?.length || 1) - 1));
   };
 
-  const handleNext = () => {
-    if (currentQuestionIndex < exerciseData.questions.length - 1) {
-      setCurrentQuestionIndex(prev => prev + 1);
-    }
+  const handlePreviousQuestion = () => {
+    setCurrentQuestionIndex((prev) => Math.max(prev - 1, 0));
   };
 
-  const handlePrevious = () => {
-    if (currentQuestionIndex > 0) {
-      setCurrentQuestionIndex(prev => prev - 1);
-    }
+  const handleAnswerChange = (questionId: string, answer: any) => {
+    setCurrentAnswers((prev) => ({ ...prev, [questionId]: answer }));
   };
 
   const handleSubmit = async () => {
-    setIsSubmitting(true);
+    if (!exercise?.exercise_data?.questions) return;
 
     try {
-      // Prepare answers for grading
-      const exerciseAnswers: PracticeExerciseAnswer[] = exerciseData.questions.map(question => ({
-        questionId: question.id,
-        studentAnswer: answers[question.id] || '',
-        questionType: question.type,
-        correctAnswer: question.correctAnswer,
-        acceptableAnswers: question.acceptableAnswers,
-        keywords: question.keywords,
-        options: question.options,
-        points: question.points
-      }));
+      setIsSubmitting(true);
+      
+      const totalPoints = exercise.exercise_data.questions.reduce((sum, q) => sum + (q.points || 1), 0);
+      let earnedPoints = 0;
 
-      // Grade the exercise
-      const results = await PracticeExerciseGradingService.gradeExerciseSubmission(
-        exerciseAnswers,
-        exerciseData.title
-      );
+      exercise.exercise_data.questions.forEach((question: Question) => {
+        const questionId = `question_${currentQuestionIndex + 1}`;
+        const studentAnswer = currentAnswers[questionId];
 
-      onComplete(results);
+        if (question.type === 'multiple-choice') {
+          if (studentAnswer === question.correctAnswer) {
+            earnedPoints += question.points || 1;
+          }
+        } else if (question.type === 'true-false') {
+          if (String(studentAnswer).toLowerCase() === String(question.correctAnswer).toLowerCase()) {
+            earnedPoints += question.points || 1;
+          }
+        } else {
+          // For short-answer and essay questions, you might need a more sophisticated grading system
+          // This is a placeholder that gives points if the answer is not empty
+          if (studentAnswer && studentAnswer.trim() !== '') {
+            earnedPoints += question.points || 1;
+          }
+        }
+      });
+
+      const finalScore = totalPoints > 0 ? Math.round((earnedPoints / totalPoints) * 100) : 0;
+      
+      console.log(`📊 Exercise completed: ${earnedPoints}/${totalPoints} points (${finalScore}%)`);
+      
+      await onComplete({
+        exerciseId: exercise.id,
+        score: finalScore,
+        answers: currentAnswers,
+        totalPoints,
+        earnedPoints
+      });
+
+      setScore(finalScore);
+      setShowResults(true);
+      
     } catch (error) {
-      console.error('Error grading exercise:', error);
-      // Create fallback results
-      const fallbackResults: ExerciseSubmissionResult = {
-        totalScore: 0,
-        totalPossible: exerciseData.totalPoints,
-        percentageScore: 0,
-        questionResults: exerciseData.questions.map(q => ({
-          questionId: q.id,
-          isCorrect: false,
-          pointsEarned: 0,
-          pointsPossible: q.points,
-          feedback: 'Unable to grade automatically. Please review with instructor.',
-          gradingMethod: 'exact_match' as const,
-          confidence: 0
-        })),
-        overallFeedback: 'There was an issue grading your exercise. Please contact your instructor.',
-        completedAt: new Date()
-      };
-      onComplete(fallbackResults);
+      console.error('Error submitting exercise:', error);
+      toast.error('Failed to submit exercise. Please try again.');
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  // NEW: Handle showing answer review
+  const handleShowReview = () => {
+    setShowReview(true);
   };
 
-  const renderQuestion = () => {
-    const answer = answers[currentQuestion.id] || '';
-
-    switch (currentQuestion.type) {
-      case 'multiple-choice':
-        return (
-          <div className="space-y-4">
-            <RadioGroup
-              value={answer}
-              onValueChange={(value) => handleAnswerChange(currentQuestion.id, value)}
-            >
-              {currentQuestion.options?.map((option, index) => (
-                <div key={index} className="flex items-center space-x-2">
-                  <RadioGroupItem value={option} id={`option-${index}`} />
-                  <Label htmlFor={`option-${index}`} className="cursor-pointer">
-                    {option}
-                  </Label>
-                </div>
-              ))}
-            </RadioGroup>
-          </div>
-        );
-
-      case 'true-false':
-        return (
-          <div className="space-y-4">
-            <RadioGroup
-              value={answer}
-              onValueChange={(value) => handleAnswerChange(currentQuestion.id, value)}
-            >
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="True" id="true" />
-                <Label htmlFor="true" className="cursor-pointer">True</Label>
-              </div>
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="False" id="false" />
-                <Label htmlFor="false" className="cursor-pointer">False</Label>
-              </div>
-            </RadioGroup>
-          </div>
-        );
-
-      case 'short-answer':
-        return (
-          <div className="space-y-4">
-            <Input
-              placeholder="Enter your answer..."
-              value={answer}
-              onChange={(e) => handleAnswerChange(currentQuestion.id, e.target.value)}
-              className="w-full"
-            />
-            <p className="text-sm text-muted-foreground">
-              Provide a clear, concise answer. Key concepts will be evaluated.
-            </p>
-          </div>
-        );
-
-      case 'essay':
-        return (
-          <div className="space-y-4">
-            <Textarea
-              placeholder="Write your detailed response..."
-              value={answer}
-              onChange={(e) => handleAnswerChange(currentQuestion.id, e.target.value)}
-              className="w-full min-h-32"
-            />
-            <p className="text-sm text-muted-foreground">
-              Provide a thorough explanation with examples and reasoning.
-            </p>
-          </div>
-        );
-
-      default:
-        return null;
-    }
+  const handleBackFromReview = () => {
+    setShowReview(false);
   };
+
+  // NEW: If showing review, render the review component
+  if (showReview) {
+    return (
+      <PracticeExerciseReview
+        exerciseId={exercise.id}
+        studentAnswers={currentAnswers}
+        onBack={handleBackFromReview}
+        exerciseTitle={exercise.exercise_data?.title || "Practice Exercise"}
+        studentScore={score}
+        totalPoints={exercise.exercise_data?.totalPoints}
+      />
+    );
+  }
+
+  if (!exercise) {
+    return <div>Loading exercise...</div>;
+  }
+
+  if (isSubmitting) {
+    return <div>Submitting...</div>;
+  }
+
+  if (showResults) {
+    return (
+      <div className="p-6">
+        <div className="max-w-2xl mx-auto text-center space-y-6">
+          <div className="mb-8">
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">Exercise Complete!</h2>
+            <div className="text-6xl font-bold text-blue-600 mb-4">
+              {score}%
+            </div>
+            <p className="text-gray-600">
+              Great work! You've completed the practice exercise.
+            </p>
+          </div>
+          
+          <div className="flex gap-3 justify-center">
+            <Button onClick={onBack} variant="outline">
+              Back to Exercises
+            </Button>
+            <Button onClick={handleShowReview} className="bg-blue-600 hover:bg-blue-700">
+              <BookOpen className="h-4 w-4 mr-2" />
+              Review Answers
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="max-w-4xl mx-auto p-6 space-y-6">
-      {/* Header */}
-      <Card>
-        <CardHeader>
-          <div className="flex justify-between items-start">
-            <div>
-              <CardTitle className="flex items-center gap-2">
-                <BookOpen className="h-5 w-5" />
-                {exerciseData.title}
-              </CardTitle>
-              <p className="text-muted-foreground mt-1">
-                {exerciseData.description}
-              </p>
-            </div>
-            <div className="flex items-center gap-4 text-sm text-muted-foreground">
-              <div className="flex items-center gap-1">
-                <Clock className="h-4 w-4" />
-                {formatTime(timeElapsed)}
-              </div>
-              {onExit && (
-                <Button variant="outline" size="sm" onClick={onExit}>
-                  Exit
-                </Button>
-              )}
-            </div>
-          </div>
-        </CardHeader>
-      </Card>
-
-      {/* Progress */}
-      <div className="space-y-2">
-        <div className="flex justify-between text-sm">
-          <span>Question {currentQuestionIndex + 1} of {exerciseData.questions.length}</span>
-          <span>{Math.round(progress)}% Complete</span>
-        </div>
-        <Progress value={progress} className="w-full" />
-      </div>
-
-      {/* Current Question */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">
-            Question {currentQuestionIndex + 1}
-            <span className="text-sm font-normal ml-2 text-muted-foreground">
-              ({currentQuestion.points} {currentQuestion.points === 1 ? 'point' : 'points'})
-            </span>
-          </CardTitle>
-          <p className="text-base">{currentQuestion.question}</p>
-          <p className="text-sm text-muted-foreground">
-            Skill: {currentQuestion.targetSkill}
-          </p>
-        </CardHeader>
-        <CardContent>
-          {renderQuestion()}
-        </CardContent>
-      </Card>
-
-      {/* Navigation */}
-      <div className="flex justify-between items-center">
-        <Button
-          variant="outline"
-          onClick={handlePrevious}
-          disabled={currentQuestionIndex === 0}
-        >
-          Previous
+    <div className="p-6">
+      <div className="flex items-center justify-between mb-4">
+        <Button variant="ghost" onClick={onBack}>
+          Go Back
         </Button>
-
-        <div className="flex gap-2">
-          {exerciseData.questions.map((_, index) => (
-            <button
-              key={index}
-              className={`w-8 h-8 rounded-full text-sm ${
-                index === currentQuestionIndex
-                  ? 'bg-primary text-primary-foreground'
-                  : answers[exerciseData.questions[index].id]
-                  ? 'bg-green-100 text-green-800 border border-green-300'
-                  : 'bg-muted text-muted-foreground border'
-              }`}
-              onClick={() => setCurrentQuestionIndex(index)}
-            >
-              {index + 1}
-            </button>
-          ))}
+        <div>
+          Question {currentQuestionIndex + 1} / {questions?.length}
         </div>
-
-        {isLastQuestion ? (
-          <Button
-            onClick={handleSubmit}
-            disabled={isSubmitting || !hasAnsweredCurrent}
-            className="bg-green-600 hover:bg-green-700"
-          >
-            {isSubmitting ? 'Submitting...' : 'Submit Exercise'}
-          </Button>
-        ) : (
-          <Button
-            onClick={handleNext}
-            disabled={!hasAnsweredCurrent}
-          >
-            Next
-          </Button>
-        )}
       </div>
-
-      {/* Answer Summary */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Progress Summary</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-            <div className="flex items-center gap-2">
-              <CheckCircle className="h-4 w-4 text-green-600" />
-              <span>
-                Answered: {Object.keys(answers).filter(id => answers[id]?.trim()).length}/{exerciseData.questions.length}
-              </span>
-            </div>
-            <div>
-              Total Points: {exerciseData.totalPoints}
-            </div>
-            <div>
-              Estimated Time: {exerciseData.estimatedTime} min
-            </div>
-            <div>
-              Skills: {[...new Set(exerciseData.questions.map(q => q.targetSkill))].length}
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      
+      <div className="max-w-4xl mx-auto">
+        <Card>
+          <CardHeader>
+            <CardTitle>{exercise?.exercise_data?.title || 'Practice Exercise'}</CardTitle>
+            <CardDescription>{exercise?.exercise_data?.description}</CardDescription>
+          </CardHeader>
+          
+          <CardContent className="p-6">
+            {currentQuestion && (
+              <div className="space-y-4">
+                <div className="text-xl font-semibold">{currentQuestion.question}</div>
+                
+                {currentQuestion.type === 'multiple-choice' && currentQuestion.options && (
+                  <RadioGroup
+                    defaultValue={currentAnswers[`question_${currentQuestionIndex + 1}`] || ''}
+                    onValueChange={(value) => handleAnswerChange(`question_${currentQuestionIndex + 1}`, value)}
+                  >
+                    <div className="grid gap-2">
+                      {currentQuestion.options.map((option, index) => (
+                        <div key={index} className="flex items-center space-x-2">
+                          <RadioGroupItem value={option} id={`r${index}`} />
+                          <Label htmlFor={`r${index}`}>{option}</Label>
+                        </div>
+                      ))}
+                    </div>
+                  </RadioGroup>
+                )}
+                
+                {currentQuestion.type === 'true-false' && (
+                  <RadioGroup
+                    defaultValue={currentAnswers[`question_${currentQuestionIndex + 1}`] || ''}
+                    onValueChange={(value) => handleAnswerChange(`question_${currentQuestionIndex + 1}`, value)}
+                  >
+                    <div className="grid gap-2">
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="true" id="true" />
+                        <Label htmlFor="true">True</Label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="false" id="false" />
+                        <Label htmlFor="false">False</Label>
+                      </div>
+                    </div>
+                  </RadioGroup>
+                )}
+                
+                {['short-answer', 'essay'].includes(currentQuestion.type) && (
+                  <div className="space-y-2">
+                    <Label htmlFor="answer">Your Answer</Label>
+                    <Textarea 
+                      id="answer"
+                      value={currentAnswers[`question_${currentQuestionIndex + 1}`] || ''}
+                      onChange={(e) => handleAnswerChange(`question_${currentQuestionIndex + 1}`, e.target.value)}
+                      placeholder="Enter your answer here"
+                    />
+                  </div>
+                )}
+              </div>
+            )}
+          </CardContent>
+          
+          <CardFooter className="flex justify-between">
+            <Button 
+              variant="secondary"
+              onClick={handlePreviousQuestion}
+              disabled={currentQuestionIndex === 0}
+            >
+              Previous
+            </Button>
+            {currentQuestionIndex < (questions?.length || 0) - 1 ? (
+              <Button onClick={handleNextQuestion}>Next</Button>
+            ) : (
+              <Button onClick={handleSubmit}>Submit</Button>
+            )}
+          </CardFooter>
+        </Card>
+      </div>
     </div>
   );
 }
