@@ -15,6 +15,7 @@ import {
   type ActiveClass 
 } from "@/services/examService";
 import { toast } from "sonner";
+import { SkillPracticeDialog } from "@/components/SkillPracticeDialog";
 
 export default function StudentDashboard() {
   const { profile, signOut } = useAuth();
@@ -25,6 +26,7 @@ export default function StudentDashboard() {
   const [loadingClasses, setLoadingClasses] = useState(true);
   const [contentSkills, setContentSkills] = useState<any[]>([]);
   const [loadingSkills, setLoadingSkills] = useState(false);
+  const [practiceDialogOpen, setPracticeDialogOpen] = useState(false);
   
   const [notifications] = useState([
     {
@@ -152,10 +154,9 @@ export default function StudentDashboard() {
 
   const handlePractice = () => {
     if (selectedClassData && contentSkills.length > 0) {
-      toast.success(`Starting practice session for ${selectedClassData.name}!`);
-      // TODO: Navigate to practice session or open practice modal
+      setPracticeDialogOpen(true);
     } else {
-      toast.info("Please select skills to practice first.");
+      toast.info("Please select a class and wait for skills to load first.");
     }
   };
 
@@ -500,6 +501,14 @@ export default function StudentDashboard() {
           </div>
         </div>
       </div>
+
+      {/* Skill Practice Dialog */}
+      <SkillPracticeDialog
+        open={practiceDialogOpen}
+        onOpenChange={setPracticeDialogOpen}
+        skills={contentSkills}
+        className={selectedClassData?.name || ''}
+      />
     </div>
   );
 }
