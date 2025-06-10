@@ -67,11 +67,11 @@ function WeakestSkillCircle({ skillName, score }: { skillName: string; score: nu
   return (
     <div className="flex flex-col items-center min-w-0">
       <div 
-        className="relative w-12 h-12 mb-2 flex-shrink-0"
+        className="relative w-16 h-16 mb-2 flex-shrink-0"
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
       >
-        <svg className="w-12 h-12" viewBox="0 0 48 48">
+        <svg className="w-16 h-16" viewBox="0 0 64 64">
           <defs>
             <linearGradient id={gradientId} x1="0%" y1="0%" x2="100%" y2="100%">
               <stop offset="0%" stopColor={gradientColors.color1} />
@@ -80,9 +80,9 @@ function WeakestSkillCircle({ skillName, score }: { skillName: string; score: nu
             </linearGradient>
           </defs>
           <circle
-            cx="24"
-            cy="24"
-            r="20"
+            cx="32"
+            cy="32"
+            r="26"
             fill={`url(#${gradientId})`}
             style={{ 
               filter: isHovered ? 'brightness(1.1)' : 'brightness(1)',
@@ -95,7 +95,7 @@ function WeakestSkillCircle({ skillName, score }: { skillName: string; score: nu
         
         {/* Percentage in center */}
         <div className="absolute inset-0 flex items-center justify-center">
-          <span className="text-xs font-bold text-white drop-shadow-sm">
+          <span className="text-sm font-bold text-white drop-shadow-sm">
             {Math.round(score)}%
           </span>
         </div>
@@ -105,9 +105,9 @@ function WeakestSkillCircle({ skillName, score }: { skillName: string; score: nu
       <div className="text-center w-full min-w-0">
         <div className="flex items-center gap-1 justify-center mb-1">
           <TrendingDown className="h-3 w-3 text-orange-600 flex-shrink-0" />
-          <span className="text-xs font-medium text-orange-700">Weakest</span>
+          <span className="text-sm font-medium text-orange-700">Weakest</span>
         </div>
-        <p className="text-xs text-slate-700 font-medium leading-tight break-words hyphens-auto">
+        <p className="text-sm text-slate-700 font-medium leading-tight break-words hyphens-auto">
           {skillName}
         </p>
       </div>
@@ -128,9 +128,9 @@ function StudentCard({ student, classId, className }: StudentCardProps) {
     .sort((a, b) => a.score - b.score)[0]; // Get the lowest scoring skill
 
   return (
-    <Card className="group hover:shadow-lg transition-all duration-300 cursor-pointer border-0 bg-white/80 backdrop-blur-sm hover:bg-white hover:scale-[1.01] w-full max-w-md">
+    <Card className="group hover:shadow-lg transition-all duration-300 cursor-pointer border-0 bg-white/80 backdrop-blur-sm hover:bg-white hover:scale-[1.01] w-full max-w-lg">
       <CardContent className="p-3">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
           <Avatar className="h-8 w-8 ring-2 ring-slate-100 group-hover:ring-blue-200 transition-all duration-300 flex-shrink-0">
             <AvatarFallback className="bg-gradient-to-br from-blue-100 to-purple-100 text-slate-700 font-semibold text-sm">
               {student.name.split(' ').map(n => n[0]).join('')}
@@ -158,9 +158,9 @@ function StudentCard({ student, classId, className }: StudentCardProps) {
           </div>
 
           {/* Weakest Skill Circle */}
-          <div className="flex-shrink-0 ml-2">
+          <div className="flex-shrink-0">
             {contentSkillsLoading ? (
-              <div className="w-20 flex justify-center items-center h-16">
+              <div className="w-24 flex justify-center items-center h-20">
                 <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
               </div>
             ) : weakestSkill ? (
@@ -169,11 +169,11 @@ function StudentCard({ student, classId, className }: StudentCardProps) {
                 score={weakestSkill.score}
               />
             ) : (
-              <div className="flex flex-col items-center w-20">
-                <div className="w-12 h-12 bg-gradient-to-br from-slate-100 to-slate-200 rounded-full flex items-center justify-center mb-2">
-                  <span className="text-xs font-bold text-slate-500">?</span>
+              <div className="flex flex-col items-center w-24">
+                <div className="w-16 h-16 bg-gradient-to-br from-slate-100 to-slate-200 rounded-full flex items-center justify-center mb-2">
+                  <span className="text-sm font-bold text-slate-500">?</span>
                 </div>
-                <p className="text-xs text-slate-500 font-medium text-center">
+                <p className="text-sm text-slate-500 font-medium text-center">
                   No data
                 </p>
               </div>
@@ -232,7 +232,7 @@ export function ClassStudentList({ classId, className, onSelectStudent }: ClassS
     <div className="mt-6">
       <div className="mb-4">
         <h3 className="text-lg font-semibold text-slate-900 mb-1">
-          Student Skill Overview
+          Recommended Lesson Plan
         </h3>
         <p className="text-sm text-slate-600">
           View each student's weakest content skill in {className} - automatically identified based on their performance
