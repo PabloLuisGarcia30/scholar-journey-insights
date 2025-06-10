@@ -1,3 +1,4 @@
+
 import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -239,7 +240,7 @@ function StudentCard({ student, classId, className, onEditDefault, onAddSkills, 
             </div>
           </div>
 
-          {/* Action Buttons Column - Only Add Skills button now */}
+          {/* Action Buttons Column - Only Add Skills button */}
           <div className="flex flex-col gap-2 pt-1">
             <Button 
               size="sm" 
