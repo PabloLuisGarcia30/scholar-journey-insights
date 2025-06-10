@@ -491,6 +491,7 @@ export function ClassStudentList({ classId, className, onSelectStudent }: ClassS
             <SaveLessonPlanWithDefaults
               classId={classId}
               className={className}
+              classData={classData}
               students={classStudents}
               editedDefaultSkills={editedDefaultSkills}
               studentAdditionalSkills={studentAdditionalSkills}
@@ -522,12 +523,14 @@ export function ClassStudentList({ classId, className, onSelectStudent }: ClassS
 function SaveLessonPlanWithDefaults({ 
   classId, 
   className, 
+  classData,
   students,
   editedDefaultSkills,
   studentAdditionalSkills
 }: {
   classId: string;
   className: string;
+  classData?: any;
   students: any[];
   editedDefaultSkills: Record<string, StudentSkill | null>;
   studentAdditionalSkills: Record<string, StudentSkill[]>;
@@ -536,6 +539,7 @@ function SaveLessonPlanWithDefaults({
     <StudentsWithDefaultSkills
       classId={classId}
       className={className}
+      classData={classData}
       students={students}
       editedDefaultSkills={editedDefaultSkills}
       studentAdditionalSkills={studentAdditionalSkills}
@@ -547,12 +551,14 @@ function SaveLessonPlanWithDefaults({
 function StudentsWithDefaultSkills({
   classId,
   className,
+  classData,
   students,
   editedDefaultSkills,
   studentAdditionalSkills
 }: {
   classId: string;
   className: string;
+  classData?: any;
   students: any[];
   editedDefaultSkills: Record<string, StudentSkill | null>;
   studentAdditionalSkills: Record<string, StudentSkill[]>;
@@ -615,6 +621,7 @@ function StudentsWithDefaultSkills({
     <SaveLessonPlan
       classId={classId}
       className={className}
+      classData={classData}
       students={finalStudentsWithSkills}
     />
   );

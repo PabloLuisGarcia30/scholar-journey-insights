@@ -1,4 +1,3 @@
-
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, BookOpen, ChevronUp, ChevronDown } from "lucide-react";
@@ -18,9 +17,9 @@ export default function LessonPlanner() {
   // Automatically show student list when classId is present
   const [showStudentList, setShowStudentList] = useState(!!classId);
 
-  // Fetch class data if classId is available
+  // Fetch class data if classId is available - using WithDuration version for calendar
   const { data: classData, isLoading: isLoadingClass } = useQuery({
-    queryKey: ['activeClass', classId],
+    queryKey: ['activeClassWithDuration', classId],
     queryFn: () => getActiveClassByIdWithDuration(classId!),
     enabled: !!classId,
   });

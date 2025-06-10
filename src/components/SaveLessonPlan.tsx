@@ -1,17 +1,20 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Save, Loader2, BookOpen } from "lucide-react";
+import { Save, Loader2, Calendar, Clock } from "lucide-react";
 import { toast } from "sonner";
 import { saveLessonPlan } from "@/services/lessonPlanService";
 import { supabase } from "@/integrations/supabase/client";
+import { getNextClassDate } from "@/utils/nextClassCalculator";
+import type { ActiveClassWithDuration } from "@/services/examService";
 
 interface SaveLessonPlanProps {
   classId: string;
   className: string;
+  classData?: ActiveClassWithDuration | null;
   students: Array<{
     studentId: string;
     studentName: string;
@@ -23,12 +26,20 @@ interface SaveLessonPlanProps {
   onLessonPlanSaved?: (lessonPlanId: string) => void;
 }
 
-export function SaveLessonPlan({ classId, className, students, onLessonPlanSaved }: SaveLessonPlanProps) {
+export function SaveLessonPlan({ classId, className, classData, students, onLessonPlanSaved }: SaveLessonPlanProps) {
   const [open, setOpen] = useState(false);
   const [lessonTitle, setLessonTitle] = useState(`${className} - ${new Date().toLocaleDateString()}`);
-  const [scheduledDate, setScheduledDate] = useState(new Date().toISOString().split('T')[0]);
-  const [scheduledTime, setScheduledTime] = useState("10:00");
   const [loading, setLoading] = useState(false);
+
+  // Calculate next class date automatically
+  const nextClassInfo = getNextClassDate(classData);
+
+  // Update lesson title when next class info changes
+  useEffect(() => {
+    if (nextClassInfo) {
+      setLessonTitle(`${className} - ${nextClassInfo.formattedDate}`);
+    }
+  }, [className, nextClassInfo]);
 
   const handleSaveLessonPlan = async () => {
     if (!lessonTitle.trim()) {
@@ -38,6 +49,11 @@ export function SaveLessonPlan({ classId, className, students, onLessonPlanSaved
 
     if (students.length === 0) {
       toast.error("No students with skills selected for lesson plan");
+      return;
+    }
+
+    if (!nextClassInfo) {
+      toast.error("Unable to determine next class date. Please check class schedule.");
       return;
     }
 
@@ -68,10 +84,10 @@ export function SaveLessonPlan({ classId, className, students, onLessonPlanSaved
         classId,
         className,
         teacherName: profile?.full_name || "Unknown Teacher",
-        subject: "Unknown Subject", // Could be enhanced to get from class data
-        grade: "Unknown Grade", // Could be enhanced to get from class data
-        scheduledDate,
-        scheduledTime,
+        subject: classData?.subject || "Unknown Subject",
+        grade: classData?.grade || "Unknown Grade",
+        scheduledDate: nextClassInfo.date,
+        scheduledTime: nextClassInfo.time,
         students: studentsForLessonPlan
       };
 
@@ -79,7 +95,11 @@ export function SaveLessonPlan({ classId, className, students, onLessonPlanSaved
 
       toast.success(`Lesson plan "${lessonTitle}" saved successfully!`);
       setOpen(false);
-      setLessonTitle(`${className} - ${new Date().toLocaleDateString()}`);
+      
+      // Reset lesson title for next time
+      if (nextClassInfo) {
+        setLessonTitle(`${className} - ${nextClassInfo.formattedDate}`);
+      }
       
       // Notify parent component about the saved lesson plan
       if (onLessonPlanSaved) {
@@ -117,26 +137,42 @@ export function SaveLessonPlan({ classId, className, students, onLessonPlanSaved
             />
           </div>
           
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor="scheduledDate">Scheduled Date</Label>
-              <Input
-                id="scheduledDate"
-                type="date"
-                value={scheduledDate}
-                onChange={(e) => setScheduledDate(e.target.value)}
-              />
+          {/* Next Class Information */}
+          {nextClassInfo ? (
+            <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <Calendar className="h-4 w-4 text-green-600" />
+                <h4 className="font-medium text-green-800">Next Scheduled Class</h4>
+              </div>
+              <div className="space-y-1 text-sm text-green-700">
+                <div className="flex items-center gap-2">
+                  <span className="font-medium">{nextClassInfo.dayName}, {nextClassInfo.formattedDate}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Clock className="h-3 w-3" />
+                  <span>{nextClassInfo.formattedTime}</span>
+                  {classData?.duration?.shortFormat && (
+                    <span className="text-green-600">({classData.duration.shortFormat})</span>
+                  )}
+                </div>
+                {nextClassInfo.daysUntil > 0 && (
+                  <div className="text-xs text-green-600">
+                    {nextClassInfo.daysUntil === 1 ? 'Tomorrow' : `In ${nextClassInfo.daysUntil} days`}
+                  </div>
+                )}
+              </div>
             </div>
-            <div>
-              <Label htmlFor="scheduledTime">Scheduled Time</Label>
-              <Input
-                id="scheduledTime"
-                type="time"
-                value={scheduledTime}
-                onChange={(e) => setScheduledTime(e.target.value)}
-              />
+          ) : (
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+              <div className="flex items-center gap-2 mb-1">
+                <Calendar className="h-4 w-4 text-amber-600" />
+                <h4 className="font-medium text-amber-800">Class Schedule</h4>
+              </div>
+              <p className="text-sm text-amber-700">
+                Unable to determine next class date. Please check class schedule.
+              </p>
             </div>
-          </div>
+          )}
           
           <div className="bg-blue-50 p-3 rounded-lg">
             <p className="text-sm text-blue-800 mb-2">
@@ -146,7 +182,9 @@ export function SaveLessonPlan({ classId, className, students, onLessonPlanSaved
               <li>• {students.length} students with individualized skills</li>
               <li>• {students.reduce((total, student) => total + student.skills.length, 0)} total skill targets</li>
               <li>• Ready to use for starting class sessions</li>
-              <li>• Scheduled for {scheduledDate} at {scheduledTime}</li>
+              {nextClassInfo && (
+                <li>• Scheduled for {nextClassInfo.formattedDate} at {nextClassInfo.formattedTime}</li>
+              )}
             </ul>
           </div>
 
@@ -154,7 +192,7 @@ export function SaveLessonPlan({ classId, className, students, onLessonPlanSaved
             <Button variant="outline" onClick={() => setOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={handleSaveLessonPlan} disabled={loading}>
+            <Button onClick={handleSaveLessonPlan} disabled={loading || !nextClassInfo}>
               {loading ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
