@@ -1,9 +1,8 @@
-
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Bell, BookOpen, TrendingUp, User, Calendar, Clock, Users, GraduationCap, Target } from "lucide-react";
+import { Bell, BookOpen, TrendingUp, User, Calendar, Clock, Users, GraduationCap, Target, Play } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { DevRoleToggle } from "@/components/DevRoleToggle";
 import { useDevRole } from "@/contexts/DevRoleContext";
@@ -149,6 +148,15 @@ export default function StudentDashboard() {
   const handleClassSelect = (classId: string) => {
     console.log('Class selected:', classId);
     setSelectedClass(selectedClass === classId ? null : classId);
+  };
+
+  const handlePractice = () => {
+    if (selectedClassData && contentSkills.length > 0) {
+      toast.success(`Starting practice session for ${selectedClassData.name}!`);
+      // TODO: Navigate to practice session or open practice modal
+    } else {
+      toast.info("Please select skills to practice first.");
+    }
   };
 
   // CONDITIONAL LOGIC AND EARLY RETURNS MUST COME AFTER ALL HOOKS
@@ -343,13 +351,24 @@ export default function StudentDashboard() {
           <div className="mb-8">
             <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-sm">
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Target className="h-5 w-5" />
-                  Let's work on some skills today!
-                </CardTitle>
-                <p className="text-sm text-slate-600">
-                  Focus areas for {selectedClassData.name} - {selectedClassData.subject}
-                </p>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="flex items-center gap-2">
+                      <Target className="h-5 w-5" />
+                      Let's work on some skills today!
+                    </CardTitle>
+                    <p className="text-sm text-slate-600">
+                      Focus areas for {selectedClassData.name} - {selectedClassData.subject}
+                    </p>
+                  </div>
+                  <Button 
+                    onClick={handlePractice}
+                    className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-6 py-2 rounded-lg shadow-md transition-all duration-200 flex items-center gap-2"
+                  >
+                    <Play className="h-4 w-4" />
+                    Let's Practice!
+                  </Button>
+                </div>
               </CardHeader>
               <CardContent>
                 {loadingSkills ? (
