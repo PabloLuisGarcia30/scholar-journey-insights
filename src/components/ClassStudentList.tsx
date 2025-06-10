@@ -1,3 +1,4 @@
+
 import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -6,7 +7,7 @@ import { User, TrendingDown, Edit, Target, Plus } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { getAllActiveStudents, getActiveClassById } from "@/services/examService";
 import { useStudentProfileData } from "@/hooks/useStudentProfileData";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { StudentSkillSelector } from "./StudentSkillSelector";
 import { StartClassSession } from "./StartClassSession";
 
@@ -267,6 +268,29 @@ export function ClassStudentList({ classId, className, onSelectStudent }: ClassS
     classData?.students?.includes(student.id)
   );
 
+  // Create a map of student skill data using the hook at the top level
+  const studentSkillsMap = useMemo(() => {
+    const skillsMap: Record<string, StudentSkill[]> = {};
+    
+    classStudents.forEach(student => {
+      const skills: StudentSkill[] = [];
+      const targetSkill = studentTargetSkills[student.id];
+      const additionalSkills = studentAdditionalSkills[student.id] || [];
+      
+      // Add target skill if set
+      if (targetSkill) {
+        skills.push(targetSkill);
+      }
+      
+      // Add additional skills
+      skills.push(...additionalSkills);
+      
+      skillsMap[student.id] = skills;
+    });
+    
+    return skillsMap;
+  }, [classStudents, studentTargetSkills, studentAdditionalSkills]);
+
   const isLoading = studentsLoading || classLoading;
 
   const handleEditStudent = (studentId: string) => {
@@ -298,37 +322,9 @@ export function ClassStudentList({ classId, className, onSelectStudent }: ClassS
     setAddingSkillsStudentId(null);
   };
 
-  // Get all skills for a student (weakest + target + additional)
+  // Get all skills for a student using the pre-computed map
   const getStudentSkills = (studentId: string): StudentSkill[] => {
-    const skills: StudentSkill[] = [];
-    
-    // Get weakest skill from student profile data
-    const { contentSkillScores } = useStudentProfileData({
-      studentId,
-      classId,
-      className
-    });
-    
-    const targetSkill = studentTargetSkills[studentId];
-    const additionalSkills = studentAdditionalSkills[studentId] || [];
-    
-    // Add target skill if set, otherwise add weakest skill
-    if (targetSkill) {
-      skills.push(targetSkill);
-    } else if (contentSkillScores.length > 0) {
-      const weakestSkill = contentSkillScores.sort((a, b) => a.score - b.score)[0];
-      skills.push({
-        skill_name: weakestSkill.skill_name,
-        score: weakestSkill.score,
-        isTarget: false,
-        isAdditional: false
-      });
-    }
-    
-    // Add additional skills
-    skills.push(...additionalSkills);
-    
-    return skills;
+    return studentSkillsMap[studentId] || [];
   };
 
   // Prepare data for StartClassSession component
