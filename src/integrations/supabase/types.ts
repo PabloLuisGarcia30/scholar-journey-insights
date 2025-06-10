@@ -690,6 +690,7 @@ export type Database = {
           class_id: string
           class_name: string
           created_at: string
+          exercises_data: Json | null
           grade: string
           id: string
           scheduled_date: string
@@ -703,6 +704,7 @@ export type Database = {
           class_id: string
           class_name: string
           created_at?: string
+          exercises_data?: Json | null
           grade: string
           id?: string
           scheduled_date: string
@@ -716,6 +718,7 @@ export type Database = {
           class_id?: string
           class_name?: string
           created_at?: string
+          exercises_data?: Json | null
           grade?: string
           id?: string
           scheduled_date?: string

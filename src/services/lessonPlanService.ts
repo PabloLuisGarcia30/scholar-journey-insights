@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 
 export interface LessonPlanData {
@@ -15,11 +14,18 @@ export interface LessonPlanData {
     targetSkillName: string;
     targetSkillScore: number;
   }>;
+  exercisesData?: Array<{
+    studentId: string;
+    studentName: string;
+    targetSkillName: string;
+    targetSkillScore: number;
+    exerciseData: any;
+  }> | null;
 }
 
 export async function saveLessonPlan(lessonPlanData: LessonPlanData) {
   try {
-    // Insert the lesson plan
+    // Insert the lesson plan with exercises data
     const { data: lessonPlan, error: lessonPlanError } = await supabase
       .from('lesson_plans')
       .insert({
@@ -30,6 +36,7 @@ export async function saveLessonPlan(lessonPlanData: LessonPlanData) {
         grade: lessonPlanData.grade,
         scheduled_date: lessonPlanData.scheduledDate,
         scheduled_time: lessonPlanData.scheduledTime,
+        exercises_data: lessonPlanData.exercisesData,
         status: 'draft'
       })
       .select()

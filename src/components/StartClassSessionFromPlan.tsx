@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Play, Loader2, Activity, BookOpen } from "lucide-react";
+import { Play, Loader2, Activity, BookOpen, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { createClassSession, createStudentExercises } from "@/services/classSessionService";
 import { getLessonPlanByClassId } from "@/services/lessonPlanService";
@@ -64,40 +64,62 @@ export function StartClassSessionFromPlan({ classId, className, onSessionStarted
         session_name: sessionName
       });
 
-      // Generate exercises for each student's target skill from the lesson plan
-      const exercisePromises = lessonPlan.lesson_plan_students.map(async (student) => {
-        const exerciseResponse = await fetch('/functions/v1/generate-tailored-exercise', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
-          },
-          body: JSON.stringify({
+      // Check if lesson plan has pre-generated exercises
+      if (lessonPlan.exercises_data && lessonPlan.exercises_data.length > 0) {
+        console.log('Using pre-generated exercises from lesson plan');
+        
+        // Use pre-generated exercises
+        const exercisesToCreate = lessonPlan.exercises_data.map((exercise: any) => ({
+          class_session_id: session.id,
+          student_id: exercise.studentId,
+          student_name: exercise.studentName,
+          skill_name: exercise.targetSkillName,
+          skill_score: exercise.targetSkillScore,
+          exercise_data: exercise.exerciseData
+        }));
+
+        await createStudentExercises(exercisesToCreate);
+
+        toast.success(`Class session "${sessionName}" started with pre-generated exercises! Students can now access their tailored content.`);
+      } else {
+        console.log('No pre-generated exercises found, generating on-the-fly');
+        
+        // Generate exercises for each student's target skill from the lesson plan (fallback to current behavior)
+        const exercisePromises = lessonPlan.lesson_plan_students.map(async (student) => {
+          const exerciseResponse = await fetch('/functions/v1/generate-tailored-exercise', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
+            },
+            body: JSON.stringify({
+              skill_name: student.target_skill_name,
+              skill_score: student.target_skill_score,
+              student_name: student.student_name
+            })
+          });
+          
+          const exerciseData = await exerciseResponse.json();
+          
+          return {
+            class_session_id: session.id,
+            student_id: student.student_id,
+            student_name: student.student_name,
             skill_name: student.target_skill_name,
             skill_score: student.target_skill_score,
-            student_name: student.student_name
-          })
+            exercise_data: exerciseData.exercise_data
+          };
         });
-        
-        const exerciseData = await exerciseResponse.json();
-        
-        return {
-          class_session_id: session.id,
-          student_id: student.student_id,
-          student_name: student.student_name,
-          skill_name: student.target_skill_name,
-          skill_score: student.target_skill_score,
-          exercise_data: exerciseData.exercise_data
-        };
-      });
 
-      // Wait for all exercises to be generated
-      const exercisesToCreate = await Promise.all(exercisePromises);
-      
-      // Create all student exercises in the database
-      await createStudentExercises(exercisesToCreate);
+        // Wait for all exercises to be generated
+        const exercisesToCreate = await Promise.all(exercisePromises);
+        
+        // Create all student exercises in the database
+        await createStudentExercises(exercisesToCreate);
 
-      toast.success(`Class session "${sessionName}" started using saved lesson plan! Students can now access their tailored exercises.`);
+        toast.success(`Class session "${sessionName}" started with generated exercises! Students can now access their tailored content.`);
+      }
+
       setOpen(false);
       setSessionName(`${className} - ${new Date().toLocaleDateString()}`);
       
@@ -115,6 +137,7 @@ export function StartClassSessionFromPlan({ classId, className, onSessionStarted
   };
 
   const hasPlan = lessonPlan && lessonPlan.lesson_plan_students && lessonPlan.lesson_plan_students.length > 0;
+  const hasPreGeneratedExercises = lessonPlan?.exercises_data && lessonPlan.exercises_data.length > 0;
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -155,7 +178,13 @@ export function StartClassSessionFromPlan({ classId, className, onSessionStarted
               />
             </div>
             
-            <div className="bg-green-50 p-3 rounded-lg">
+            <div className={`p-3 rounded-lg ${hasPreGeneratedExercises ? 'bg-purple-50 border border-purple-200' : 'bg-green-50'}`}>
+              {hasPreGeneratedExercises && (
+                <div className="flex items-center gap-2 mb-2">
+                  <Sparkles className="h-4 w-4 text-purple-600" />
+                  <span className="text-sm font-medium text-purple-800">Pre-generated exercises ready!</span>
+                </div>
+              )}
               <p className="text-sm text-green-800 mb-2">
                 <strong>Using saved lesson plan:</strong>
               </p>
@@ -163,6 +192,11 @@ export function StartClassSessionFromPlan({ classId, className, onSessionStarted
                 <li>• {lessonPlan.lesson_plan_students.length} students will receive exercises</li>
                 <li>• Scheduled for {lessonPlan.scheduled_date} at {lessonPlan.scheduled_time}</li>
                 <li>• Created by {lessonPlan.teacher_name}</li>
+                {hasPreGeneratedExercises ? (
+                  <li>• <strong>Instant loading:</strong> Pre-generated exercises will be used</li>
+                ) : (
+                  <li>• Exercises will be generated when session starts</li>
+                )}
                 <li>• Students can access exercises during this session</li>
               </ul>
             </div>
