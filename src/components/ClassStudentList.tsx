@@ -1,3 +1,4 @@
+
 import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -73,12 +74,12 @@ function WeakestSkillCircle({ skillName, score, isTargetSkill = false }: { skill
   return (
     <div className="flex flex-col items-center w-24">
       <div 
-        className="relative w-10 h-10 mb-1 flex-shrink-0"
+        className="relative w-14 h-14 mb-1 flex-shrink-0"
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
         title={skillName || "Unknown Skill"} // Show full skill name on hover
       >
-        <svg className="w-10 h-10" viewBox="0 0 40 40">
+        <svg className="w-14 h-14" viewBox="0 0 56 56">
           <defs>
             <linearGradient id={gradientId} x1="0%" y1="0%" x2="100%" y2="100%">
               <stop offset="0%" stopColor={gradientColors.color1} />
@@ -87,9 +88,9 @@ function WeakestSkillCircle({ skillName, score, isTargetSkill = false }: { skill
             </linearGradient>
           </defs>
           <circle
-            cx="20"
-            cy="20"
-            r="16"
+            cx="28"
+            cy="28"
+            r="22"
             fill={`url(#${gradientId})`}
             style={{ 
               filter: isHovered ? 'brightness(1.1)' : 'brightness(1)',
@@ -102,7 +103,7 @@ function WeakestSkillCircle({ skillName, score, isTargetSkill = false }: { skill
         
         {/* Percentage in center */}
         <div className="absolute inset-0 flex items-center justify-center">
-          <span className="text-xs font-bold text-white drop-shadow-sm">
+          <span className="text-sm font-bold text-white drop-shadow-sm">
             {Math.round(score || 0)}%
           </span>
         </div>
@@ -218,8 +219,8 @@ function StudentCard({ student, classId, className, onEdit, targetSkill }: Stude
               />
             ) : (
               <div className="flex flex-col items-center w-24">
-                <div className="w-10 h-10 bg-gradient-to-br from-slate-100 to-slate-200 rounded-full flex items-center justify-center mb-1">
-                  <span className="text-xs font-bold text-slate-500">?</span>
+                <div className="w-14 h-14 bg-gradient-to-br from-slate-100 to-slate-200 rounded-full flex items-center justify-center mb-1">
+                  <span className="text-sm font-bold text-slate-500">?</span>
                 </div>
                 <div className="h-12 flex items-start justify-center">
                   <p className="text-xs text-slate-500 font-medium text-center">
