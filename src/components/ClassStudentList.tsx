@@ -24,7 +24,8 @@ function WeakestSkillCircle({ skillName, score }: { skillName: string; score: nu
   const [isHovered, setIsHovered] = useState(false);
   
   const getGradientColors = (score: number) => {
-    const percentage = score * 100;
+    // Treat score as already being a percentage (0-100)
+    const percentage = score;
     if (percentage >= 80) {
       return {
         color1: "#10b981", // emerald-500
@@ -92,10 +93,10 @@ function WeakestSkillCircle({ skillName, score }: { skillName: string; score: nu
           />
         </svg>
         
-        {/* Percentage in center */}
+        {/* Percentage in center - display score directly as it's already a percentage */}
         <div className="absolute inset-0 flex items-center justify-center">
           <span className="text-xs font-bold text-white drop-shadow-sm">
-            {Math.round(score * 100)}%
+            {Math.round(score)}%
           </span>
         </div>
       </div>
