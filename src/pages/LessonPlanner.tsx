@@ -1,13 +1,18 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, BookOpen } from "lucide-react";
+import { ArrowLeft, BookOpen, Plus } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
 export default function LessonPlanner() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const className = searchParams.get('class') || 'Unknown Class';
+
+  const handlePlanNextClass = () => {
+    console.log('Plan Next Class clicked - functionality coming soon');
+    // TODO: Implement lesson planning functionality
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50/30">
@@ -28,6 +33,18 @@ export default function LessonPlanner() {
             Lesson Planner
           </h1>
           <p className="text-lg text-slate-600 mt-2">Plan lessons for {className}</p>
+        </div>
+
+        {/* Plan Next Class Button */}
+        <div className="mb-8">
+          <Button 
+            onClick={handlePlanNextClass}
+            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 text-lg"
+            size="lg"
+          >
+            <Plus className="h-5 w-5" />
+            Plan your Next Class
+          </Button>
         </div>
 
         {/* Main Content */}
