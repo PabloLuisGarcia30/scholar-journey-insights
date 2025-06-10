@@ -2,12 +2,11 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { BookOpen, User, Lightbulb, Loader2 } from "lucide-react";
+import { User, TrendingDown } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { getAllActiveStudents, getActiveClassById } from "@/services/examService";
 import { useStudentProfileData } from "@/hooks/useStudentProfileData";
-import { supabase } from "@/integrations/supabase/client";
+import { getMasteryColor } from "@/utils/studentProfileUtils";
 import { useState } from "react";
 
 interface ClassStudentListProps {
@@ -22,10 +21,104 @@ interface StudentCardProps {
   className: string;
 }
 
-function StudentCard({ student, classId, className }: StudentCardProps) {
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [recommendation, setRecommendation] = useState<string>('');
+function WeakestSkillCircle({ skillName, score }: { skillName: string; score: number }) {
+  const [isHovered, setIsHovered] = useState(false);
   
+  const getGradientColors = (score: number) => {
+    const percentage = score * 100;
+    if (percentage >= 80) {
+      return {
+        color1: "#10b981", // emerald-500
+        color2: "#059669", // emerald-600
+        color3: "#047857"  // emerald-700
+      };
+    }
+    if (percentage >= 70) {
+      return {
+        color1: "#3b82f6", // blue-500
+        color2: "#2563eb", // blue-600
+        color3: "#1d4ed8"  // blue-700
+      };
+    }
+    if (percentage >= 60) {
+      return {
+        color1: "#eab308", // yellow-500
+        color2: "#f59e0b", // amber-500
+        color3: "#d97706"  // amber-600
+      };
+    }
+    if (percentage >= 50) {
+      return {
+        color1: "#f97316", // orange-500
+        color2: "#ea580c", // orange-600
+        color3: "#dc2626"  // red-600
+      };
+    }
+    return {
+      color1: "#ef4444", // red-500
+      color2: "#dc2626", // red-600
+      color3: "#b91c1c"  // red-700
+    };
+  };
+
+  const gradientColors = getGradientColors(score);
+  const gradientId = `gradient-weakest-skill-${Math.random().toString(36).substr(2, 9)}`;
+
+  return (
+    <div className="flex flex-col items-center">
+      <div 
+        className="relative w-16 h-16 mb-2"
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
+      >
+        <svg className="w-16 h-16" viewBox="0 0 64 64">
+          <defs>
+            <linearGradient id={gradientId} x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor={gradientColors.color1} />
+              <stop offset="50%" stopColor={gradientColors.color2} />
+              <stop offset="100%" stopColor={gradientColors.color3} />
+            </linearGradient>
+          </defs>
+          <circle
+            cx="32"
+            cy="32"
+            r="28"
+            fill={`url(#${gradientId})`}
+            style={{ 
+              filter: isHovered ? 'brightness(1.1)' : 'brightness(1)',
+              transform: isHovered ? 'scale(1.05)' : 'scale(1)',
+              transformOrigin: 'center',
+            }}
+            className="transition-all duration-300 ease-in-out"
+          />
+        </svg>
+        
+        {/* Percentage in center */}
+        <div className="absolute inset-0 flex items-center justify-center">
+          <span className="text-xs font-bold text-white drop-shadow-sm">
+            {Math.round(score * 100)}%
+          </span>
+        </div>
+      </div>
+
+      {/* Skill name and context */}
+      <div className="text-center max-w-[140px]">
+        <div className="flex items-center gap-1 justify-center mb-1">
+          <TrendingDown className="h-3 w-3 text-orange-600" />
+          <span className="text-xs font-medium text-orange-700">Weakest Skill</span>
+        </div>
+        <p className="text-xs text-slate-700 font-medium leading-tight">
+          {skillName}
+        </p>
+        <p className="text-xs text-slate-500 mt-1">
+          Needs attention
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function StudentCard({ student, classId, className }: StudentCardProps) {
   // Get student profile data to find weakest content skill
   const { contentSkillScores, contentSkillsLoading } = useStudentProfileData({
     studentId: student.id,
@@ -33,47 +126,10 @@ function StudentCard({ student, classId, className }: StudentCardProps) {
     className
   });
 
-  const generatePracticeRecommendation = async () => {
-    if (contentSkillsLoading || isGenerating) return;
-    
-    setIsGenerating(true);
-    
-    try {
-      // Find the weakest content skill
-      const weakestSkill = contentSkillScores
-        .filter(skill => skill.score < 0.8) // Focus on skills below 80%
-        .sort((a, b) => a.score - b.score)[0]; // Get the lowest scoring skill
-      
-      if (!weakestSkill) {
-        setRecommendation("Great job! This student is performing well across all content skills.");
-        setIsGenerating(false);
-        return;
-      }
-
-      // Call OpenAI to generate practice exercise recommendation
-      const { data, error } = await supabase.functions.invoke('generate-practice-recommendation', {
-        body: {
-          studentName: student.name,
-          className,
-          weakestSkill: weakestSkill.skill_name,
-          skillScore: weakestSkill.score,
-          grade: "Grade 10", // You can make this dynamic based on class data
-          subject: "Math" // You can make this dynamic based on class data
-        }
-      });
-
-      if (error) {
-        throw new Error(error.message);
-      }
-
-      setRecommendation(data.recommendation);
-    } catch (error) {
-      console.error('Error generating recommendation:', error);
-      setRecommendation("Unable to generate recommendation at this time. Please try again.");
-    } finally {
-      setIsGenerating(false);
-    }
-  };
+  // Find the weakest content skill
+  const weakestSkill = contentSkillScores
+    .filter(skill => skill.score < 0.8) // Focus on skills below 80%
+    .sort((a, b) => a.score - b.score)[0]; // Get the lowest scoring skill
 
   return (
     <Card className="group hover:shadow-lg transition-all duration-300 cursor-pointer border-0 bg-white/80 backdrop-blur-sm hover:bg-white hover:scale-[1.01]">
@@ -86,56 +142,46 @@ function StudentCard({ student, classId, className }: StudentCardProps) {
           </Avatar>
           
           <div className="flex-1 min-w-0">
-            <div className="flex items-center justify-between gap-4">
-              <div className="min-w-0 flex-1">
-                <h4 className="font-semibold text-slate-900 truncate group-hover:text-blue-700 transition-colors text-lg">
-                  {student.name}
-                </h4>
-                <p className="text-sm text-slate-500 truncate">{student.email || 'No email'}</p>
-                
-                <div className="flex flex-wrap gap-2 mt-2">
-                  {student.year && (
-                    <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200">
-                      {student.year}
-                    </Badge>
-                  )}
-                  {student.gpa && (
-                    <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">
-                      GPA: {Number(student.gpa).toFixed(1)}
-                    </Badge>
-                  )}
-                </div>
-
-                {/* Show recommendation if generated */}
-                {recommendation && (
-                  <div className="mt-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
-                    <h5 className="font-medium text-blue-900 mb-2 flex items-center gap-2">
-                      <Lightbulb className="h-4 w-4" />
-                      Practice Recommendation
-                    </h5>
-                    <p className="text-sm text-blue-800">{recommendation}</p>
-                  </div>
-                )}
-              </div>
-
-              <Button 
-                onClick={generatePracticeRecommendation}
-                disabled={isGenerating || contentSkillsLoading}
-                className="h-10 px-6 bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-2 flex-shrink-0"
-              >
-                {isGenerating ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Generating...
-                  </>
-                ) : (
-                  <>
-                    <Lightbulb className="h-4 w-4" />
-                    Recommend Practice
-                  </>
-                )}
-              </Button>
+            <h4 className="font-semibold text-slate-900 truncate group-hover:text-blue-700 transition-colors text-lg">
+              {student.name}
+            </h4>
+            <p className="text-sm text-slate-500 truncate">{student.email || 'No email'}</p>
+            
+            <div className="flex flex-wrap gap-2 mt-2">
+              {student.year && (
+                <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200">
+                  {student.year}
+                </Badge>
+              )}
+              {student.gpa && (
+                <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">
+                  GPA: {Number(student.gpa).toFixed(1)}
+                </Badge>
+              )}
             </div>
+          </div>
+
+          {/* Weakest Skill Circle - automatically displayed */}
+          <div className="flex-shrink-0">
+            {contentSkillsLoading ? (
+              <div className="w-16 h-16 flex items-center justify-center">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+              </div>
+            ) : weakestSkill ? (
+              <WeakestSkillCircle 
+                skillName={weakestSkill.skill_name}
+                score={weakestSkill.score}
+              />
+            ) : (
+              <div className="flex flex-col items-center w-16">
+                <div className="w-16 h-16 bg-gradient-to-br from-green-100 to-emerald-100 rounded-full flex items-center justify-center mb-2">
+                  <span className="text-xs font-bold text-emerald-700">✓</span>
+                </div>
+                <p className="text-xs text-emerald-700 font-medium text-center">
+                  All skills strong!
+                </p>
+              </div>
+            )}
           </div>
         </div>
       </CardContent>
@@ -190,10 +236,10 @@ export function ClassStudentList({ classId, className, onSelectStudent }: ClassS
     <div className="mt-6">
       <div className="mb-4">
         <h3 className="text-lg font-semibold text-slate-900 mb-1">
-          Generate Practice Recommendations
+          Student Skill Overview
         </h3>
         <p className="text-sm text-slate-600">
-          Get AI-powered practice exercise recommendations for students in {className} based on their weakest content skills
+          View each student's weakest content skill in {className} - automatically identified based on their performance
         </p>
       </div>
 
