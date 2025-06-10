@@ -118,16 +118,16 @@ function AppRoutes() {
 
 function App() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <TooltipProvider>
-          <Toaster />
-          <BrowserRouter>
+    <BrowserRouter>
+      <QueryClientProvider client={queryClient}>
+        <AuthProvider>
+          <TooltipProvider>
+            <Toaster />
             <AppRoutes />
-          </BrowserRouter>
-        </TooltipProvider>
-      </AuthProvider>
-    </QueryClientProvider>
+          </TooltipProvider>
+        </AuthProvider>
+      </QueryClientProvider>
+    </BrowserRouter>
   );
 }
 
