@@ -1,5 +1,6 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { Navigate, useNavigate } from "react-router-dom";
 import { StudentDashboard } from "@/components/StudentDashboard";
 import { StudentSearch } from "@/components/StudentSearch";
 import { LearnerProfileDisplay } from "@/components/LearnerProfileDisplay";
@@ -12,7 +13,6 @@ import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { useDevRole } from "@/contexts/DevRoleContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { DEV_CONFIG } from "@/config/devConfig";
-import { Navigate } from "react-router-dom";
 
 const Index = () => {
   const [selectedStudent, setSelectedStudent] = useState<string | null>(null);
@@ -20,11 +20,14 @@ const Index = () => {
   const [activeView, setActiveView] = useState<'dashboard' | 'search' | 'classes' | 'analytics' | 'portals' | 'student-lesson-tracker' | 'learner-profiles'>('dashboard');
   
   const { profile } = useAuth();
+  const navigate = useNavigate();
   
   // Get current role (dev or actual)
   let currentRole: 'teacher' | 'student' = 'teacher';
+  let isDevMode = false;
   try {
-    const { currentRole: devRole, isDevMode } = useDevRole();
+    const { currentRole: devRole, isDevMode: devModeFlag } = useDevRole();
+    isDevMode = devModeFlag;
     if (isDevMode) {
       currentRole = devRole;
     } else if (profile?.role) {
@@ -34,8 +37,15 @@ const Index = () => {
     currentRole = profile?.role || 'teacher';
   }
 
-  // If in student view, redirect to student dashboard
-  if (currentRole === 'student') {
+  // Navigate to student dashboard when role changes to student
+  useEffect(() => {
+    if (isDevMode && currentRole === 'student') {
+      navigate('/student-dashboard');
+    }
+  }, [currentRole, isDevMode, navigate]);
+
+  // If in student view (non-dev mode), redirect to student dashboard
+  if (!isDevMode && currentRole === 'student') {
     return <Navigate to="/student-dashboard" replace />;
   }
 

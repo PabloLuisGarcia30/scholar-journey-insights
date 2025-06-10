@@ -1,4 +1,3 @@
-
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -24,11 +23,14 @@ import {
   Award
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
+import { useNavigate } from "react-router-dom";
+import { useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { TailoredExercises } from "@/components/TailoredExercises";
 import { DashboardHeader } from "@/components/DashboardHeader";
 import { RoleToggle } from "@/components/RoleToggle";
 import { useAuth } from "@/contexts/AuthContext";
+import { useDevRole } from "@/contexts/DevRoleContext";
 
 interface StudentProfile {
   id: string;
@@ -76,6 +78,15 @@ const mockLearningGoals = [
 
 export default function StudentDashboard() {
   const { user, loading } = useAuth();
+  const { currentRole, isDevMode } = useDevRole();
+  const navigate = useNavigate();
+
+  // Navigate to teacher dashboard when role changes to teacher
+  useEffect(() => {
+    if (isDevMode && currentRole === 'teacher') {
+      navigate('/');
+    }
+  }, [currentRole, isDevMode, navigate]);
 
   // Use Pablo's profile data for testing
   const studentProfile = testStudentProfile;
