@@ -1,27 +1,86 @@
+
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { BookOpen, GraduationCap, LineChart, User } from "lucide-react";
-import { useUser } from "@supabase/auth-helpers-react";
 import { useQuery } from "@tanstack/react-query";
-import { getStudentProfile } from "@/services/examService";
+import { supabase } from "@/integrations/supabase/client";
+import { useState, useEffect } from "react";
 import { TailoredExercises } from "@/components/TailoredExercises";
 
+interface StudentProfile {
+  id: string;
+  name: string;
+  email?: string;
+  major?: string;
+  year?: string;
+}
+
 export default function StudentDashboard() {
-  const { isLoading, error, data: user } = useUser();
+  const [user, setUser] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    // Get current user
+    const getUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      setUser(user);
+      setLoading(false);
+    };
+
+    getUser();
+
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        setUser(session?.user ?? null);
+        setLoading(false);
+      }
+    );
+
+    return () => subscription.unsubscribe();
+  }, []);
 
   const { data: studentProfile, isLoading: profileLoading } = useQuery({
     queryKey: ['studentProfile', user?.id],
-    queryFn: () => getStudentProfile(user?.id),
+    queryFn: async () => {
+      if (!user?.id) return null;
+      
+      // Try to get from active_students first
+      const { data: activeStudent } = await supabase
+        .from('active_students')
+        .select('*')
+        .eq('id', user.id)
+        .maybeSingle();
+
+      if (activeStudent) {
+        return {
+          id: activeStudent.id,
+          name: activeStudent.name,
+          email: activeStudent.email,
+          major: activeStudent.major,
+          year: activeStudent.year
+        };
+      }
+
+      // Fallback to user email if no profile found
+      return {
+        id: user.id,
+        name: user.email?.split('@')[0] || 'Student',
+        email: user.email,
+        major: 'Unknown',
+        year: 'Unknown'
+      };
+    },
     enabled: !!user?.id,
   });
 
-  if (isLoading) {
+  if (loading) {
     return <div>Loading...</div>;
   }
 
-  if (error) {
-    return <div>Error: {error.message}</div>;
+  if (!user) {
+    return <div>Please log in to access your dashboard.</div>;
   }
 
   return (
