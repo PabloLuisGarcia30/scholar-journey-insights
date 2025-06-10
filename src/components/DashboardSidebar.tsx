@@ -1,6 +1,10 @@
 
-import { BarChart3, Users, GraduationCap, Calendar, Brain, Home } from "lucide-react";
+import { BarChart3, Users, GraduationCap, Calendar, Brain, Home, ToggleLeft, ToggleRight, User, LogOut } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
+import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { useAuth } from "@/contexts/AuthContext";
 import {
   Sidebar,
   SidebarContent,
@@ -10,6 +14,8 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarHeader,
+  SidebarFooter,
 } from "@/components/ui/sidebar";
 
 interface DashboardSidebarProps {
@@ -19,8 +25,17 @@ interface DashboardSidebarProps {
 
 export function DashboardSidebar({ activeView, onViewChange }: DashboardSidebarProps) {
   const location = useLocation();
+  const { user, profile, signOut } = useAuth();
+  const [devMode, setDevMode] = useState<'teacher' | 'student'>('teacher');
 
-  const navigationItems = [
+  // If user is not authenticated, don't show the sidebar
+  if (!user) {
+    return null;
+  }
+
+  const isTeacherView = devMode === 'teacher';
+
+  const teacherNavigationItems = [
     {
       title: "Dashboard",
       icon: Home,
@@ -59,6 +74,33 @@ export function DashboardSidebar({ activeView, onViewChange }: DashboardSidebarP
     }
   ];
 
+  const studentNavigationItems = [
+    {
+      title: "My Dashboard",
+      href: "/student-dashboard",
+      icon: Home,
+      isActive: location.pathname === '/student-dashboard'
+    },
+    {
+      title: "My Assignments",
+      href: "/student-assignments",
+      icon: Calendar,
+      isActive: location.pathname === '/student-assignments'
+    },
+    {
+      title: "My Progress",
+      href: "/student-progress",
+      icon: BarChart3,
+      isActive: location.pathname === '/student-progress'
+    },
+    {
+      title: "Learning Profile",
+      href: "/student-learner-profile",
+      icon: Brain,
+      isActive: location.pathname === '/student-learner-profile'
+    }
+  ];
+
   const externalLinks = [
     {
       title: "Test Creator",
@@ -82,11 +124,69 @@ export function DashboardSidebar({ activeView, onViewChange }: DashboardSidebarP
     }
   ];
 
+  const navigationItems = isTeacherView ? teacherNavigationItems : studentNavigationItems;
+
   return (
     <Sidebar className="border-r bg-white">
+      <SidebarHeader className="p-4 border-b">
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <GraduationCap className="h-6 w-6 text-blue-600" />
+              <span className="font-semibold text-slate-900">EduPlatform</span>
+            </div>
+          </div>
+          
+          {/* Development Toggle */}
+          <div className="bg-slate-50 rounded-lg p-3 space-y-2">
+            <div className="flex items-center justify-between text-xs text-slate-600">
+              <span>Dev Mode</span>
+              <Badge variant="outline" className="text-xs">
+                {profile?.role || 'student'}
+              </Badge>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant={devMode === 'teacher' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setDevMode('teacher')}
+                className="flex-1 text-xs h-8"
+              >
+                <GraduationCap className="h-3 w-3 mr-1" />
+                Teacher
+              </Button>
+              <Button
+                variant={devMode === 'student' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setDevMode('student')}
+                className="flex-1 text-xs h-8"
+              >
+                <User className="h-3 w-3 mr-1" />
+                Student
+              </Button>
+            </div>
+          </div>
+
+          {/* User Info */}
+          <div className="flex items-center gap-3 p-2 bg-blue-50 rounded-lg">
+            <div className="w-8 h-8 bg-blue-200 rounded-full flex items-center justify-center">
+              <User className="h-4 w-4 text-blue-700" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-slate-900 truncate">
+                {profile?.full_name || 'User'}
+              </p>
+              <p className="text-xs text-slate-600">{profile?.email}</p>
+            </div>
+          </div>
+        </div>
+      </SidebarHeader>
+
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel>Main Navigation</SidebarGroupLabel>
+          <SidebarGroupLabel>
+            {isTeacherView ? 'Teacher Navigation' : 'Student Navigation'}
+          </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {navigationItems.map((item) => (
@@ -120,29 +220,42 @@ export function DashboardSidebar({ activeView, onViewChange }: DashboardSidebarP
           </SidebarGroupContent>
         </SidebarGroup>
 
-        <SidebarGroup>
-          <SidebarGroupLabel>Tools & Features</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {externalLinks.map((link) => (
-                <SidebarMenuItem key={link.title}>
-                  <SidebarMenuButton asChild>
-                    <Link 
-                      to={link.href}
-                      className={`w-full justify-start ${
-                        location.pathname === link.href ? 'bg-accent text-accent-foreground' : ''
-                      }`}
-                    >
-                      <div className="mr-2 h-4 w-4" />
-                      {link.title}
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+        {isTeacherView && (
+          <SidebarGroup>
+            <SidebarGroupLabel>Tools & Features</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {externalLinks.map((link) => (
+                  <SidebarMenuItem key={link.title}>
+                    <SidebarMenuButton asChild>
+                      <Link 
+                        to={link.href}
+                        className={`w-full justify-start ${
+                          location.pathname === link.href ? 'bg-accent text-accent-foreground' : ''
+                        }`}
+                      >
+                        <div className="mr-2 h-4 w-4" />
+                        {link.title}
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
       </SidebarContent>
+
+      <SidebarFooter className="p-4 border-t">
+        <Button 
+          variant="outline" 
+          onClick={signOut}
+          className="w-full justify-start"
+        >
+          <LogOut className="mr-2 h-4 w-4" />
+          Sign Out
+        </Button>
+      </SidebarFooter>
     </Sidebar>
   );
 }
