@@ -3,7 +3,7 @@ import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Bell, BookOpen, TrendingUp, User, Calendar, Clock, Users, GraduationCap } from "lucide-react";
+import { Bell, BookOpen, TrendingUp, User, Calendar, Clock, Users, GraduationCap, Target } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { DevRoleToggle } from "@/components/DevRoleToggle";
 import { useDevRole } from "@/contexts/DevRoleContext";
@@ -24,6 +24,8 @@ export default function StudentDashboard() {
   const [classes, setClasses] = useState<ActiveClass[]>([]);
   const [selectedClass, setSelectedClass] = useState<string | null>(null);
   const [loadingClasses, setLoadingClasses] = useState(true);
+  const [contentSkills, setContentSkills] = useState<any[]>([]);
+  const [loadingSkills, setLoadingSkills] = useState(false);
   
   const [notifications] = useState([
     {
@@ -80,6 +82,12 @@ export default function StudentDashboard() {
     loadClasses();
   }, []);
 
+  useEffect(() => {
+    if (selectedClass && profile?.id) {
+      loadContentSkills(selectedClass);
+    }
+  }, [selectedClass, profile?.id]);
+
   const loadClasses = async () => {
     try {
       setLoadingClasses(true);
@@ -97,6 +105,50 @@ export default function StudentDashboard() {
     } finally {
       setLoadingClasses(false);
     }
+  };
+
+  const loadContentSkills = async (classId: string) => {
+    try {
+      setLoadingSkills(true);
+      console.log('Loading content skills for class:', classId, 'student:', profile?.id);
+      
+      // Get student's content skill scores
+      const studentSkills = await getStudentContentSkillScores(profile?.id || '');
+      console.log('Student content skills:', studentSkills);
+      
+      // Get all content skills linked to this class
+      const classSkills = await getLinkedContentSkillsForClass(classId);
+      console.log('Class content skills:', classSkills);
+      
+      // Merge and find lowest scores
+      const mergedSkills = classSkills.map(classSkill => {
+        const studentSkill = studentSkills.find(s => s.skill_name === classSkill.skill_name);
+        return {
+          ...classSkill,
+          score: studentSkill?.score || 0,
+          points_earned: studentSkill?.points_earned || 0,
+          points_possible: studentSkill?.points_possible || 0
+        };
+      });
+      
+      // Sort by score (lowest first) and take top 5
+      const lowestSkills = mergedSkills
+        .sort((a, b) => a.score - b.score)
+        .slice(0, 5);
+      
+      setContentSkills(lowestSkills);
+    } catch (error) {
+      console.error('Error loading content skills:', error);
+      toast.error('Failed to load content skills');
+      setContentSkills([]);
+    } finally {
+      setLoadingSkills(false);
+    }
+  };
+
+  const handleClassSelect = (classId: string) => {
+    console.log('Class selected:', classId);
+    setSelectedClass(selectedClass === classId ? null : classId);
   };
 
   // CONDITIONAL LOGIC AND EARLY RETURNS MUST COME AFTER ALL HOOKS
@@ -132,6 +184,14 @@ export default function StudentDashboard() {
       default: return 'bg-gray-500';
     }
   };
+
+  const getScoreColor = (score: number) => {
+    if (score >= 80) return 'text-green-600';
+    if (score >= 60) return 'text-yellow-600';
+    return 'text-red-600';
+  };
+
+  const selectedClassData = selectedClass ? classes.find(cls => cls.id === selectedClass) : null;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50/30">
@@ -240,7 +300,7 @@ export default function StudentDashboard() {
                           ? 'border-blue-500 bg-blue-50/50 shadow-md'
                           : 'border-gray-200 bg-white hover:border-gray-300'
                       }`}
-                      onClick={() => setSelectedClass(selectedClass === cls.id ? null : cls.id)}
+                      onClick={() => handleClassSelect(cls.id)}
                     >
                       <div className="flex items-start justify-between mb-4">
                         <div className={`w-12 h-12 rounded-lg ${getSubjectColor(cls.subject)} flex items-center justify-center`}>
@@ -264,14 +324,6 @@ export default function StudentDashboard() {
                           <span>{cls.teacher}</span>
                         </div>
                       </div>
-                      
-                      {selectedClass === cls.id && (
-                        <div className="mt-4 pt-4 border-t border-gray-200">
-                          <Button size="sm" className="w-full">
-                            View Class Details
-                          </Button>
-                        </div>
-                      )}
                     </div>
                   ))}
                 </div>
@@ -285,6 +337,63 @@ export default function StudentDashboard() {
             </CardContent>
           </Card>
         </div>
+
+        {/* Selected Class Skills Section */}
+        {selectedClass && selectedClassData && (
+          <div className="mb-8">
+            <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-sm">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Target className="h-5 w-5" />
+                  Let's work on some skills today!
+                </CardTitle>
+                <p className="text-sm text-slate-600">
+                  Focus areas for {selectedClassData.name} - {selectedClassData.subject}
+                </p>
+              </CardHeader>
+              <CardContent>
+                {loadingSkills ? (
+                  <div className="flex items-center justify-center py-8">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                    <span className="ml-3 text-slate-600">Loading skills...</span>
+                  </div>
+                ) : contentSkills.length > 0 ? (
+                  <div className="space-y-4">
+                    <h4 className="font-medium text-slate-700 mb-3">Top 5 Skills to Improve:</h4>
+                    {contentSkills.map((skill, index) => (
+                      <div key={skill.id || index} className="p-4 rounded-lg border bg-white/50">
+                        <div className="flex items-center justify-between mb-2">
+                          <h5 className="font-medium text-slate-900">{skill.skill_name}</h5>
+                          <div className="flex items-center gap-2">
+                            <span className={`text-sm font-semibold ${getScoreColor(skill.score)}`}>
+                              {skill.score.toFixed(1)}%
+                            </span>
+                            <Badge variant="outline" className="text-xs">
+                              {skill.points_earned || 0}/{skill.points_possible || 0} points
+                            </Badge>
+                          </div>
+                        </div>
+                        <p className="text-sm text-slate-600 mb-3">{skill.skill_description}</p>
+                        <div className="w-full bg-gray-200 rounded-full h-2">
+                          <div 
+                            className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                            style={{ width: `${Math.max(skill.score, 5)}%` }}
+                          ></div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-8">
+                    <Target className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">No skill data available</h3>
+                    <p className="text-gray-600">Complete some assignments to see your skill progress!</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Assignments */}
