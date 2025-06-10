@@ -153,15 +153,16 @@ export function SaveLessonPlan({ classId, className, classData, students, onLess
     const completedExercises: StudentExercise[] = [];
     
     try {
-      // Generate one multi-skill exercise per student
-      for (let i = 0; i < studentGroups.length; i++) {
-        const studentGroup = studentGroups[i];
-        
-        // Update student status to generating
-        setExerciseResults(prev => prev.map((result, index) => 
-          index === i ? { ...result, status: 'generating' } : result
-        ));
+      console.log(`🚀 Starting parallel exercise generation for ${studentGroups.length} students`);
+      
+      // Update all students to generating status
+      setExerciseResults(prev => prev.map(result => ({ 
+        ...result, 
+        status: 'generating' 
+      })));
 
+      // **PARALLEL PROCESSING**: Generate exercises for all students simultaneously
+      const exercisePromises = studentGroups.map(async (studentGroup, index) => {
         try {
           const exerciseData = await generateExerciseForStudent(studentGroup);
           
@@ -175,12 +176,15 @@ export function SaveLessonPlan({ classId, className, classData, students, onLess
             exerciseData: exerciseData
           };
           
-          completedExercises.push(studentExercise);
-          
-          // Update student status to completed
-          setExerciseResults(prev => prev.map((result, index) => 
-            index === i ? { ...result, status: 'completed', exercise: studentExercise } : result
+          // Update individual student status to completed immediately
+          setExerciseResults(prev => prev.map(result => 
+            result.studentId === studentGroup.studentId 
+              ? { ...result, status: 'completed', exercise: studentExercise }
+              : result
           ));
+          
+          console.log(`✅ Successfully generated practice test for student: ${studentGroup.studentName}`);
+          return { success: true, exercise: studentExercise, studentId: studentGroup.studentId };
           
         } catch (error) {
           const errorMessage = error instanceof Error ? error.message : 'Unknown error';
@@ -188,19 +192,32 @@ export function SaveLessonPlan({ classId, className, classData, students, onLess
                              errorMessage.includes('server had an error') ||
                              errorMessage.includes('rate limit');
           
-          // Update student status to failed
-          setExerciseResults(prev => prev.map((result, index) => 
-            index === i ? { 
-              ...result, 
-              status: 'failed', 
-              error: errorMessage,
-              retryable: isRetryable
-            } : result
+          // Update individual student status to failed immediately
+          setExerciseResults(prev => prev.map(result => 
+            result.studentId === studentGroup.studentId 
+              ? { 
+                  ...result, 
+                  status: 'failed', 
+                  error: errorMessage,
+                  retryable: isRetryable
+                }
+              : result
           ));
           
-          console.error(`Failed to generate exercise for student ${studentGroup.studentName}:`, error);
+          console.error(`❌ Failed to generate exercise for student ${studentGroup.studentName}:`, error);
+          return { success: false, error: errorMessage, studentId: studentGroup.studentId };
         }
-      }
+      });
+
+      // Wait for all parallel operations to complete
+      const results = await Promise.allSettled(exercisePromises);
+      
+      // Process results and collect successful exercises
+      results.forEach((result, index) => {
+        if (result.status === 'fulfilled' && result.value.success) {
+          completedExercises.push(result.value.exercise);
+        }
+      });
 
       if (completedExercises.length > 0) {
         setGeneratedExercises(completedExercises);
@@ -218,7 +235,7 @@ export function SaveLessonPlan({ classId, className, classData, students, onLess
         setStep('basic');
       }
     } catch (error) {
-      console.error('Error generating exercises:', error);
+      console.error('Error in parallel exercise generation:', error);
       toast.error('Failed to generate exercises. Please try again.');
       setStep('basic');
     }
@@ -231,20 +248,23 @@ export function SaveLessonPlan({ classId, className, classData, students, onLess
       return;
     }
 
+    console.log(`🔄 Retrying ${failedResults.length} failed exercises in parallel`);
+
     // Process students with all their skills for retries
     const studentGroups = processStudentsWithAllSkills(students);
+    const failedStudentGroups = studentGroups.filter(group => 
+      failedResults.some(failed => failed.studentId === group.studentId)
+    );
     
-    for (const failedResult of failedResults) {
-      const studentGroup = studentGroups.find(group => group.studentId === failedResult.studentId);
-      if (!studentGroup) continue;
-      
-      const resultIndex = exerciseResults.findIndex(r => r.studentId === failedResult.studentId);
+    // Update failed students to generating status
+    setExerciseResults(prev => prev.map(result => 
+      failedResults.some(failed => failed.studentId === result.studentId)
+        ? { ...result, status: 'generating', error: undefined }
+        : result
+    ));
 
-      // Update student status to generating
-      setExerciseResults(prev => prev.map((result, index) => 
-        index === resultIndex ? { ...result, status: 'generating', error: undefined } : result
-      ));
-
+    // **PARALLEL RETRY**: Retry all failed exercises simultaneously
+    const retryPromises = failedStudentGroups.map(async (studentGroup) => {
       try {
         const exerciseData = await generateExerciseForStudent(studentGroup);
         
@@ -259,12 +279,17 @@ export function SaveLessonPlan({ classId, className, classData, students, onLess
         };
         
         // Update student status to completed
-        setExerciseResults(prev => prev.map((result, index) => 
-          index === resultIndex ? { ...result, status: 'completed', exercise: studentExercise } : result
+        setExerciseResults(prev => prev.map(result => 
+          result.studentId === studentGroup.studentId
+            ? { ...result, status: 'completed', exercise: studentExercise }
+            : result
         ));
         
         // Add to generated exercises
         setGeneratedExercises(prev => [...prev, studentExercise]);
+        
+        console.log(`✅ Successfully retried exercise for student: ${studentGroup.studentName}`);
+        return { success: true, studentId: studentGroup.studentId };
         
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
@@ -272,16 +297,24 @@ export function SaveLessonPlan({ classId, className, classData, students, onLess
                            errorMessage.includes('server had an error');
         
         // Update student status to failed
-        setExerciseResults(prev => prev.map((result, index) => 
-          index === resultIndex ? { 
-            ...result, 
-            status: 'failed', 
-            error: errorMessage,
-            retryable: isRetryable
-          } : result
+        setExerciseResults(prev => prev.map(result => 
+          result.studentId === studentGroup.studentId
+            ? { 
+                ...result, 
+                status: 'failed', 
+                error: errorMessage,
+                retryable: isRetryable
+              }
+            : result
         ));
+        
+        console.error(`❌ Retry failed for student ${studentGroup.studentName}:`, error);
+        return { success: false, studentId: studentGroup.studentId };
       }
-    }
+    });
+
+    // Wait for all retry operations to complete
+    await Promise.allSettled(retryPromises);
   };
 
   const handleSaveLessonPlan = async (exercisesToSave?: StudentExercise[]) => {
@@ -547,7 +580,7 @@ export function SaveLessonPlan({ classId, className, classData, students, onLess
           <ul className="text-xs text-blue-700 space-y-1">
             <li>• {students.length} students across {skillGroups.length} unique skills</li>
             <li>• {questionCount} questions per exercise (skill-based generation)</li>
-            <li>• Efficient generation: {students.length} API calls instead of {students.length}</li>
+            <li>• Parallel generation: All exercises generated simultaneously</li>
             <li>• Ready to use for starting class sessions</li>
             {nextClassInfo && (
               <li>• Scheduled for {nextClassInfo.formattedDate} at {nextClassInfo.formattedTime}</li>
