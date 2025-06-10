@@ -8,6 +8,7 @@ import Auth from "./pages/Auth";
 import StudentDashboard from "./pages/StudentDashboard";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import { DevRoleProvider, useDevRole } from "./contexts/DevRoleContext";
+import { MultiSkillSelectionProvider } from "./contexts/MultiSkillSelectionContext";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import NotFound from "./pages/NotFound";
 import TestCreator from "./pages/TestCreator";
@@ -158,10 +159,12 @@ function App() {
       <QueryClientProvider client={queryClient}>
         <DevRoleProvider>
           <AuthProvider>
-            <TooltipProvider>
-              <Toaster />
-              <AppRoutes />
-            </TooltipProvider>
+            <MultiSkillSelectionProvider>
+              <TooltipProvider>
+                <Toaster />
+                <AppRoutes />
+              </TooltipProvider>
+            </MultiSkillSelectionProvider>
           </AuthProvider>
         </DevRoleProvider>
       </QueryClientProvider>
