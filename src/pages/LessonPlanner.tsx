@@ -38,7 +38,7 @@ export default function LessonPlanner() {
 
         {/* Plan Next Class Button and Calendar */}
         <div className="mb-8">
-          <div className="flex flex-col lg:flex-row gap-6 items-start">
+          <div className="flex flex-col lg:flex-row gap-6 items-start lg:items-center">
             {/* Plan Next Class Button */}
             <div className="flex-shrink-0">
               <Button 
