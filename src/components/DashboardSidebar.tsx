@@ -1,8 +1,10 @@
+
 import { BarChart3, Users, GraduationCap, Calendar, Brain, Home, User, LogOut } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
 import { useDevRole } from "@/contexts/DevRoleContext";
+import { RoleToggle } from "@/components/RoleToggle";
 import { DEV_CONFIG } from "@/config/devConfig";
 import {
   Sidebar,
@@ -153,6 +155,9 @@ export function DashboardSidebar({ activeView, onViewChange }: DashboardSidebarP
             <GraduationCap className="h-6 w-6 text-blue-600" />
             <span className="font-semibold text-slate-900">EduPlatform</span>
           </div>
+
+          {/* Role Toggle */}
+          <RoleToggle />
 
           {/* User Info */}
           <div className="flex items-center gap-3 p-2 bg-blue-50 rounded-lg">
