@@ -64,12 +64,15 @@ export function StartClassSessionFromPlan({ classId, className, onSessionStarted
         session_name: sessionName
       });
 
-      // Check if lesson plan has pre-generated exercises
-      if (lessonPlan.exercises_data && lessonPlan.exercises_data.length > 0) {
+      // Check if lesson plan has pre-generated exercises (with proper type checking)
+      const exercisesData = lessonPlan.exercises_data;
+      const isExercisesArray = Array.isArray(exercisesData);
+      
+      if (isExercisesArray && exercisesData.length > 0) {
         console.log('Using pre-generated exercises from lesson plan');
         
         // Use pre-generated exercises
-        const exercisesToCreate = lessonPlan.exercises_data.map((exercise: any) => ({
+        const exercisesToCreate = exercisesData.map((exercise: any) => ({
           class_session_id: session.id,
           student_id: exercise.studentId,
           student_name: exercise.studentName,
@@ -137,7 +140,8 @@ export function StartClassSessionFromPlan({ classId, className, onSessionStarted
   };
 
   const hasPlan = lessonPlan && lessonPlan.lesson_plan_students && lessonPlan.lesson_plan_students.length > 0;
-  const hasPreGeneratedExercises = lessonPlan?.exercises_data && lessonPlan.exercises_data.length > 0;
+  const exercisesData = lessonPlan?.exercises_data;
+  const hasPreGeneratedExercises = Array.isArray(exercisesData) && exercisesData.length > 0;
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
