@@ -20,10 +20,10 @@ export function RoleToggle() {
   };
 
   return (
-    <div className="flex items-center justify-between gap-4 p-3 bg-blue-50 rounded-lg border min-w-fit">
-      <div className="flex items-center gap-2 whitespace-nowrap">
-        <GraduationCap className="h-4 w-4 text-blue-600 flex-shrink-0" />
-        <Label htmlFor="role-toggle" className="text-sm font-medium">
+    <div className="flex items-center justify-between gap-4 p-4 bg-blue-50 rounded-lg border min-w-[280px] w-full">
+      <div className="flex items-center gap-3 whitespace-nowrap flex-shrink-0">
+        <GraduationCap className="h-5 w-5 text-blue-600" />
+        <Label htmlFor="role-toggle" className="text-sm font-medium cursor-pointer">
           Teacher
         </Label>
       </div>
@@ -32,14 +32,14 @@ export function RoleToggle() {
         id="role-toggle"
         checked={isStudent}
         onCheckedChange={handleToggle}
-        className="flex-shrink-0"
+        className="flex-shrink-0 mx-2"
       />
       
-      <div className="flex items-center gap-2 whitespace-nowrap">
-        <Label htmlFor="role-toggle" className="text-sm font-medium">
+      <div className="flex items-center gap-3 whitespace-nowrap flex-shrink-0">
+        <Label htmlFor="role-toggle" className="text-sm font-medium cursor-pointer">
           Student
         </Label>
-        <User className="h-4 w-4 text-green-600 flex-shrink-0" />
+        <User className="h-5 w-5 text-green-600" />
       </div>
     </div>
   );
