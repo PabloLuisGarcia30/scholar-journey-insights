@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, TrendingUp, MessageSquare } from "lucide-react";
+import { ArrowLeft, TrendingUp, MessageSquare, Target, BookOpen, Clock } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useStudentProfileData } from "@/hooks/useStudentProfileData";
 import { useSkillData } from "@/hooks/useSkillData";
@@ -56,6 +56,15 @@ const StudentClassScores = () => {
     isGrade10ScienceClass
   });
 
+  // Get lowest scoring skills for recommendations
+  const getLowestScoringSkills = () => {
+    const allSkills = Object.values(groupedSkills).flat();
+    return allSkills
+      .filter(skill => skill.score < 80)
+      .sort((a, b) => a.score - b.score)
+      .slice(0, 3);
+  };
+
   if (classLoading || !currentClass) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-green-50 to-blue-50/30">
@@ -81,6 +90,8 @@ const StudentClassScores = () => {
     testResults,
     groupedSkills
   };
+
+  const lowestScoringSkills = getLowestScoringSkills();
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 to-blue-50/30">
@@ -112,6 +123,70 @@ const StudentClassScores = () => {
           </CardHeader>
           <CardContent>
             <AIChatbox studentContext={studentContext} />
+          </CardContent>
+        </Card>
+
+        {/* Recommended Exercises Section */}
+        <Card className="mb-8">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Target className="h-5 w-5 text-green-600" />
+              We recommend you work on these exercises today... If you want to reach your goals!
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {lowestScoringSkills.length > 0 ? (
+              <div className="grid gap-4">
+                {lowestScoringSkills.map((skill, index) => (
+                  <div key={skill.id || index} className="p-4 rounded-lg border border-gray-100 bg-gradient-to-r from-green-50 to-blue-50 hover:shadow-md transition-all">
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-2">
+                        <span className="bg-green-600 text-white text-xs font-bold px-2 py-1 rounded-full">
+                          #{index + 1}
+                        </span>
+                        <h4 className="font-semibold text-gray-900">{skill.skill_name}</h4>
+                      </div>
+                      <Badge className={getGradeColor(skill.score)}>
+                        {skill.score}%
+                      </Badge>
+                    </div>
+                    
+                    <div className="w-full bg-gray-200 rounded-full h-2 mb-3">
+                      <div 
+                        className="bg-green-600 h-2 rounded-full transition-all duration-500"
+                        style={{ width: `${skill.score}%` }}
+                      ></div>
+                    </div>
+                    
+                    <div className="flex items-center justify-between text-sm text-gray-600">
+                      <div className="flex items-center gap-4">
+                        <span>{skill.points_earned}/{skill.points_possible} points earned</span>
+                        <div className="flex items-center gap-1">
+                          <BookOpen className="h-3 w-3" />
+                          <span>Focus Area</span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <Clock className="h-3 w-3" />
+                        <span>15-20 min practice</span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+                
+                <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                  <p className="text-sm text-blue-800 text-center">
+                    💡 <strong>Pro tip:</strong> Focus on your lowest scoring skills first for maximum improvement impact!
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className="text-center py-8">
+                <Target className="h-12 w-12 text-green-400 mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-gray-900 mb-2">Excellent work!</h3>
+                <p className="text-gray-600">All your skills are performing well. Keep up the great work!</p>
+              </div>
+            )}
           </CardContent>
         </Card>
 
