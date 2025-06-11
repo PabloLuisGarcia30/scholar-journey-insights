@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -13,6 +12,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Plus, Clock } from "lucide-react";
 
 interface CreateClassDialogProps {
@@ -21,7 +21,7 @@ interface CreateClassDialogProps {
     subject: string;
     grade: string;
     teacher: string;
-    dayOfWeek?: string;
+    dayOfWeek?: string[];
     classTime?: string;
     endTime?: string;
   }) => void;
@@ -34,7 +34,7 @@ export function CreateClassDialog({ onCreateClass }: CreateClassDialogProps) {
     subject: '',
     grade: '',
     teacher: '',
-    dayOfWeek: '',
+    dayOfWeek: [] as string[],
     classTime: '',
     endTime: ''
   });
@@ -42,6 +42,7 @@ export function CreateClassDialog({ onCreateClass }: CreateClassDialogProps) {
   const subjects = ['Math', 'Science', 'English', 'History', 'Geography', 'Art', 'Music', 'Physical Education'];
   const grades = ['Kindergarten', 'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6', 'Grade 7', 'Grade 8', 'Grade 9', 'Grade 10', 'Grade 11', 'Grade 12'];
   const daysOfWeek = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+  const weekdaysOnly = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
 
   // Common class time presets
   const timePresets = [
@@ -93,6 +94,37 @@ export function CreateClassDialog({ onCreateClass }: CreateClassDialogProps) {
     }));
   };
 
+  const handleDayToggle = (day: string, checked: boolean) => {
+    setFormData(prev => ({
+      ...prev,
+      dayOfWeek: checked 
+        ? [...prev.dayOfWeek, day]
+        : prev.dayOfWeek.filter(d => d !== day)
+    }));
+  };
+
+  const handleSelectAllWeekdays = () => {
+    setFormData(prev => ({
+      ...prev,
+      dayOfWeek: [...weekdaysOnly]
+    }));
+  };
+
+  const handleClearAllDays = () => {
+    setFormData(prev => ({
+      ...prev,
+      dayOfWeek: []
+    }));
+  };
+
+  const formatSelectedDays = () => {
+    if (formData.dayOfWeek.length === 0) return '';
+    if (formData.dayOfWeek.length === 5 && weekdaysOnly.every(day => formData.dayOfWeek.includes(day))) {
+      return 'Weekdays';
+    }
+    return formData.dayOfWeek.map(day => day.slice(0, 3)).join(', ');
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (formData.name && formData.subject && formData.grade && formData.teacher) {
@@ -101,12 +133,12 @@ export function CreateClassDialog({ onCreateClass }: CreateClassDialogProps) {
         subject: formData.subject,
         grade: formData.grade,
         teacher: formData.teacher,
-        ...(formData.dayOfWeek && { dayOfWeek: formData.dayOfWeek }),
+        ...(formData.dayOfWeek.length > 0 && { dayOfWeek: formData.dayOfWeek }),
         ...(formData.classTime && { classTime: formData.classTime }),
         ...(formData.endTime && { endTime: formData.endTime })
       };
       onCreateClass(classData);
-      setFormData({ name: '', subject: '', grade: '', teacher: '', dayOfWeek: '', classTime: '', endTime: '' });
+      setFormData({ name: '', subject: '', grade: '', teacher: '', dayOfWeek: [], classTime: '', endTime: '' });
       setOpen(false);
     }
   };
@@ -119,7 +151,7 @@ export function CreateClassDialog({ onCreateClass }: CreateClassDialogProps) {
           New Class
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="sm:max-w-[600px]">
         <form onSubmit={handleSubmit}>
           <DialogHeader>
             <DialogTitle>Create New Class</DialogTitle>
@@ -184,20 +216,62 @@ export function CreateClassDialog({ onCreateClass }: CreateClassDialogProps) {
                 required
               />
             </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="dayOfWeek" className="text-right">
-                Day of Week
+            
+            {/* Enhanced Days of Week Selection */}
+            <div className="grid grid-cols-4 items-start gap-4">
+              <Label className="text-right pt-2">
+                Days of Week
               </Label>
-              <Select value={formData.dayOfWeek} onValueChange={(value) => setFormData({ ...formData, dayOfWeek: value })}>
-                <SelectTrigger className="col-span-3">
-                  <SelectValue placeholder="Select day (optional)" />
-                </SelectTrigger>
-                <SelectContent>
+              <div className="col-span-3 space-y-3">
+                <div className="flex flex-wrap gap-2 mb-3">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleSelectAllWeekdays}
+                    className="text-xs"
+                  >
+                    Select Weekdays
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleClearAllDays}
+                    className="text-xs"
+                  >
+                    Clear All
+                  </Button>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-3">
                   {daysOfWeek.map((day) => (
-                    <SelectItem key={day} value={day}>{day}</SelectItem>
+                    <div key={day} className="flex items-center space-x-2">
+                      <Checkbox
+                        id={day}
+                        checked={formData.dayOfWeek.includes(day)}
+                        onCheckedChange={(checked) => handleDayToggle(day, checked as boolean)}
+                      />
+                      <Label htmlFor={day} className="text-sm font-normal cursor-pointer">
+                        {day}
+                      </Label>
+                    </div>
                   ))}
-                </SelectContent>
-              </Select>
+                </div>
+                
+                {formData.dayOfWeek.length > 0 && (
+                  <div className="mt-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                    <p className="text-sm text-blue-700 font-medium">
+                      Class meets: {formatSelectedDays()}
+                      {formData.classTime && formData.endTime && (
+                        <span className="block mt-1">
+                          {formatTimeDisplay(formData.classTime)} - {formatTimeDisplay(formData.endTime)}
+                        </span>
+                      )}
+                    </p>
+                  </div>
+                )}
+              </div>
             </div>
             
             {/* Enhanced Start Time Selection */}

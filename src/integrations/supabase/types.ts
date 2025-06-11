@@ -14,7 +14,7 @@ export type Database = {
           avg_gpa: number | null
           class_time: string | null
           created_at: string
-          day_of_week: string | null
+          day_of_week: string[] | null
           end_time: string | null
           grade: string
           id: string
@@ -29,7 +29,7 @@ export type Database = {
           avg_gpa?: number | null
           class_time?: string | null
           created_at?: string
-          day_of_week?: string | null
+          day_of_week?: string[] | null
           end_time?: string | null
           grade: string
           id?: string
@@ -44,7 +44,7 @@ export type Database = {
           avg_gpa?: number | null
           class_time?: string | null
           created_at?: string
-          day_of_week?: string | null
+          day_of_week?: string[] | null
           end_time?: string | null
           grade?: string
           id?: string

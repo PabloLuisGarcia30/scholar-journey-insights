@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -68,7 +67,7 @@ export function ClassView({ onSelectStudent }: ClassViewProps) {
     }
   };
 
-  const handleCreateClass = async (classData: { name: string; subject: string; grade: string; teacher: string }) => {
+  const handleCreateClass = async (classData: { name: string; subject: string; grade: string; teacher: string; dayOfWeek?: string[]; classTime?: string; endTime?: string }) => {
     try {
       const newClass = await createActiveClass(classData);
       setClasses([...classes, newClass]);
@@ -169,6 +168,30 @@ export function ClassView({ onSelectStudent }: ClassViewProps) {
     onSelectStudent(studentId, classId, className);
   };
 
+  const formatClassSchedule = (classItem: ActiveClass) => {
+    if (!classItem.day_of_week || classItem.day_of_week.length === 0) {
+      return 'No schedule set';
+    }
+
+    const days = classItem.day_of_week.map(day => day.slice(0, 3)).join('/');
+    
+    if (classItem.class_time && classItem.end_time) {
+      const startTime = new Date(`2024-01-01 ${classItem.class_time}`).toLocaleTimeString('en-US', { 
+        hour: 'numeric', 
+        minute: '2-digit',
+        hour12: true 
+      });
+      const endTime = new Date(`2024-01-01 ${classItem.end_time}`).toLocaleTimeString('en-US', { 
+        hour: 'numeric', 
+        minute: '2-digit',
+        hour12: true 
+      });
+      return `${days} ${startTime}-${endTime}`;
+    }
+    
+    return days;
+  };
+
   const filteredClasses = classes.filter(cls => {
     const matchesSearch = cls.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          cls.teacher.toLowerCase().includes(searchTerm.toLowerCase());
@@ -208,6 +231,9 @@ export function ClassView({ onSelectStudent }: ClassViewProps) {
             <div>
               <h1 className="text-3xl font-bold text-gray-900">{classData.name}</h1>
               <p className="text-gray-600 mt-1">Teacher: {classData.teacher}</p>
+              {classData.day_of_week && classData.day_of_week.length > 0 && (
+                <p className="text-gray-600 mt-1">Schedule: {formatClassSchedule(classData)}</p>
+              )}
             </div>
             <div className="flex items-center gap-4">
               <AddStudentsDialog
@@ -393,6 +419,9 @@ export function ClassView({ onSelectStudent }: ClassViewProps) {
                 >
                   <h3 className="font-semibold text-lg text-gray-900">{classItem.name}</h3>
                   <p className="text-gray-600 text-sm">{classItem.teacher}</p>
+                  {classItem.day_of_week && classItem.day_of_week.length > 0 && (
+                    <p className="text-gray-500 text-xs mt-1">{formatClassSchedule(classItem)}</p>
+                  )}
                 </div>
                 <div className="flex items-center gap-2">
                   <Badge variant="outline">{classItem.grade}</Badge>

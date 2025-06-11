@@ -1,3 +1,4 @@
+
 import { supabase } from "@/integrations/supabase/client";
 import { StudentIdGenerationService } from "./studentIdGenerationService";
 import { calculateClassDuration, getClassDurationInMinutes, formatDurationShort, DurationInfo } from "@/utils/classDurationUtils";
@@ -47,7 +48,7 @@ export interface ActiveClass {
   student_count: number;
   avg_gpa: number;
   students: string[];
-  day_of_week?: string;
+  day_of_week?: string[]; // Changed from string to string[] to support multiple days
   class_time?: string;
   end_time?: string;
   created_at: string;
@@ -164,7 +165,7 @@ export const createActiveClass = async (classData: {
   subject: string;
   grade: string;
   teacher: string;
-  dayOfWeek?: string;
+  dayOfWeek?: string[]; // Changed to accept array of days
   classTime?: string;
   endTime?: string;
 }): Promise<ActiveClass> => {
@@ -182,7 +183,7 @@ export const createActiveClass = async (classData: {
     };
 
     // Add scheduling fields if provided
-    if (classData.dayOfWeek) {
+    if (classData.dayOfWeek && classData.dayOfWeek.length > 0) {
       insertData.day_of_week = classData.dayOfWeek;
     }
     if (classData.classTime) {

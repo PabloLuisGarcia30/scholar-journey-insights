@@ -47,10 +47,14 @@ export function WeeklyCalendar({ classData, isLoading }: WeeklyCalendarProps) {
   };
 
   const hasClassOnDay = (date: Date): boolean => {
-    if (!classData?.day_of_week) return false;
+    if (!classData?.day_of_week || classData.day_of_week.length === 0) return false;
     const dayOfWeek = getDay(date);
-    const classDayNumber = getDayOfWeekNumber(classData.day_of_week);
-    return dayOfWeek === classDayNumber;
+    
+    // Check if any of the scheduled days matches this date's day of week
+    return classData.day_of_week.some(scheduledDay => {
+      const scheduledDayNumber = getDayOfWeekNumber(scheduledDay);
+      return dayOfWeek === scheduledDayNumber;
+    });
   };
 
   const getClassInfo = () => {
@@ -60,7 +64,8 @@ export function WeeklyCalendar({ classData, isLoading }: WeeklyCalendarProps) {
       startTime: classData.class_time ? formatTime(classData.class_time) : null,
       endTime: classData.end_time ? formatTime(classData.end_time) : null,
       duration: classData.duration?.shortFormat || null,
-      name: classData.name
+      name: classData.name,
+      daysCount: classData.day_of_week?.length || 0
     };
   };
 
@@ -112,6 +117,11 @@ export function WeeklyCalendar({ classData, isLoading }: WeeklyCalendarProps) {
                   {classInfo.duration && (
                     <div className="text-xs text-green-500">
                       {classInfo.duration}
+                    </div>
+                  )}
+                  {classInfo.daysCount > 1 && (
+                    <div className="text-xs text-green-500 mt-1">
+                      {classInfo.daysCount} days/week
                     </div>
                   )}
                 </div>
