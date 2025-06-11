@@ -44,10 +44,12 @@ export class TransactionService {
       console.log('✅ Using authenticated student ID:', testData.authenticatedStudentId);
 
       // Insert main test result with authenticated student linking
+      // Include both student_id and authenticated_student_id for backward compatibility
       const { data: testResult, error: testError } = await supabase
         .from('test_results')
         .insert({
           exam_id: testData.examId,
+          student_id: testData.authenticatedStudentId, // For backward compatibility
           authenticated_student_id: testData.authenticatedStudentId,
           class_id: testData.classId || '',
           overall_score: testData.overallScore,

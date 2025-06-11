@@ -1,6 +1,6 @@
 
 import { supabase } from "@/integrations/supabase/client";
-import { practiceExerciseSkillService } from "./practiceExerciseSkillService";
+import { PracticeExerciseSkillService } from "./practiceExerciseSkillService";
 
 export interface StudentPracticeRequest {
   authenticatedStudentId: string;
@@ -144,9 +144,11 @@ export class StudentPracticeService {
       console.log('🎯 Creating practice session with authenticated student:', request);
 
       // Create practice session linked to authenticated student
+      // Include both student_id and authenticated_student_id for backward compatibility
       const { data: session, error } = await supabase
         .from('student_practice_sessions')
         .insert({
+          student_id: request.authenticatedStudentId, // For backward compatibility
           authenticated_student_id: request.authenticatedStudentId,
           student_name: request.studentName,
           skill_name: request.skillName,
@@ -205,7 +207,7 @@ export class StudentPracticeService {
       });
 
       // Process with enhanced skill service using authenticated student ID
-      const result = await practiceExerciseSkillService.processPracticeExerciseCompletion({
+      const result = await PracticeExerciseSkillService.processPracticeExerciseCompletion({
         authenticatedStudentId,
         exerciseId,
         skillName,

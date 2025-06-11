@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { updateExerciseStatus } from '@/services/classSessionService';
-import { practiceExerciseSkillService, type SkillScoreCalculation } from '@/services/practiceExerciseSkillService';
+import { PracticeExerciseSkillService, type SkillScoreCalculation } from '@/services/practiceExerciseSkillService';
 
 interface UsePracticeExerciseCompletionProps {
   authenticatedStudentId: string;
@@ -44,7 +44,7 @@ export function usePracticeExerciseCompletion({
       // Then process skill score updates with complete exercise data
       setIsUpdatingSkills(true);
       
-      const skillUpdateResult = await practiceExerciseSkillService.processPracticeExerciseCompletion({
+      const skillUpdateResult = await PracticeExerciseSkillService.processPracticeExerciseCompletion({
         authenticatedStudentId,
         exerciseId,
         skillName,
