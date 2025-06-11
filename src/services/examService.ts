@@ -2,6 +2,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import { StudentIdGenerationService } from "./studentIdGenerationService";
 import { calculateClassDuration, getClassDurationInMinutes, formatDurationShort, DurationInfo } from "@/utils/classDurationUtils";
+import { DEV_CONFIG, MOCK_USER_DATA } from "@/config/devConfig";
 import type { Question } from "@/utils/pdfGenerator";
 
 export interface ExamData {
@@ -143,6 +144,25 @@ export const getAllActiveClasses = async (): Promise<ActiveClass[]> => {
   try {
     console.log('Fetching all active classes for current teacher');
     
+    // Check if we're in dev mode
+    if (DEV_CONFIG.DISABLE_AUTH_FOR_DEV) {
+      // In dev mode, get the mock teacher ID
+      const mockTeacherId = MOCK_USER_DATA.teacher.user.id;
+      
+      const { data, error } = await supabase
+        .from('active_classes')
+        .select('*')
+        .eq('teacher_id', mockTeacherId)
+        .order('name');
+
+      if (error) {
+        console.error('Error fetching active classes:', error);
+        throw new Error(`Failed to fetch active classes: ${error.message}`);
+      }
+
+      return data || [];
+    }
+    
     // Get the current user's ID to filter classes
     const { data: { user } } = await supabase.auth.getUser();
     
@@ -181,11 +201,22 @@ export const createActiveClass = async (classData: {
   try {
     console.log('Creating active class:', classData);
     
-    // Get the current user's ID
-    const { data: { user } } = await supabase.auth.getUser();
+    let teacherId: string;
     
-    if (!user) {
-      throw new Error('Must be authenticated to create a class');
+    // Check if we're in dev mode
+    if (DEV_CONFIG.DISABLE_AUTH_FOR_DEV) {
+      // In dev mode, use the mock teacher ID
+      teacherId = MOCK_USER_DATA.teacher.user.id;
+      console.log('Using dev mode teacher ID:', teacherId);
+    } else {
+      // Get the current user's ID
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (!user) {
+        throw new Error('Must be authenticated to create a class');
+      }
+      
+      teacherId = user.id;
     }
 
     const insertData: any = {
@@ -193,7 +224,7 @@ export const createActiveClass = async (classData: {
       subject: classData.subject,
       grade: classData.grade,
       teacher: classData.teacher,
-      teacher_id: user.id, // Automatically assign to current teacher
+      teacher_id: teacherId, // Use the determined teacher ID
       student_count: 0,
       avg_gpa: 0,
       students: []
