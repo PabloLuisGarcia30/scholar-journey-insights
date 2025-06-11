@@ -1,5 +1,5 @@
-
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -8,7 +8,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
 import { useEnhancedMistakeAnalytics } from "@/hooks/useEnhancedMistakeAnalytics";
-import { BarChart, Brain, TrendingUp, AlertTriangle, Target, Users } from "lucide-react";
+import { BarChart, Brain, TrendingUp, AlertTriangle, Target, Users, ArrowLeft } from "lucide-react";
 
 // Mock student IDs for demo purposes
 const DEMO_STUDENTS = [
@@ -26,6 +26,7 @@ const DEMO_SKILLS = [
 ];
 
 export default function MistakePatternDemo() {
+  const navigate = useNavigate();
   const [selectedStudent, setSelectedStudent] = useState(DEMO_STUDENTS[0].id);
   const [selectedSkill, setSelectedSkill] = useState<string>("all");
   
@@ -68,11 +69,21 @@ export default function MistakePatternDemo() {
   return (
     <div className="container mx-auto p-6 space-y-6">
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Enhanced Mistake Pattern Analytics Demo</h1>
-          <p className="text-muted-foreground mt-2">
-            Advanced error analysis and personalized learning recommendations
-          </p>
+        <div className="flex items-center gap-4">
+          <Button 
+            variant="outline" 
+            onClick={() => navigate('/')}
+            className="flex items-center gap-2"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Back to Homepage
+          </Button>
+          <div>
+            <h1 className="text-3xl font-bold">Enhanced Mistake Pattern Analytics Demo</h1>
+            <p className="text-muted-foreground mt-2">
+              Advanced error analysis and personalized learning recommendations
+            </p>
+          </div>
         </div>
         <div className="flex items-center gap-2">
           <Brain className="h-8 w-8 text-blue-600" />
