@@ -1,4 +1,3 @@
-
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -59,148 +58,165 @@ function AppRoutes() {
   }
 
   return (
-    <Routes>
-      <Route path="/auth" element={<Auth />} />
-      <Route path="/quiz/:token" element={<StudentQuiz />} />
-      
-      {/* Protected Routes */}
-      <Route 
-        path="/" 
-        element={
-          <ProtectedRoute>
-            {currentRole === 'student' ? <Navigate to="/student-dashboard" replace /> : <Index />}
-          </ProtectedRoute>
-        } 
-      />
-      
-      <Route 
-        path="/student-dashboard" 
-        element={
-          <ProtectedRoute requiredRole={DEV_CONFIG.DISABLE_AUTH_FOR_DEV ? undefined : "student"}>
-            <StudentLanding />
-          </ProtectedRoute>
-        } 
-      />
-      
-      <Route 
-        path="/student-dashboard/main" 
-        element={
-          <ProtectedRoute requiredRole={DEV_CONFIG.DISABLE_AUTH_FOR_DEV ? undefined : "student"}>
-            <StudentDashboard />
-          </ProtectedRoute>
-        } 
-      />
-      
-      <Route 
-        path="/student-dashboard/home-learner" 
-        element={
-          <ProtectedRoute requiredRole={DEV_CONFIG.DISABLE_AUTH_FOR_DEV ? undefined : "student"}>
-            <HomeLearner />
-          </ProtectedRoute>
-        } 
-      />
-      
-      <Route 
-        path="/student-dashboard/class/:classId" 
-        element={
-          <ProtectedRoute requiredRole={DEV_CONFIG.DISABLE_AUTH_FOR_DEV ? undefined : "student"}>
-            <StudentClassScores />
-          </ProtectedRoute>
-        } 
-      />
-      
-      <Route 
-        path="/student-dashboard/practice/:classId/:skillName" 
-        element={
-          <ProtectedRoute requiredRole={DEV_CONFIG.DISABLE_AUTH_FOR_DEV ? undefined : "student"}>
-            <StudentPracticeExercise />
-          </ProtectedRoute>
-        } 
-      />
-      
-      <Route 
-        path="/test-creator" 
-        element={
-          <ProtectedRoute requiredRole={DEV_CONFIG.DISABLE_AUTH_FOR_DEV ? undefined : "teacher"}>
-            <TestCreator />
-          </ProtectedRoute>
-        } 
-      />
-      
-      <Route 
-        path="/upload-test" 
-        element={
-          <ProtectedRoute requiredRole={DEV_CONFIG.DISABLE_AUTH_FOR_DEV ? undefined : "teacher"}>
-            <UploadTest />
-          </ProtectedRoute>
-        } 
-      />
-      
-      <Route 
-        path="/student-upload" 
-        element={
-          <ProtectedRoute>
-            <StudentUpload />
-          </ProtectedRoute>
-        } 
-      />
-      
-      <Route 
-        path="/create-quiz-link" 
-        element={
-          <ProtectedRoute requiredRole={DEV_CONFIG.DISABLE_AUTH_FOR_DEV ? undefined : "teacher"}>
-            <CreateQuizLink />
-          </ProtectedRoute>
-        } 
-      />
-      
-      <Route 
-        path="/student-lesson-tracker" 
-        element={
-          <ProtectedRoute>
-            <StudentLessonTracker />
-          </ProtectedRoute>
-        } 
-      />
-      
-      <Route 
-        path="/student-learner-profile" 
-        element={
-          <ProtectedRoute>
-            <StudentLearnerProfile />
-          </ProtectedRoute>
-        } 
-      />
+    <div className="min-h-screen bg-background">
+      <Routes>
+        <Route path="/auth" element={<Auth />} />
+        <Route path="/quiz/:token" element={<StudentQuiz />} />
+        
+        {/* Protected Routes with Header */}
+        <Route 
+          path="/" 
+          element={
+            <ProtectedRoute>
+              <AppHeader />
+              {currentRole === 'student' ? <Navigate to="/student-dashboard" replace /> : <Index />}
+            </ProtectedRoute>
+          } 
+        />
+        
+        <Route 
+          path="/student-dashboard" 
+          element={
+            <ProtectedRoute requiredRole={DEV_CONFIG.DISABLE_AUTH_FOR_DEV ? undefined : "student"}>
+              <AppHeader />
+              <StudentLanding />
+            </ProtectedRoute>
+          } 
+        />
+        
+        <Route 
+          path="/student-dashboard/main" 
+          element={
+            <ProtectedRoute requiredRole={DEV_CONFIG.DISABLE_AUTH_FOR_DEV ? undefined : "student"}>
+              <AppHeader />
+              <StudentDashboard />
+            </ProtectedRoute>
+          } 
+        />
+        
+        <Route 
+          path="/student-dashboard/home-learner" 
+          element={
+            <ProtectedRoute requiredRole={DEV_CONFIG.DISABLE_AUTH_FOR_DEV ? undefined : "student"}>
+              <AppHeader />
+              <HomeLearner />
+            </ProtectedRoute>
+          } 
+        />
+        
+        <Route 
+          path="/student-dashboard/class/:classId" 
+          element={
+            <ProtectedRoute requiredRole={DEV_CONFIG.DISABLE_AUTH_FOR_DEV ? undefined : "student"}>
+              <AppHeader />
+              <StudentClassScores />
+            </ProtectedRoute>
+          } 
+        />
+        
+        <Route 
+          path="/student-dashboard/practice/:classId/:skillName" 
+          element={
+            <ProtectedRoute requiredRole={DEV_CONFIG.DISABLE_AUTH_FOR_DEV ? undefined : "student"}>
+              <AppHeader />
+              <StudentPracticeExercise />
+            </ProtectedRoute>
+          } 
+        />
+        
+        <Route 
+          path="/test-creator" 
+          element={
+            <ProtectedRoute requiredRole={DEV_CONFIG.DISABLE_AUTH_FOR_DEV ? undefined : "teacher"}>
+              <AppHeader />
+              <TestCreator />
+            </ProtectedRoute>
+          } 
+        />
+        
+        <Route 
+          path="/upload-test" 
+          element={
+            <ProtectedRoute requiredRole={DEV_CONFIG.DISABLE_AUTH_FOR_DEV ? undefined : "teacher"}>
+              <AppHeader />
+              <UploadTest />
+            </ProtectedRoute>
+          } 
+        />
+        
+        <Route 
+          path="/student-upload" 
+          element={
+            <ProtectedRoute>
+              <AppHeader />
+              <StudentUpload />
+            </ProtectedRoute>
+          } 
+        />
+        
+        <Route 
+          path="/create-quiz-link" 
+          element={
+            <ProtectedRoute requiredRole={DEV_CONFIG.DISABLE_AUTH_FOR_DEV ? undefined : "teacher"}>
+              <AppHeader />
+              <CreateQuizLink />
+            </ProtectedRoute>
+          } 
+        />
+        
+        <Route 
+          path="/student-lesson-tracker" 
+          element={
+            <ProtectedRoute>
+              <AppHeader />
+              <StudentLessonTracker />
+            </ProtectedRoute>
+          } 
+        />
+        
+        <Route 
+          path="/student-learner-profile" 
+          element={
+            <ProtectedRoute>
+              <AppHeader />
+              <StudentLearnerProfile />
+            </ProtectedRoute>
+          } 
+        />
 
-      <Route 
-        path="/class-runner" 
-        element={
-          <ProtectedRoute requiredRole={DEV_CONFIG.DISABLE_AUTH_FOR_DEV ? undefined : "teacher"}>
-            <ClassRunner />
-          </ProtectedRoute>
-        } 
-      />
+        <Route 
+          path="/class-runner" 
+          element={
+            <ProtectedRoute requiredRole={DEV_CONFIG.DISABLE_AUTH_FOR_DEV ? undefined : "teacher"}>
+              <AppHeader />
+              <ClassRunner />
+            </ProtectedRoute>
+          } 
+        />
 
-      <Route 
-        path="/lesson-planner" 
-        element={
-          <ProtectedRoute requiredRole={DEV_CONFIG.DISABLE_AUTH_FOR_DEV ? undefined : "teacher"}>
-            <LessonPlanner />
-          </ProtectedRoute>
-        } 
-      />
+        <Route 
+          path="/lesson-planner" 
+          element={
+            <ProtectedRoute requiredRole={DEV_CONFIG.DISABLE_AUTH_FOR_DEV ? undefined : "teacher"}>
+              <AppHeader />
+              <LessonPlanner />
+            </ProtectedRoute>
+          } 
+        />
 
-      <Route 
-        path="/mistake-pattern-demo" 
-        element={
-          <ProtectedRoute requiredRole={DEV_CONFIG.DISABLE_AUTH_FOR_DEV ? undefined : "teacher"}>
-            <MistakePatternDemo />
-          </ProtectedRoute>
-        } 
-      />
-      
-      <Route path="*" element={<NotFound />} />
-    </Routes>
+        <Route 
+          path="/mistake-pattern-demo" 
+          element={
+            <ProtectedRoute requiredRole={DEV_CONFIG.DISABLE_AUTH_FOR_DEV ? undefined : "teacher"}>
+              <AppHeader />
+              <MistakePatternDemo />
+            </ProtectedRoute>
+          } 
+        />
+        
+        <Route path="*" element={<NotFound />} />
+      </Routes>
+    </div>
   );
 }
 
