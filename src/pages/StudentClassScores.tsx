@@ -98,17 +98,17 @@ const StudentClassScores = () => {
           </CardHeader>
           <CardContent>
             {contentSkillsLoading ? (
-              <div className="animate-pulse space-y-4">
+              <div className="animate-pulse grid grid-cols-1 lg:grid-cols-2 gap-4">
                 {[...Array(6)].map((_, i) => (
                   <div key={i} className="h-20 bg-gray-200 rounded"></div>
                 ))}
               </div>
             ) : contentSkillScores.length > 0 ? (
-              <div className="space-y-4">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 {contentSkillScores.map((skill, index) => (
                   <div key={skill.id || index} className="p-4 rounded-lg border border-gray-100 hover:bg-gray-50 transition-colors">
                     <div className="flex items-center justify-between mb-3">
-                      <h4 className="font-semibold text-gray-900">{skill.skill_name}</h4>
+                      <h4 className="font-semibold text-gray-900 text-sm">{skill.skill_name}</h4>
                       <Badge className={getGradeColor(skill.score)}>
                         {skill.score}%
                       </Badge>
