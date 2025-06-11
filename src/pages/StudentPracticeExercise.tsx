@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -60,9 +61,8 @@ const StudentPracticeExercise = () => {
     maxRetryAttempts: 2
   });
 
-  // Practice exercise completion hook for skill score updates
+  // Practice exercise completion hook for skill score updates (removed studentId parameter)
   const { completeExercise, isCompleting, isUpdatingSkills } = usePracticeExerciseCompletion({
-    studentId: profile?.id || '',
     onSkillUpdated: (skillUpdates) => {
       setSkillImprovements(skillUpdates);
     }
