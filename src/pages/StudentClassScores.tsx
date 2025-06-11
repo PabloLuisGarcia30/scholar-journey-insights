@@ -101,7 +101,8 @@ const StudentClassScores = () => {
     contentSkillScores,
     subjectSkillScores,
     testResults,
-    groupedSkills
+    groupedSkills,
+    classId: classId
   };
 
   const lowestScoringSkills = getLowestScoringSkills();
