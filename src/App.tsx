@@ -1,3 +1,4 @@
+
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -8,6 +9,7 @@ import StudentDashboard from "./pages/StudentDashboard";
 import StudentLanding from "./pages/StudentLanding";
 import HomeLearner from "./pages/HomeLearner";
 import StudentClassScores from "./pages/StudentClassScores";
+import StudentPracticeExercise from "./pages/StudentPracticeExercise";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import { DevRoleProvider, useDevRole } from "./contexts/DevRoleContext";
 import { MultiSkillSelectionProvider } from "./contexts/MultiSkillSelectionContext";
@@ -101,6 +103,15 @@ function AppRoutes() {
         element={
           <ProtectedRoute requiredRole={DEV_CONFIG.DISABLE_AUTH_FOR_DEV ? undefined : "student"}>
             <StudentClassScores />
+          </ProtectedRoute>
+        } 
+      />
+      
+      <Route 
+        path="/student-dashboard/practice/:classId/:skillName" 
+        element={
+          <ProtectedRoute requiredRole={DEV_CONFIG.DISABLE_AUTH_FOR_DEV ? undefined : "student"}>
+            <StudentPracticeExercise />
           </ProtectedRoute>
         } 
       />

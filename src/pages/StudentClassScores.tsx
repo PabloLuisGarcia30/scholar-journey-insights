@@ -1,6 +1,8 @@
+
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, TrendingUp, MessageSquare, Target, BookOpen, Clock } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
@@ -61,6 +63,11 @@ const StudentClassScores = () => {
     return allSkills
       .sort((a, b) => a.score - b.score)
       .slice(0, 3);
+  };
+
+  const handleSkillClick = (skillName: string) => {
+    const encodedSkillName = encodeURIComponent(skillName);
+    navigate(`/student-dashboard/practice/${classId}/${encodedSkillName}`);
   };
 
   if (classLoading || !currentClass) {
@@ -136,40 +143,53 @@ const StudentClassScores = () => {
             {lowestScoringSkills.length > 0 ? (
               <div className="grid gap-4">
                 {lowestScoringSkills.map((skill, index) => (
-                  <div key={skill.id || index} className="p-4 rounded-lg border border-gray-100 bg-gradient-to-r from-green-50 to-blue-50 hover:shadow-md transition-all">
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="flex items-center gap-2">
-                        <span className="bg-green-600 text-white text-xs font-bold px-2 py-1 rounded-full">
-                          #{index + 1}
-                        </span>
-                        <h4 className="font-semibold text-gray-900">{skill.skill_name}</h4>
-                      </div>
-                      <Badge className={getGradeColor(skill.score)}>
-                        {skill.score}%
-                      </Badge>
-                    </div>
-                    
-                    <div className="w-full bg-gray-200 rounded-full h-2 mb-3">
+                  <Tooltip key={skill.id || index}>
+                    <TooltipTrigger asChild>
                       <div 
-                        className="bg-green-600 h-2 rounded-full transition-all duration-500"
-                        style={{ width: `${skill.score}%` }}
-                      ></div>
-                    </div>
-                    
-                    <div className="flex items-center justify-between text-sm text-gray-600">
-                      <div className="flex items-center gap-4">
-                        <span>{skill.points_earned}/{skill.points_possible} points earned</span>
-                        <div className="flex items-center gap-1">
-                          <BookOpen className="h-3 w-3" />
-                          <span>Focus Area</span>
+                        className="p-4 rounded-lg border border-gray-100 bg-gradient-to-r from-green-50 to-blue-50 hover:shadow-md hover:scale-[1.02] transition-all cursor-pointer group"
+                        onClick={() => handleSkillClick(skill.skill_name)}
+                      >
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="flex items-center gap-2">
+                            <span className="bg-green-600 text-white text-xs font-bold px-2 py-1 rounded-full">
+                              #{index + 1}
+                            </span>
+                            <h4 className="font-semibold text-gray-900 group-hover:text-green-700 transition-colors">
+                              {skill.skill_name}
+                            </h4>
+                          </div>
+                          <Badge className={getGradeColor(skill.score)}>
+                            {skill.score}%
+                          </Badge>
+                        </div>
+                        
+                        <div className="w-full bg-gray-200 rounded-full h-2 mb-3">
+                          <div 
+                            className="bg-green-600 h-2 rounded-full transition-all duration-500"
+                            style={{ width: `${skill.score}%` }}
+                          ></div>
+                        </div>
+                        
+                        <div className="flex items-center justify-between text-sm text-gray-600">
+                          <div className="flex items-center gap-4">
+                            <span>{skill.points_earned}/{skill.points_possible} points earned</span>
+                            <div className="flex items-center gap-1">
+                              <BookOpen className="h-3 w-3" />
+                              <span>Focus Area</span>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Clock className="h-3 w-3" />
+                            <span>15-20 min practice</span>
+                          </div>
                         </div>
                       </div>
-                      <div className="flex items-center gap-1">
-                        <Clock className="h-3 w-3" />
-                        <span>15-20 min practice</span>
-                      </div>
-                    </div>
-                  </div>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p className="font-medium">Generate a practice exercise!</p>
+                      <p className="text-xs text-muted-foreground">Click to start practicing {skill.skill_name}</p>
+                    </TooltipContent>
+                  </Tooltip>
                 ))}
                 
                 <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
