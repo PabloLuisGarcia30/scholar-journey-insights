@@ -30,7 +30,7 @@ Instructions:
 - Explain the concept as if talking to a 12-year-old student
 - Use simple words, analogies, and examples from everyday life
 - Make it engaging and interesting
-- Write approximately 500 words
+- Write approximately 350 words
 - Break down complex ideas into smaller, digestible parts
 - Use encouraging and supportive language
 - Include practical examples or real-world connections when possible
@@ -44,7 +44,7 @@ The correct answer was: "${correctAnswer}"
 
 The basic explanation given was: "${explanation}"
 
-Please provide a detailed, engaging explanation of this concept that a 12-year-old would understand. Make it about 500 words and help them really grasp why this answer is correct and how this concept works in general.`;
+Please provide a detailed, engaging explanation of this concept that a 12-year-old would understand. Make it about 350 words and help them really grasp why this answer is correct and how this concept works in general.`;
 
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
@@ -53,13 +53,13 @@ Please provide a detailed, engaging explanation of this concept that a 12-year-o
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'gpt-4o',
+        model: 'gpt-4o-mini',
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userPrompt }
         ],
         temperature: 0.7,
-        max_tokens: 800,
+        max_tokens: 550,
       }),
     });
 
