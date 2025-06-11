@@ -58,6 +58,12 @@ interface StudentPracticeExercise {
     studentName: string;
     className: string;
     sessionId: string;
+    skillType?: string;
+    skillMetadata?: {
+      isContentSkill: boolean;
+      isSubjectSkill: boolean;
+      classification: string;
+    };
   };
 }
 
@@ -71,7 +77,74 @@ function determineDifficultyLevel(currentScore: number, preferredDifficulty?: st
   return 'challenge';
 }
 
-function buildStudentPracticePrompt(request: StudentPracticeRequest, difficultyLevel: string): string {
+async function detectSkillType(skillName: string, subject: string): Promise<{
+  skillType: string;
+  isContentSkill: boolean;
+  isSubjectSkill: boolean;
+  classification: string;
+}> {
+  const skillLower = skillName.toLowerCase();
+  const subjectLower = subject.toLowerCase();
+  
+  // Content skill patterns (specific to academic subjects)
+  const contentPatterns = [
+    'algebra', 'geometry', 'calculus', 'trigonometry', 'fractions', 'equations', 'polynomials',
+    'chemistry', 'physics', 'biology', 'anatomy', 'genetics', 'ecology',
+    'grammar', 'vocabulary', 'literature', 'writing', 'poetry', 'essay',
+    'history', 'geography', 'economics', 'government', 'civics'
+  ];
+  
+  // Subject skill patterns (transferable across subjects)
+  const subjectPatterns = [
+    'critical thinking', 'problem solving', 'analytical reasoning', 'logical reasoning',
+    'reading comprehension', 'communication', 'research skills', 'study skills',
+    'data analysis', 'interpretation', 'evaluation', 'synthesis'
+  ];
+  
+  let isContentSkill = false;
+  let isSubjectSkill = false;
+  let classification = 'content'; // default
+  
+  // Check content patterns
+  for (const pattern of contentPatterns) {
+    if (skillLower.includes(pattern) || subjectLower.includes(pattern)) {
+      isContentSkill = true;
+      classification = 'content';
+      break;
+    }
+  }
+  
+  // Check subject patterns (these take precedence if found)
+  for (const pattern of subjectPatterns) {
+    if (skillLower.includes(pattern)) {
+      isSubjectSkill = true;
+      classification = 'subject';
+      break;
+    }
+  }
+  
+  // If neither pattern matches, classify based on subject context
+  if (!isContentSkill && !isSubjectSkill) {
+    // Math/Science subjects tend to have more content skills
+    if (['math', 'mathematics', 'science', 'chemistry', 'physics', 'biology'].some(s => subjectLower.includes(s))) {
+      isContentSkill = true;
+      classification = 'content';
+    } else {
+      // Liberal arts tend to have more subject skills
+      isSubjectSkill = true;
+      classification = 'subject';
+    }
+  }
+  
+  return {
+    skillType: classification,
+    isContentSkill,
+    isSubjectSkill,
+    classification: `${classification}_skill_detected_via_${isContentSkill || isSubjectSkill ? 'pattern' : 'subject_context'}`
+  };
+}
+
+function buildStudentPracticePrompt(request: StudentPracticeRequest, difficultyLevel: string, skillMetadata: any): string {
   const { studentName, skillName, currentSkillScore, className, subject, grade, questionCount = 4 } = request;
   
   const difficultyGuidance = {
@@ -81,6 +154,9 @@ function buildStudentPracticePrompt(request: StudentPracticeRequest, difficultyL
   };
 
   const targetImprovement = Math.min(currentSkillScore + 15, 95);
+  const skillTypeGuidance = skillMetadata.skillType === 'content' 
+    ? 'Focus on specific academic content and knowledge application.'
+    : 'Emphasize transferable thinking skills and analytical processes.';
 
   return `Create a personalized practice exercise for ${studentName} in ${className} (${subject}, ${grade}).
 
@@ -88,6 +164,7 @@ STUDENT CONTEXT:
 - Current skill level in "${skillName}": ${currentSkillScore}%
 - Target improvement: ${targetImprovement}%
 - Difficulty level: ${difficultyLevel}
+- Skill type: ${skillMetadata.skillType} (${skillTypeGuidance})
 
 EXERCISE REQUIREMENTS:
 - Generate exactly ${questionCount} questions targeting "${skillName}"
@@ -95,6 +172,7 @@ EXERCISE REQUIREMENTS:
 - Include explanations and hints for each question
 - Focus on areas where students typically struggle at this skill level
 - Make questions engaging and relatable to ${grade} students
+- Ensure questions align with ${skillMetadata.skillType} skill development
 
 FORMAT AS JSON:
 {
@@ -200,12 +278,13 @@ async function generateStudentPracticeExercise(request: StudentPracticeRequest):
   }
 
   const difficultyLevel = determineDifficultyLevel(request.currentSkillScore, request.preferredDifficulty);
+  const skillMetadata = await detectSkillType(request.skillName, request.subject);
   const sessionId = await createPracticeSession(request, difficultyLevel);
   
   // Update analytics in background
   updatePracticeAnalytics(request.studentId, request.skillName);
 
-  const prompt = buildStudentPracticePrompt(request, difficultyLevel);
+  const prompt = buildStudentPracticePrompt(request, difficultyLevel, skillMetadata);
   
   try {
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -252,7 +331,7 @@ async function generateStudentPracticeExercise(request: StudentPracticeRequest):
       throw new Error('Invalid JSON response from OpenAI');
     }
 
-    // Add metadata
+    // Add enhanced metadata including skill classification
     practiceExercise.metadata = {
       skillName: request.skillName,
       currentSkillScore: request.currentSkillScore,
@@ -260,7 +339,9 @@ async function generateStudentPracticeExercise(request: StudentPracticeRequest):
       generatedAt: new Date().toISOString(),
       studentName: request.studentName,
       className: request.className,
-      sessionId
+      sessionId,
+      skillType: skillMetadata.skillType,
+      skillMetadata: skillMetadata
     };
 
     // Mark session as exercise generated
@@ -269,7 +350,7 @@ async function generateStudentPracticeExercise(request: StudentPracticeRequest):
       .update({ exercise_generated: true })
       .eq('id', sessionId);
 
-    console.log('✅ Successfully generated student practice exercise with', practiceExercise.questions.length, 'questions');
+    console.log('✅ Successfully generated student practice exercise with', practiceExercise.questions.length, 'questions and skill type:', skillMetadata.skillType);
     return practiceExercise;
 
   } catch (error) {

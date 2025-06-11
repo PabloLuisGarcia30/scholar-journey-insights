@@ -1,5 +1,5 @@
-
 import { supabase } from "@/integrations/supabase/client";
+import { practiceExerciseSkillService } from "./practiceExerciseSkillService";
 
 export interface StudentPracticeRequest {
   studentId: string;
@@ -43,6 +43,8 @@ export interface StudentPracticeExercise {
     studentName: string;
     className: string;
     sessionId: string;
+    skillType?: string;
+    skillMetadata?: any;
   };
 }
 
@@ -99,7 +101,7 @@ export class StudentPracticeService {
         throw new Error('No data received from practice exercise generation');
       }
 
-      console.log('✅ Successfully generated student practice exercise');
+      console.log('✅ Successfully generated student practice exercise with skill metadata');
       return data as StudentPracticeExercise;
     } catch (error) {
       console.error('❌ Error in generatePracticeExercise:', error);
@@ -127,6 +129,54 @@ export class StudentPracticeService {
     } catch (error) {
       console.error('❌ Error in updatePracticeSessionScore:', error);
       throw error;
+    }
+  }
+
+  /**
+   * Complete a practice exercise with enhanced skill score tracking
+   */
+  static async completePracticeExerciseWithSkillUpdates(
+    exerciseId: string,
+    studentId: string,
+    skillName: string,
+    exerciseScore: number,
+    exerciseData: any
+  ): Promise<{
+    success: boolean;
+    skillUpdates: any[];
+    error?: string;
+  }> {
+    try {
+      console.log('🎯 Completing practice exercise with skill score updates:', {
+        exerciseId,
+        studentId,
+        skillName,
+        exerciseScore
+      });
+
+      // Use the existing practice exercise skill service for consistent processing
+      const result = await practiceExerciseSkillService.processPracticeExerciseCompletion({
+        studentId,
+        exerciseId,
+        skillName,
+        exerciseScore,
+        exerciseData
+      });
+
+      if (result.success) {
+        console.log('✅ Practice exercise completed with skill updates:', result.skillUpdates.length);
+      } else {
+        console.warn('⚠️ Practice exercise completed but skill updates failed:', result.error);
+      }
+
+      return result;
+    } catch (error) {
+      console.error('❌ Error completing practice exercise with skill updates:', error);
+      return {
+        success: false,
+        skillUpdates: [],
+        error: error instanceof Error ? error.message : 'Unknown error'
+      };
     }
   }
 
@@ -211,6 +261,50 @@ export class StudentPracticeService {
     } catch (error) {
       console.error('❌ Error updating practice analytics after completion:', error);
       // Don't throw - analytics failure shouldn't block the main flow
+    }
+  }
+
+  /**
+   * Get practice history with skill improvements for a student
+   */
+  static async getPracticeHistoryWithImprovements(studentId: string, skillName?: string): Promise<Array<{
+    sessionId: string;
+    skillName: string;
+    completedAt: string;
+    finalScore: number;
+    improvementShown: number;
+    difficultyLevel: string;
+  }>> {
+    try {
+      let query = supabase
+        .from('student_practice_sessions')
+        .select('id, skill_name, completed_at, final_score, improvement_shown, difficulty_level')
+        .eq('student_id', studentId)
+        .not('completed_at', 'is', null)
+        .order('completed_at', { ascending: false });
+
+      if (skillName) {
+        query = query.eq('skill_name', skillName);
+      }
+
+      const { data, error } = await query;
+
+      if (error) {
+        console.error('❌ Error fetching practice history:', error);
+        throw error;
+      }
+
+      return (data || []).map(session => ({
+        sessionId: session.id,
+        skillName: session.skill_name,
+        completedAt: session.completed_at,
+        finalScore: session.final_score || 0,
+        improvementShown: session.improvement_shown || 0,
+        difficultyLevel: session.difficulty_level
+      }));
+    } catch (error) {
+      console.error('❌ Error in getPracticeHistoryWithImprovements:', error);
+      return [];
     }
   }
 }

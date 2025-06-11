@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -7,6 +6,7 @@ import { ArrowLeft, Target, BookOpen, Loader2, Zap, TrendingUp } from "lucide-re
 import { useAuth } from "@/contexts/AuthContext";
 import { useStudentProfileData } from "@/hooks/useStudentProfileData";
 import { useStudentPracticeGeneration } from "@/hooks/useStudentPracticeGeneration";
+import { usePracticeExerciseCompletion } from "@/hooks/usePracticeExerciseCompletion";
 import { PracticeExerciseRunner } from "@/components/PracticeExerciseRunner";
 import { StudentPracticeService } from "@/services/studentPracticeService";
 import { toast } from "sonner";
@@ -19,6 +19,7 @@ const StudentPracticeExercise = () => {
   const [isGenerating, setIsGenerating] = useState(false);
   const [currentSkillScore, setCurrentSkillScore] = useState(0);
   const [sessionId, setSessionId] = useState<string | null>(null);
+  const [skillImprovements, setSkillImprovements] = useState([]);
   
   const decodedSkillName = decodeURIComponent(skillName || '');
   
@@ -44,6 +45,14 @@ const StudentPracticeExercise = () => {
     enableAutoRecovery: true,
     showDetailedErrors: false,
     maxRetryAttempts: 2
+  });
+
+  // Practice exercise completion hook for skill score updates
+  const { completeExercise, isCompleting, isUpdatingSkills } = usePracticeExerciseCompletion({
+    studentId: profile?.id || '',
+    onSkillUpdated: (skillUpdates) => {
+      setSkillImprovements(skillUpdates);
+    }
   });
 
   // Find current skill score
@@ -85,7 +94,11 @@ const StudentPracticeExercise = () => {
         // Store session ID for later use
         setSessionId(practiceExercise.metadata.sessionId);
         
-        // Convert to exercise runner format
+        // Determine skill type from current scores
+        const isContentSkill = contentSkillScores.some(skill => skill.skill_name === decodedSkillName);
+        const skillType = isContentSkill ? 'content' : 'subject';
+        
+        // Convert to exercise runner format with enhanced skill metadata
         const exerciseFormatted = {
           title: practiceExercise.title,
           description: practiceExercise.description,
@@ -108,6 +121,12 @@ const StudentPracticeExercise = () => {
           estimatedTime: practiceExercise.estimatedTime,
           adaptiveDifficulty: practiceExercise.adaptiveDifficulty,
           metadata: practiceExercise.metadata,
+          skillType: skillType, // Add skill type for score tracking
+          skillMetadata: {
+            skillType: skillType,
+            currentScore: currentSkillScore,
+            targetImprovement: practiceExercise.metadata.targetImprovement
+          },
           exerciseId: `student_practice_${Date.now()}_${decodedSkillName.replace(/\s+/g, '_')}`
         };
         
@@ -130,9 +149,7 @@ const StudentPracticeExercise = () => {
       ? results.percentageScore - currentSkillScore 
       : 0;
     
-    toast.success(`Exercise completed! You scored ${Math.round(results.percentageScore)}%${improvementShown > 0 ? ` (${Math.round(improvementShown)}% improvement!)` : ''}`);
-    
-    // Update session score if we have a session ID
+    // Update session score first
     if (sessionId && profile?.id) {
       try {
         await StudentPracticeService.updatePracticeSessionScore(
@@ -149,7 +166,30 @@ const StudentPracticeExercise = () => {
         );
       } catch (error) {
         console.error('Error updating practice session:', error);
-        // Don't block user flow for analytics errors
+      }
+    }
+
+    // Process skill score updates using the completion hook
+    if (exerciseData && profile?.id) {
+      try {
+        await completeExercise({
+          exerciseId: exerciseData.exerciseId,
+          score: results.percentageScore,
+          skillName: decodedSkillName,
+          exerciseData: exerciseData // Pass complete exercise data including skill metadata
+        });
+        
+        // Show improvement message with skill score updates
+        const improvementMsg = improvementShown > 0 
+          ? ` (${Math.round(improvementShown)}% improvement!)` 
+          : '';
+        
+        toast.success(`Exercise completed! You scored ${Math.round(results.percentageScore)}%${improvementMsg}`);
+        
+      } catch (error) {
+        console.error('Error processing skill updates:', error);
+        // Still show completion message even if skill updates fail
+        toast.success(`Exercise completed! You scored ${Math.round(results.percentageScore)}%${improvementShown > 0 ? ` (${Math.round(improvementShown)}% improvement!)` : ''}`);
       }
     }
     
@@ -290,6 +330,42 @@ const StudentPracticeExercise = () => {
                   Start Personalized Practice
                 </Button>
               </>
+            )}
+
+            {/* Show processing status for skill updates */}
+            {(isCompleting || isUpdatingSkills) && (
+              <div className="mt-4 p-3 bg-blue-50 rounded-lg">
+                <div className="flex items-center justify-center gap-2 text-blue-700">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span className="text-sm">
+                    {isUpdatingSkills ? 'Updating your skill scores...' : 'Processing results...'}
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {/* Show skill improvements if available */}
+            {skillImprovements.length > 0 && (
+              <div className="mt-4 p-4 bg-green-50 rounded-lg">
+                <h4 className="font-medium text-green-800 mb-2">Skill Score Updates:</h4>
+                <div className="space-y-1">
+                  {skillImprovements.map((improvement, index) => (
+                    <div key={index} className="text-sm text-green-700">
+                      <span className="font-medium">{improvement.skillName}</span>
+                      {improvement.updatedScore > improvement.currentScore ? (
+                        <span className="text-green-600 ml-2">
+                          {improvement.currentScore}% → {improvement.updatedScore}% 
+                          (+{Math.round(improvement.updatedScore - improvement.currentScore)}%)
+                        </span>
+                      ) : (
+                        <span className="text-gray-600 ml-2">
+                          Score maintained at {improvement.updatedScore}%
+                        </span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
             )}
           </CardContent>
         </Card>
