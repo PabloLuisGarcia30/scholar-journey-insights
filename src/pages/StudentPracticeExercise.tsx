@@ -58,8 +58,7 @@ const StudentPracticeExercise = () => {
         className: currentClass.name,
         subject: currentClass.subject,
         grade: currentClass.grade,
-        questionCount: 5,
-        includeExplanations: true
+        questionCount: 5
       });
 
       if (practiceTest) {
