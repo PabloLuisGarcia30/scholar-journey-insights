@@ -166,7 +166,7 @@ export const createActiveClass = async (classData: {
   grade: string;
   teacher: string;
   teacherId: string;
-  dayOfWeek?: string;
+  daysOfWeek?: string[];
   classTime?: string;
   endTime?: string;
 }): Promise<ActiveClass> => {
@@ -185,8 +185,10 @@ export const createActiveClass = async (classData: {
     };
 
     // Add scheduling fields if provided
-    if (classData.dayOfWeek) {
-      insertData.day_of_week = classData.dayOfWeek;
+    // Note: For now, we'll store the first day of week if multiple are selected
+    // The schema only supports a single day_of_week, so we'll need to handle this limitation
+    if (classData.daysOfWeek && classData.daysOfWeek.length > 0) {
+      insertData.day_of_week = classData.daysOfWeek[0]; // Take first selected day
     }
     if (classData.classTime) {
       insertData.class_time = classData.classTime;

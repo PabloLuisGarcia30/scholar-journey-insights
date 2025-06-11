@@ -1,4 +1,3 @@
-
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -14,6 +13,29 @@ import { LiveSessionMonitoring } from "@/components/LiveSessionMonitoring";
 import { getActiveClassSessions } from "@/services/classSessionService";
 import { getLessonPlanByClassId } from "@/services/lessonPlanService";
 import { useState, useEffect } from "react";
+
+// Define types to avoid infinite recursion
+interface ActiveClassItem {
+  id: string;
+  name: string;
+  subject: string;
+  grade: string;
+  teacher: string;
+  student_count: number;
+  avg_gpa: number;
+  created_at: string;
+}
+
+interface LessonPlanItem {
+  id: string;
+  scheduled_date: string;
+  scheduled_time: string;
+}
+
+interface ClassPlanData {
+  classId: string;
+  lessonPlans: LessonPlanItem[];
+}
 
 export default function ClassRunner() {
   const { profile, user } = useAuth();
@@ -32,7 +54,7 @@ export default function ClassRunner() {
   // Fetch active classes for the authenticated teacher
   const { data: activeClasses = [], isLoading } = useQuery({
     queryKey: ['activeClasses', user?.id],
-    queryFn: async () => {
+    queryFn: async (): Promise<ActiveClassItem[]> => {
       if (!user?.id) {
         console.log('No authenticated user ID available');
         return [];
@@ -60,8 +82,8 @@ export default function ClassRunner() {
   // Fetch lesson plans for all classes to show status
   const { data: allLessonPlans = [] } = useQuery({
     queryKey: ['allLessonPlans'],
-    queryFn: async () => {
-      const promises = activeClasses.map(async (classItem: any) => {
+    queryFn: async (): Promise<ClassPlanData[]> => {
+      const promises = activeClasses.map(async (classItem): Promise<ClassPlanData> => {
         const plans = await getLessonPlanByClassId(classItem.id);
         return {
           classId: classItem.id,
@@ -104,7 +126,7 @@ export default function ClassRunner() {
     return "Tomorrow 10:30 AM";
   };
 
-  const handlePlanClass = (classItem: any) => {
+  const handlePlanClass = (classItem: ActiveClassItem) => {
     console.log('Planning class:', classItem.name);
     navigate(`/lesson-planner?class=${encodeURIComponent(classItem.name)}&classId=${classItem.id}`);
   };
@@ -115,7 +137,7 @@ export default function ClassRunner() {
   };
 
   const getLessonPlanStatus = (classId: string) => {
-    const classPlans = allLessonPlans.find((item: any) => item.classId === classId);
+    const classPlans = allLessonPlans.find((item: ClassPlanData) => item.classId === classId);
     if (!classPlans || classPlans.lessonPlans.length === 0) {
       return { status: 'none', text: 'No Plan', color: 'bg-slate-100 text-slate-600 border-slate-200' };
     }
@@ -131,8 +153,8 @@ export default function ClassRunner() {
 
   // Calculate summary stats
   const totalClasses = activeClasses.length;
-  const classesWithPlans = activeClasses.filter((c: any) => getLessonPlanStatus(c.id).status === 'ready').length;
-  const totalStudents = activeClasses.reduce((sum: number, c: any) => sum + (c.student_count || 0), 0);
+  const classesWithPlans = activeClasses.filter((c: ActiveClassItem) => getLessonPlanStatus(c.id).status === 'ready').length;
+  const totalStudents = activeClasses.reduce((sum: number, c: ActiveClassItem) => sum + (c.student_count || 0), 0);
 
   const quickTools = [
     { icon: Users, title: "Student Roster", description: "Manage class enrollment", color: "from-blue-500 to-blue-600" },
@@ -342,7 +364,7 @@ export default function ClassRunner() {
                   </div>
                 ) : activeClasses.length > 0 ? (
                   <div className="space-y-6">
-                    {activeClasses.map((classItem: any) => {
+                    {activeClasses.map((classItem: ActiveClassItem) => {
                       const planStatus = getLessonPlanStatus(classItem.id);
                       const hasPlan = planStatus.status === 'ready';
                       

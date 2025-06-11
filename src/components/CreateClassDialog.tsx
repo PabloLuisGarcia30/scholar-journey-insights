@@ -68,6 +68,8 @@ export function CreateClassDialog({ onCreateClass }: CreateClassDialogProps) {
         ...(formData.classTime && { classTime: formData.classTime }),
         ...(formData.endTime && { endTime: formData.endTime })
       };
+      
+      console.log('Submitting class data:', classData);
       onCreateClass(classData);
       setFormData({ name: '', subject: '', grade: '', daysOfWeek: [], classTime: '', endTime: '' });
       setOpen(false);
