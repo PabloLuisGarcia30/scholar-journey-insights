@@ -1,8 +1,7 @@
-
 import { supabase } from "@/integrations/supabase/client";
 
 export interface PracticeExerciseSkillUpdate {
-  studentId: string;
+  studentId: string; // Now expects authenticated user ID
   studentProfileId?: string;
   exerciseId: string;
   skillName: string;
@@ -23,6 +22,7 @@ export class PracticeExerciseSkillService {
   
   /**
    * Process skill score updates when a practice exercise is completed
+   * Now uses authenticated user IDs directly
    */
   async processPracticeExerciseCompletion(update: PracticeExerciseSkillUpdate): Promise<{
     success: boolean;
@@ -30,15 +30,11 @@ export class PracticeExerciseSkillService {
     error?: string;
   }> {
     try {
-      console.log('🎯 Processing practice exercise skill updates for:', update.skillName);
+      console.log('🎯 Processing practice exercise skill updates for authenticated user:', update.studentId);
       
-      // Get student profile ID if not provided
-      const studentProfileId = update.studentProfileId || await this.getStudentProfileId(update.studentId);
+      // Use the authenticated user ID directly (no need to resolve student profile)
+      const authenticatedUserId = update.studentId;
       
-      if (!studentProfileId) {
-        throw new Error('Student profile not found');
-      }
-
       // Extract skill metadata from exercise data
       const skillScores = await this.extractSkillScoresFromExerciseData(update);
       
@@ -46,7 +42,7 @@ export class PracticeExerciseSkillService {
       const skillUpdates: SkillScoreCalculation[] = [];
       
       for (const skillScore of skillScores) {
-        const currentSkillData = await this.getCurrentSkillScore(studentProfileId, skillScore.skillName, skillScore.skillType);
+        const currentSkillData = await this.getCurrentSkillScore(authenticatedUserId, skillScore.skillName, skillScore.skillType);
         
         const updatedScore = await this.calculateUpdatedSkillScore(
           currentSkillData.currentScore || 0,
@@ -63,9 +59,9 @@ export class PracticeExerciseSkillService {
           attemptsCount: currentSkillData.attemptsCount || 0
         });
 
-        // Insert new skill score record with enhanced tracking support
+        // Insert new skill score record with authenticated user ID
         await this.insertPracticeExerciseSkillScore(
-          studentProfileId,
+          authenticatedUserId,
           update.exerciseId,
           skillScore.skillName,
           skillScore.skillType,
@@ -75,7 +71,7 @@ export class PracticeExerciseSkillService {
         );
       }
 
-      console.log('✅ Successfully processed skill updates with enhanced tracking:', skillUpdates.length);
+      console.log('✅ Successfully processed skill updates using authenticated user ID:', skillUpdates.length);
       
       return {
         success: true,
@@ -188,51 +184,16 @@ export class PracticeExerciseSkillService {
   }
 
   /**
-   * Get student profile ID from active student ID
+   * Get current skill score for an authenticated user (updated to use new column)
    */
-  private async getStudentProfileId(studentId: string): Promise<string | null> {
-    try {
-      // First get the student name from active_students
-      const { data: activeStudent, error: activeError } = await supabase
-        .from('active_students')
-        .select('name')
-        .eq('id', studentId)
-        .maybeSingle();
-
-      if (activeError || !activeStudent) {
-        console.error('Error fetching active student:', activeError);
-        return null;
-      }
-
-      // Then find the student profile
-      const { data: studentProfile, error: profileError } = await supabase
-        .from('student_profiles')
-        .select('id')
-        .eq('student_name', activeStudent.name)
-        .maybeSingle();
-
-      if (profileError) {
-        console.error('Error fetching student profile:', profileError);
-        return null;
-      }
-
-      return studentProfile?.id || null;
-    } catch (error) {
-      console.error('Error getting student profile ID:', error);
-      return null;
-    }
-  }
-
-  /**
-   * Get current skill score for a student
-   */
-  private async getCurrentSkillScore(studentProfileId: string, skillName: string, skillType: 'content' | 'subject'): Promise<{
+  private async getCurrentSkillScore(authenticatedUserId: string, skillName: string, skillType: 'content' | 'subject'): Promise<{
     currentScore: number | null;
     attemptsCount: number;
   }> {
     try {
+      // Use the updated RPC function that now supports authenticated user lookups
       const { data, error } = await supabase.rpc('get_student_current_skill_scores', {
-        student_uuid: studentProfileId
+        student_uuid: authenticatedUserId
       });
 
       if (error) {
@@ -285,10 +246,10 @@ export class PracticeExerciseSkillService {
   }
 
   /**
-   * Insert practice exercise skill score record
+   * Insert practice exercise skill score record (updated to use authenticated_student_id)
    */
   private async insertPracticeExerciseSkillScore(
-    studentProfileId: string,
+    authenticatedUserId: string,
     exerciseId: string,
     skillName: string,
     skillType: 'content' | 'subject',
@@ -297,17 +258,18 @@ export class PracticeExerciseSkillService {
     pointsPossible: number
   ): Promise<void> {
     try {
-      // Create a mock test result for practice exercises
+      // Create a test result for practice exercises with authenticated user ID
       const { data: testResult, error: testError } = await supabase
         .from('test_results')
         .insert({
-          student_id: studentProfileId,
+          student_id: authenticatedUserId, // Legacy column for compatibility
+          authenticated_student_id: authenticatedUserId, // New auth-based column
           exam_id: `practice_exercise_${exerciseId}`,
           class_id: '', // Empty for practice exercises
           overall_score: score,
           total_points_earned: pointsEarned,
           total_points_possible: pointsPossible,
-          ai_feedback: 'Practice exercise completed with enhanced tracking'
+          ai_feedback: 'Practice exercise completed with authenticated user tracking'
         })
         .select('id')
         .single();
@@ -316,7 +278,7 @@ export class PracticeExerciseSkillService {
         throw new Error(`Failed to create test result: ${testError?.message}`);
       }
 
-      // Insert skill score record with practice exercise reference
+      // Insert skill score record with authenticated user reference
       const skillTable = skillType === 'content' ? 'content_skill_scores' : 'subject_skill_scores';
       
       const { error: skillError } = await supabase
@@ -327,14 +289,16 @@ export class PracticeExerciseSkillService {
           skill_name: skillName,
           score: score,
           points_earned: pointsEarned,
-          points_possible: pointsPossible
+          points_possible: pointsPossible,
+          student_id: authenticatedUserId, // Legacy column for compatibility
+          authenticated_student_id: authenticatedUserId // New auth-based column
         });
 
       if (skillError) {
         throw new Error(`Failed to insert skill score: ${skillError.message}`);
       }
 
-      console.log(`✅ Inserted ${skillType} skill score for ${skillName}: ${score}% (with enhanced tracking support)`);
+      console.log(`✅ Inserted ${skillType} skill score for ${skillName}: ${score}% (authenticated user: ${authenticatedUserId})`);
       
     } catch (error) {
       console.error('Error inserting practice exercise skill score:', error);
@@ -343,19 +307,18 @@ export class PracticeExerciseSkillService {
   }
 
   /**
-   * Get skill score history for a student including practice exercises
+   * Get skill score history for an authenticated user (updated to use new columns)
    */
-  async getStudentSkillHistory(studentId: string, skillName: string): Promise<Array<{
+  async getStudentSkillHistory(authenticatedUserId: string, skillName: string): Promise<Array<{
     score: number;
     source: 'test' | 'practice_exercise';
     date: string;
     exerciseId?: string;
   }>> {
     try {
-      const studentProfileId = await this.getStudentProfileId(studentId);
-      if (!studentProfileId) return [];
+      console.log('📊 Fetching skill history for authenticated user:', authenticatedUserId);
 
-      // Get content skill scores
+      // Get content skill scores using authenticated_student_id
       const { data: contentScores, error: contentError } = await supabase
         .from('content_skill_scores')
         .select(`
@@ -364,15 +327,15 @@ export class PracticeExerciseSkillService {
           practice_exercise_id,
           test_results!inner(exam_id)
         `)
+        .eq('authenticated_student_id', authenticatedUserId)
         .eq('skill_name', skillName)
         .order('created_at', { ascending: false });
 
       if (contentError) {
         console.error('Error fetching content skill history:', contentError);
-        return [];
       }
 
-      // Get subject skill scores
+      // Get subject skill scores using authenticated_student_id
       const { data: subjectScores, error: subjectError } = await supabase
         .from('subject_skill_scores')
         .select(`
@@ -381,12 +344,12 @@ export class PracticeExerciseSkillService {
           practice_exercise_id,
           test_results!inner(exam_id)
         `)
+        .eq('authenticated_student_id', authenticatedUserId)
         .eq('skill_name', skillName)
         .order('created_at', { ascending: false });
 
       if (subjectError) {
         console.error('Error fetching subject skill history:', subjectError);
-        return [];
       }
 
       // Combine and format results
@@ -408,3 +371,5 @@ export class PracticeExerciseSkillService {
 
 // Export singleton instance
 export const practiceExerciseSkillService = new PracticeExerciseSkillService();
+
+}

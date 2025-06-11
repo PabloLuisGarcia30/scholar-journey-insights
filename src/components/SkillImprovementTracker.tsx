@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -6,9 +5,9 @@ import { Progress } from '@/components/ui/progress';
 import { TrendingUp, TrendingDown, Minus, Target, Calendar, Award } from 'lucide-react';
 import { practiceExerciseSkillService } from '@/services/practiceExerciseSkillService';
 import type { SkillScoreCalculation } from '@/services/practiceExerciseSkillService';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface SkillImprovementTrackerProps {
-  studentId: string;
   recentSkillUpdates?: SkillScoreCalculation[];
   className?: string;
 }
@@ -21,25 +20,26 @@ interface SkillHistoryItem {
 }
 
 export function SkillImprovementTracker({ 
-  studentId, 
   recentSkillUpdates = [],
   className 
 }: SkillImprovementTrackerProps) {
   const [skillHistory, setSkillHistory] = useState<Record<string, SkillHistoryItem[]>>({});
   const [loading, setLoading] = useState(false);
+  const { user } = useAuth();
 
   // Load skill history when component mounts or recent updates change
   useEffect(() => {
     const loadSkillHistory = async () => {
-      if (recentSkillUpdates.length === 0) return;
+      if (recentSkillUpdates.length === 0 || !user?.id) return;
       
       setLoading(true);
       try {
         const historyData: Record<string, SkillHistoryItem[]> = {};
         
         for (const update of recentSkillUpdates) {
+          console.log('📊 Loading skill history for authenticated user:', user.id, 'skill:', update.skillName);
           const history = await practiceExerciseSkillService.getStudentSkillHistory(
-            studentId, 
+            user.id, // Use authenticated user ID
             update.skillName
           );
           historyData[update.skillName] = history.slice(0, 10); // Last 10 entries
@@ -54,7 +54,7 @@ export function SkillImprovementTracker({
     };
 
     loadSkillHistory();
-  }, [studentId, recentSkillUpdates]);
+  }, [user?.id, recentSkillUpdates]);
 
   const getTrendIcon = (currentScore: number, newScore: number) => {
     if (newScore > currentScore) {
@@ -80,6 +80,18 @@ export function SkillImprovementTracker({
 
   if (recentSkillUpdates.length === 0) {
     return null;
+  }
+
+  if (!user?.id) {
+    return (
+      <Card className={className}>
+        <CardContent className="pt-6">
+          <div className="text-center text-slate-500">
+            Please log in to track skill improvements
+          </div>
+        </CardContent>
+      </Card>
+    );
   }
 
   return (
@@ -153,7 +165,7 @@ export function SkillImprovementTracker({
         )}
 
         <div className="text-xs text-slate-500 text-center pt-2 border-t border-slate-200">
-          Skill scores are automatically updated based on practice exercise performance using a weighted algorithm that considers recent practice results.
+          Skill scores are automatically updated based on practice exercise performance using a weighted algorithm that considers recent practice results for authenticated users.
         </div>
       </CardContent>
     </Card>

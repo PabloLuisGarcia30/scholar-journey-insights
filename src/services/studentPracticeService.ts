@@ -1,8 +1,9 @@
+
 import { supabase } from "@/integrations/supabase/client";
 import { practiceExerciseSkillService } from "./practiceExerciseSkillService";
 
 export interface StudentPracticeRequest {
-  studentId: string;
+  studentId: string; // Now expects authenticated user ID
   studentName: string;
   skillName: string;
   currentSkillScore: number;
@@ -86,7 +87,7 @@ export interface StudentPracticeAnalytics {
 export class StudentPracticeService {
   static async generatePracticeExercise(request: StudentPracticeRequest): Promise<StudentPracticeExercise> {
     try {
-      console.log('🎯 Generating student practice exercise via service:', request);
+      console.log('🎯 Generating student practice exercise for authenticated user:', request.studentId);
       
       const { data, error } = await supabase.functions.invoke('generate-student-practice-exercise', {
         body: request
@@ -101,7 +102,7 @@ export class StudentPracticeService {
         throw new Error('No data received from practice exercise generation');
       }
 
-      console.log('✅ Successfully generated student practice exercise with skill metadata');
+      console.log('✅ Successfully generated student practice exercise for authenticated user');
       return data as StudentPracticeExercise;
     } catch (error) {
       console.error('❌ Error in generatePracticeExercise:', error);
@@ -133,11 +134,11 @@ export class StudentPracticeService {
   }
 
   /**
-   * Complete a practice exercise with enhanced skill score tracking
+   * Complete a practice exercise with enhanced skill score tracking (updated for auth users)
    */
   static async completePracticeExerciseWithSkillUpdates(
     exerciseId: string,
-    studentId: string,
+    authenticatedUserId: string, // Changed parameter name to be explicit
     skillName: string,
     exerciseScore: number,
     exerciseData: any
@@ -147,16 +148,16 @@ export class StudentPracticeService {
     error?: string;
   }> {
     try {
-      console.log('🎯 Completing practice exercise with skill score updates:', {
+      console.log('🎯 Completing practice exercise with skill score updates for authenticated user:', {
         exerciseId,
-        studentId,
+        authenticatedUserId,
         skillName,
         exerciseScore
       });
 
-      // Use the existing practice exercise skill service for consistent processing
+      // Use the updated practice exercise skill service with authenticated user ID
       const result = await practiceExerciseSkillService.processPracticeExerciseCompletion({
-        studentId,
+        studentId: authenticatedUserId, // Pass authenticated user ID directly
         exerciseId,
         skillName,
         exerciseScore,
@@ -164,7 +165,7 @@ export class StudentPracticeService {
       });
 
       if (result.success) {
-        console.log('✅ Practice exercise completed with skill updates:', result.skillUpdates.length);
+        console.log('✅ Practice exercise completed with skill updates for authenticated user:', result.skillUpdates.length);
       } else {
         console.warn('⚠️ Practice exercise completed but skill updates failed:', result.error);
       }
@@ -180,12 +181,12 @@ export class StudentPracticeService {
     }
   }
 
-  static async getStudentPracticeSessions(studentId: string, limit = 10): Promise<StudentPracticeSession[]> {
+  static async getStudentPracticeSessions(authenticatedUserId: string, limit = 10): Promise<StudentPracticeSession[]> {
     try {
       const { data, error } = await supabase
         .from('student_practice_sessions')
         .select('*')
-        .eq('student_id', studentId)
+        .eq('authenticated_student_id', authenticatedUserId) // Use new authenticated column
         .order('created_at', { ascending: false })
         .limit(limit);
 
@@ -201,12 +202,12 @@ export class StudentPracticeService {
     }
   }
 
-  static async getStudentPracticeAnalytics(studentId: string): Promise<StudentPracticeAnalytics[]> {
+  static async getStudentPracticeAnalytics(authenticatedUserId: string): Promise<StudentPracticeAnalytics[]> {
     try {
       const { data, error } = await supabase
         .from('student_practice_analytics')
         .select('*')
-        .eq('student_id', studentId)
+        .eq('student_id', authenticatedUserId) // This table uses student_id for auth users
         .order('total_practice_sessions', { ascending: false });
 
       if (error) {
@@ -222,16 +223,16 @@ export class StudentPracticeService {
   }
 
   static async updatePracticeAnalyticsAfterCompletion(
-    studentId: string, 
+    authenticatedUserId: string, 
     skillName: string, 
     score: number
   ): Promise<void> {
     try {
-      // Get current analytics
+      // Get current analytics using authenticated user ID
       const { data: currentAnalytics, error: selectError } = await supabase
         .from('student_practice_analytics')
         .select('*')
-        .eq('student_id', studentId)
+        .eq('student_id', authenticatedUserId)
         .eq('skill_name', skillName)
         .maybeSingle();
 
@@ -257,7 +258,7 @@ export class StudentPracticeService {
         if (updateError) throw updateError;
       }
 
-      console.log('✅ Updated practice analytics after completion');
+      console.log('✅ Updated practice analytics after completion for authenticated user');
     } catch (error) {
       console.error('❌ Error updating practice analytics after completion:', error);
       // Don't throw - analytics failure shouldn't block the main flow
@@ -265,9 +266,9 @@ export class StudentPracticeService {
   }
 
   /**
-   * Get practice history with skill improvements for a student
+   * Get practice history with skill improvements for an authenticated user
    */
-  static async getPracticeHistoryWithImprovements(studentId: string, skillName?: string): Promise<Array<{
+  static async getPracticeHistoryWithImprovements(authenticatedUserId: string, skillName?: string): Promise<Array<{
     sessionId: string;
     skillName: string;
     completedAt: string;
@@ -279,7 +280,7 @@ export class StudentPracticeService {
       let query = supabase
         .from('student_practice_sessions')
         .select('id, skill_name, completed_at, final_score, improvement_shown, difficulty_level')
-        .eq('student_id', studentId)
+        .eq('authenticated_student_id', authenticatedUserId) // Use authenticated column
         .not('completed_at', 'is', null)
         .order('completed_at', { ascending: false });
 

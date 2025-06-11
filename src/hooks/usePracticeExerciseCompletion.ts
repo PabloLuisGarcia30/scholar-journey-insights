@@ -4,18 +4,18 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { updateExerciseStatus } from '@/services/classSessionService';
 import { practiceExerciseSkillService, type SkillScoreCalculation } from '@/services/practiceExerciseSkillService';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface UsePracticeExerciseCompletionProps {
-  studentId: string;
   onSkillUpdated?: (skillUpdates: SkillScoreCalculation[]) => void;
 }
 
 export function usePracticeExerciseCompletion({ 
-  studentId, 
   onSkillUpdated 
 }: UsePracticeExerciseCompletionProps) {
   const [isUpdatingSkills, setIsUpdatingSkills] = useState(false);
   const queryClient = useQueryClient();
+  const { user } = useAuth();
 
   const completeExerciseMutation = useMutation({
     mutationFn: async ({ 
@@ -29,7 +29,11 @@ export function usePracticeExerciseCompletion({
       skillName: string; 
       exerciseData: any; 
     }) => {
-      console.log('🎯 Completing practice exercise:', { exerciseId, score, skillName });
+      if (!user?.id) {
+        throw new Error('User must be authenticated to complete practice exercises');
+      }
+
+      console.log('🎯 Completing practice exercise for authenticated user:', user.id);
       
       // Log skill metadata usage
       if (exerciseData?.skillType) {
@@ -41,11 +45,11 @@ export function usePracticeExerciseCompletion({
       // First update the exercise status
       await updateExerciseStatus(exerciseId, 'completed', score);
       
-      // Then process skill score updates with complete exercise data
+      // Then process skill score updates using authenticated user ID
       setIsUpdatingSkills(true);
       
       const skillUpdateResult = await practiceExerciseSkillService.processPracticeExerciseCompletion({
-        studentId,
+        studentId: user.id, // Use authenticated user ID directly
         exerciseId,
         skillName,
         exerciseScore: score,
@@ -56,7 +60,7 @@ export function usePracticeExerciseCompletion({
         console.warn('⚠️ Skill score update failed:', skillUpdateResult.error);
         toast.error('Exercise completed but skill scores could not be updated');
       } else {
-        console.log('✅ Skill scores updated successfully:', skillUpdateResult.skillUpdates);
+        console.log('✅ Skill scores updated successfully for authenticated user:', skillUpdateResult.skillUpdates);
         
         // Enhanced success message with skill type information
         const skillType = exerciseData?.skillType;
@@ -82,15 +86,17 @@ export function usePracticeExerciseCompletion({
       return { exerciseId, skillUpdates: skillUpdateResult.skillUpdates };
     },
     onSuccess: () => {
-      // Invalidate relevant queries to refresh skill data
+      if (!user?.id) return;
+      
+      // Invalidate relevant queries to refresh skill data using authenticated user ID
       queryClient.invalidateQueries({ 
-        queryKey: ['studentContentSkills', studentId] 
+        queryKey: ['studentContentSkills', user.id] 
       });
       queryClient.invalidateQueries({ 
-        queryKey: ['studentSubjectSkills', studentId] 
+        queryKey: ['studentSubjectSkills', user.id] 
       });
       queryClient.invalidateQueries({ 
-        queryKey: ['studentExercises', studentId] 
+        queryKey: ['studentExercises', user.id] 
       });
     },
     onError: (error) => {
