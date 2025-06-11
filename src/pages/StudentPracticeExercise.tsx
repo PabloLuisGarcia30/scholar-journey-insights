@@ -58,7 +58,6 @@ const StudentPracticeExercise = () => {
         className: currentClass.name,
         subject: currentClass.subject,
         grade: currentClass.grade,
-        difficulty: 'mixed',
         questionCount: 5,
         includeExplanations: true
       });
