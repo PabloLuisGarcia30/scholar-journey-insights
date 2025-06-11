@@ -3,6 +3,7 @@ import { studentIdIntegration } from "./studentIdIntegrationService";
 import { calculateClassDuration, getClassDurationInMinutes, formatDurationShort, DurationInfo } from "@/utils/classDurationUtils";
 import { DEV_CONFIG, MOCK_USER_DATA } from "@/config/devConfig";
 import type { Question } from "@/utils/pdfGenerator";
+import { StudentIdGenerationService } from "./studentIdGenerationService";
 
 export interface ExamData {
   examId: string;
@@ -1535,3 +1536,4 @@ export const getComprehensiveStudentAnalytics = async (studentProfileId: string)
     };
   }
 };
+

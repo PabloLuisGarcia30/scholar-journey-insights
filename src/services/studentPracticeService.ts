@@ -1,5 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import { practiceExerciseSkillService } from "./practiceExerciseSkillService";
+import { studentIdIntegration } from "./studentIdIntegrationService";
 
 export interface StudentPracticeRequest {
   studentId: string;
@@ -133,6 +134,70 @@ export class StudentPracticeService {
   }
 
   /**
+   * Enhanced practice session creation with Student ID integration
+   */
+  static async createPracticeSession(request: StudentPracticeRequest): Promise<{
+    sessionId: string;
+    studentProfileId: string;
+    studentId: string;
+  }> {
+    try {
+      console.log('🎯 Creating practice session with Student ID integration:', request);
+
+      // Ensure student has proper Student ID integration
+      const studentResult = await studentIdIntegration.integrateForGrading(
+        request.studentName,
+        request.classId,
+        undefined, // email
+        request.grade
+      );
+
+      if (!studentResult.success) {
+        throw new Error(`Student integration failed: ${studentResult.error}`);
+      }
+
+      // Create practice session linked to student profile
+      const { data: session, error } = await supabase
+        .from('student_practice_sessions')
+        .insert({
+          student_id: studentResult.studentProfileId, // Link to student profile
+          student_name: request.studentName,
+          skill_name: request.skillName,
+          current_skill_score: request.currentSkillScore,
+          class_id: request.classId,
+          class_name: request.className,
+          subject: request.subject,
+          grade: request.grade,
+          difficulty_level: request.preferredDifficulty || 'adaptive',
+          question_count: request.questionCount || 4,
+          exercise_generated: true
+        })
+        .select('id')
+        .single();
+
+      if (error) {
+        throw new Error(`Failed to create practice session: ${error.message}`);
+      }
+
+      console.log('✅ Practice session created with Student ID integration:', {
+        sessionId: session.id,
+        studentId: studentResult.studentId,
+        profileId: studentResult.studentProfileId
+      });
+
+      return {
+        sessionId: session.id,
+        studentProfileId: studentResult.studentProfileId,
+        studentId: studentResult.studentId
+      };
+
+    } catch (error) {
+      console.error('❌ Error creating practice session:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Complete a practice exercise with enhanced skill score tracking
    */
   static async completePracticeExerciseWithSkillUpdates(
@@ -144,34 +209,47 @@ export class StudentPracticeService {
   ): Promise<{
     success: boolean;
     skillUpdates: any[];
+    studentIntegration?: {
+      studentProfileId: string;
+      studentId: string;
+    };
     error?: string;
   }> {
     try {
-      console.log('🎯 Completing practice exercise with skill score updates:', {
+      console.log('🎯 Completing practice exercise with enhanced Student ID integration:', {
         exerciseId,
         studentId,
         skillName,
         exerciseScore
       });
 
-      // Use the existing practice exercise skill service for consistent processing
+      // Ensure complete exercise data includes Student ID metadata
+      const enhancedExerciseData = {
+        ...exerciseData,
+        studentName: exerciseData?.studentName || exerciseData?.metadata?.studentName,
+        classId: exerciseData?.classId || exerciseData?.metadata?.classId,
+        gradeLevel: exerciseData?.grade || exerciseData?.metadata?.grade,
+        skillType: exerciseData?.skillType || exerciseData?.metadata?.skillType
+      };
+
+      // Process with enhanced skill service that includes Student ID integration
       const result = await practiceExerciseSkillService.processPracticeExerciseCompletion({
         studentId,
         exerciseId,
         skillName,
         exerciseScore,
-        exerciseData
+        exerciseData: enhancedExerciseData
       });
 
       if (result.success) {
-        console.log('✅ Practice exercise completed with skill updates:', result.skillUpdates.length);
+        console.log('✅ Practice exercise completed with Student ID integration:', result.skillUpdates.length);
       } else {
         console.warn('⚠️ Practice exercise completed but skill updates failed:', result.error);
       }
 
       return result;
     } catch (error) {
-      console.error('❌ Error completing practice exercise with skill updates:', error);
+      console.error('❌ Error completing practice exercise with Student ID integration:', error);
       return {
         success: false,
         skillUpdates: [],

@@ -382,8 +382,5 @@ export class TransactionService {
   }
 }
 
-// Export enhanced singleton instance
-export const transactionService = new TransactionService();
-
-// Export singleton instance
+// Export enhanced singleton instance (remove the duplicate)
 export const transactionService = new TransactionService();
