@@ -109,13 +109,13 @@ serve(async (req) => {
     **PRACTICE_RECOMMENDATIONS**
     ${prioritySkills.length > 0 ? `
     PRIORITY (Needs immediate attention):
-    ${prioritySkills.map(skill => `- ${skill.name}: ${skill.score}% | Difficulty: Review | Time: 15-20 min | Improvement: +15-20%`).join('\n')}` : ''}
+    ${prioritySkills.map(skill => `- ${skill.name}: ${skill.score}% | Difficulty: Review | Time: 15-20 min | Improvement: +3-8%`).join('\n')}` : ''}
     ${reviewSkills.length > 0 ? `
     REVIEW (Strengthen understanding):
-    ${reviewSkills.map(skill => `- ${skill.name}: ${skill.score}% | Difficulty: Standard | Time: 10-15 min | Improvement: +10-15%`).join('\n')}` : ''}
+    ${reviewSkills.map(skill => `- ${skill.name}: ${skill.score}% | Difficulty: Standard | Time: 10-15 min | Improvement: +2-5%`).join('\n')}` : ''}
     ${challengeSkills.length > 0 ? `
     CHALLENGE (Advanced practice):
-    ${challengeSkills.map(skill => `- ${skill.name}: ${skill.score}% | Difficulty: Challenge | Time: 20-25 min | Improvement: +5-10%`).join('\n')}` : ''}
+    ${challengeSkills.map(skill => `- ${skill.name}: ${skill.score}% | Difficulty: Challenge | Time: 20-25 min | Improvement: +1-3%`).join('\n')}` : ''}
     **END_PRACTICE_RECOMMENDATIONS**
 
     Your role:
