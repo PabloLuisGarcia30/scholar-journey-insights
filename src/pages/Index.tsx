@@ -7,7 +7,6 @@ import { LearnerProfileDisplay } from "@/components/LearnerProfileDisplay";
 import { ClassView } from "@/components/ClassView";
 import { StudentPortals } from "@/components/StudentPortals";
 import { DashboardSidebar } from "@/components/DashboardSidebar";
-import { DashboardHeader } from "@/components/DashboardHeader";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { useDevRole } from "@/contexts/DevRoleContext";
@@ -79,49 +78,50 @@ const Index = () => {
       case 'search':
         return (
           <div className="p-6">
-            <DashboardHeader title="Student Search" subtitle="Find and view student profiles" />
             <StudentSearch onSelectStudent={handleSelectStudent} />
           </div>
         );
       case 'classes':
         return (
           <div className="p-6">
-            <DashboardHeader title="Class Management" subtitle="Manage your classes and students" />
             <ClassView onSelectStudent={handleSelectStudent} />
           </div>
         );
       case 'analytics':
         return (
           <div className="p-6">
-            <DashboardHeader title="Analytics Dashboard" subtitle="View performance insights and trends" />
+            <h1 className="text-3xl font-bold text-gray-900 mb-2">Analytics Dashboard</h1>
+            <p className="text-gray-600 mb-4">View performance insights and trends</p>
             <p className="text-gray-600 mt-2">Coming soon...</p>
           </div>
         );
       case 'portals':
         return (
           <div className="p-6">
-            <DashboardHeader title="Student Portals" subtitle="Manage student access and assignments" />
+            <h1 className="text-3xl font-bold text-gray-900 mb-2">Student Portals</h1>
+            <p className="text-gray-600 mb-4">Manage student access and assignments</p>
             <StudentPortals />
           </div>
         );
       case 'student-lesson-tracker':
         return (
           <div className="p-6">
-            <DashboardHeader title="Student Lesson Tracker" subtitle="Track lesson progress and completion" />
+            <h1 className="text-3xl font-bold text-gray-900 mb-2">Student Lesson Tracker</h1>
+            <p className="text-gray-600 mb-4">Track lesson progress and completion</p>
             <p className="text-gray-600 mt-2">Coming soon...</p>
           </div>
         );
       case 'learner-profiles':
         return (
           <div className="p-6">
-            <DashboardHeader title="Learner Profiles" subtitle="Detailed student learning analytics" />
+            <h1 className="text-3xl font-bold text-gray-900 mb-2">Learner Profiles</h1>
+            <p className="text-gray-600 mb-4">Detailed student learning analytics</p>
             <p className="text-gray-600 mt-2">Coming soon...</p>
           </div>
         );
       default:
         return (
           <div className="p-6">
-            <DashboardHeader title="Teacher Dashboard" subtitle="Overview of student performance and class management" />
             <StudentDashboard onSelectStudent={handleSelectStudent} />
           </div>
         );
