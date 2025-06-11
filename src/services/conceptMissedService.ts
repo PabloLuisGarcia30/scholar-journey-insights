@@ -335,10 +335,9 @@ Output format (JSON only):
    */
   private static async incrementConceptUsage(conceptId: string): Promise<void> {
     try {
-      const { error } = await supabase
-        .from('concept_index')
-        .update({ usage_count: supabase.sql`usage_count + 1` })
-        .eq('id', conceptId);
+      const { error } = await supabase.rpc('increment_concept_usage', {
+        concept_id: conceptId
+      });
       
       if (error) {
         console.error('❌ Error incrementing concept usage:', error);
