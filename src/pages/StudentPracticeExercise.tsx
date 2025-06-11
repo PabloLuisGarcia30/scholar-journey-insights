@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -371,6 +370,11 @@ const StudentPracticeExercise = () => {
                 </>
               )}
             </CardTitle>
+            {(isGenerating || isGenerationLoading) && (
+              <p className="text-sm text-gray-500 text-center mt-2">
+                This will only take a few moments
+              </p>
+            )}
           </CardHeader>
           <CardContent className="text-center space-y-6">
             {isGenerating || isGenerationLoading ? (
