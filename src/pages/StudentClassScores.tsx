@@ -1,4 +1,4 @@
-
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -10,11 +10,14 @@ import { useStudentProfileData } from "@/hooks/useStudentProfileData";
 import { useSkillData } from "@/hooks/useSkillData";
 import { getGradeColor } from "@/utils/studentProfileUtils";
 import { AIChatbox } from "@/components/AIChatbox";
+import { QuestionCountDialog } from "@/components/QuestionCountDialog";
 
 const StudentClassScores = () => {
   const navigate = useNavigate();
   const { classId } = useParams();
   const { profile } = useAuth();
+  const [showQuestionDialog, setShowQuestionDialog] = useState(false);
+  const [selectedSkillName, setSelectedSkillName] = useState("");
   
   // Get student data with class context
   const { 
@@ -66,8 +69,13 @@ const StudentClassScores = () => {
   };
 
   const handleSkillClick = (skillName: string) => {
-    const encodedSkillName = encodeURIComponent(skillName);
-    navigate(`/student-dashboard/practice/${classId}/${encodedSkillName}`);
+    setSelectedSkillName(skillName);
+    setShowQuestionDialog(true);
+  };
+
+  const handleQuestionCountConfirm = (questionCount: number) => {
+    const encodedSkillName = encodeURIComponent(selectedSkillName);
+    navigate(`/student-dashboard/practice/${classId}/${encodedSkillName}?questions=${questionCount}`);
   };
 
   if (classLoading || !currentClass) {
@@ -180,21 +188,21 @@ const StudentClassScores = () => {
                           </div>
                           <div className="flex items-center gap-1">
                             <Clock className="h-3 w-3" />
-                            <span>15-20 min practice</span>
+                            <span>Customizable length</span>
                           </div>
                         </div>
                       </div>
                     </TooltipTrigger>
                     <TooltipContent>
                       <p className="font-medium">Generate a practice exercise!</p>
-                      <p className="text-xs text-muted-foreground">Click to start practicing {skill.skill_name}</p>
+                      <p className="text-xs text-muted-foreground">Click to choose question count and start practicing {skill.skill_name}</p>
                     </TooltipContent>
                   </Tooltip>
                 ))}
                 
                 <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
                   <p className="text-sm text-blue-800 text-center">
-                    💡 <strong>Pro tip:</strong> Focus on your lowest scoring skills first for maximum improvement impact!
+                    💡 <strong>Pro tip:</strong> You can now choose how many questions you want in each practice session!
                   </p>
                 </div>
               </div>
@@ -287,6 +295,14 @@ const StudentClassScores = () => {
           </Card>
         )}
       </div>
+
+      {/* Question Count Selection Dialog */}
+      <QuestionCountDialog
+        isOpen={showQuestionDialog}
+        onClose={() => setShowQuestionDialog(false)}
+        onConfirm={handleQuestionCountConfirm}
+        skillName={selectedSkillName}
+      />
     </div>
   );
 };

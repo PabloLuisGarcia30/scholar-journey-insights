@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { ArrowLeft, Target, BookOpen, Loader2, Zap, TrendingUp } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useStudentProfileData } from "@/hooks/useStudentProfileData";
@@ -14,6 +14,7 @@ import { toast } from "sonner";
 const StudentPracticeExercise = () => {
   const navigate = useNavigate();
   const { classId, skillName } = useParams();
+  const [searchParams] = useSearchParams();
   const { profile } = useAuth();
   const [exerciseData, setExerciseData] = useState(null);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -22,6 +23,9 @@ const StudentPracticeExercise = () => {
   const [skillImprovements, setSkillImprovements] = useState([]);
   
   const decodedSkillName = decodeURIComponent(skillName || '');
+  
+  // Get question count from URL parameters, default to 4
+  const questionCount = parseInt(searchParams.get('questions') || '4');
   
   // Get student and class data
   const { 
@@ -87,7 +91,7 @@ const StudentPracticeExercise = () => {
         className: currentClass.name,
         subject: currentClass.subject,
         grade: currentClass.grade,
-        questionCount: 4 // Optimized for student-initiated practice
+        questionCount: questionCount // Use the selected question count
       });
 
       if (practiceExercise) {
@@ -293,12 +297,12 @@ const StudentPracticeExercise = () => {
                     <div className="bg-blue-600 h-2 rounded-full animate-pulse" style={{ width: '75%' }}></div>
                   </div>
                   <p className="text-gray-600">
-                    Creating adaptive questions for <strong>{decodedSkillName}</strong> based on your current skill level ({currentSkillScore}%)...
+                    Creating <strong>{questionCount} adaptive questions</strong> for <strong>{decodedSkillName}</strong> based on your current skill level ({currentSkillScore}%)...
                   </p>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm text-gray-500">
                     <div className="flex items-center justify-center gap-2">
                       <Target className="h-4 w-4" />
-                      <span>4 Questions</span>
+                      <span>{questionCount} Questions</span>
                     </div>
                     <div className="flex items-center justify-center gap-2">
                       <TrendingUp className="h-4 w-4" />
@@ -306,7 +310,7 @@ const StudentPracticeExercise = () => {
                     </div>
                     <div className="flex items-center justify-center gap-2">
                       <BookOpen className="h-4 w-4" />
-                      <span>8-12 min</span>
+                      <span>{Math.round(questionCount * 2.5)}-{Math.round(questionCount * 3)} min</span>
                     </div>
                   </div>
                 </div>
@@ -323,7 +327,7 @@ const StudentPracticeExercise = () => {
             ) : (
               <>
                 <p className="text-gray-600 mb-4">
-                  Ready to practice <strong>{decodedSkillName}</strong>
+                  Ready to practice <strong>{decodedSkillName}</strong> with <strong>{questionCount} questions</strong>
                 </p>
                 <Button onClick={generateStudentPracticeExercise} className="bg-blue-600 hover:bg-blue-700">
                   <Zap className="h-4 w-4 mr-2" />
@@ -380,6 +384,14 @@ const StudentPracticeExercise = () => {
               <div className="flex justify-between">
                 <span className="text-gray-600">Skill Focus:</span>
                 <span className="font-medium">{decodedSkillName}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-600">Questions:</span>
+                <span className="font-medium">{questionCount}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-600">Estimated Time:</span>
+                <span className="font-medium">{Math.round(questionCount * 2.5)}-{Math.round(questionCount * 3)} minutes</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-600">Current Score:</span>
