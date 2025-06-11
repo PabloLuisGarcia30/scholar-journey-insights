@@ -1,11 +1,11 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { CheckCircle, XCircle, HelpCircle, BookOpen, Target, ArrowLeft } from 'lucide-react';
+import { CheckCircle, XCircle, HelpCircle, BookOpen, Target, ArrowLeft, Lightbulb, Loader2, ChevronDown, ChevronUp } from 'lucide-react';
 import { PracticeAnswerKeyService, type PracticeAnswerKey } from '@/services/practiceAnswerKeyService';
+import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
 interface PracticeExerciseReviewProps {
@@ -38,6 +38,9 @@ export function PracticeExerciseReview({
   const [answerKey, setAnswerKey] = useState<PracticeAnswerKey | null>(null);
   const [loading, setLoading] = useState(true);
   const [questionReviews, setQuestionReviews] = useState<QuestionReview[]>([]);
+  const [detailedExplanations, setDetailedExplanations] = useState<Record<string, string>>({});
+  const [loadingExplanations, setLoadingExplanations] = useState<Record<string, boolean>>({});
+  const [expandedExplanations, setExpandedExplanations] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     loadAnswerKey();
@@ -117,6 +120,51 @@ export function PracticeExerciseReview({
     }
     
     return false;
+  };
+
+  const handleExplainFurther = async (questionId: string, review: QuestionReview) => {
+    if (detailedExplanations[questionId]) {
+      // Toggle expanded state if explanation already exists
+      setExpandedExplanations(prev => ({
+        ...prev,
+        [questionId]: !prev[questionId]
+      }));
+      return;
+    }
+
+    setLoadingExplanations(prev => ({ ...prev, [questionId]: true }));
+
+    try {
+      const { data, error } = await supabase.functions.invoke('explain-concept', {
+        body: {
+          question: review.question,
+          correctAnswer: review.correctAnswer,
+          explanation: review.explanation,
+          subject: answerKey?.metadata.subject || 'General',
+          grade: answerKey?.metadata.grade || 'Grade 10',
+          skillName: review.targetSkill
+        }
+      });
+
+      if (error) throw error;
+
+      setDetailedExplanations(prev => ({
+        ...prev,
+        [questionId]: data.detailedExplanation
+      }));
+
+      setExpandedExplanations(prev => ({
+        ...prev,
+        [questionId]: true
+      }));
+
+      toast.success('Detailed explanation generated!');
+    } catch (error) {
+      console.error('Error getting detailed explanation:', error);
+      toast.error('Failed to generate detailed explanation. Please try again.');
+    } finally {
+      setLoadingExplanations(prev => ({ ...prev, [questionId]: false }));
+    }
   };
 
   const getScoreColor = (score: number) => {
@@ -291,10 +339,47 @@ export function PracticeExerciseReview({
 
               <Separator />
 
-              {/* Explanation */}
+              {/* Explanation with Explain Further button */}
               <div>
-                <p className="text-sm font-medium text-muted-foreground mb-2">Explanation:</p>
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-sm font-medium text-muted-foreground">Explanation:</p>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleExplainFurther(review.id, review)}
+                    disabled={loadingExplanations[review.id]}
+                    className="text-blue-600 hover:text-blue-700"
+                  >
+                    {loadingExplanations[review.id] ? (
+                      <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                    ) : (
+                      <Lightbulb className="h-4 w-4 mr-1" />
+                    )}
+                    {detailedExplanations[review.id] ? 
+                      (expandedExplanations[review.id] ? 'Hide detailed explanation' : 'Show detailed explanation') : 
+                      'Explain further'
+                    }
+                    {detailedExplanations[review.id] && (
+                      expandedExplanations[review.id] ? 
+                        <ChevronUp className="h-4 w-4 ml-1" /> : 
+                        <ChevronDown className="h-4 w-4 ml-1" />
+                    )}
+                  </Button>
+                </div>
                 <p className="text-sm leading-relaxed">{review.explanation}</p>
+
+                {/* Detailed AI Explanation */}
+                {detailedExplanations[review.id] && expandedExplanations[review.id] && (
+                  <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                    <div className="flex items-center gap-2 mb-3">
+                      <Lightbulb className="h-4 w-4 text-blue-600" />
+                      <p className="text-sm font-medium text-blue-800">Detailed Explanation (Explained Simply):</p>
+                    </div>
+                    <div className="text-sm text-blue-700 leading-relaxed whitespace-pre-wrap">
+                      {detailedExplanations[review.id]}
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Learning Objective */}
