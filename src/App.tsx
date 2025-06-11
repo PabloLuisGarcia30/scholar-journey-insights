@@ -6,6 +6,8 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import StudentDashboard from "./pages/StudentDashboard";
+import StudentLanding from "./pages/StudentLanding";
+import HomeLearner from "./pages/HomeLearner";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import { DevRoleProvider, useDevRole } from "./contexts/DevRoleContext";
 import { MultiSkillSelectionProvider } from "./contexts/MultiSkillSelectionContext";
