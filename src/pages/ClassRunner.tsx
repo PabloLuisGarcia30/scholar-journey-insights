@@ -54,7 +54,7 @@ export default function ClassRunner() {
   // Fetch active classes for the authenticated teacher
   const { data: activeClasses = [], isLoading } = useQuery({
     queryKey: ['activeClasses', user?.id],
-    queryFn: async (): Promise<ActiveClassItem[]> => {
+    queryFn: async () => {
       if (!user?.id) {
         console.log('No authenticated user ID available');
         return [];
@@ -328,7 +328,7 @@ export default function ClassRunner() {
                   <CardTitle className="flex items-center gap-3">
                     {useModernDesign && (
                       <div className="p-2 bg-blue-50 rounded-lg">
-                        <BookOpen className="h-5 w-5 text-blue-600" />
+                        <BookOpen className="h-6 w-6 text-blue-600" />
                       </div>
                     )}
                     <div>
