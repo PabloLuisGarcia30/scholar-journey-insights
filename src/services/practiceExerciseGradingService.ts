@@ -1,5 +1,6 @@
-
 import { SmartAnswerGradingService, type GradingResult, type AnswerPattern } from './smartAnswerGradingService';
+import { MistakePatternService } from './mistakePatternService';
+import { QuestionTimingService } from './questionTimingService';
 
 export interface PracticeExerciseAnswer {
   questionId: string;
@@ -34,11 +35,13 @@ export interface ExerciseSubmissionResult {
 export class PracticeExerciseGradingService {
   
   /**
-   * Grade a complete practice exercise submission
+   * Grade a complete practice exercise submission with enhanced tracking
    */
   static async gradeExerciseSubmission(
     answers: PracticeExerciseAnswer[],
-    exerciseTitle?: string
+    exerciseTitle?: string,
+    studentExerciseId?: string,
+    skillName?: string
   ): Promise<ExerciseSubmissionResult> {
     console.log('🎯 Grading practice exercise submission with', answers.length, 'answers');
     
@@ -46,12 +49,41 @@ export class PracticeExerciseGradingService {
     let totalScore = 0;
     let totalPossible = 0;
     
-    // Grade each question
-    for (const answer of answers) {
+    // Grade each question and record patterns
+    for (let i = 0; i < answers.length; i++) {
+      const answer = answers[i];
+      const questionNumber = i + 1;
+      
       const result = await this.gradeExerciseQuestion(answer);
       questionResults.push(result);
       totalScore += result.pointsEarned;
       totalPossible += result.pointsPossible;
+      
+      // Record mistake pattern if we have the required data
+      if (studentExerciseId && skillName) {
+        const mistakeType = result.isCorrect ? null : 
+          MistakePatternService.analyzeMistakeType(
+            answer.questionType,
+            answer.studentAnswer,
+            answer.correctAnswer,
+            answer.options
+          );
+
+        await MistakePatternService.recordMistakePattern({
+          studentExerciseId,
+          questionId: answer.questionId,
+          questionNumber,
+          questionType: answer.questionType,
+          studentAnswer: answer.studentAnswer,
+          correctAnswer: answer.correctAnswer,
+          isCorrect: result.isCorrect,
+          skillTargeted: skillName,
+          mistakeType: mistakeType || undefined,
+          confidenceScore: result.confidence,
+          gradingMethod: result.gradingMethod,
+          feedbackGiven: result.feedback
+        });
+      }
     }
     
     const percentageScore = totalPossible > 0 ? (totalScore / totalPossible) * 100 : 0;

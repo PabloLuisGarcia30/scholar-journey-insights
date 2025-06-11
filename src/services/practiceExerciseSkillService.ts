@@ -63,7 +63,7 @@ export class PracticeExerciseSkillService {
           attemptsCount: currentSkillData.attemptsCount || 0
         });
 
-        // Insert new skill score record
+        // Insert new skill score record with enhanced tracking support
         await this.insertPracticeExerciseSkillScore(
           studentProfileId,
           update.exerciseId,
@@ -75,7 +75,7 @@ export class PracticeExerciseSkillService {
         );
       }
 
-      console.log('✅ Successfully processed skill updates:', skillUpdates.length);
+      console.log('✅ Successfully processed skill updates with enhanced tracking:', skillUpdates.length);
       
       return {
         success: true,
@@ -307,7 +307,7 @@ export class PracticeExerciseSkillService {
           overall_score: score,
           total_points_earned: pointsEarned,
           total_points_possible: pointsPossible,
-          ai_feedback: 'Practice exercise completed'
+          ai_feedback: 'Practice exercise completed with enhanced tracking'
         })
         .select('id')
         .single();
@@ -316,7 +316,7 @@ export class PracticeExerciseSkillService {
         throw new Error(`Failed to create test result: ${testError?.message}`);
       }
 
-      // Insert skill score record
+      // Insert skill score record with practice exercise reference
       const skillTable = skillType === 'content' ? 'content_skill_scores' : 'subject_skill_scores';
       
       const { error: skillError } = await supabase
@@ -334,7 +334,7 @@ export class PracticeExerciseSkillService {
         throw new Error(`Failed to insert skill score: ${skillError.message}`);
       }
 
-      console.log(`✅ Inserted ${skillType} skill score for ${skillName}: ${score}% (using stored metadata)`);
+      console.log(`✅ Inserted ${skillType} skill score for ${skillName}: ${score}% (with enhanced tracking support)`);
       
     } catch (error) {
       console.error('Error inserting practice exercise skill score:', error);

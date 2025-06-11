@@ -759,6 +759,65 @@ export type Database = {
         }
         Relationships: []
       }
+      mistake_patterns: {
+        Row: {
+          confidence_score: number | null
+          correct_answer: string
+          created_at: string
+          feedback_given: string | null
+          grading_method: string | null
+          id: string
+          is_correct: boolean
+          mistake_type: string | null
+          question_id: string
+          question_number: number
+          question_type: string
+          skill_targeted: string
+          student_answer: string
+          student_exercise_id: string
+        }
+        Insert: {
+          confidence_score?: number | null
+          correct_answer: string
+          created_at?: string
+          feedback_given?: string | null
+          grading_method?: string | null
+          id?: string
+          is_correct: boolean
+          mistake_type?: string | null
+          question_id: string
+          question_number: number
+          question_type: string
+          skill_targeted: string
+          student_answer: string
+          student_exercise_id: string
+        }
+        Update: {
+          confidence_score?: number | null
+          correct_answer?: string
+          created_at?: string
+          feedback_given?: string | null
+          grading_method?: string | null
+          id?: string
+          is_correct?: boolean
+          mistake_type?: string | null
+          question_id?: string
+          question_number?: number
+          question_type?: string
+          skill_targeted?: string
+          student_answer?: string
+          student_exercise_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mistake_patterns_student_exercise_id_fkey"
+            columns: ["student_exercise_id"]
+            isOneToOne: false
+            referencedRelation: "student_exercises"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       notifications: {
         Row: {
           assignment_id: string | null
@@ -909,6 +968,53 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: []
+      }
+      question_time_tracking: {
+        Row: {
+          answer_changes_count: number
+          created_at: string
+          id: string
+          question_id: string
+          question_number: number
+          student_exercise_id: string
+          time_answered: string | null
+          time_spent_seconds: number | null
+          time_started: string
+          updated_at: string
+        }
+        Insert: {
+          answer_changes_count?: number
+          created_at?: string
+          id?: string
+          question_id: string
+          question_number: number
+          student_exercise_id: string
+          time_answered?: string | null
+          time_spent_seconds?: number | null
+          time_started?: string
+          updated_at?: string
+        }
+        Update: {
+          answer_changes_count?: number
+          created_at?: string
+          id?: string
+          question_id?: string
+          question_number?: number
+          student_exercise_id?: string
+          time_answered?: string | null
+          time_spent_seconds?: number | null
+          time_started?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "question_time_tracking_student_exercise_id_fkey"
+            columns: ["student_exercise_id"]
+            isOneToOne: false
+            referencedRelation: "student_exercises"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       student_exercises: {
         Row: {
@@ -1366,6 +1472,17 @@ export type Database = {
         }
         Returns: number
       }
+      get_question_timing_analytics: {
+        Args: { student_uuid: string }
+        Returns: {
+          skill_name: string
+          avg_time_per_question: number
+          min_time_seconds: number
+          max_time_seconds: number
+          total_questions: number
+          questions_with_multiple_changes: number
+        }[]
+      }
       get_session_monitoring_data: {
         Args: { session_id?: string }
         Returns: {
@@ -1391,6 +1508,17 @@ export type Database = {
           grade: string
         }[]
       }
+      get_struggle_indicators: {
+        Args: { student_uuid: string; time_threshold_seconds?: number }
+        Returns: {
+          skill_name: string
+          question_number: number
+          time_spent_seconds: number
+          answer_changes_count: number
+          was_correct: boolean
+          struggle_score: number
+        }[]
+      }
       get_student_current_skill_scores: {
         Args: { student_uuid: string }
         Returns: {
@@ -1399,6 +1527,16 @@ export type Database = {
           current_score: number
           attempts_count: number
           last_updated: string
+        }[]
+      }
+      get_student_mistake_patterns: {
+        Args: { student_uuid: string; skill_filter?: string }
+        Returns: {
+          skill_name: string
+          mistake_type: string
+          mistake_count: number
+          total_questions: number
+          mistake_rate: number
         }[]
       }
       get_user_role: {

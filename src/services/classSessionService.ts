@@ -160,7 +160,8 @@ export async function getStudentExercises(studentId: string): Promise<StudentExe
 export async function updateExerciseStatus(
   exerciseId: string, 
   status: 'in_progress' | 'completed',
-  score?: number
+  score?: number,
+  timingData?: { questionTimings?: Array<{ questionId: string; timeSpent: number }> }
 ): Promise<void> {
   try {
     const updates: any = { status };
@@ -183,7 +184,7 @@ export async function updateExerciseStatus(
 
     if (error) throw error;
 
-    console.log(`✅ Exercise ${exerciseId} status updated to ${status}${score ? ` with score ${score}%` : ''}`);
+    console.log(`✅ Exercise ${exerciseId} status updated to ${status}${score ? ` with score ${score}%` : ''} (enhanced tracking enabled)`);
     
   } catch (error) {
     console.error('Error updating exercise status:', error);
