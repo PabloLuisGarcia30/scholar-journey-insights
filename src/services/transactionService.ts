@@ -1,5 +1,4 @@
 import { supabase } from "@/integrations/supabase/client";
-import { studentIdIntegration } from "./studentIdIntegrationService";
 import type { GradingResult, TestAnalysisResult, SkillScore } from './jsonValidationService';
 
 export interface DatabaseTransactionResult {
@@ -7,12 +6,6 @@ export interface DatabaseTransactionResult {
   testResultId?: string;
   questionsStored?: number;
   skillScoresStored?: number;
-  studentIntegration?: {
-    studentProfileId: string;
-    studentId: string;
-    wasCreated: boolean;
-    enrolledInClass?: boolean;
-  };
   error?: string;
   rollbackPerformed?: boolean;
 }
@@ -20,7 +13,7 @@ export interface DatabaseTransactionResult {
 export interface TestResultData {
   examId: string;
   studentName: string;
-  studentProfileId?: string;
+  authenticatedStudentId?: string;
   classId?: string;
   overallScore: number;
   totalPointsEarned: number;
@@ -32,42 +25,29 @@ export interface TestResultData {
 }
 
 export class TransactionService {
-  // Enhanced atomic test result insertion with Student ID integration
+  // Enhanced atomic test result insertion with authenticated student profiles
   async insertTestResultsTransaction(
     testData: TestResultData,
     gradingResults: GradingResult[],
     contentSkillScores: SkillScore[] = [],
     subjectSkillScores: SkillScore[] = []
   ): Promise<DatabaseTransactionResult> {
-    console.log('🔄 Starting enhanced atomic test results transaction with Student ID integration...');
+    console.log('🔄 Starting enhanced atomic test results transaction with authenticated students...');
     
     try {
-      // Step 1: Integrate student (get or create profile + auto-enroll)
-      console.log('📝 Integrating student for grading:', testData.studentName);
-      
-      const studentIntegration = await studentIdIntegration.integrateForGrading(
-        testData.studentName,
-        testData.classId,
-        testData.email,
-        testData.gradeLevel
-      );
-
-      if (!studentIntegration.success) {
-        throw new Error(`Student integration failed: ${studentIntegration.error}`);
+      // Ensure we have an authenticated student ID
+      if (!testData.authenticatedStudentId) {
+        throw new Error('Authenticated student ID is required for test result insertion');
       }
 
-      console.log('✅ Student integration completed:', {
-        studentId: studentIntegration.studentId,
-        profileId: studentIntegration.studentProfileId,
-        wasCreated: studentIntegration.wasCreated
-      });
+      console.log('✅ Using authenticated student ID:', testData.authenticatedStudentId);
 
-      // Step 2: Insert main test result with proper student linking
+      // Insert main test result with authenticated student linking
       const { data: testResult, error: testError } = await supabase
         .from('test_results')
         .insert({
           exam_id: testData.examId,
-          student_id: studentIntegration.studentProfileId, // Use UUID from student_profiles
+          authenticated_student_id: testData.authenticatedStudentId,
           class_id: testData.classId || '',
           overall_score: testData.overallScore,
           total_points_earned: testData.totalPointsEarned,
@@ -85,12 +65,12 @@ export class TransactionService {
       const testResultId = testResult.id;
       console.log(`✅ Test result created: ${testResultId}`);
 
-      // Step 3: Insert content skill scores with student_id linking
+      // Insert content skill scores with authenticated student linking
       let contentSkillCount = 0;
       if (contentSkillScores.length > 0) {
         const contentSkillData = contentSkillScores.map(skill => ({
           test_result_id: testResultId,
-          student_id: studentIntegration.studentProfileId, // Direct student linking
+          authenticated_student_id: testData.authenticatedStudentId,
           skill_name: skill.skill_name,
           score: skill.score,
           points_earned: skill.points_earned,
@@ -111,12 +91,12 @@ export class TransactionService {
         console.log(`✅ Content skill scores stored: ${contentSkillCount}`);
       }
 
-      // Step 4: Insert subject skill scores with student_id linking
+      // Insert subject skill scores with authenticated student linking
       let subjectSkillCount = 0;
       if (subjectSkillScores.length > 0) {
         const subjectSkillData = subjectSkillScores.map(skill => ({
           test_result_id: testResultId,
-          student_id: studentIntegration.studentProfileId, // Direct student linking
+          authenticated_student_id: testData.authenticatedStudentId,
           skill_name: skill.skill_name,
           score: skill.score,
           points_earned: skill.points_earned,
@@ -144,13 +124,7 @@ export class TransactionService {
         success: true,
         testResultId,
         questionsStored: gradingResults.length,
-        skillScoresStored: contentSkillCount + subjectSkillCount,
-        studentIntegration: {
-          studentProfileId: studentIntegration.studentProfileId,
-          studentId: studentIntegration.studentId,
-          wasCreated: studentIntegration.wasCreated,
-          enrolledInClass: studentIntegration.enrolledInClass
-        }
+        skillScoresStored: contentSkillCount + subjectSkillCount
       };
 
     } catch (error) {
@@ -261,19 +235,19 @@ export class TransactionService {
     }
   }
 
-  // Enhanced verification with student_id checking
+  // Enhanced verification with authenticated student checking
   async verifyTransactionIntegrity(testResultId: string): Promise<{
     testResultExists: boolean;
     contentSkillCount: number;
     subjectSkillCount: number;
-    studentIdLinked: boolean;
+    authenticatedStudentLinked: boolean;
     integrity: boolean;
   }> {
     try {
       // Check test result exists
       const { data: testResult, error: testError } = await supabase
         .from('test_results')
-        .select('id, student_id')
+        .select('id, authenticated_student_id')
         .eq('id', testResultId)
         .maybeSingle();
 
@@ -281,7 +255,7 @@ export class TransactionService {
         throw new Error(`Integrity check failed: ${testError.message}`);
       }
 
-      // Count content skill scores and check student_id linking
+      // Count content skill scores and check authenticated student linking
       const { count: contentSkillCount, error: contentError } = await supabase
         .from('content_skill_scores')
         .select('*', { count: 'exact', head: true })
@@ -291,7 +265,7 @@ export class TransactionService {
         throw new Error(`Content skill count failed: ${contentError.message}`);
       }
 
-      // Count subject skill scores and check student_id linking
+      // Count subject skill scores and check authenticated student linking
       const { count: subjectSkillCount, error: subjectError } = await supabase
         .from('subject_skill_scores')
         .select('*', { count: 'exact', head: true })
@@ -301,25 +275,26 @@ export class TransactionService {
         throw new Error(`Subject skill count failed: ${subjectError.message}`);
       }
 
-      // Verify student_id is properly linked
-      let studentIdLinked = false;
-      if (testResult?.student_id) {
+      // Verify authenticated student is properly linked
+      let authenticatedStudentLinked = false;
+      if (testResult?.authenticated_student_id) {
         const { data: studentProfile, error: studentError } = await supabase
-          .from('student_profiles')
-          .select('id, student_id')
-          .eq('id', testResult.student_id)
+          .from('profiles')
+          .select('id, role')
+          .eq('id', testResult.authenticated_student_id)
+          .eq('role', 'student')
           .maybeSingle();
 
-        studentIdLinked = !studentError && !!studentProfile?.student_id;
+        authenticatedStudentLinked = !studentError && !!studentProfile;
       }
 
-      const integrity = !!testResult && (contentSkillCount !== null) && (subjectSkillCount !== null) && studentIdLinked;
+      const integrity = !!testResult && (contentSkillCount !== null) && (subjectSkillCount !== null) && authenticatedStudentLinked;
 
       return {
         testResultExists: !!testResult,
         contentSkillCount: contentSkillCount || 0,
         subjectSkillCount: subjectSkillCount || 0,
-        studentIdLinked,
+        authenticatedStudentLinked,
         integrity
       };
 
@@ -329,7 +304,7 @@ export class TransactionService {
         testResultExists: false,
         contentSkillCount: 0,
         subjectSkillCount: 0,
-        studentIdLinked: false,
+        authenticatedStudentLinked: false,
         integrity: false
       };
     }
@@ -382,5 +357,7 @@ export class TransactionService {
   }
 }
 
-// Export enhanced singleton instance (remove the duplicate)
+// Export enhanced singleton instance
 export const transactionService = new TransactionService();
+
+}

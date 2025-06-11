@@ -1,5 +1,5 @@
+
 import { supabase } from "@/integrations/supabase/client";
-import { studentIdIntegration } from "./studentIdIntegrationService";
 
 export interface SkillScoreCalculation {
   skillName: string;
@@ -11,14 +11,14 @@ export interface SkillScoreCalculation {
 
 export class PracticeExerciseSkillService {
   /**
-   * Get student's content skills
+   * Get student's content skills using authenticated student ID
    */
-  static async getStudentContentSkills(studentId: string): Promise<any[]> {
+  static async getStudentContentSkills(authenticatedStudentId: string): Promise<any[]> {
     try {
       const { data, error } = await supabase
         .from('content_skill_scores')
         .select('*')
-        .eq('student_id', studentId);
+        .eq('authenticated_student_id', authenticatedStudentId);
 
       if (error) {
         console.error('❌ Error fetching content skills:', error);
@@ -33,14 +33,14 @@ export class PracticeExerciseSkillService {
   }
 
   /**
-   * Get student's subject skills
+   * Get student's subject skills using authenticated student ID
    */
-  static async getStudentSubjectSkills(studentId: string): Promise<any[]> {
+  static async getStudentSubjectSkills(authenticatedStudentId: string): Promise<any[]> {
     try {
       const { data, error } = await supabase
         .from('subject_skill_scores')
         .select('*')
-        .eq('student_id', studentId);
+        .eq('authenticated_student_id', authenticatedStudentId);
 
       if (error) {
         console.error('❌ Error fetching subject skills:', error);
@@ -58,7 +58,7 @@ export class PracticeExerciseSkillService {
    * Calculate content skill update
    */
   static async calculateContentSkillUpdate(
-    studentId: string,
+    authenticatedStudentId: string,
     skillName: string,
     exerciseScore: number,
     existingSkills: any[]
@@ -69,7 +69,7 @@ export class PracticeExerciseSkillService {
       const updatedScore = Math.min(100, currentScore + exerciseScore);
 
       console.log('📈 Calculating content skill update:', {
-        studentId,
+        authenticatedStudentId,
         skillName,
         currentScore,
         exerciseScore,
@@ -93,7 +93,7 @@ export class PracticeExerciseSkillService {
    * Calculate subject skill update
    */
   static async calculateSubjectSkillUpdate(
-    studentId: string,
+    authenticatedStudentId: string,
     skillName: string,
     exerciseScore: number,
     existingSkills: any[]
@@ -104,7 +104,7 @@ export class PracticeExerciseSkillService {
       const updatedScore = Math.min(100, currentScore + exerciseScore);
 
       console.log('📈 Calculating subject skill update:', {
-        studentId,
+        authenticatedStudentId,
         skillName,
         currentScore,
         exerciseScore,
@@ -125,16 +125,16 @@ export class PracticeExerciseSkillService {
   }
 
   /**
-   * Enhanced practice exercise completion with Student ID integration
+   * Enhanced practice exercise completion using authenticated student profiles
    */
   static async processPracticeExerciseCompletion({
-    studentId,
+    authenticatedStudentId,
     exerciseId,
     skillName,
     exerciseScore,
     exerciseData
   }: {
-    studentId: string;
+    authenticatedStudentId: string;
     exerciseId: string;
     skillName: string;
     exerciseScore: number;
@@ -145,53 +145,36 @@ export class PracticeExerciseSkillService {
     error?: string;
   }> {
     try {
-      console.log('🎯 Processing practice exercise completion with Student ID integration:', {
-        studentId,
+      console.log('🎯 Processing practice exercise completion with authenticated student:', {
+        authenticatedStudentId,
         exerciseId,
         skillName,
         exerciseScore
       });
 
-      // Step 1: Ensure student has proper Student ID integration
-      const studentResult = await studentIdIntegration.getOrCreateProfile(
-        exerciseData?.studentName || 'Unknown Student',
-        exerciseData?.classId,
-        exerciseData?.email,
-        exerciseData?.gradeLevel
-      );
+      // Get existing skill scores for comparison
+      const existingContentSkills = await this.getStudentContentSkills(authenticatedStudentId);
+      const existingSubjectSkills = await this.getStudentSubjectSkills(authenticatedStudentId);
 
-      if (!studentResult.success) {
-        throw new Error(`Student ID integration failed: ${studentResult.error}`);
-      }
-
-      console.log('✅ Student ID integration completed:', {
-        studentId: studentResult.studentId,
-        profileId: studentResult.studentProfileId
-      });
-
-      // Step 2: Get existing skill scores for comparison
-      const existingContentSkills = await this.getStudentContentSkills(studentResult.studentProfileId);
-      const existingSubjectSkills = await this.getStudentSubjectSkills(studentResult.studentProfileId);
-
-      // Step 3: Calculate skill updates with Student ID linking
+      // Calculate skill updates
       const skillUpdates: SkillScoreCalculation[] = [];
 
       // Process content skill updates
       const skillType = exerciseData?.skillType || exerciseData?.metadata?.skillType;
       if (skillType === 'content' || !skillType) {
         const contentSkillUpdate = await this.calculateContentSkillUpdate(
-          studentResult.studentProfileId,
+          authenticatedStudentId,
           skillName,
           exerciseScore,
           existingContentSkills
         );
 
         if (contentSkillUpdate) {
-          // Store content skill score with Student ID linking
+          // Store content skill score with authenticated student linking
           const { error: contentError } = await supabase
             .from('content_skill_scores')
             .insert({
-              student_id: studentResult.studentProfileId, // Link to student profile
+              authenticated_student_id: authenticatedStudentId,
               practice_exercise_id: exerciseId,
               skill_name: skillName,
               score: contentSkillUpdate.updatedScore,
@@ -203,7 +186,7 @@ export class PracticeExerciseSkillService {
             console.error('❌ Error storing content skill score:', contentError);
           } else {
             skillUpdates.push(contentSkillUpdate);
-            console.log('✅ Content skill score stored with Student ID link');
+            console.log('✅ Content skill score stored with authenticated student link');
           }
         }
       }
@@ -211,18 +194,18 @@ export class PracticeExerciseSkillService {
       // Process subject skill updates
       if (skillType === 'subject') {
         const subjectSkillUpdate = await this.calculateSubjectSkillUpdate(
-          studentResult.studentProfileId,
+          authenticatedStudentId,
           skillName,
           exerciseScore,
           existingSubjectSkills
         );
 
         if (subjectSkillUpdate) {
-          // Store subject skill score with Student ID linking
+          // Store subject skill score with authenticated student linking
           const { error: subjectError } = await supabase
             .from('subject_skill_scores')
             .insert({
-              student_id: studentResult.studentProfileId, // Link to student profile
+              authenticated_student_id: authenticatedStudentId,
               practice_exercise_id: exerciseId,
               skill_name: skillName,
               score: subjectSkillUpdate.updatedScore,
@@ -234,13 +217,13 @@ export class PracticeExerciseSkillService {
             console.error('❌ Error storing subject skill score:', subjectError);
           } else {
             skillUpdates.push(subjectSkillUpdate);
-            console.log('✅ Subject skill score stored with Student ID link');
+            console.log('✅ Subject skill score stored with authenticated student link');
           }
         }
       }
 
       console.log('🎉 Practice exercise completion processed successfully:', {
-        studentId: studentResult.studentId,
+        authenticatedStudentId,
         skillUpdates: skillUpdates.length
       });
 

@@ -6,12 +6,12 @@ import { updateExerciseStatus } from '@/services/classSessionService';
 import { practiceExerciseSkillService, type SkillScoreCalculation } from '@/services/practiceExerciseSkillService';
 
 interface UsePracticeExerciseCompletionProps {
-  studentId: string;
+  authenticatedStudentId: string;
   onSkillUpdated?: (skillUpdates: SkillScoreCalculation[]) => void;
 }
 
 export function usePracticeExerciseCompletion({ 
-  studentId, 
+  authenticatedStudentId, 
   onSkillUpdated 
 }: UsePracticeExerciseCompletionProps) {
   const [isUpdatingSkills, setIsUpdatingSkills] = useState(false);
@@ -45,7 +45,7 @@ export function usePracticeExerciseCompletion({
       setIsUpdatingSkills(true);
       
       const skillUpdateResult = await practiceExerciseSkillService.processPracticeExerciseCompletion({
-        studentId,
+        authenticatedStudentId,
         exerciseId,
         skillName,
         exerciseScore: score,
@@ -84,13 +84,13 @@ export function usePracticeExerciseCompletion({
     onSuccess: () => {
       // Invalidate relevant queries to refresh skill data
       queryClient.invalidateQueries({ 
-        queryKey: ['studentContentSkills', studentId] 
+        queryKey: ['studentContentSkills', authenticatedStudentId] 
       });
       queryClient.invalidateQueries({ 
-        queryKey: ['studentSubjectSkills', studentId] 
+        queryKey: ['studentSubjectSkills', authenticatedStudentId] 
       });
       queryClient.invalidateQueries({ 
-        queryKey: ['studentExercises', studentId] 
+        queryKey: ['studentExercises', authenticatedStudentId] 
       });
     },
     onError: (error) => {
