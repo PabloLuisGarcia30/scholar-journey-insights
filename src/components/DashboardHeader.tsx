@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
 import { User, LogOut, IdCard } from "lucide-react";
-import { RoleToggle } from "@/components/RoleToggle";
 
 interface DashboardHeaderProps {
   title: string;
@@ -33,8 +32,6 @@ export function DashboardHeader({ title, subtitle }: DashboardHeaderProps) {
         </div>
         
         <div className="flex items-center gap-4">
-          <RoleToggle />
-          
           {profile && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
