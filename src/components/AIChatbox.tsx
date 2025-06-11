@@ -1,9 +1,9 @@
-
 import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Send, Bot, User, Loader2 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 
 interface Message {
   id: string;
@@ -69,12 +69,21 @@ export function AIChatbox({ studentContext }: AIChatboxProps) {
     setIsLoading(true);
 
     try {
-      // Simulate AI response (replace with actual OpenAI API call)
-      const response = await simulateAIResponse(inputValue, studentContext);
-      
+      // Call the real AI chat edge function
+      const { data, error } = await supabase.functions.invoke('ai-chat', {
+        body: {
+          message: inputValue,
+          studentContext: studentContext
+        }
+      });
+
+      if (error) {
+        throw error;
+      }
+
       const aiMessage: Message = {
         id: (Date.now() + 1).toString(),
-        content: response,
+        content: data.response || "I'm sorry, I couldn't generate a response. Please try again.",
         sender: 'ai',
         timestamp: new Date()
       };
@@ -197,46 +206,4 @@ export function AIChatbox({ studentContext }: AIChatboxProps) {
       </div>
     </div>
   );
-}
-
-// Simulate AI response (replace with actual OpenAI API call)
-async function simulateAIResponse(userMessage: string, context: StudentContext): Promise<string> {
-  // Simulate API delay
-  await new Promise(resolve => setTimeout(resolve, 1000 + Math.random() * 2000));
-
-  const message = userMessage.toLowerCase();
-  
-  if (message.includes('test') || message.includes('score')) {
-    const avgScore = context.testResults.length > 0 
-      ? Math.round(context.testResults.reduce((sum, test) => sum + test.overall_score, 0) / context.testResults.length)
-      : 0;
-    
-    return `Looking at your test performance in ${context.classSubject}, ${context.testResults.length > 0 
-      ? `you've completed ${context.testResults.length} test(s) with an average score of ${avgScore}%. ` 
-      : 'you haven\'t completed any tests yet. '}${avgScore >= 80 
-      ? 'Great work! You\'re doing excellent!' 
-      : avgScore >= 60 
-      ? 'You\'re making good progress! Let\'s work on improving those areas where you scored lower.' 
-      : 'There\'s room for improvement, but don\'t worry - I can help you identify the best areas to focus on!'}`;
-  }
-
-  if (message.includes('improve') || message.includes('better') || message.includes('help')) {
-    const lowScoreSkills = context.contentSkillScores.filter(skill => skill.score < 70);
-    if (lowScoreSkills.length > 0) {
-      const skillNames = lowScoreSkills.slice(0, 3).map(skill => skill.skill_name).join(', ');
-      return `Based on your current progress, I'd recommend focusing on: ${skillNames}. These areas have the most potential for improvement. Would you like specific study strategies for any of these topics?`;
-    }
-    return `You're doing well overall! To continue improving, I suggest reviewing your recent test questions and practicing similar problems. Consistent daily practice for 15-20 minutes can make a big difference!`;
-  }
-
-  if (message.includes('goal') || message.includes('target')) {
-    return `Let's set some achievable goals! Based on your current performance in ${context.classSubject}, a good target might be to improve your lowest-scoring skills by 10-15 points over the next month. What specific area would you like to focus on first?`;
-  }
-
-  if (message.includes('hello') || message.includes('hi')) {
-    return `Hello ${context.studentName}! I'm here to help you succeed in ${context.classSubject}. I can analyze your test scores, suggest study strategies, or answer questions about your progress. What would you like to work on today?`;
-  }
-
-  // Default response
-  return `That's a great question! I'm here to help you with your ${context.classSubject} studies. I can provide insights about your test scores, suggest areas for improvement, or help you set learning goals. Could you be more specific about what you'd like to know?`;
 }

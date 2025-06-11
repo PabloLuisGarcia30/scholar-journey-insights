@@ -33,3 +33,6 @@ verify_jwt = false
 
 [functions.grade-with-distilbert-wasm]
 verify_jwt = false
+
+[functions.ai-chat]
+verify_jwt = false
