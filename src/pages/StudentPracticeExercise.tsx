@@ -1,12 +1,14 @@
+
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, Target, BookOpen, Loader2, Zap } from "lucide-react";
+import { ArrowLeft, Target, BookOpen, Loader2, Zap, TrendingUp } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useStudentProfileData } from "@/hooks/useStudentProfileData";
-import { useEnhancedPracticeTestGeneration } from "@/hooks/useEnhancedPracticeTestGeneration";
+import { useStudentPracticeGeneration } from "@/hooks/useStudentPracticeGeneration";
 import { PracticeExerciseRunner } from "@/components/PracticeExerciseRunner";
+import { StudentPracticeService } from "@/services/studentPracticeService";
 import { toast } from "sonner";
 
 const StudentPracticeExercise = () => {
@@ -15,6 +17,8 @@ const StudentPracticeExercise = () => {
   const { profile } = useAuth();
   const [exerciseData, setExerciseData] = useState(null);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [currentSkillScore, setCurrentSkillScore] = useState(0);
+  const [sessionId, setSessionId] = useState<string | null>(null);
   
   const decodedSkillName = decodeURIComponent(skillName || '');
   
@@ -23,7 +27,9 @@ const StudentPracticeExercise = () => {
     classData,
     classLoading,
     enrolledClasses,
-    student
+    student,
+    contentSkillScores,
+    subjectSkillScores
   } = useStudentProfileData({ 
     studentId: profile?.id || '', 
     classId: classId || '',
@@ -33,40 +39,58 @@ const StudentPracticeExercise = () => {
   // Find the class info
   const currentClass = enrolledClasses.find(cls => cls.id === classId) || classData;
 
-  // Practice test generation hook
-  const { generateSingleTest, isLoading: isGenerationLoading, error } = useEnhancedPracticeTestGeneration({
+  // Student practice generation hook
+  const { generatePracticeExercise, isLoading: isGenerationLoading, error } = useStudentPracticeGeneration({
     enableAutoRecovery: true,
     showDetailedErrors: false,
     maxRetryAttempts: 2
   });
 
+  // Find current skill score
   useEffect(() => {
-    if (currentClass && decodedSkillName && !exerciseData) {
-      generatePracticeExercise();
+    if ((contentSkillScores.length > 0 || subjectSkillScores.length > 0) && decodedSkillName) {
+      const contentSkill = contentSkillScores.find(skill => skill.skill_name === decodedSkillName);
+      const subjectSkill = subjectSkillScores.find(skill => skill.skill_name === decodedSkillName);
+      
+      const skillScore = contentSkill?.score || subjectSkill?.score || 50; // Default to 50 if no score found
+      setCurrentSkillScore(skillScore);
     }
-  }, [currentClass, decodedSkillName]);
+  }, [contentSkillScores, subjectSkillScores, decodedSkillName]);
 
-  const generatePracticeExercise = async () => {
-    if (!currentClass || !decodedSkillName) return;
+  useEffect(() => {
+    if (currentClass && decodedSkillName && currentSkillScore > 0 && !exerciseData) {
+      generateStudentPracticeExercise();
+    }
+  }, [currentClass, decodedSkillName, currentSkillScore]);
+
+  const generateStudentPracticeExercise = async () => {
+    if (!currentClass || !decodedSkillName || !profile?.id) return;
     
     setIsGenerating(true);
     
     try {
-      const practiceTest = await generateSingleTest({
+      const practiceExercise = await generatePracticeExercise({
+        studentId: profile.id,
         studentName: profile?.full_name || student?.name || 'Student',
         skillName: decodedSkillName,
+        currentSkillScore: currentSkillScore,
+        classId: currentClass.id,
         className: currentClass.name,
         subject: currentClass.subject,
         grade: currentClass.grade,
-        questionCount: 5
+        questionCount: 4 // Optimized for student-initiated practice
       });
 
-      if (practiceTest) {
-        // Convert practice test to exercise format
+      if (practiceExercise) {
+        // Store session ID for later use
+        setSessionId(practiceExercise.metadata.sessionId);
+        
+        // Convert to exercise runner format
         const exerciseFormatted = {
-          title: `${decodedSkillName} Practice Exercise`,
-          description: `Targeted practice for ${decodedSkillName} in ${currentClass.name}`,
-          questions: practiceTest.questions.map((q, index) => ({
+          title: practiceExercise.title,
+          description: practiceExercise.description,
+          studentGuidance: practiceExercise.studentGuidance,
+          questions: practiceExercise.questions.map((q, index) => ({
             id: q.id || `q_${index}`,
             type: q.type,
             question: q.question,
@@ -75,11 +99,16 @@ const StudentPracticeExercise = () => {
             acceptableAnswers: q.acceptableAnswers,
             keywords: q.keywords,
             points: q.points || 1,
-            targetSkill: decodedSkillName
+            targetSkill: q.targetSkill,
+            explanation: q.explanation,
+            hint: q.hint,
+            difficultyLevel: q.difficultyLevel
           })),
-          totalPoints: practiceTest.questions.reduce((sum, q) => sum + (q.points || 1), 0),
-          estimatedTime: Math.max(5, practiceTest.questions.length * 2),
-          exerciseId: `exercise_${Date.now()}_${decodedSkillName.replace(/\s+/g, '_')}`
+          totalPoints: practiceExercise.totalPoints,
+          estimatedTime: practiceExercise.estimatedTime,
+          adaptiveDifficulty: practiceExercise.adaptiveDifficulty,
+          metadata: practiceExercise.metadata,
+          exerciseId: `student_practice_${Date.now()}_${decodedSkillName.replace(/\s+/g, '_')}`
         };
         
         setExerciseData(exerciseFormatted);
@@ -87,21 +116,47 @@ const StudentPracticeExercise = () => {
         toast.error('Failed to generate practice exercise. Please try again.');
       }
     } catch (error) {
-      console.error('Error generating practice exercise:', error);
+      console.error('Error generating student practice exercise:', error);
       toast.error('Failed to generate practice exercise. Please try again.');
     } finally {
       setIsGenerating(false);
     }
   };
 
-  const handleExerciseComplete = (results) => {
-    console.log('Exercise completed:', results);
-    toast.success(`Exercise completed! You scored ${Math.round(results.percentageScore)}%`);
+  const handleExerciseComplete = async (results) => {
+    console.log('Student practice exercise completed:', results);
+    
+    const improvementShown = results.percentageScore > currentSkillScore 
+      ? results.percentageScore - currentSkillScore 
+      : 0;
+    
+    toast.success(`Exercise completed! You scored ${Math.round(results.percentageScore)}%${improvementShown > 0 ? ` (${Math.round(improvementShown)}% improvement!)` : ''}`);
+    
+    // Update session score if we have a session ID
+    if (sessionId && profile?.id) {
+      try {
+        await StudentPracticeService.updatePracticeSessionScore(
+          sessionId, 
+          results.percentageScore, 
+          improvementShown
+        );
+        
+        // Update practice analytics
+        await StudentPracticeService.updatePracticeAnalyticsAfterCompletion(
+          profile.id,
+          decodedSkillName,
+          results.percentageScore
+        );
+      } catch (error) {
+        console.error('Error updating practice session:', error);
+        // Don't block user flow for analytics errors
+      }
+    }
     
     // Navigate back to class scores after a brief delay
     setTimeout(() => {
       navigate(`/student-dashboard/class/${classId}`);
-    }, 2000);
+    }, 3000);
   };
 
   const handleExitExercise = () => {
@@ -167,7 +222,7 @@ const StudentPracticeExercise = () => {
             Back to Class
           </Button>
           <div className="text-center">
-            <h1 className="text-3xl font-bold text-gray-900">Practice Exercise</h1>
+            <h1 className="text-3xl font-bold text-gray-900">Personalized Practice</h1>
             <p className="text-gray-600">{currentClass.name} - {decodedSkillName}</p>
           </div>
           <div></div>
@@ -180,12 +235,12 @@ const StudentPracticeExercise = () => {
               {isGenerating || isGenerationLoading ? (
                 <>
                   <Loader2 className="h-5 w-5 animate-spin text-blue-600" />
-                  Generating Your Practice Exercise
+                  Creating Your Personalized Practice
                 </>
               ) : (
                 <>
                   <Zap className="h-5 w-5 text-yellow-600" />
-                  Getting Ready
+                  Ready to Practice
                 </>
               )}
             </CardTitle>
@@ -195,23 +250,23 @@ const StudentPracticeExercise = () => {
               <>
                 <div className="space-y-4">
                   <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div className="bg-blue-600 h-2 rounded-full animate-pulse" style={{ width: '60%' }}></div>
+                    <div className="bg-blue-600 h-2 rounded-full animate-pulse" style={{ width: '75%' }}></div>
                   </div>
                   <p className="text-gray-600">
-                    Creating personalized questions for <strong>{decodedSkillName}</strong>...
+                    Creating adaptive questions for <strong>{decodedSkillName}</strong> based on your current skill level ({currentSkillScore}%)...
                   </p>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm text-gray-500">
                     <div className="flex items-center justify-center gap-2">
                       <Target className="h-4 w-4" />
-                      <span>5 Questions</span>
+                      <span>4 Questions</span>
+                    </div>
+                    <div className="flex items-center justify-center gap-2">
+                      <TrendingUp className="h-4 w-4" />
+                      <span>Adaptive Difficulty</span>
                     </div>
                     <div className="flex items-center justify-center gap-2">
                       <BookOpen className="h-4 w-4" />
-                      <span>Mixed Difficulty</span>
-                    </div>
-                    <div className="flex items-center justify-center gap-2">
-                      <Zap className="h-4 w-4" />
-                      <span>10-15 min</span>
+                      <span>8-12 min</span>
                     </div>
                   </div>
                 </div>
@@ -221,18 +276,18 @@ const StudentPracticeExercise = () => {
                 <p className="text-red-600 mb-4">
                   Failed to generate practice exercise: {error}
                 </p>
-                <Button onClick={generatePracticeExercise} className="bg-blue-600 hover:bg-blue-700">
+                <Button onClick={generateStudentPracticeExercise} className="bg-blue-600 hover:bg-blue-700">
                   Try Again
                 </Button>
               </>
             ) : (
               <>
                 <p className="text-gray-600 mb-4">
-                  Preparing your practice exercise for <strong>{decodedSkillName}</strong>
+                  Ready to practice <strong>{decodedSkillName}</strong>
                 </p>
-                <Button onClick={generatePracticeExercise} className="bg-blue-600 hover:bg-blue-700">
+                <Button onClick={generateStudentPracticeExercise} className="bg-blue-600 hover:bg-blue-700">
                   <Zap className="h-4 w-4 mr-2" />
-                  Start Practice Exercise
+                  Start Personalized Practice
                 </Button>
               </>
             )}
@@ -249,6 +304,14 @@ const StudentPracticeExercise = () => {
               <div className="flex justify-between">
                 <span className="text-gray-600">Skill Focus:</span>
                 <span className="font-medium">{decodedSkillName}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-600">Current Score:</span>
+                <span className="font-medium">{currentSkillScore}%</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-600">Target Improvement:</span>
+                <span className="font-medium text-green-600">+10-15%</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-600">Class:</span>

@@ -1134,6 +1134,111 @@ export type Database = {
           },
         ]
       }
+      student_practice_analytics: {
+        Row: {
+          average_score: number | null
+          best_score: number | null
+          created_at: string
+          id: string
+          improvement_rate: number | null
+          last_practiced_at: string | null
+          skill_name: string
+          streak_count: number
+          student_id: string
+          total_practice_sessions: number
+          updated_at: string
+        }
+        Insert: {
+          average_score?: number | null
+          best_score?: number | null
+          created_at?: string
+          id?: string
+          improvement_rate?: number | null
+          last_practiced_at?: string | null
+          skill_name: string
+          streak_count?: number
+          student_id: string
+          total_practice_sessions?: number
+          updated_at?: string
+        }
+        Update: {
+          average_score?: number | null
+          best_score?: number | null
+          created_at?: string
+          id?: string
+          improvement_rate?: number | null
+          last_practiced_at?: string | null
+          skill_name?: string
+          streak_count?: number
+          student_id?: string
+          total_practice_sessions?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      student_practice_sessions: {
+        Row: {
+          class_id: string
+          class_name: string
+          completed_at: string | null
+          created_at: string
+          current_skill_score: number
+          difficulty_level: string
+          exercise_generated: boolean
+          final_score: number | null
+          grade: string
+          id: string
+          improvement_shown: number | null
+          question_count: number
+          skill_name: string
+          started_at: string
+          student_id: string
+          student_name: string
+          subject: string
+          updated_at: string
+        }
+        Insert: {
+          class_id: string
+          class_name: string
+          completed_at?: string | null
+          created_at?: string
+          current_skill_score: number
+          difficulty_level?: string
+          exercise_generated?: boolean
+          final_score?: number | null
+          grade: string
+          id?: string
+          improvement_shown?: number | null
+          question_count?: number
+          skill_name: string
+          started_at?: string
+          student_id: string
+          student_name: string
+          subject: string
+          updated_at?: string
+        }
+        Update: {
+          class_id?: string
+          class_name?: string
+          completed_at?: string | null
+          created_at?: string
+          current_skill_score?: number
+          difficulty_level?: string
+          exercise_generated?: boolean
+          final_score?: number | null
+          grade?: string
+          id?: string
+          improvement_shown?: number | null
+          question_count?: number
+          skill_name?: string
+          started_at?: string
+          student_id?: string
+          student_name?: string
+          subject?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       student_profiles: {
         Row: {
           created_at: string

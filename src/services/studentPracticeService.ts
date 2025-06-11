@@ -1,0 +1,216 @@
+
+import { supabase } from "@/integrations/supabase/client";
+
+export interface StudentPracticeRequest {
+  studentId: string;
+  studentName: string;
+  skillName: string;
+  currentSkillScore: number;
+  classId: string;
+  className: string;
+  subject: string;
+  grade: string;
+  preferredDifficulty?: 'adaptive' | 'review' | 'challenge';
+  questionCount?: number;
+}
+
+export interface StudentPracticeExercise {
+  title: string;
+  description: string;
+  questions: Array<{
+    id: string;
+    type: string;
+    question: string;
+    options?: string[];
+    correctAnswer: string;
+    acceptableAnswers?: string[];
+    keywords?: string[];
+    points: number;
+    explanation?: string;
+    targetSkill: string;
+    difficultyLevel: string;
+    hint?: string;
+  }>;
+  totalPoints: number;
+  estimatedTime: number;
+  adaptiveDifficulty: string;
+  studentGuidance: string;
+  metadata: {
+    skillName: string;
+    currentSkillScore: number;
+    targetImprovement: number;
+    generatedAt: string;
+    studentName: string;
+    className: string;
+    sessionId: string;
+  };
+}
+
+export interface StudentPracticeSession {
+  id: string;
+  student_id: string;
+  student_name: string;
+  skill_name: string;
+  current_skill_score: number;
+  class_id: string;
+  class_name: string;
+  subject: string;
+  grade: string;
+  difficulty_level: string;
+  question_count: number;
+  exercise_generated: boolean;
+  started_at: string;
+  completed_at?: string;
+  final_score?: number;
+  improvement_shown?: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface StudentPracticeAnalytics {
+  id: string;
+  student_id: string;
+  skill_name: string;
+  total_practice_sessions: number;
+  average_score?: number;
+  best_score?: number;
+  improvement_rate?: number;
+  last_practiced_at?: string;
+  streak_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export class StudentPracticeService {
+  static async generatePracticeExercise(request: StudentPracticeRequest): Promise<StudentPracticeExercise> {
+    try {
+      console.log('🎯 Generating student practice exercise via service:', request);
+      
+      const { data, error } = await supabase.functions.invoke('generate-student-practice-exercise', {
+        body: request
+      });
+
+      if (error) {
+        console.error('❌ Error calling student practice exercise function:', error);
+        throw new Error(`Failed to generate practice exercise: ${error.message}`);
+      }
+
+      if (!data) {
+        throw new Error('No data received from practice exercise generation');
+      }
+
+      console.log('✅ Successfully generated student practice exercise');
+      return data as StudentPracticeExercise;
+    } catch (error) {
+      console.error('❌ Error in generatePracticeExercise:', error);
+      throw error;
+    }
+  }
+
+  static async updatePracticeSessionScore(sessionId: string, finalScore: number, improvementShown?: number): Promise<void> {
+    try {
+      const { error } = await supabase
+        .from('student_practice_sessions')
+        .update({
+          completed_at: new Date().toISOString(),
+          final_score: finalScore,
+          improvement_shown: improvementShown
+        })
+        .eq('id', sessionId);
+
+      if (error) {
+        console.error('❌ Error updating practice session score:', error);
+        throw error;
+      }
+
+      console.log('✅ Updated practice session score successfully');
+    } catch (error) {
+      console.error('❌ Error in updatePracticeSessionScore:', error);
+      throw error;
+    }
+  }
+
+  static async getStudentPracticeSessions(studentId: string, limit = 10): Promise<StudentPracticeSession[]> {
+    try {
+      const { data, error } = await supabase
+        .from('student_practice_sessions')
+        .select('*')
+        .eq('student_id', studentId)
+        .order('created_at', { ascending: false })
+        .limit(limit);
+
+      if (error) {
+        console.error('❌ Error fetching practice sessions:', error);
+        throw error;
+      }
+
+      return data || [];
+    } catch (error) {
+      console.error('❌ Error in getStudentPracticeSessions:', error);
+      throw error;
+    }
+  }
+
+  static async getStudentPracticeAnalytics(studentId: string): Promise<StudentPracticeAnalytics[]> {
+    try {
+      const { data, error } = await supabase
+        .from('student_practice_analytics')
+        .select('*')
+        .eq('student_id', studentId)
+        .order('total_practice_sessions', { ascending: false });
+
+      if (error) {
+        console.error('❌ Error fetching practice analytics:', error);
+        throw error;
+      }
+
+      return data || [];
+    } catch (error) {
+      console.error('❌ Error in getStudentPracticeAnalytics:', error);
+      throw error;
+    }
+  }
+
+  static async updatePracticeAnalyticsAfterCompletion(
+    studentId: string, 
+    skillName: string, 
+    score: number
+  ): Promise<void> {
+    try {
+      // Get current analytics
+      const { data: currentAnalytics, error: selectError } = await supabase
+        .from('student_practice_analytics')
+        .select('*')
+        .eq('student_id', studentId)
+        .eq('skill_name', skillName)
+        .maybeSingle();
+
+      if (selectError) throw selectError;
+
+      if (currentAnalytics) {
+        // Calculate new averages
+        const newAverage = currentAnalytics.average_score 
+          ? ((currentAnalytics.average_score * (currentAnalytics.total_practice_sessions - 1)) + score) / currentAnalytics.total_practice_sessions
+          : score;
+        
+        const newBestScore = Math.max(currentAnalytics.best_score || 0, score);
+        
+        const { error: updateError } = await supabase
+          .from('student_practice_analytics')
+          .update({
+            average_score: newAverage,
+            best_score: newBestScore,
+            last_practiced_at: new Date().toISOString()
+          })
+          .eq('id', currentAnalytics.id);
+
+        if (updateError) throw updateError;
+      }
+
+      console.log('✅ Updated practice analytics after completion');
+    } catch (error) {
+      console.error('❌ Error updating practice analytics after completion:', error);
+      // Don't throw - analytics failure shouldn't block the main flow
+    }
+  }
+}
