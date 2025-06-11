@@ -141,11 +141,20 @@ export interface ClassSubjectSkill {
 
 export const getAllActiveClasses = async (): Promise<ActiveClass[]> => {
   try {
-    console.log('Fetching all active classes');
+    console.log('Fetching all active classes for current teacher');
     
+    // Get the current user's ID to filter classes
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (!user) {
+      console.log('No authenticated user found');
+      return [];
+    }
+
     const { data, error } = await supabase
       .from('active_classes')
       .select('*')
+      .eq('teacher_id', user.id)
       .order('name');
 
     if (error) {
@@ -165,18 +174,26 @@ export const createActiveClass = async (classData: {
   subject: string;
   grade: string;
   teacher: string;
-  dayOfWeek?: string[]; // Changed to accept array of days
+  dayOfWeek?: string[];
   classTime?: string;
   endTime?: string;
 }): Promise<ActiveClass> => {
   try {
     console.log('Creating active class:', classData);
     
+    // Get the current user's ID
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (!user) {
+      throw new Error('Must be authenticated to create a class');
+    }
+
     const insertData: any = {
       name: classData.name,
       subject: classData.subject,
       grade: classData.grade,
       teacher: classData.teacher,
+      teacher_id: user.id, // Automatically assign to current teacher
       student_count: 0,
       avg_gpa: 0,
       students: []

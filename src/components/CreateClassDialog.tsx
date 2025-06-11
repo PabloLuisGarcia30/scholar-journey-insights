@@ -211,14 +211,9 @@ export function CreateClassDialog({ onCreateClass }: CreateClassDialogProps) {
                 Teacher
               </Label>
               <div className="col-span-3 flex items-center gap-2">
-                <Input
-                  id="teacher"
-                  value={formData.teacher}
-                  onChange={(e) => setFormData({ ...formData, teacher: e.target.value })}
-                  placeholder="Teacher name"
-                  className="flex-1"
-                  required
-                />
+                <div className="flex-1 p-2 border rounded-md bg-gray-50 text-gray-700">
+                  {profile?.full_name || 'Loading...'}
+                </div>
                 {profile?.teacher_id && (
                   <Badge variant="secondary" className="flex items-center gap-1">
                     <IdCard className="h-3 w-3" />

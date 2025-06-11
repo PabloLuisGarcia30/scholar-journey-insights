@@ -23,6 +23,7 @@ export type Database = {
           students: string[] | null
           subject: string
           teacher: string
+          teacher_id: string | null
           updated_at: string
         }
         Insert: {
@@ -38,6 +39,7 @@ export type Database = {
           students?: string[] | null
           subject: string
           teacher: string
+          teacher_id?: string | null
           updated_at?: string
         }
         Update: {
@@ -53,6 +55,7 @@ export type Database = {
           students?: string[] | null
           subject?: string
           teacher?: string
+          teacher_id?: string | null
           updated_at?: string
         }
         Relationships: []

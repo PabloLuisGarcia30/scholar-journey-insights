@@ -13,7 +13,7 @@ export interface UserProfile {
   email: string;
   full_name: string;
   role: UserRole;
-  teacher_id?: string; // Added teacher_id field
+  teacher_id?: string;
   created_at: string;
   updated_at: string;
 }
