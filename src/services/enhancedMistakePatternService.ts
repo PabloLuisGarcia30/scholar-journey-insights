@@ -1,3 +1,4 @@
+
 import { supabase } from '@/integrations/supabase/client';
 import { SubjectSpecificMisconceptionService } from './subjectSpecificMisconceptionService';
 
@@ -41,11 +42,12 @@ export interface EnhancedMistakePatternData {
   conceptMasteryLevel?: 'mastered' | 'partial' | 'not_demonstrated' | 'unknown';
   conceptSource?: 'curriculum_mapping' | 'gpt_inference' | 'manual_tag' | 'skill_mapping';
   
-  // Concept missed fields
+  // Concept missed fields with confidence
   conceptMissedId?: string;
   conceptMissedDescription?: string;
+  conceptConfidence?: number; // NEW: GPT confidence score
   
-  // NEW: Misconception signature field
+  // Misconception signature field
   misconceptionSignature?: string;
 }
 
@@ -85,7 +87,7 @@ export interface CommonErrorPattern {
 export class EnhancedMistakePatternService {
   
   /**
-   * Record an enhanced mistake pattern with detailed analysis including misconception signature
+   * Record an enhanced mistake pattern with detailed analysis including confidence scores
    */
   static async recordEnhancedMistakePattern(mistakeData: EnhancedMistakePatternData): Promise<string | null> {
     try {
@@ -133,11 +135,12 @@ export class EnhancedMistakePatternService {
           concept_mastery_level: mistakeData.conceptMasteryLevel,
           concept_source: mistakeData.conceptSource,
           
-          // Concept missed fields
+          // Concept missed fields with confidence
           concept_missed_id: mistakeData.conceptMissedId,
           concept_missed_description: mistakeData.conceptMissedDescription,
+          concept_confidence: mistakeData.conceptConfidence, // NEW: Store confidence score
           
-          // NEW: Misconception signature field
+          // Misconception signature field
           misconception_signature: mistakeData.misconceptionSignature
         })
         .select('id')
@@ -150,7 +153,7 @@ export class EnhancedMistakePatternService {
 
       console.log(`✅ Enhanced mistake pattern recorded: ${data.id}`);
       if (mistakeData.conceptMissedId) {
-        console.log(`🎯 Concept missed recorded: ${mistakeData.conceptMissedDescription}`);
+        console.log(`🎯 Concept missed recorded: ${mistakeData.conceptMissedDescription} (Confidence: ${mistakeData.conceptConfidence || 'N/A'})`);
       }
       if (mistakeData.misconceptionSignature) {
         console.log(`🔗 Misconception signature recorded: ${mistakeData.misconceptionSignature}`);

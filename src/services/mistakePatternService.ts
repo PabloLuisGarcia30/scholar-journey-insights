@@ -1,7 +1,8 @@
 import { supabase } from '@/integrations/supabase/client';
 import { EnhancedMistakePatternService, type EnhancedMistakePatternData } from './enhancedMistakePatternService';
 import { ConceptualAnchorService } from './conceptualAnchorService';
-import { MisconceptionSignatureService } from './misconceptionSignatureService'; // NEW: Import signature service
+import { MisconceptionSignatureService } from './misconceptionSignatureService';
+import { ConceptMissedService } from './conceptMissedService';
 
 export interface MistakePatternData {
   id: string;
@@ -34,7 +35,7 @@ export interface MistakePattern {
 export class MistakePatternService {
   
   /**
-   * Record a mistake pattern with enhanced analysis including misconception signature
+   * Record a mistake pattern with enhanced analysis including confidence scores
    */
   static async recordMistakePattern(mistakeData: {
     studentExerciseId: string;
@@ -53,13 +54,14 @@ export class MistakePatternService {
     timeSpent?: number;
     answerChanges?: number;
     options?: string[];
-    subject?: string; // NEW: Add subject parameter
-    classSubject?: string; // Alternative subject field
-    expectedConcept?: string; // NEW: Conceptual anchor point
-    grade?: string; // NEW: Grade level for concept mapping
-    // New concept missed fields
+    subject?: string;
+    classSubject?: string;
+    expectedConcept?: string;
+    grade?: string;
+    // NEW: Updated concept missed fields with confidence
     conceptMissedId?: string;
     conceptMissedDescription?: string;
+    conceptConfidence?: number; // NEW: GPT confidence score
   }): Promise<string | null> {
     try {
       console.log(`🔍 Recording mistake pattern for question ${mistakeData.questionNumber}`);
@@ -67,6 +69,21 @@ export class MistakePatternService {
       // Determine subject from available data
       const subject = mistakeData.subject || mistakeData.classSubject || 'Unknown';
       const grade = mistakeData.grade || 'Unknown';
+      
+      // If we have a concept missed but no confidence, try to get it from ConceptMissedService
+      let conceptConfidence = mistakeData.conceptConfidence;
+      if (mistakeData.conceptMissedDescription && !conceptConfidence && mistakeData.questionContext) {
+        console.log('🎯 Getting confidence score for concept detection');
+        const analysisResult = await ConceptMissedService.analyzeConceptMissed(
+          mistakeData.questionContext,
+          mistakeData.studentAnswer,
+          mistakeData.correctAnswer,
+          mistakeData.skillTargeted,
+          subject,
+          grade
+        );
+        conceptConfidence = analysisResult.conceptConfidence;
+      }
       
       // Determine conceptual anchor point if not provided
       let expectedConcept = mistakeData.expectedConcept;
@@ -97,7 +114,7 @@ export class MistakePatternService {
         mistakeData.confidenceScore
       );
       
-      // NEW: Generate misconception signature if we have a concept missed description
+      // Generate misconception signature if we have a concept missed description
       let misconceptionSignature: string | undefined;
       if (mistakeData.conceptMissedDescription) {
         misconceptionSignature = MisconceptionSignatureService.generateSignature(mistakeData.conceptMissedDescription);
@@ -106,10 +123,10 @@ export class MistakePatternService {
       
       console.log(`🧠 Conceptual anchor point: "${expectedConcept}" - Mastery: ${conceptMasteryLevel}`);
       if (mistakeData.conceptMissedId) {
-        console.log(`🎯 Concept missed: ID ${mistakeData.conceptMissedId} - "${mistakeData.conceptMissedDescription}"`);
+        console.log(`🎯 Concept missed: ID ${mistakeData.conceptMissedId} - "${mistakeData.conceptMissedDescription}" (Confidence: ${conceptConfidence || 'N/A'})`);
       }
       
-      // Enhance the mistake data with detailed analysis including subject
+      // Enhance the mistake data with detailed analysis including confidence
       const enhancedData: EnhancedMistakePatternData = {
         ...mistakeData,
         misconceptionCategory: EnhancedMistakePatternService.analyzeMisconceptionCategory(
@@ -118,7 +135,7 @@ export class MistakePatternService {
           mistakeData.correctAnswer,
           mistakeData.questionContext,
           mistakeData.options,
-          subject // Pass subject for subject-specific analysis
+          subject
         ),
         errorSeverity: EnhancedMistakePatternService.determineErrorSeverity(
           mistakeData.isCorrect,
@@ -140,7 +157,6 @@ export class MistakePatternService {
           questionType: mistakeData.questionType,
           subject: subject
         },
-        // Generate subject-specific remediation
         remediationSuggestions: EnhancedMistakePatternService.generateSubjectSpecificRemediation(
           subject,
           EnhancedMistakePatternService.analyzeMisconceptionCategory(
@@ -153,21 +169,22 @@ export class MistakePatternService {
           ),
           mistakeData.skillTargeted
         ),
-        // New conceptual anchor fields
+        // Conceptual anchor fields
         expectedConcept: expectedConcept,
         conceptMasteryLevel: conceptMasteryLevel,
         conceptSource: conceptSource,
-        // Include concept missed data
+        // Concept missed data with confidence
         conceptMissedId: mistakeData.conceptMissedId,
         conceptMissedDescription: mistakeData.conceptMissedDescription,
-        // NEW: Add misconception signature to enhanced data
+        conceptConfidence: conceptConfidence, // NEW: Include confidence score
+        // Misconception signature
         misconceptionSignature: misconceptionSignature
       };
 
       // Use enhanced service for recording
       const mistakePatternId = await EnhancedMistakePatternService.recordEnhancedMistakePattern(enhancedData);
       
-      // NEW: Check for shared misconceptions and potentially trigger alerts
+      // Check for shared misconceptions and potentially trigger alerts
       if (misconceptionSignature && mistakePatternId) {
         const sharedCheck = await MisconceptionSignatureService.checkSharedMisconception(misconceptionSignature, 2);
         if (sharedCheck.isShared) {

@@ -843,6 +843,7 @@ export type Database = {
       mistake_patterns: {
         Row: {
           cognitive_load_indicators: Json | null
+          concept_confidence: number | null
           concept_mastery_level: string | null
           concept_missed_description: string | null
           concept_missed_id: string | null
@@ -880,10 +881,15 @@ export type Database = {
           solution_path: string | null
           student_answer: string
           student_exercise_id: string
+          teacher_override_concept_id: string | null
+          teacher_override_reason: string | null
+          teacher_validated: boolean | null
+          teacher_validation_timestamp: string | null
           transfer_failure_indicator: boolean | null
         }
         Insert: {
           cognitive_load_indicators?: Json | null
+          concept_confidence?: number | null
           concept_mastery_level?: string | null
           concept_missed_description?: string | null
           concept_missed_id?: string | null
@@ -921,10 +927,15 @@ export type Database = {
           solution_path?: string | null
           student_answer: string
           student_exercise_id: string
+          teacher_override_concept_id?: string | null
+          teacher_override_reason?: string | null
+          teacher_validated?: boolean | null
+          teacher_validation_timestamp?: string | null
           transfer_failure_indicator?: boolean | null
         }
         Update: {
           cognitive_load_indicators?: Json | null
+          concept_confidence?: number | null
           concept_mastery_level?: string | null
           concept_missed_description?: string | null
           concept_missed_id?: string | null
@@ -962,6 +973,10 @@ export type Database = {
           solution_path?: string | null
           student_answer?: string
           student_exercise_id?: string
+          teacher_override_concept_id?: string | null
+          teacher_override_reason?: string | null
+          teacher_validated?: boolean | null
+          teacher_validation_timestamp?: string | null
           transfer_failure_indicator?: boolean | null
         }
         Relationships: [
@@ -977,6 +992,13 @@ export type Database = {
             columns: ["student_exercise_id"]
             isOneToOne: false
             referencedRelation: "student_exercises"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mistake_patterns_teacher_override_concept_id_fkey"
+            columns: ["teacher_override_concept_id"]
+            isOneToOne: false
+            referencedRelation: "concept_index"
             referencedColumns: ["id"]
           },
         ]

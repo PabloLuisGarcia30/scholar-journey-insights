@@ -38,8 +38,8 @@ serve(async (req) => {
 
     console.log('🧠 Detecting missed concept for skill:', skillTargeted);
 
-    // Step 1: Get GPT analysis with enhanced prompt
-    const gptAnalysis = await getGPTConceptAnalysis(
+    // Step 1: Get GPT analysis with enhanced confidence scoring
+    const gptAnalysis = await getGPTConceptAnalysisWithConfidence(
       questionContext,
       studentAnswer,
       correctAnswer,
@@ -52,7 +52,8 @@ serve(async (req) => {
         JSON.stringify({
           concept_missed_id: null,
           concept_missed_description: 'Unable to determine missed concept',
-          matching_confidence: 0
+          matching_confidence: 0,
+          concept_confidence: 0
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
@@ -68,10 +69,16 @@ serve(async (req) => {
       supabase
     );
 
-    console.log('✅ Concept detection completed:', matchResult);
+    // Add the GPT confidence score to the result
+    const finalResult = {
+      ...matchResult,
+      concept_confidence: gptAnalysis.confidence
+    };
+
+    console.log('✅ Concept detection completed with confidence:', gptAnalysis.confidence);
 
     return new Response(
-      JSON.stringify(matchResult),
+      JSON.stringify(finalResult),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
@@ -84,33 +91,27 @@ serve(async (req) => {
   }
 });
 
-async function getGPTConceptAnalysis(
+async function getGPTConceptAnalysisWithConfidence(
   questionContext: string,
   studentAnswer: string,
   correctAnswer: string,
   skillTargeted: string,
   openAIApiKey: string
-): Promise<{ concept_missed: string; concept_id: string | null } | null> {
+): Promise<{ concept_missed: string; concept_id: string | null; confidence: number } | null> {
   try {
     const prompt = `You are an expert educational diagnostician and learning architect.
 
 Your job is to:
-1. Analyze a student's incorrect answer and the associated mistake pattern.
-2. Identify the specific concept the student is misunderstanding.
-3. Attempt to match it to an existing concept from the platform's concept index.
-4. If no match exists, generate a **new concept** using no more than 5 clear words that describe the specific skill or knowledge gap.
+1. Analyze a student's incorrect answer and identify the specific concept they are misunderstanding.
+2. Provide a confidence score (0.0 to 1.0) for your assessment.
+3. Generate a precise concept description using no more than 5 clear words.
 
-This helps grow the system's internal concept taxonomy.
-
-**Instructions:**
-- Use precise, discipline-specific language.
-- The concept should represent a teachable idea, not a general category.
-- Avoid vague or overly broad phrases like "math error" or "writing skills."
-
-**Examples:**
-- "Combining like terms" → concept_id: "uuid-123"
-- "Identifying strong topic sentence" → concept_id: "uuid-456"
-- "Reasoning in science hypotheses" → new concept generated → concept_id: null
+**Confidence Scoring Guidelines:**
+- 0.9-1.0: Very clear misconception, obvious from the student's work
+- 0.7-0.9: Strong evidence of specific concept gap
+- 0.5-0.7: Moderate confidence, some ambiguity exists
+- 0.3-0.5: Low confidence, multiple possible explanations
+- 0.0-0.3: Very uncertain, insufficient evidence
 
 **Context:**
 Question: ${questionContext}
@@ -121,7 +122,8 @@ Correct Answer: "${correctAnswer}"
 **Output format (JSON only):**
 {
   "concept_missed": "Specific concept in 5 words or less",
-  "concept_id": null
+  "concept_id": null,
+  "confidence": 0.85
 }`;
 
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -131,11 +133,11 @@ Correct Answer: "${correctAnswer}"
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'gpt-4.1-2025-04-14',
+        model: 'gpt-4o-mini',
         messages: [
           {
             role: 'system',
-            content: 'You are an expert educational diagnostician. Always respond with valid JSON matching the requested format.'
+            content: 'You are an expert educational diagnostician. Always respond with valid JSON matching the requested format. Be conservative with confidence scores - only use high confidence when the misconception is very clear.'
           },
           {
             role: 'user',
@@ -162,8 +164,8 @@ Correct Answer: "${correctAnswer}"
 
     const result = JSON.parse(content);
     
-    if (result.concept_missed && result.concept_missed.length > 0) {
-      console.log('✅ GPT concept analysis:', result.concept_missed);
+    if (result.concept_missed && result.concept_missed.length > 0 && result.confidence !== undefined) {
+      console.log('✅ GPT concept analysis:', result.concept_missed, 'confidence:', result.confidence);
       return result;
     }
     
