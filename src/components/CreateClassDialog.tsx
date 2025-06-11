@@ -15,6 +15,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Plus } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface CreateClassDialogProps {
   onCreateClass: (classData: {
@@ -22,6 +23,7 @@ interface CreateClassDialogProps {
     subject: string;
     grade: string;
     teacher: string;
+    teacherId: string;
     daysOfWeek?: string[];
     classTime?: string;
     endTime?: string;
@@ -29,12 +31,12 @@ interface CreateClassDialogProps {
 }
 
 export function CreateClassDialog({ onCreateClass }: CreateClassDialogProps) {
+  const { profile } = useAuth();
   const [open, setOpen] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     subject: '',
     grade: '',
-    teacher: '',
     daysOfWeek: [] as string[],
     classTime: '',
     endTime: ''
@@ -55,21 +57,26 @@ export function CreateClassDialog({ onCreateClass }: CreateClassDialogProps) {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (formData.name && formData.subject && formData.grade && formData.teacher) {
+    if (formData.name && formData.subject && formData.grade && profile) {
       const classData = {
         name: formData.name,
         subject: formData.subject,
         grade: formData.grade,
-        teacher: formData.teacher,
+        teacher: profile.full_name || profile.email || 'Unknown Teacher',
+        teacherId: profile.id,
         ...(formData.daysOfWeek.length > 0 && { daysOfWeek: formData.daysOfWeek }),
         ...(formData.classTime && { classTime: formData.classTime }),
         ...(formData.endTime && { endTime: formData.endTime })
       };
       onCreateClass(classData);
-      setFormData({ name: '', subject: '', grade: '', teacher: '', daysOfWeek: [], classTime: '', endTime: '' });
+      setFormData({ name: '', subject: '', grade: '', daysOfWeek: [], classTime: '', endTime: '' });
       setOpen(false);
     }
   };
+
+  if (!profile) {
+    return null; // Don't show dialog if user not authenticated
+  }
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -84,7 +91,7 @@ export function CreateClassDialog({ onCreateClass }: CreateClassDialogProps) {
           <DialogHeader>
             <DialogTitle>Create New Class</DialogTitle>
             <DialogDescription>
-              Add a new class to organize your students. Content-specific skills and subject-specific skills will be automatically linked based on the subject and grade you select.
+              Add a new class to organize your students. You are creating this class as {profile.full_name || profile.email}.
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
@@ -130,19 +137,6 @@ export function CreateClassDialog({ onCreateClass }: CreateClassDialogProps) {
                   ))}
                 </SelectContent>
               </Select>
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="teacher" className="text-right">
-                Teacher
-              </Label>
-              <Input
-                id="teacher"
-                value={formData.teacher}
-                onChange={(e) => setFormData({ ...formData, teacher: e.target.value })}
-                placeholder="Teacher name"
-                className="col-span-3"
-                required
-              />
             </div>
             <div className="grid grid-cols-4 items-start gap-4">
               <Label className="text-right pt-2">

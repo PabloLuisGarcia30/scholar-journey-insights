@@ -4,6 +4,7 @@ export interface LessonPlanData {
   classId: string;
   className: string;
   teacherName: string;
+  teacherId: string;
   subject: string;
   grade: string;
   scheduledDate: string;
@@ -25,13 +26,14 @@ export interface LessonPlanData {
 
 export async function saveLessonPlan(lessonPlanData: LessonPlanData) {
   try {
-    // Insert the lesson plan with exercises data
+    // Insert the lesson plan with exercises data and teacher_id
     const { data: lessonPlan, error: lessonPlanError } = await supabase
       .from('lesson_plans')
       .insert({
         class_id: lessonPlanData.classId,
         class_name: lessonPlanData.className,
         teacher_name: lessonPlanData.teacherName,
+        teacher_id: lessonPlanData.teacherId,
         subject: lessonPlanData.subject,
         grade: lessonPlanData.grade,
         scheduled_date: lessonPlanData.scheduledDate,

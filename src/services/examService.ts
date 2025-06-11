@@ -44,6 +44,7 @@ export interface ActiveClass {
   subject: string;
   grade: string;
   teacher: string;
+  teacher_id?: string;
   student_count: number;
   avg_gpa: number;
   students: string[];
@@ -164,6 +165,7 @@ export const createActiveClass = async (classData: {
   subject: string;
   grade: string;
   teacher: string;
+  teacherId: string;
   dayOfWeek?: string;
   classTime?: string;
   endTime?: string;
@@ -176,6 +178,7 @@ export const createActiveClass = async (classData: {
       subject: classData.subject,
       grade: classData.grade,
       teacher: classData.teacher,
+      teacher_id: classData.teacherId,
       student_count: 0,
       avg_gpa: 0,
       students: []

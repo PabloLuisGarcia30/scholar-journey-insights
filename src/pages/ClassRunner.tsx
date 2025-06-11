@@ -15,7 +15,7 @@ import { getLessonPlanByClassId } from "@/services/lessonPlanService";
 import { useState, useEffect } from "react";
 
 export default function ClassRunner() {
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState("classes");
   const [useModernDesign, setUseModernDesign] = useState(() => {
@@ -28,16 +28,21 @@ export default function ClassRunner() {
     localStorage.setItem('classrunner-design-preference', JSON.stringify(useModernDesign));
   }, [useModernDesign]);
 
-  // Fetch active classes for the teacher
+  // Fetch active classes for the authenticated teacher
   const { data: activeClasses = [], isLoading } = useQuery({
-    queryKey: ['activeClasses', profile?.full_name],
+    queryKey: ['activeClasses', user?.id],
     queryFn: async () => {
-      console.log('Fetching classes for teacher:', profile?.full_name);
+      if (!user?.id) {
+        console.log('No authenticated user ID available');
+        return [];
+      }
+
+      console.log('Fetching classes for teacher ID:', user.id);
       
       const { data, error } = await supabase
         .from('active_classes')
         .select('*')
-        .eq('teacher', profile?.full_name || 'Mr. Cullen')
+        .eq('teacher_id', user.id)
         .order('created_at', { ascending: true });
 
       if (error) {
@@ -48,7 +53,7 @@ export default function ClassRunner() {
       console.log('Found classes:', data);
       return data || [];
     },
-    enabled: !!profile?.full_name,
+    enabled: !!user?.id,
   });
 
   // Fetch lesson plans for all classes to show status
@@ -69,12 +74,12 @@ export default function ClassRunner() {
 
   // Fetch active sessions for monitoring
   const { data: activeSessions = [] } = useQuery({
-    queryKey: ['activeSessions', profile?.id],
+    queryKey: ['activeSessions', user?.id],
     queryFn: async () => {
-      if (!profile?.id) return [];
-      return await getActiveClassSessions(profile.id);
+      if (!user?.id) return [];
+      return await getActiveClassSessions(user.id);
     },
-    enabled: !!profile?.id,
+    enabled: !!user?.id,
     refetchInterval: 30000, // Refresh every 30 seconds
   });
 
@@ -134,6 +139,21 @@ export default function ClassRunner() {
     { icon: BookOpen, title: "Assignments", description: "Create & track work", color: "from-green-500 to-green-600" },
     { icon: Settings, title: "Class Settings", description: "Configure preferences", color: "from-orange-500 to-orange-600" },
   ];
+
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold text-gray-900 mb-4">Authentication Required</h1>
+          <p className="text-gray-600 mb-6">Please log in to access ClassRunner.</p>
+          <Button onClick={() => navigate('/')}>
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Back to Dashboard
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={useModernDesign ? "min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/20 to-indigo-50/30" : "min-h-screen bg-gray-50"}>
@@ -400,9 +420,9 @@ export default function ClassRunner() {
                       <BookOpen className={useModernDesign ? "h-12 w-12 text-slate-400 mx-auto" : "h-8 w-8 text-gray-400 mx-auto"} />
                     </div>
                     <h3 className={useModernDesign ? "text-xl font-semibold text-slate-700 mb-2" : "text-lg font-medium text-gray-700 mb-2"}>No Active Classes</h3>
-                    <p className={useModernDesign ? "text-slate-500 mb-1" : "text-gray-500 mb-1"}>No classes found for {profile?.full_name}</p>
+                    <p className={useModernDesign ? "text-slate-500 mb-1" : "text-gray-500 mb-1"}>No classes found for your account</p>
                     <p className={useModernDesign ? "text-sm text-slate-400" : "text-sm text-gray-400"}>
-                      Classes will appear here once they are created and assigned to you.
+                      Classes will appear here once you create them.
                     </p>
                   </div>
                 )}
