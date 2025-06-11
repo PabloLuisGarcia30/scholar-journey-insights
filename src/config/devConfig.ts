@@ -12,13 +12,13 @@ export const DEV_CONFIG = {
 export const MOCK_USER_DATA = {
   teacher: {
     user: {
-      id: 'dev-teacher-123',
+      id: '233d54d8-7c04-4fbf-889e-9500749a4269', // Using existing Mr. Cullen UUID from database
       email: 'mr.cullen@school.edu',
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     },
     profile: {
-      id: 'dev-teacher-123',
+      id: '233d54d8-7c04-4fbf-889e-9500749a4269', // Using existing Mr. Cullen UUID from database
       email: 'mr.cullen@school.edu',
       full_name: 'Mr. Cullen',
       role: 'teacher' as const,
