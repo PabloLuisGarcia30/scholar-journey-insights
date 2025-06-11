@@ -2087,6 +2087,46 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: string
       }
+      get_authenticated_user_content_skills: {
+        Args: { auth_user_id: string }
+        Returns: {
+          id: string
+          skill_name: string
+          score: number
+          points_earned: number
+          points_possible: number
+          created_at: string
+          test_result_id: string
+          practice_exercise_id: string
+        }[]
+      }
+      get_authenticated_user_subject_skills: {
+        Args: { auth_user_id: string }
+        Returns: {
+          id: string
+          skill_name: string
+          score: number
+          points_earned: number
+          points_possible: number
+          created_at: string
+          test_result_id: string
+          practice_exercise_id: string
+        }[]
+      }
+      get_authenticated_user_test_results: {
+        Args: { auth_user_id: string }
+        Returns: {
+          id: string
+          exam_id: string
+          class_id: string
+          overall_score: number
+          total_points_earned: number
+          total_points_possible: number
+          detailed_analysis: string
+          ai_feedback: string
+          created_at: string
+        }[]
+      }
       get_enhanced_mistake_analysis: {
         Args: { student_uuid: string; skill_filter?: string }
         Returns: {

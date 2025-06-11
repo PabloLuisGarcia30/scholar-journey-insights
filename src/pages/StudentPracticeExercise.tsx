@@ -1,11 +1,12 @@
 
+
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { ArrowLeft, Target, BookOpen, Loader2, Zap, TrendingUp } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
-import { useStudentProfileData } from "@/hooks/useStudentProfileData";
+import { useAuthenticatedStudentData } from "@/hooks/useAuthenticatedStudentData";
 import { useStudentPracticeGeneration } from "@/hooks/useStudentPracticeGeneration";
 import { usePracticeExerciseCompletion } from "@/hooks/usePracticeExerciseCompletion";
 import { PracticeExerciseRunner } from "@/components/PracticeExerciseRunner";
@@ -20,7 +21,7 @@ const StudentPracticeExercise = () => {
   const navigate = useNavigate();
   const { classId, skillName } = useParams();
   const [searchParams] = useSearchParams();
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
   const [exerciseData, setExerciseData] = useState(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [currentSkillScore, setCurrentSkillScore] = useState(0);
@@ -37,19 +38,16 @@ const StudentPracticeExercise = () => {
   // Get question count from URL parameters, default to 4
   const questionCount = parseInt(searchParams.get('questions') || '4');
   
-  // Get student and class data
+  // Use the new authenticated student data hook
   const { 
     classData,
     classLoading,
     enrolledClasses,
-    student,
     contentSkillScores,
-    subjectSkillScores
-  } = useStudentProfileData({ 
-    studentId: profile?.id || '', 
-    classId: classId || '',
-    className: ''
-  });
+    subjectSkillScores,
+    isAuthenticated,
+    authenticatedUserId
+  } = useAuthenticatedStudentData({ classId: classId || '' });
 
   // Find the class info
   const currentClass = enrolledClasses.find(cls => cls.id === classId) || classData;
@@ -68,7 +66,7 @@ const StudentPracticeExercise = () => {
     }
   });
 
-  // Find current skill score
+  // Find current skill score from authenticated user data
   useEffect(() => {
     if ((contentSkillScores.length > 0 || subjectSkillScores.length > 0) && decodedSkillName) {
       const contentSkill = contentSkillScores.find(skill => skill.skill_name === decodedSkillName);
@@ -76,27 +74,33 @@ const StudentPracticeExercise = () => {
       
       const skillScore = contentSkill?.score || subjectSkill?.score || 50; // Default to 50 if no score found
       setCurrentSkillScore(skillScore);
+      console.log('🎯 Current skill score for', decodedSkillName, ':', skillScore);
     }
   }, [contentSkillScores, subjectSkillScores, decodedSkillName]);
 
   useEffect(() => {
-    if (currentClass && decodedSkillName && currentSkillScore > 0 && !exerciseData) {
+    if (currentClass && decodedSkillName && currentSkillScore > 0 && !exerciseData && isAuthenticated) {
       generateStudentPracticeExercise();
     }
-  }, [currentClass, decodedSkillName, currentSkillScore]);
+  }, [currentClass, decodedSkillName, currentSkillScore, isAuthenticated]);
 
   const generateStudentPracticeExercise = async () => {
-    if (!currentClass || !decodedSkillName || !profile?.id) return;
+    if (!currentClass || !decodedSkillName || !authenticatedUserId) {
+      console.error('Missing required data for practice exercise generation');
+      return;
+    }
     
     setIsGenerating(true);
     
     try {
+      console.log('🔐 Generating practice exercise for authenticated user:', authenticatedUserId);
+      
       // Generate a proper UUID for the exercise
       const exerciseId = PracticeExerciseGenerationService.generateExerciseId();
       
       const practiceExercise = await generatePracticeExercise({
-        studentId: profile.id,
-        studentName: profile?.full_name || student?.name || 'Student',
+        studentId: authenticatedUserId, // Use authenticated user ID
+        studentName: profile?.full_name || user?.email || 'Student',
         skillName: decodedSkillName,
         currentSkillScore: currentSkillScore,
         classId: currentClass.id,
@@ -156,6 +160,7 @@ const StudentPracticeExercise = () => {
         
         setExerciseData(exerciseFormatted);
         setHasAnswerKey(true);
+        console.log('✅ Practice exercise generated successfully for authenticated user');
       } else {
         toast.error('Failed to generate practice exercise. Please try again.');
       }
@@ -168,7 +173,7 @@ const StudentPracticeExercise = () => {
   };
 
   const handleExerciseComplete = async (results) => {
-    console.log('Student practice exercise completed:', results);
+    console.log('🔐 Student practice exercise completed for authenticated user:', authenticatedUserId, results);
     
     // Store answers and results for review
     setStudentAnswers(results.answers || {});
@@ -180,7 +185,7 @@ const StudentPracticeExercise = () => {
       : 0;
     
     // Update session score first
-    if (sessionId && profile?.id) {
+    if (sessionId && authenticatedUserId) {
       try {
         await StudentPracticeService.updatePracticeSessionScore(
           sessionId, 
@@ -188,9 +193,9 @@ const StudentPracticeExercise = () => {
           improvementShown
         );
         
-        // Update practice analytics
+        // Update practice analytics for authenticated user
         await StudentPracticeService.updatePracticeAnalyticsAfterCompletion(
-          profile.id,
+          authenticatedUserId,
           decodedSkillName,
           results.percentageScore
         );
@@ -200,7 +205,7 @@ const StudentPracticeExercise = () => {
     }
 
     // Process skill score updates using the completion hook
-    if (exerciseData && profile?.id) {
+    if (exerciseData && authenticatedUserId) {
       try {
         await completeExercise({
           exerciseId: exerciseData.exerciseId,
@@ -239,6 +244,24 @@ const StudentPracticeExercise = () => {
     navigate(`/student-dashboard/class/${classId}`);
   };
 
+  // Check authentication first
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-green-50 to-blue-50/30">
+        <div className="container mx-auto px-4 py-8">
+          <div className="text-center py-12">
+            <h2 className="text-2xl font-bold text-gray-900 mb-4">Authentication Required</h2>
+            <p className="text-gray-600 mb-6">Please log in to access practice exercises.</p>
+            <Button onClick={() => navigate('/auth')}>
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Go to Login
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (classLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-green-50 to-blue-50/30">
@@ -258,7 +281,7 @@ const StudentPracticeExercise = () => {
         <div className="container mx-auto px-4 py-8">
           <div className="text-center py-12">
             <h2 className="text-2xl font-bold text-gray-900 mb-4">Class Not Found</h2>
-            <p className="text-gray-600 mb-6">The requested class could not be found.</p>
+            <p className="text-gray-600 mb-6">The requested class could not be found or you are not enrolled.</p>
             <Button onClick={() => navigate('/student-dashboard/home-learner')}>
               <ArrowLeft className="h-4 w-4 mr-2" />
               Back to Dashboard
@@ -468,6 +491,10 @@ const StudentPracticeExercise = () => {
           </CardHeader>
           <CardContent>
             <div className="space-y-3 text-sm">
+              <div className="flex justify-between">
+                <span className="text-gray-600">User:</span>
+                <span className="font-medium">{profile?.full_name || user?.email}</span>
+              </div>
               <div className="flex justify-between">
                 <span className="text-gray-600">Skill Focus:</span>
                 <span className="font-medium">{decodedSkillName}</span>

@@ -1,3 +1,4 @@
+
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,6 +12,8 @@ import { StudentContentSkills } from "@/components/StudentContentSkills";
 import { StudentSubjectSkills } from "@/components/StudentSubjectSkills";
 import { StudentProgressChart } from "@/components/StudentProgressChart";
 import { useStudentProfileData } from "@/hooks/useStudentProfileData";
+import { useAuthenticatedStudentData } from "@/hooks/useAuthenticatedStudentData";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface LearnerProfileDisplayProps {
   studentId: string;
@@ -46,6 +49,23 @@ const getLearningStyles = (studentName: string) => {
 };
 
 export function LearnerProfileDisplay({ studentId, classId, className, onBack }: LearnerProfileDisplayProps) {
+  const { user, profile } = useAuth();
+  
+  // Determine if this is for the current authenticated user
+  const isCurrentUser = user?.id === studentId;
+  
+  // Use authenticated data hook for current user, mock data hook for others
+  const authenticatedData = useAuthenticatedStudentData({ 
+    classId: classId || undefined 
+  });
+  
+  const mockData = useStudentProfileData({ 
+    studentId, 
+    classId: classId || '', 
+    className: className || '' 
+  });
+
+  // Choose which data source to use
   const {
     student,
     studentLoading,
@@ -60,7 +80,46 @@ export function LearnerProfileDisplay({ studentId, classId, className, onBack }:
     enrolledClasses,
     isClassView,
     classData
-  } = useStudentProfileData({ studentId, classId, className });
+  } = isCurrentUser ? {
+    // For authenticated user, use authenticated data with profile info
+    student: profile ? {
+      id: user.id,
+      name: profile.full_name || user.email || 'Current User',
+      email: user.email,
+      year: null,
+      major: null,
+      gpa: null,
+      created_at: profile.created_at,
+      updated_at: profile.updated_at
+    } : null,
+    studentLoading: authenticatedData.isLoading,
+    testResults: authenticatedData.testResults,
+    testResultsLoading: authenticatedData.testResultsLoading,
+    contentSkillScores: authenticatedData.contentSkillScores,
+    contentSkillsLoading: authenticatedData.contentSkillsLoading,
+    subjectSkillScores: authenticatedData.subjectSkillScores,
+    subjectSkillsLoading: authenticatedData.subjectSkillsLoading,
+    classContentSkills: [], // Not implemented for authenticated users yet
+    classSubjectSkills: [], // Not implemented for authenticated users yet
+    enrolledClasses: authenticatedData.enrolledClasses,
+    isClassView: !!classId,
+    classData: authenticatedData.classData
+  } : {
+    // For other students, use mock data
+    student: mockData.student,
+    studentLoading: mockData.studentLoading,
+    testResults: mockData.testResults,
+    testResultsLoading: mockData.testResultsLoading,
+    contentSkillScores: mockData.contentSkillScores,
+    contentSkillsLoading: mockData.contentSkillsLoading,
+    subjectSkillScores: mockData.subjectSkillScores,
+    subjectSkillsLoading: mockData.subjectSkillsLoading,
+    classContentSkills: mockData.classContentSkills,
+    classSubjectSkills: mockData.classSubjectSkills,
+    enrolledClasses: mockData.enrolledClasses,
+    isClassView: mockData.isClassView,
+    classData: mockData.classData
+  };
 
   if (studentLoading) {
     return (
@@ -73,7 +132,9 @@ export function LearnerProfileDisplay({ studentId, classId, className, onBack }:
   if (!student) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <div className="text-lg text-muted-foreground">Student not found</div>
+        <div className="text-lg text-muted-foreground">
+          {isCurrentUser ? 'User profile not found' : 'Student not found'}
+        </div>
       </div>
     );
   }
@@ -112,9 +173,17 @@ export function LearnerProfileDisplay({ studentId, classId, className, onBack }:
                   </AvatarFallback>
                 </Avatar>
                 <div>
-                  <CardTitle className="text-2xl">{student.name}</CardTitle>
+                  <CardTitle className="text-2xl">
+                    {student.name}
+                    {isCurrentUser && <span className="text-sm text-blue-600 ml-2">(You)</span>}
+                  </CardTitle>
                   <p className="text-muted-foreground">{student.email || 'No email available'}</p>
                   <div className="flex gap-2 mt-2">
+                    {isCurrentUser && (
+                      <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-sm">
+                        Authenticated User
+                      </span>
+                    )}
                     {student.year && (
                       <span className="px-2 py-1 bg-secondary text-secondary-foreground rounded-full text-sm">
                         {student.year}
