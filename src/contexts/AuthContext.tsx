@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
@@ -12,6 +13,7 @@ export interface UserProfile {
   email: string;
   full_name: string;
   role: UserRole;
+  teacher_id?: string; // Added teacher_id field
   created_at: string;
   updated_at: string;
 }
@@ -55,12 +57,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     // Check if we're in dev mode
     if (DEV_CONFIG.DISABLE_AUTH_FOR_DEV) {
-      // Use mock data based on current dev role
+      // Use mock data based on current dev role with teacher_id for teacher
       const mockData = MOCK_USER_DATA[devRole];
+      const enhancedProfile = devRole === 'teacher' 
+        ? { ...mockData.profile, teacher_id: 'TCH001' }
+        : mockData.profile;
+      
       setUser(mockData.user as any);
-      setProfile(mockData.profile);
+      setProfile(enhancedProfile);
       setLoading(false);
-      console.log(`🔧 Dev mode: Using ${devRole} role with data:`, mockData.profile);
+      console.log(`🔧 Dev mode: Using ${devRole} role with data:`, enhancedProfile);
       return;
     }
 
@@ -135,7 +141,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return { error };
       }
 
-      toast.success('Account created successfully! Please check your email to verify your account.');
+      const successMessage = role === 'teacher' 
+        ? 'Teacher account created successfully! A unique teacher ID has been assigned. Please check your email to verify your account.'
+        : 'Account created successfully! Please check your email to verify your account.';
+      
+      toast.success(successMessage);
       return { error: null };
     } catch (error) {
       console.error('Signup error:', error);

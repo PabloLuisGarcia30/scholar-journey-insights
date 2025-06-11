@@ -13,7 +13,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, Clock } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Plus, Clock, IdCard } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface CreateClassDialogProps {
   onCreateClass: (classData: {
@@ -28,12 +30,13 @@ interface CreateClassDialogProps {
 }
 
 export function CreateClassDialog({ onCreateClass }: CreateClassDialogProps) {
+  const { profile } = useAuth();
   const [open, setOpen] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     subject: '',
     grade: '',
-    teacher: '',
+    teacher: profile?.full_name || '',
     dayOfWeek: [] as string[],
     classTime: '',
     endTime: ''
@@ -138,7 +141,7 @@ export function CreateClassDialog({ onCreateClass }: CreateClassDialogProps) {
         ...(formData.endTime && { endTime: formData.endTime })
       };
       onCreateClass(classData);
-      setFormData({ name: '', subject: '', grade: '', teacher: '', dayOfWeek: [], classTime: '', endTime: '' });
+      setFormData({ name: '', subject: '', grade: '', teacher: profile?.full_name || '', dayOfWeek: [], classTime: '', endTime: '' });
       setOpen(false);
     }
   };
@@ -207,14 +210,22 @@ export function CreateClassDialog({ onCreateClass }: CreateClassDialogProps) {
               <Label htmlFor="teacher" className="text-right">
                 Teacher
               </Label>
-              <Input
-                id="teacher"
-                value={formData.teacher}
-                onChange={(e) => setFormData({ ...formData, teacher: e.target.value })}
-                placeholder="Teacher name"
-                className="col-span-3"
-                required
-              />
+              <div className="col-span-3 flex items-center gap-2">
+                <Input
+                  id="teacher"
+                  value={formData.teacher}
+                  onChange={(e) => setFormData({ ...formData, teacher: e.target.value })}
+                  placeholder="Teacher name"
+                  className="flex-1"
+                  required
+                />
+                {profile?.teacher_id && (
+                  <Badge variant="secondary" className="flex items-center gap-1">
+                    <IdCard className="h-3 w-3" />
+                    {profile.teacher_id}
+                  </Badge>
+                )}
+              </div>
             </div>
             
             {/* Enhanced Days of Week Selection */}

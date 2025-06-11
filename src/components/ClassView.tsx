@@ -17,11 +17,12 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Users, BookOpen, TrendingUp, Trash2, ArrowLeft, Target, UserX } from "lucide-react";
+import { Users, BookOpen, TrendingUp, Trash2, ArrowLeft, Target, UserX, IdCard } from "lucide-react";
 import { CreateClassDialog } from "@/components/CreateClassDialog";
 import { AddStudentsDialog } from "@/components/AddStudentsDialog";
 import { ClassContentSkills } from "@/components/ClassContentSkills";
 import { toast } from "sonner";
+import { useAuth } from "@/contexts/AuthContext";
 import { 
   getAllActiveClasses, 
   createActiveClass, 
@@ -39,6 +40,7 @@ interface ClassViewProps {
 }
 
 export function ClassView({ onSelectStudent }: ClassViewProps) {
+  const { profile } = useAuth();
   const [classes, setClasses] = useState<ActiveClass[]>([]);
   const [selectedClass, setSelectedClass] = useState<string | null>(null);
   const [filterSubject, setFilterSubject] = useState<string>('all');
@@ -230,7 +232,15 @@ export function ClassView({ onSelectStudent }: ClassViewProps) {
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-3xl font-bold text-gray-900">{classData.name}</h1>
-              <p className="text-gray-600 mt-1">Teacher: {classData.teacher}</p>
+              <div className="flex items-center gap-3 mt-1">
+                <p className="text-gray-600">Teacher: {classData.teacher}</p>
+                {profile?.teacher_id && (
+                  <Badge variant="secondary" className="flex items-center gap-1">
+                    <IdCard className="h-3 w-3" />
+                    {profile.teacher_id}
+                  </Badge>
+                )}
+              </div>
               {classData.day_of_week && classData.day_of_week.length > 0 && (
                 <p className="text-gray-600 mt-1">Schedule: {formatClassSchedule(classData)}</p>
               )}

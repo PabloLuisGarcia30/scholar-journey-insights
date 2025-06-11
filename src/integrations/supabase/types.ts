@@ -1045,6 +1045,7 @@ export type Database = {
           full_name: string | null
           id: string
           role: Database["public"]["Enums"]["app_role"]
+          teacher_id: string | null
           updated_at: string | null
         }
         Insert: {
@@ -1053,6 +1054,7 @@ export type Database = {
           full_name?: string | null
           id: string
           role?: Database["public"]["Enums"]["app_role"]
+          teacher_id?: string | null
           updated_at?: string | null
         }
         Update: {
@@ -1061,6 +1063,7 @@ export type Database = {
           full_name?: string | null
           id?: string
           role?: Database["public"]["Enums"]["app_role"]
+          teacher_id?: string | null
           updated_at?: string | null
         }
         Relationships: []
@@ -1672,6 +1675,10 @@ export type Database = {
           recency_weight?: number
         }
         Returns: number
+      }
+      generate_teacher_id: {
+        Args: Record<PropertyKey, never>
+        Returns: string
       }
       get_enhanced_mistake_analysis: {
         Args: { student_uuid: string; skill_filter?: string }
