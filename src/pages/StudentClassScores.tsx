@@ -3,11 +3,12 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, TrendingUp, BookOpen } from "lucide-react";
+import { ArrowLeft, TrendingUp, MessageSquare } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useStudentProfileData } from "@/hooks/useStudentProfileData";
 import { useSkillData } from "@/hooks/useSkillData";
 import { getGradeColor } from "@/utils/studentProfileUtils";
+import { AIChatbox } from "@/components/AIChatbox";
 
 const StudentClassScores = () => {
   const navigate = useNavigate();
@@ -23,7 +24,9 @@ const StudentClassScores = () => {
     enrolledClasses,
     classContentSkills,
     subjectSkillScores,
-    classSubjectSkills
+    classSubjectSkills,
+    testResults,
+    student
   } = useStudentProfileData({ 
     studentId: profile?.id || '', 
     classId: classId || '',
@@ -66,6 +69,19 @@ const StudentClassScores = () => {
     );
   }
 
+  // Prepare student context for AI
+  const studentContext = {
+    studentName: profile?.full_name || student?.name || 'Student',
+    className: currentClass.name,
+    classSubject: currentClass.subject,
+    classGrade: currentClass.grade,
+    teacher: currentClass.teacher,
+    contentSkillScores,
+    subjectSkillScores,
+    testResults,
+    groupedSkills
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 to-blue-50/30">
       <div className="container mx-auto px-4 py-8">
@@ -86,29 +102,16 @@ const StudentClassScores = () => {
           <div></div>
         </div>
 
-        {/* Class Info Card */}
+        {/* AI Chatbox */}
         <Card className="mb-8">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <BookOpen className="h-5 w-5 text-indigo-600" />
-              Class Information
+              <MessageSquare className="h-5 w-5 text-blue-600" />
+              AI Learning Assistant
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <h4 className="font-semibold text-gray-900">Subject</h4>
-                <p className="text-gray-600">{currentClass.subject}</p>
-              </div>
-              <div>
-                <h4 className="font-semibold text-gray-900">Grade Level</h4>
-                <p className="text-gray-600">{currentClass.grade}</p>
-              </div>
-              <div>
-                <h4 className="font-semibold text-gray-900">Teacher</h4>
-                <p className="text-gray-600">{currentClass.teacher}</p>
-              </div>
-            </div>
+            <AIChatbox studentContext={studentContext} />
           </CardContent>
         </Card>
 
