@@ -336,6 +336,45 @@ export type Database = {
           },
         ]
       }
+      concept_index: {
+        Row: {
+          concept_name: string
+          created_at: string
+          description: string | null
+          grade: string
+          id: string
+          keywords: string[] | null
+          related_skills: string[] | null
+          subject: string
+          updated_at: string
+          usage_count: number | null
+        }
+        Insert: {
+          concept_name: string
+          created_at?: string
+          description?: string | null
+          grade: string
+          id?: string
+          keywords?: string[] | null
+          related_skills?: string[] | null
+          subject: string
+          updated_at?: string
+          usage_count?: number | null
+        }
+        Update: {
+          concept_name?: string
+          created_at?: string
+          description?: string | null
+          grade?: string
+          id?: string
+          keywords?: string[] | null
+          related_skills?: string[] | null
+          subject?: string
+          updated_at?: string
+          usage_count?: number | null
+        }
+        Relationships: []
+      }
       content_skill_scores: {
         Row: {
           created_at: string
