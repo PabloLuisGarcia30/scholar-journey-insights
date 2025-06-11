@@ -37,6 +37,18 @@ interface ClassPlanData {
   lessonPlans: LessonPlanItem[];
 }
 
+// Extract the lesson plan fetching logic to prevent type inference issues
+const fetchAllLessonPlans = async (classes: ActiveClassItem[]): Promise<ClassPlanData[]> => {
+  const promises = classes.map(async (classItem): Promise<ClassPlanData> => {
+    const plans = await getLessonPlanByClassId(classItem.id);
+    return {
+      classId: classItem.id,
+      lessonPlans: plans
+    };
+  });
+  return Promise.all(promises);
+};
+
 export default function ClassRunner() {
   const { profile, user } = useAuth();
   const navigate = useNavigate();
@@ -52,12 +64,12 @@ export default function ClassRunner() {
   }, [useModernDesign]);
 
   // Fetch active classes for the authenticated teacher
-  const { data: activeClasses, isLoading } = useQuery({
+  const { data: activeClasses = [], isLoading } = useQuery({
     queryKey: ['activeClasses', user?.id],
-    queryFn: async () => {
+    queryFn: async (): Promise<ActiveClassItem[]> => {
       if (!user?.id) {
         console.log('No authenticated user ID available');
-        return [] as ActiveClassItem[];
+        return [];
       }
 
       console.log('Fetching classes for teacher ID:', user.id);
@@ -74,30 +86,16 @@ export default function ClassRunner() {
       }
 
       console.log('Found classes:', data);
-      return (data || []) as ActiveClassItem[];
+      return data || [];
     },
     enabled: !!user?.id,
   });
 
-  // Fetch lesson plans for all classes to show status
-  const { data: allLessonPlans } = useQuery({
-    queryKey: ['allLessonPlans', activeClasses?.length],
-    queryFn: async () => {
-      if (!activeClasses || activeClasses.length === 0) {
-        return [] as ClassPlanData[];
-      }
-      
-      const promises = activeClasses.map(async (classItem) => {
-        const plans = await getLessonPlanByClassId(classItem.id);
-        return {
-          classId: classItem.id,
-          lessonPlans: plans
-        } as ClassPlanData;
-      });
-      
-      return Promise.all(promises);
-    },
-    enabled: !!activeClasses && activeClasses.length > 0,
+  // Fetch lesson plans for all classes using the extracted function
+  const { data: allLessonPlans = [] } = useQuery<ClassPlanData[]>({
+    queryKey: ['allLessonPlans', activeClasses.map(c => c.id)],
+    queryFn: () => fetchAllLessonPlans(activeClasses),
+    enabled: activeClasses.length > 0,
   });
 
   // Fetch active sessions for monitoring
@@ -142,7 +140,7 @@ export default function ClassRunner() {
   };
 
   const getLessonPlanStatus = (classId: string) => {
-    const classPlans = allLessonPlans?.find((item: ClassPlanData) => item.classId === classId);
+    const classPlans = allLessonPlans.find(item => item.classId === classId);
     if (!classPlans || classPlans.lessonPlans.length === 0) {
       return { status: 'none', text: 'No Plan', color: 'bg-slate-100 text-slate-600 border-slate-200' };
     }
@@ -157,9 +155,9 @@ export default function ClassRunner() {
   };
 
   // Calculate summary stats
-  const totalClasses = activeClasses?.length || 0;
-  const classesWithPlans = activeClasses?.filter((c: ActiveClassItem) => getLessonPlanStatus(c.id).status === 'ready').length || 0;
-  const totalStudents = activeClasses?.reduce((sum: number, c: ActiveClassItem) => sum + (c.student_count || 0), 0) || 0;
+  const totalClasses = activeClasses.length;
+  const classesWithPlans = activeClasses.filter(c => getLessonPlanStatus(c.id).status === 'ready').length;
+  const totalStudents = activeClasses.reduce((sum, c) => sum + (c.student_count || 0), 0);
 
   const quickTools = [
     { icon: Users, title: "Student Roster", description: "Manage class enrollment", color: "from-blue-500 to-blue-600" },
@@ -367,7 +365,7 @@ export default function ClassRunner() {
                       </div>
                     ))}
                   </div>
-                ) : activeClasses && activeClasses.length > 0 ? (
+                ) : activeClasses.length > 0 ? (
                   <div className="space-y-6">
                     {activeClasses.map((classItem: ActiveClassItem) => {
                       const planStatus = getLessonPlanStatus(classItem.id);
