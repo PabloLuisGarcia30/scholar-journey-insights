@@ -1,4 +1,3 @@
-
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -10,6 +9,7 @@ import StudentLanding from "./pages/StudentLanding";
 import HomeLearner from "./pages/HomeLearner";
 import StudentClassScores from "./pages/StudentClassScores";
 import StudentPracticeExercise from "./pages/StudentPracticeExercise";
+import MistakePatternDemo from "./pages/MistakePatternDemo";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import { DevRoleProvider, useDevRole } from "./contexts/DevRoleContext";
 import { MultiSkillSelectionProvider } from "./contexts/MultiSkillSelectionContext";
@@ -184,6 +184,15 @@ function AppRoutes() {
         element={
           <ProtectedRoute requiredRole={DEV_CONFIG.DISABLE_AUTH_FOR_DEV ? undefined : "teacher"}>
             <LessonPlanner />
+          </ProtectedRoute>
+        } 
+      />
+
+      <Route 
+        path="/mistake-pattern-demo" 
+        element={
+          <ProtectedRoute requiredRole={DEV_CONFIG.DISABLE_AUTH_FOR_DEV ? undefined : "teacher"}>
+            <MistakePatternDemo />
           </ProtectedRoute>
         } 
       />

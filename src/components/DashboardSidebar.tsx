@@ -1,5 +1,5 @@
 
-import { BarChart3, Users, GraduationCap, Calendar, Brain, Home, User, LogOut } from "lucide-react";
+import { BarChart3, Users, GraduationCap, Calendar, Brain, Home, User, LogOut, TrendingUp } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
@@ -138,6 +138,10 @@ export function DashboardSidebar({ activeView, onViewChange }: DashboardSidebarP
     {
       title: "ClassRunner",
       href: "/class-runner"
+    },
+    {
+      title: "Mistake Pattern Demo",
+      href: "/mistake-pattern-demo"
     }
   ];
 
