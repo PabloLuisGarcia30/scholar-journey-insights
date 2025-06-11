@@ -624,6 +624,51 @@ export type Database = {
         }
         Relationships: []
       }
+      exam_skill_rationales: {
+        Row: {
+          created_at: string
+          difficulty_analysis: string | null
+          exam_id: string
+          id: string
+          pedagogical_reasoning: string | null
+          prerequisite_gaps: string[] | null
+          question_number: number
+          rationale: string
+          skill_id: string
+          skill_name: string
+          skill_type: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          difficulty_analysis?: string | null
+          exam_id: string
+          id?: string
+          pedagogical_reasoning?: string | null
+          prerequisite_gaps?: string[] | null
+          question_number: number
+          rationale: string
+          skill_id: string
+          skill_name: string
+          skill_type: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          difficulty_analysis?: string | null
+          exam_id?: string
+          id?: string
+          pedagogical_reasoning?: string | null
+          prerequisite_gaps?: string[] | null
+          question_number?: number
+          rationale?: string
+          skill_id?: string
+          skill_name?: string
+          skill_type?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       exams: {
         Row: {
           class_id: string | null

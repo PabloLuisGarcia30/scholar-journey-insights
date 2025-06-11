@@ -178,7 +178,7 @@ serve(async (req) => {
       .select()
       .single();
 
-    console.log('Step 4: Performing enhanced class-specific AI skill mapping analysis with concept grouping');
+    console.log('Step 4: Performing enhanced AI skill mapping analysis with detailed rationales');
 
     // Prepare class-specific skills data for AI with IDs for validation
     const contentSkillsText = availableContentSkills.map(skill => 
@@ -207,6 +207,14 @@ CRITICAL CONSTRAINTS:
 - If no suitable skill exists in the lists, mark as "no_suitable_skill"
 - This analysis is for ${examData.classes?.name || 'Unknown Class'} (${examData.classes?.subject} ${examData.classes?.grade})
 
+NEW ENHANCEMENT - DETAILED RATIONALES:
+- For each skill mapping, provide comprehensive natural language rationale
+- Include pedagogical reasoning for why this skill applies to this question
+- Analyze the cognitive demands and difficulty level
+- Identify potential prerequisite gaps if students struggle
+- Use consistent concept naming for grouping analytics
+- Focus on actionable insights for IntelliCoach nudges
+
 NEW ENHANCEMENT - CONCEPT GROUPING:
 - For each skill mapping, provide a "concept_missed_short" - a brief 2-4 word identifier for the core concept being tested
 - This should be a simple, groupable concept name (e.g., "Linear Equations", "Photosynthesis", "Essay Structure")
@@ -219,12 +227,12 @@ ${contentSkillsText}
 ${usingFallbackSkills ? 'STANDARD CURRICULUM' : 'CLASS-SPECIFIC'} SUBJECT SKILLS (ONLY use these IDs):
 ${subjectSkillsText}
 
-For each question, identify:
-1. Which content skills it tests (0-2 most relevant from the list above)
-2. Which subject skills it tests (0-2 most relevant from the list above)
-3. Weight for each skill (0.1-1.0 based on relevance)
-4. Confidence in the mapping (0.1-1.0)
-5. Concept_missed_short for grouping analytics (2-4 words describing the core concept)
+For each question, provide:
+1. Skill mappings with weights and confidence
+2. Detailed natural language rationales explaining your reasoning
+3. Pedagogical analysis of why these skills apply
+4. Difficulty and prerequisite gap analysis
+5. Concept grouping identifiers
 
 Return JSON format:
 {
@@ -237,7 +245,11 @@ Return JSON format:
           "skill_name": "exact-name-from-list", 
           "weight": 0.8, 
           "confidence": 0.9,
-          "concept_missed_short": "Linear Equations"
+          "concept_missed_short": "Linear Equations",
+          "rationale": "This question directly tests the ability to solve linear equations in one variable by requiring students to isolate the variable through algebraic manipulation.",
+          "pedagogical_reasoning": "Linear equation solving is fundamental to algebraic thinking and requires understanding of inverse operations, equation balance principles, and systematic problem-solving approaches.",
+          "difficulty_analysis": "Medium difficulty - requires multi-step thinking and careful attention to order of operations, but uses standard algebraic procedures.",
+          "prerequisite_gaps": ["basic arithmetic operations", "understanding of variables", "inverse operations"]
         }
       ],
       "subject_skills": [
@@ -246,7 +258,11 @@ Return JSON format:
           "skill_name": "exact-name-from-list", 
           "weight": 1.0, 
           "confidence": 0.95,
-          "concept_missed_short": "Algebraic Reasoning"
+          "concept_missed_short": "Algebraic Reasoning",
+          "rationale": "This question assesses core algebraic reasoning skills including symbolic manipulation and logical problem-solving sequences.",
+          "pedagogical_reasoning": "Algebraic reasoning forms the foundation for advanced mathematical thinking and problem-solving across multiple domains.",
+          "difficulty_analysis": "Appropriate for grade level - combines concrete and abstract thinking in accessible way.",
+          "prerequisite_gaps": ["number sense", "pattern recognition"]
         }
       ],
       "no_suitable_skills": false
@@ -257,7 +273,8 @@ Return JSON format:
     "content_skills_used": 5,
     "subject_skills_used": 3,
     "questions_without_suitable_skills": 0,
-    "unique_concepts_identified": 8
+    "unique_concepts_identified": 8,
+    "rationales_generated": 15
   }
 }`;
 
@@ -267,7 +284,7 @@ Class: ${examData.classes?.name || 'Unknown'} (${examData.classes?.subject} ${ex
 QUESTIONS:
 ${questionsText}
 
-IMPORTANT: Only use skill IDs and names from the provided ${usingFallbackSkills ? 'standard curriculum' : 'class-specific'} lists. Include concept_missed_short for each skill mapping to enable concept grouping analytics.`;
+IMPORTANT: Only use skill IDs and names from the provided ${usingFallbackSkills ? 'standard curriculum' : 'class-specific'} lists. Include detailed rationales and concept_missed_short for each skill mapping to enable comprehensive analysis and IntelliCoach insights.`;
 
     const aiPayload = {
       model: "gpt-4.1-2025-04-14",
@@ -275,7 +292,7 @@ IMPORTANT: Only use skill IDs and names from the provided ${usingFallbackSkills 
         { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt }
       ],
-      max_tokens: 3000,
+      max_tokens: 4000,
       temperature: 0.1
     };
 
@@ -303,16 +320,18 @@ IMPORTANT: Only use skill IDs and names from the provided ${usingFallbackSkills 
       throw new Error('AI returned invalid skill mapping format');
     }
 
-    console.log('Step 5: Validating and storing enhanced class-specific skill mappings with concept grouping');
+    console.log('Step 5: Validating and storing enhanced skill mappings with rationales');
 
-    // Validate skill mappings against class-specific skill pools
+    // Validate skill mappings and prepare inserts
     const mappingInserts = [];
+    const rationaleInserts = [];
     let contentSkillsFound = 0;
     let subjectSkillsFound = 0;
     let invalidSkillsRejected = 0;
+    let rationalesGenerated = 0;
     
     for (const mapping of skillMappings.mappings || []) {
-      // Validate and insert content skill mappings
+      // Validate and insert content skill mappings with rationales
       for (const contentSkill of mapping.content_skills || []) {
         if (!validContentSkillIds.has(contentSkill.skill_id)) {
           console.warn(`Rejected invalid content skill ID: ${contentSkill.skill_id} for Q${mapping.question_number}`);
@@ -323,6 +342,7 @@ IMPORTANT: Only use skill IDs and names from the provided ${usingFallbackSkills 
         const validatedWeight = Math.min(Math.max(contentSkill.weight || 1.0, 0), 2.0);
         const validatedConfidence = Math.min(Math.max(contentSkill.confidence || 1.0, 0), 1.0);
         
+        // Insert skill mapping
         mappingInserts.push({
           exam_id: examId,
           question_number: mapping.question_number,
@@ -333,10 +353,27 @@ IMPORTANT: Only use skill IDs and names from the provided ${usingFallbackSkills 
           confidence: validatedConfidence,
           concept_missed_short: contentSkill.concept_missed_short || 'Unknown Concept'
         });
+        
+        // Insert rationale
+        if (contentSkill.rationale) {
+          rationaleInserts.push({
+            exam_id: examId,
+            question_number: mapping.question_number,
+            skill_id: contentSkill.skill_id,
+            skill_type: 'content',
+            skill_name: contentSkill.skill_name,
+            rationale: contentSkill.rationale,
+            pedagogical_reasoning: contentSkill.pedagogical_reasoning || null,
+            difficulty_analysis: contentSkill.difficulty_analysis || null,
+            prerequisite_gaps: contentSkill.prerequisite_gaps || []
+          });
+          rationalesGenerated++;
+        }
+        
         contentSkillsFound++;
       }
       
-      // Validate and insert subject skill mappings
+      // Validate and insert subject skill mappings with rationales
       for (const subjectSkill of mapping.subject_skills || []) {
         if (!validSubjectSkillIds.has(subjectSkill.skill_id)) {
           console.warn(`Rejected invalid subject skill ID: ${subjectSkill.skill_id} for Q${mapping.question_number}`);
@@ -347,6 +384,7 @@ IMPORTANT: Only use skill IDs and names from the provided ${usingFallbackSkills 
         const validatedWeight = Math.min(Math.max(subjectSkill.weight || 1.0, 0), 2.0);
         const validatedConfidence = Math.min(Math.max(subjectSkill.confidence || 1.0, 0), 1.0);
         
+        // Insert skill mapping
         mappingInserts.push({
           exam_id: examId,
           question_number: mapping.question_number,
@@ -357,6 +395,23 @@ IMPORTANT: Only use skill IDs and names from the provided ${usingFallbackSkills 
           confidence: validatedConfidence,
           concept_missed_short: subjectSkill.concept_missed_short || 'Unknown Concept'
         });
+        
+        // Insert rationale
+        if (subjectSkill.rationale) {
+          rationaleInserts.push({
+            exam_id: examId,
+            question_number: mapping.question_number,
+            skill_id: subjectSkill.skill_id,
+            skill_type: 'subject',
+            skill_name: subjectSkill.skill_name,
+            rationale: subjectSkill.rationale,
+            pedagogical_reasoning: subjectSkill.pedagogical_reasoning || null,
+            difficulty_analysis: subjectSkill.difficulty_analysis || null,
+            prerequisite_gaps: subjectSkill.prerequisite_gaps || []
+          });
+          rationalesGenerated++;
+        }
+        
         subjectSkillsFound++;
       }
     }
@@ -370,6 +425,18 @@ IMPORTANT: Only use skill IDs and names from the provided ${usingFallbackSkills 
       if (mappingsError) {
         console.error('Error inserting skill mappings:', mappingsError);
         throw new Error('Failed to store skill mappings');
+      }
+    }
+
+    // Insert rationales
+    if (rationaleInserts.length > 0) {
+      const { error: rationalesError } = await supabase
+        .from('exam_skill_rationales')
+        .insert(rationaleInserts);
+        
+      if (rationalesError) {
+        console.error('Error inserting rationales:', rationalesError);
+        throw new Error('Failed to store rationales');
       }
     }
 
@@ -393,17 +460,17 @@ IMPORTANT: Only use skill IDs and names from the provided ${usingFallbackSkills 
             available_content_skills: availableContentSkills.length,
             available_subject_skills: availableSubjectSkills.length,
             concept_grouping_enabled: true,
+            rationales_generated: rationalesGenerated,
             unique_concepts_identified: skillMappings.summary?.unique_concepts_identified || 0
           }
         }
       })
       .eq('id', analysisRecord.id);
 
-    console.log('Enhanced class-specific skill analysis with concept grouping completed successfully');
-    console.log(`Mapped ${skillMappings.mappings?.length || 0} questions with ${contentSkillsFound} content skills and ${subjectSkillsFound} subject skills`);
+    console.log('Enhanced skill analysis with rationales completed successfully');
+    console.log(`Generated ${rationalesGenerated} detailed rationales for ${skillMappings.mappings?.length || 0} questions`);
+    console.log(`Mapped ${contentSkillsFound} content skills and ${subjectSkillsFound} subject skills`);
     console.log(`Using ${usingFallbackSkills ? 'standard curriculum' : 'class-specific'} skills for ${examData.classes?.name || 'Unknown Class'}`);
-    console.log(`Rejected ${invalidSkillsRejected} invalid skill suggestions`);
-    console.log(`Identified ${skillMappings.summary?.unique_concepts_identified || 0} unique concepts for grouping analytics`);
 
     return new Response(
       JSON.stringify({
@@ -419,6 +486,7 @@ IMPORTANT: Only use skill IDs and names from the provided ${usingFallbackSkills 
         subject_skills_found: subjectSkillsFound,
         invalid_skills_rejected: invalidSkillsRejected,
         concept_grouping_enabled: true,
+        rationales_generated: rationalesGenerated,
         unique_concepts_identified: skillMappings.summary?.unique_concepts_identified || 0,
         class_scoped_validation: true,
         skill_mappings: skillMappings
