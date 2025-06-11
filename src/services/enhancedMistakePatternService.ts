@@ -79,7 +79,6 @@ export class EnhancedMistakePatternService {
     try {
       console.log(`🔍 Recording enhanced mistake pattern for question ${mistakeData.questionNumber}`);
       
-      // Check if enhanced columns exist, if not fall back to basic recording
       const { data, error } = await supabase
         .from('mistake_patterns')
         .insert({
@@ -94,7 +93,28 @@ export class EnhancedMistakePatternService {
           skill_targeted: mistakeData.skillTargeted,
           confidence_score: mistakeData.confidenceScore,
           grading_method: mistakeData.gradingMethod,
-          feedback_given: mistakeData.feedbackGiven
+          feedback_given: mistakeData.feedbackGiven,
+          
+          // Enhanced fields
+          misconception_category: mistakeData.misconceptionCategory,
+          error_severity: mistakeData.errorSeverity,
+          prerequisite_skills_gap: mistakeData.prerequisiteSkillsGap,
+          error_persistence_count: mistakeData.errorPersistenceCount || 1,
+          question_context: mistakeData.questionContext,
+          distractor_analysis: mistakeData.distractorAnalysis,
+          solution_path: mistakeData.solutionPath,
+          cognitive_load_indicators: mistakeData.cognitiveLoadIndicators || {},
+          learning_objectives: mistakeData.learningObjectives,
+          remediation_suggestions: mistakeData.remediationSuggestions,
+          related_concepts: mistakeData.relatedConcepts,
+          difficulty_level_appropriate: mistakeData.difficultyLevelAppropriate,
+          error_pattern_id: mistakeData.errorPatternId,
+          metacognitive_awareness: mistakeData.metacognitiveAwareness,
+          transfer_failure_indicator: mistakeData.transferFailureIndicator || false,
+          instructional_sensitivity_flag: mistakeData.instructionalSensitivityFlag || false,
+          gpt_analysis_metadata: mistakeData.gptAnalysisMetadata || {},
+          detailed_conceptual_error: mistakeData.detailedConceptualError,
+          context_when_error_occurred: mistakeData.contextWhenErrorOccurred || {}
         })
         .select('id')
         .single();
@@ -218,7 +238,7 @@ Format as JSON with keys: detailedAnalysis, misconceptionCategory, prerequisiteG
   }
 
   /**
-   * Get enhanced mistake analysis for a student using basic mistake patterns
+   * Get enhanced mistake analysis for a student using the new database function
    */
   static async getEnhancedMistakeAnalysis(
     studentId: string, 
@@ -227,8 +247,7 @@ Format as JSON with keys: detailedAnalysis, misconceptionCategory, prerequisiteG
     try {
       console.log(`📊 Fetching enhanced mistake analysis for student: ${studentId}`);
       
-      // Use the existing mistake patterns function for now
-      const { data, error } = await supabase.rpc('get_student_mistake_patterns', {
+      const { data, error } = await supabase.rpc('get_enhanced_mistake_analysis', {
         student_uuid: studentId,
         skill_filter: skillFilter || null
       });
@@ -238,16 +257,16 @@ Format as JSON with keys: detailedAnalysis, misconceptionCategory, prerequisiteG
         return [];
       }
 
-      // Transform the basic mistake patterns into enhanced analysis format
+      // Transform the database result into our interface format
       const enhancedAnalysis: EnhancedMistakeAnalysis[] = (data || []).map((pattern: any) => ({
         skillName: pattern.skill_name,
-        misconceptionCategory: pattern.mistake_type || 'unclassified',
-        errorSeverity: 'moderate', // Default until we have enhanced data
-        errorCount: parseInt(pattern.mistake_count) || 0,
-        averagePersistence: 1, // Default until we track persistence
-        commonPrerequisitesGaps: [], // Empty until we have enhanced data
-        remediationThemes: [], // Empty until we have enhanced data
-        cognitivePatterns: {} // Empty until we have enhanced data
+        misconceptionCategory: pattern.misconception_category || 'unclassified',
+        errorSeverity: pattern.error_severity || 'moderate',
+        errorCount: parseInt(pattern.error_count) || 0,
+        averagePersistence: parseFloat(pattern.average_persistence) || 1,
+        commonPrerequisitesGaps: pattern.common_prerequisites_gaps || [],
+        remediationThemes: pattern.remediation_themes || [],
+        cognitivePatterns: pattern.cognitive_patterns || {}
       }));
 
       console.log(`✅ Retrieved ${enhancedAnalysis.length} enhanced mistake analyses`);
@@ -259,51 +278,67 @@ Format as JSON with keys: detailedAnalysis, misconceptionCategory, prerequisiteG
   }
 
   /**
-   * Identify common error patterns across students using basic analysis
+   * Identify common error patterns across students using the new database function
    */
   static async identifyCommonErrorPatterns(skillName?: string): Promise<CommonErrorPattern[]> {
     try {
-      // For now, use basic mistake pattern analysis
-      const { data, error } = await supabase
-        .from('mistake_patterns')
-        .select('mistake_type, skill_targeted')
-        .eq('is_correct', false)
-        .gte('created_at', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString());
+      console.log(`🔍 Identifying common error patterns${skillName ? ` for skill: ${skillName}` : ''}`);
+      
+      const { data, error } = await supabase.rpc('identify_common_error_patterns', {
+        skill_name_filter: skillName || null
+      });
 
       if (error) {
         console.error('❌ Error identifying common error patterns:', error);
         return [];
       }
 
-      // Process the data to identify patterns
-      const patternCounts: Record<string, { count: number; skills: Set<string> }> = {};
-      
-      (data || []).forEach(record => {
-        const patternKey = record.mistake_type || 'unknown';
-        if (!patternCounts[patternKey]) {
-          patternCounts[patternKey] = { count: 0, skills: new Set() };
-        }
-        patternCounts[patternKey].count++;
-        patternCounts[patternKey].skills.add(record.skill_targeted);
-      });
+      // Transform the database result into our interface format
+      const commonPatterns: CommonErrorPattern[] = (data || []).map((pattern: any) => ({
+        errorPatternId: pattern.error_pattern_id,
+        patternFrequency: parseInt(pattern.pattern_frequency) || 0,
+        averageSeverity: pattern.average_severity || 'moderate',
+        commonMisconceptions: pattern.common_misconceptions || [],
+        affectedSkills: pattern.affected_skills || [],
+        suggestedInterventions: pattern.suggested_interventions || []
+      }));
 
-      // Convert to CommonErrorPattern format
-      const commonPatterns: CommonErrorPattern[] = Object.entries(patternCounts)
-        .filter(([_, info]) => info.count >= 3) // Only patterns with 3+ occurrences
-        .map(([patternId, info]) => ({
-          errorPatternId: patternId,
-          patternFrequency: info.count,
-          averageSeverity: 'moderate',
-          commonMisconceptions: [patternId],
-          affectedSkills: Array.from(info.skills),
-          suggestedInterventions: []
-        }))
-        .sort((a, b) => b.patternFrequency - a.patternFrequency);
-
+      console.log(`✅ Retrieved ${commonPatterns.length} common error patterns`);
       return commonPatterns;
     } catch (error) {
       console.error('❌ Exception in identifyCommonErrorPatterns:', error);
       return [];
+    }
+  }
+
+  /**
+   * Store or retrieve error pattern definitions
+   */
+  static async storeErrorPatternDefinition(definition: Omit<ErrorPatternDefinition, 'id' | 'createdAt' | 'updatedAt'>): Promise<string | null> {
+    try {
+      const { data, error } = await supabase
+        .from('error_pattern_definitions')
+        .insert({
+          pattern_id: definition.patternId,
+          pattern_name: definition.patternName,
+          description: definition.description,
+          category: definition.category,
+          severity_indicators: definition.severityIndicators,
+          remediation_strategies: definition.remediationStrategies,
+          related_patterns: definition.relatedPatterns
+        })
+        .select('id')
+        .single();
+
+      if (error) {
+        console.error('❌ Error storing error pattern definition:', error);
+        return null;
+      }
+
+      return data.id;
+    } catch (error) {
+      console.error('❌ Exception in storeErrorPatternDefinition:', error);
+      return null;
     }
   }
 

@@ -414,6 +414,45 @@ export type Database = {
         }
         Relationships: []
       }
+      error_pattern_definitions: {
+        Row: {
+          category: string
+          created_at: string
+          description: string
+          id: string
+          pattern_id: string
+          pattern_name: string
+          related_patterns: string[] | null
+          remediation_strategies: string[] | null
+          severity_indicators: Json | null
+          updated_at: string
+        }
+        Insert: {
+          category: string
+          created_at?: string
+          description: string
+          id?: string
+          pattern_id: string
+          pattern_name: string
+          related_patterns?: string[] | null
+          remediation_strategies?: string[] | null
+          severity_indicators?: Json | null
+          updated_at?: string
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          description?: string
+          id?: string
+          pattern_id?: string
+          pattern_name?: string
+          related_patterns?: string[] | null
+          remediation_strategies?: string[] | null
+          severity_indicators?: Json | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       error_recovery_sessions: {
         Row: {
           attempts_count: number
@@ -761,52 +800,109 @@ export type Database = {
       }
       mistake_patterns: {
         Row: {
+          cognitive_load_indicators: Json | null
           confidence_score: number | null
+          context_when_error_occurred: Json | null
           correct_answer: string
           created_at: string
+          detailed_conceptual_error: string | null
+          difficulty_level_appropriate: boolean | null
+          distractor_analysis: string | null
+          error_pattern_id: string | null
+          error_persistence_count: number | null
+          error_severity: string | null
           feedback_given: string | null
+          gpt_analysis_metadata: Json | null
           grading_method: string | null
           id: string
+          instructional_sensitivity_flag: boolean | null
           is_correct: boolean
+          learning_objectives: string[] | null
+          metacognitive_awareness: string | null
+          misconception_category: string | null
           mistake_type: string | null
+          prerequisite_skills_gap: string[] | null
+          question_context: string | null
           question_id: string
           question_number: number
           question_type: string | null
+          related_concepts: string[] | null
+          remediation_suggestions: string | null
           skill_targeted: string
+          solution_path: string | null
           student_answer: string
           student_exercise_id: string
+          transfer_failure_indicator: boolean | null
         }
         Insert: {
+          cognitive_load_indicators?: Json | null
           confidence_score?: number | null
+          context_when_error_occurred?: Json | null
           correct_answer: string
           created_at?: string
+          detailed_conceptual_error?: string | null
+          difficulty_level_appropriate?: boolean | null
+          distractor_analysis?: string | null
+          error_pattern_id?: string | null
+          error_persistence_count?: number | null
+          error_severity?: string | null
           feedback_given?: string | null
+          gpt_analysis_metadata?: Json | null
           grading_method?: string | null
           id?: string
+          instructional_sensitivity_flag?: boolean | null
           is_correct: boolean
+          learning_objectives?: string[] | null
+          metacognitive_awareness?: string | null
+          misconception_category?: string | null
           mistake_type?: string | null
+          prerequisite_skills_gap?: string[] | null
+          question_context?: string | null
           question_id: string
           question_number: number
           question_type?: string | null
+          related_concepts?: string[] | null
+          remediation_suggestions?: string | null
           skill_targeted: string
+          solution_path?: string | null
           student_answer: string
           student_exercise_id: string
+          transfer_failure_indicator?: boolean | null
         }
         Update: {
+          cognitive_load_indicators?: Json | null
           confidence_score?: number | null
+          context_when_error_occurred?: Json | null
           correct_answer?: string
           created_at?: string
+          detailed_conceptual_error?: string | null
+          difficulty_level_appropriate?: boolean | null
+          distractor_analysis?: string | null
+          error_pattern_id?: string | null
+          error_persistence_count?: number | null
+          error_severity?: string | null
           feedback_given?: string | null
+          gpt_analysis_metadata?: Json | null
           grading_method?: string | null
           id?: string
+          instructional_sensitivity_flag?: boolean | null
           is_correct?: boolean
+          learning_objectives?: string[] | null
+          metacognitive_awareness?: string | null
+          misconception_category?: string | null
           mistake_type?: string | null
+          prerequisite_skills_gap?: string[] | null
+          question_context?: string | null
           question_id?: string
           question_number?: number
           question_type?: string | null
+          related_concepts?: string[] | null
+          remediation_suggestions?: string | null
           skill_targeted?: string
+          solution_path?: string | null
           student_answer?: string
           student_exercise_id?: string
+          transfer_failure_indicator?: boolean | null
         }
         Relationships: [
           {
@@ -1577,6 +1673,19 @@ export type Database = {
         }
         Returns: number
       }
+      get_enhanced_mistake_analysis: {
+        Args: { student_uuid: string; skill_filter?: string }
+        Returns: {
+          skill_name: string
+          misconception_category: string
+          error_severity: string
+          error_count: number
+          average_persistence: number
+          common_prerequisites_gaps: string[]
+          remediation_themes: string[]
+          cognitive_patterns: Json
+        }[]
+      }
       get_question_timing_analytics: {
         Args: { student_uuid: string }
         Returns: {
@@ -1647,6 +1756,17 @@ export type Database = {
       get_user_role: {
         Args: { user_id: string }
         Returns: Database["public"]["Enums"]["app_role"]
+      }
+      identify_common_error_patterns: {
+        Args: { skill_name_filter?: string }
+        Returns: {
+          error_pattern_id: string
+          pattern_frequency: number
+          average_severity: string
+          common_misconceptions: string[]
+          affected_skills: string[]
+          suggested_interventions: string[]
+        }[]
       }
     }
     Enums: {
