@@ -1,6 +1,7 @@
 import { SmartAnswerGradingService, type GradingResult, type AnswerPattern } from './smartAnswerGradingService';
 import { MistakePatternService } from './mistakePatternService';
 import { QuestionTimingService } from './questionTimingService';
+import { ConceptMissedService, type ConceptMissedAnalysis } from './conceptMissedService';
 
 export interface PracticeExerciseAnswer {
   questionId: string;
@@ -70,6 +71,23 @@ export class PracticeExerciseGradingService {
             answer.options
           );
 
+        // Analyze missed concept for incorrect answers
+        let conceptMissedAnalysis: ConceptMissedAnalysis | null = null;
+        if (!result.isCorrect) {
+          conceptMissedAnalysis = await ConceptMissedService.analyzeConceptMissed(
+            answer.questionType === 'multiple-choice' 
+              ? `Question: ${answer.questionId}. Options: ${answer.options?.join(', ')}`
+              : `Question: ${answer.questionId}`,
+            answer.studentAnswer,
+            answer.correctAnswer,
+            skillName,
+            exerciseMetadata?.subject,
+            exerciseMetadata?.grade
+          );
+          
+          console.log('🧠 Concept missed analysis:', conceptMissedAnalysis);
+        }
+
         await MistakePatternService.recordMistakePattern({
           studentExerciseId,
           questionId: answer.questionId,
@@ -86,7 +104,12 @@ export class PracticeExerciseGradingService {
           questionContext: answer.questionType === 'multiple-choice' 
             ? `Question: ${answer.questionId}. Options: ${answer.options?.join(', ')}`
             : `Question: ${answer.questionId}`,
-          options: answer.options
+          options: answer.options,
+          subject: exerciseMetadata?.subject,
+          grade: exerciseMetadata?.grade,
+          // Add concept missed data
+          conceptMissedId: conceptMissedAnalysis?.conceptMissedId,
+          conceptMissedDescription: conceptMissedAnalysis?.conceptMissedDescription
         });
       }
     }

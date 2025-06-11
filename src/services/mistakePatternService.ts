@@ -56,6 +56,9 @@ export class MistakePatternService {
     classSubject?: string; // Alternative subject field
     expectedConcept?: string; // NEW: Conceptual anchor point
     grade?: string; // NEW: Grade level for concept mapping
+    // New concept missed fields
+    conceptMissedId?: string;
+    conceptMissedDescription?: string;
   }): Promise<string | null> {
     try {
       console.log(`🔍 Recording mistake pattern for question ${mistakeData.questionNumber}`);
@@ -94,6 +97,9 @@ export class MistakePatternService {
       );
       
       console.log(`🧠 Conceptual anchor point: "${expectedConcept}" - Mastery: ${conceptMasteryLevel}`);
+      if (mistakeData.conceptMissedId) {
+        console.log(`🎯 Concept missed: ID ${mistakeData.conceptMissedId} - "${mistakeData.conceptMissedDescription}"`);
+      }
       
       // Enhance the mistake data with detailed analysis including subject
       const enhancedData: EnhancedMistakePatternData = {
@@ -142,7 +148,10 @@ export class MistakePatternService {
         // New conceptual anchor fields
         expectedConcept: expectedConcept,
         conceptMasteryLevel: conceptMasteryLevel,
-        conceptSource: conceptSource
+        conceptSource: conceptSource,
+        // Include concept missed data
+        conceptMissedId: mistakeData.conceptMissedId,
+        conceptMissedDescription: mistakeData.conceptMissedDescription
       };
 
       // Use enhanced service for recording
@@ -526,6 +535,91 @@ export class MistakePatternService {
       return result.sort((a, b) => b.total_demonstrations - a.total_demonstrations);
     } catch (error) {
       console.error('❌ Exception in getSkillConceptualAnchorAnalysis:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Get student's missed concepts analysis
+   */
+  static async getStudentMissedConcepts(
+    studentId: string,
+    subjectFilter?: string
+  ): Promise<{
+    concept_id: string;
+    concept_name: string;
+    concept_description: string;
+    miss_count: number;
+    recent_description: string;
+    last_missed: string;
+    subject: string;
+    grade: string;
+  }[]> {
+    try {
+      console.log(`🧠 Fetching missed concepts for student: ${studentId}`);
+      
+      const { data, error } = await supabase
+        .from('mistake_patterns')
+        .select(`
+          concept_missed_id,
+          concept_missed_description,
+          created_at,
+          concept_index!inner(concept_name, subject, grade, description)
+        `)
+        .not('concept_missed_id', 'is', null)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('❌ Error fetching missed concepts:', error);
+        return [];
+      }
+
+      // Group by concept and aggregate data
+      const conceptMap = new Map<string, {
+        concept_id: string;
+        concept_name: string;
+        concept_description: string;
+        miss_count: number;
+        recent_description: string;
+        last_missed: string;
+        subject: string;
+        grade: string;
+      }>();
+
+      data.forEach((record: any) => {
+        const conceptId = record.concept_missed_id;
+        const concept = record.concept_index;
+        
+        if (!conceptMap.has(conceptId)) {
+          conceptMap.set(conceptId, {
+            concept_id: conceptId,
+            concept_name: concept.concept_name,
+            concept_description: concept.description || '',
+            miss_count: 1,
+            recent_description: record.concept_missed_description || '',
+            last_missed: record.created_at,
+            subject: concept.subject,
+            grade: concept.grade
+          });
+        } else {
+          const existing = conceptMap.get(conceptId)!;
+          existing.miss_count++;
+          
+          // Update with most recent description if newer
+          if (new Date(record.created_at) > new Date(existing.last_missed)) {
+            existing.recent_description = record.concept_missed_description || existing.recent_description;
+            existing.last_missed = record.created_at;
+          }
+        }
+      });
+
+      const result = Array.from(conceptMap.values())
+        .sort((a, b) => b.miss_count - a.miss_count);
+
+      console.log(`✅ Retrieved missed concepts for ${result.length} concepts`);
+      return result;
+    } catch (error) {
+      console.error('❌ Exception in getStudentMissedConcepts:', error);
       return [];
     }
   }

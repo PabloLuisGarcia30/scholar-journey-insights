@@ -336,6 +336,45 @@ export type Database = {
           },
         ]
       }
+      concept_index: {
+        Row: {
+          concept_name: string
+          created_at: string
+          description: string | null
+          grade: string
+          id: string
+          keywords: string[] | null
+          related_skills: string[] | null
+          subject: string
+          updated_at: string
+          usage_count: number | null
+        }
+        Insert: {
+          concept_name: string
+          created_at?: string
+          description?: string | null
+          grade: string
+          id?: string
+          keywords?: string[] | null
+          related_skills?: string[] | null
+          subject: string
+          updated_at?: string
+          usage_count?: number | null
+        }
+        Update: {
+          concept_name?: string
+          created_at?: string
+          description?: string | null
+          grade?: string
+          id?: string
+          keywords?: string[] | null
+          related_skills?: string[] | null
+          subject?: string
+          updated_at?: string
+          usage_count?: number | null
+        }
+        Relationships: []
+      }
       content_skill_scores: {
         Row: {
           created_at: string
@@ -805,6 +844,8 @@ export type Database = {
         Row: {
           cognitive_load_indicators: Json | null
           concept_mastery_level: string | null
+          concept_missed_description: string | null
+          concept_missed_id: string | null
           concept_source: string | null
           confidence_score: number | null
           context_when_error_occurred: Json | null
@@ -843,6 +884,8 @@ export type Database = {
         Insert: {
           cognitive_load_indicators?: Json | null
           concept_mastery_level?: string | null
+          concept_missed_description?: string | null
+          concept_missed_id?: string | null
           concept_source?: string | null
           confidence_score?: number | null
           context_when_error_occurred?: Json | null
@@ -881,6 +924,8 @@ export type Database = {
         Update: {
           cognitive_load_indicators?: Json | null
           concept_mastery_level?: string | null
+          concept_missed_description?: string | null
+          concept_missed_id?: string | null
           concept_source?: string | null
           confidence_score?: number | null
           context_when_error_occurred?: Json | null
@@ -917,6 +962,13 @@ export type Database = {
           transfer_failure_indicator?: boolean | null
         }
         Relationships: [
+          {
+            foreignKeyName: "mistake_patterns_concept_missed_id_fkey"
+            columns: ["concept_missed_id"]
+            isOneToOne: false
+            referencedRelation: "concept_index"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "mistake_patterns_student_exercise_id_fkey"
             columns: ["student_exercise_id"]

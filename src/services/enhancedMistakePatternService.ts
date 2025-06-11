@@ -40,6 +40,10 @@ export interface EnhancedMistakePatternData {
   expectedConcept?: string;
   conceptMasteryLevel?: 'mastered' | 'partial' | 'not_demonstrated' | 'unknown';
   conceptSource?: 'curriculum_mapping' | 'gpt_inference' | 'manual_tag' | 'skill_mapping';
+  
+  // New concept missed fields
+  conceptMissedId?: string;
+  conceptMissedDescription?: string;
 }
 
 export interface EnhancedMistakeAnalysis {
@@ -121,10 +125,14 @@ export class EnhancedMistakePatternService {
           detailed_conceptual_error: mistakeData.detailedConceptualError,
           context_when_error_occurred: mistakeData.contextWhenErrorOccurred || {},
           
-          // New conceptual anchor point fields
+          // Conceptual anchor point fields
           expected_concept: mistakeData.expectedConcept,
           concept_mastery_level: mistakeData.conceptMasteryLevel,
-          concept_source: mistakeData.conceptSource
+          concept_source: mistakeData.conceptSource,
+          
+          // New concept missed fields
+          concept_missed_id: mistakeData.conceptMissedId,
+          concept_missed_description: mistakeData.conceptMissedDescription
         })
         .select('id')
         .single();
@@ -135,6 +143,9 @@ export class EnhancedMistakePatternService {
       }
 
       console.log(`✅ Enhanced mistake pattern recorded: ${data.id}`);
+      if (mistakeData.conceptMissedId) {
+        console.log(`🎯 Concept missed recorded: ${mistakeData.conceptMissedDescription}`);
+      }
       return data.id;
     } catch (error) {
       console.error('❌ Exception in recordEnhancedMistakePattern:', error);
