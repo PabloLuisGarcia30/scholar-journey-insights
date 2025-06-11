@@ -28,7 +28,7 @@ interface ConceptValidationPanelProps {
 
 export function ConceptValidationPanel({ 
   teacherId, 
-  confidenceThreshold = 0.7 
+  confidenceThreshold = 0.85 // Updated default to 85%
 }: ConceptValidationPanelProps) {
   const [unvalidatedConcepts, setUnvalidatedConcepts] = useState<UnvalidatedConcept[]>([]);
   const [loading, setLoading] = useState(true);

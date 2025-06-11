@@ -116,11 +116,11 @@ export class ConceptMissedService {
   }
 
   /**
-   * NEW: Get unvalidated concept detections for teacher review
+   * NEW: Get unvalidated concept detections for teacher review - Updated to use 85% threshold
    */
   static async getUnvalidatedConceptDetections(
     teacherId?: string,
-    confidenceThreshold: number = 0.7
+    confidenceThreshold: number = 0.85 // Changed from 0.7 to 0.85
   ): Promise<{
     id: string;
     concept_missed_description: string;
@@ -149,7 +149,7 @@ export class ConceptMissedService {
         .eq('teacher_validated', false)
         .not('concept_missed_description', 'is', null)
         .not('concept_confidence', 'is', null)
-        .lte('concept_confidence', confidenceThreshold)
+        .lt('concept_confidence', confidenceThreshold) // Only show below 85% confidence
         .order('concept_confidence', { ascending: true });
 
       const { data, error } = await query;
@@ -268,6 +268,158 @@ export class ConceptMissedService {
         avg_confidence_overridden: 0,
         confidence_distribution: {}
       };
+    }
+  }
+
+  /**
+   * NEW: Get concept growth analytics - tracks how the concept taxonomy is expanding
+   */
+  static async getConceptGrowthAnalytics(days: number = 30): Promise<{
+    new_concepts_created: number;
+    concepts_matched: number;
+    total_concept_detections: number;
+    growth_rate: number;
+  }> {
+    try {
+      const startDate = new Date();
+      startDate.setDate(startDate.getDate() - days);
+
+      // Get concept detections from the time period
+      const { data: conceptData, error: conceptError } = await supabase
+        .from('mistake_patterns')
+        .select(`
+          concept_missed_id,
+          created_at
+        `)
+        .not('concept_missed_description', 'is', null)
+        .gte('created_at', startDate.toISOString());
+
+      if (conceptError) {
+        console.error('❌ Error fetching concept analytics:', conceptError);
+        return {
+          new_concepts_created: 0,
+          concepts_matched: 0,
+          total_concept_detections: 0,
+          growth_rate: 0
+        };
+      }
+
+      const totalDetections = conceptData?.length || 0;
+
+      // Get concepts created in this time period
+      const { data: newConcepts, error: newConceptsError } = await supabase
+        .from('concept_index')
+        .select('id')
+        .gte('created_at', startDate.toISOString());
+
+      if (newConceptsError) {
+        console.error('❌ Error fetching new concepts:', newConceptsError);
+      }
+
+      const newConceptsCreated = newConcepts?.length || 0;
+      const conceptsMatched = totalDetections - newConceptsCreated;
+      const growthRate = totalDetections > 0 ? (newConceptsCreated / totalDetections) * 100 : 0;
+
+      return {
+        new_concepts_created: newConceptsCreated,
+        concepts_matched: Math.max(0, conceptsMatched),
+        total_concept_detections: totalDetections,
+        growth_rate: Math.round(growthRate * 100) / 100
+      };
+    } catch (error) {
+      console.error('❌ Exception in getConceptGrowthAnalytics:', error);
+      return {
+        new_concepts_created: 0,
+        concepts_matched: 0,
+        total_concept_detections: 0,
+        growth_rate: 0
+      };
+    }
+  }
+
+  /**
+   * NEW: Get most missed concepts globally
+   */
+  static async getMostMissedConcepts(
+    teacherId?: string,
+    subject?: string,
+    limit: number = 10
+  ): Promise<{
+    concept_id: string;
+    concept_name: string;
+    miss_count: number;
+    subject: string;
+    grade: string;
+  }[]> {
+    try {
+      let query = supabase
+        .from('mistake_patterns')
+        .select(`
+          concept_missed_id,
+          concept_missed_description,
+          concept_index!inner(
+            concept_name,
+            subject,
+            grade
+          )
+        `)
+        .not('concept_missed_id', 'is', null);
+
+      if (subject) {
+        query = query.eq('concept_index.subject', subject);
+      }
+
+      const { data, error } = await query;
+
+      if (error) {
+        console.error('❌ Error fetching most missed concepts:', error);
+        return [];
+      }
+
+      // Count occurrences
+      const conceptCounts = new Map<string, {
+        concept_id: string;
+        concept_name: string;
+        subject: string;
+        grade: string;
+        count: number;
+      }>();
+
+      data?.forEach((record: any) => {
+        const conceptId = record.concept_missed_id;
+        const conceptName = record.concept_index?.concept_name || record.concept_missed_description;
+        const conceptSubject = record.concept_index?.subject || 'Unknown';
+        const conceptGrade = record.concept_index?.grade || 'Unknown';
+
+        if (conceptCounts.has(conceptId)) {
+          conceptCounts.get(conceptId)!.count++;
+        } else {
+          conceptCounts.set(conceptId, {
+            concept_id: conceptId,
+            concept_name: conceptName,
+            subject: conceptSubject,
+            grade: conceptGrade,
+            count: 1
+          });
+        }
+      });
+
+      // Convert to array and sort by count
+      const results = Array.from(conceptCounts.values())
+        .sort((a, b) => b.count - a.count)
+        .slice(0, limit)
+        .map(item => ({
+          concept_id: item.concept_id,
+          concept_name: item.concept_name,
+          miss_count: item.count,
+          subject: item.subject,
+          grade: item.grade
+        }));
+
+      return results;
+    } catch (error) {
+      console.error('❌ Exception in getMostMissedConcepts:', error);
+      return [];
     }
   }
 
