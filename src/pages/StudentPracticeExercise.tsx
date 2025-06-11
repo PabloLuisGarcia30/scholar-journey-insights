@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -59,7 +58,6 @@ const StudentPracticeExercise = () => {
         className: currentClass.name,
         subject: currentClass.subject,
         grade: currentClass.grade,
-        difficulty: 'mixed',
         questionCount: 5, // Shorter focused exercise
         includeExplanations: true
       });
