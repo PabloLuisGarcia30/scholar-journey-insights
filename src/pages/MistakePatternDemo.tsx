@@ -27,7 +27,7 @@ const DEMO_SKILLS = [
 
 export default function MistakePatternDemo() {
   const [selectedStudent, setSelectedStudent] = useState(DEMO_STUDENTS[0].id);
-  const [selectedSkill, setSelectedSkill] = useState<string>("");
+  const [selectedSkill, setSelectedSkill] = useState<string>("all");
   
   const { 
     mistakeAnalysis, 
@@ -37,7 +37,7 @@ export default function MistakePatternDemo() {
     getTopMisconceptions,
     getCriticalSkills,
     getRemediationRecommendations
-  } = useEnhancedMistakeAnalytics(selectedStudent, selectedSkill || undefined);
+  } = useEnhancedMistakeAnalytics(selectedStudent, selectedSkill === "all" ? undefined : selectedSkill);
 
   const topMisconceptions = getTopMisconceptions(3);
   const criticalSkills = getCriticalSkills();
@@ -114,7 +114,7 @@ export default function MistakePatternDemo() {
                 <SelectValue placeholder="All skills" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">All Skills</SelectItem>
+                <SelectItem value="all">All Skills</SelectItem>
                 {DEMO_SKILLS.map((skill) => (
                   <SelectItem key={skill} value={skill}>
                     {skill}
@@ -183,7 +183,7 @@ export default function MistakePatternDemo() {
                     </div>
                   ) : (
                     <p className="text-muted-foreground text-center py-4">
-                      No mistake data available for this student{selectedSkill && ` in ${selectedSkill}`}
+                      No mistake data available for this student{selectedSkill !== "all" && ` in ${selectedSkill}`}
                     </p>
                   )}
                 </CardContent>
