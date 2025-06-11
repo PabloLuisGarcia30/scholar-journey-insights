@@ -1,3 +1,4 @@
+
 import { supabase } from "@/integrations/supabase/client";
 
 export interface PracticeExerciseSkillUpdate {
@@ -371,5 +372,3 @@ export class PracticeExerciseSkillService {
 
 // Export singleton instance
 export const practiceExerciseSkillService = new PracticeExerciseSkillService();
-
-}
