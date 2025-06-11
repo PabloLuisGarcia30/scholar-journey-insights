@@ -1,6 +1,5 @@
 
 import { useState, useEffect } from 'react';
-import { supabase } from '@/integrations/supabase/client';
 import { MistakePatternService } from '@/services/mistakePatternService';
 
 export interface ConceptMasteryData {
@@ -83,23 +82,4 @@ export function useSkillConceptAnalysis(skillName: string) {
   }, [skillName]);
 
   return { conceptAnalysis, isLoading, error };
-}
-
-export async function queryDirectConceptData() {
-  try {
-    // Test direct query using the new database function
-    const { data, error } = await supabase.rpc('analyze_skill_concept_mastery', {
-      skill_name: 'Algebraic Expressions'
-    });
-
-    if (error) {
-      console.error('Error testing concept function:', error);
-      return null;
-    }
-
-    return data;
-  } catch (err) {
-    console.error('Exception in concept query test:', err);
-    return null;
-  }
 }
