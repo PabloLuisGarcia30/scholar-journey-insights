@@ -173,7 +173,8 @@ export class MistakePatternService {
         return [];
       }
 
-      return data || [];
+      // Cast the database response to our TypeScript interface
+      return (data || []) as MistakePatternData[];
     } catch (error) {
       console.error('❌ Exception in getExerciseMistakeData:', error);
       return [];
