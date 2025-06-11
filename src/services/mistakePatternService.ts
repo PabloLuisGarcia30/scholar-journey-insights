@@ -1,4 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
+import { EnhancedMistakePatternService, type EnhancedMistakePatternData } from './enhancedMistakePatternService';
 
 export interface MistakePatternData {
   id: string;
@@ -28,7 +29,7 @@ export interface MistakePattern {
 export class MistakePatternService {
   
   /**
-   * Record a mistake pattern for a question
+   * Record a mistake pattern with enhanced analysis
    */
   static async recordMistakePattern(mistakeData: {
     studentExerciseId: string;
@@ -43,36 +44,47 @@ export class MistakePatternService {
     confidenceScore?: number;
     gradingMethod?: 'exact_match' | 'flexible_match' | 'ai_graded';
     feedbackGiven?: string;
+    questionContext?: string;
+    timeSpent?: number;
+    answerChanges?: number;
+    options?: string[];
   }): Promise<string | null> {
     try {
       console.log(`🔍 Recording mistake pattern for question ${mistakeData.questionNumber}`);
       
-      const { data, error } = await supabase
-        .from('mistake_patterns')
-        .insert({
-          student_exercise_id: mistakeData.studentExerciseId,
-          question_id: mistakeData.questionId,
-          question_number: mistakeData.questionNumber,
-          question_type: mistakeData.questionType,
-          student_answer: mistakeData.studentAnswer,
-          correct_answer: mistakeData.correctAnswer,
-          is_correct: mistakeData.isCorrect,
-          mistake_type: mistakeData.mistakeType,
-          skill_targeted: mistakeData.skillTargeted,
-          confidence_score: mistakeData.confidenceScore,
-          grading_method: mistakeData.gradingMethod,
-          feedback_given: mistakeData.feedbackGiven
-        })
-        .select('id')
-        .single();
+      // Enhance the mistake data with detailed analysis
+      const enhancedData: EnhancedMistakePatternData = {
+        ...mistakeData,
+        misconceptionCategory: EnhancedMistakePatternService.analyzeMisconceptionCategory(
+          mistakeData.questionType || 'unknown',
+          mistakeData.studentAnswer,
+          mistakeData.correctAnswer,
+          mistakeData.questionContext,
+          mistakeData.options
+        ),
+        errorSeverity: EnhancedMistakePatternService.determineErrorSeverity(
+          mistakeData.isCorrect,
+          mistakeData.questionType || 'unknown',
+          mistakeData.studentAnswer,
+          mistakeData.correctAnswer,
+          mistakeData.timeSpent,
+          mistakeData.answerChanges
+        ),
+        errorPersistenceCount: 1, // Will be updated if this is a recurring pattern
+        cognitiveLoadIndicators: {
+          timeSpent: mistakeData.timeSpent,
+          answerChanges: mistakeData.answerChanges,
+          questionComplexity: mistakeData.correctAnswer.length
+        },
+        contextWhenErrorOccurred: {
+          timestamp: new Date().toISOString(),
+          questionPosition: mistakeData.questionNumber,
+          questionType: mistakeData.questionType
+        }
+      };
 
-      if (error) {
-        console.error('❌ Error recording mistake pattern:', error);
-        return null;
-      }
-
-      console.log(`✅ Mistake pattern recorded: ${data.id}`);
-      return data.id;
+      // Use enhanced service for recording
+      return await EnhancedMistakePatternService.recordEnhancedMistakePattern(enhancedData);
     } catch (error) {
       console.error('❌ Exception in recordMistakePattern:', error);
       return null;

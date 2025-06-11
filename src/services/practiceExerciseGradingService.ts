@@ -41,7 +41,8 @@ export class PracticeExerciseGradingService {
     answers: PracticeExerciseAnswer[],
     exerciseTitle?: string,
     studentExerciseId?: string,
-    skillName?: string
+    skillName?: string,
+    exerciseMetadata?: any
   ): Promise<ExerciseSubmissionResult> {
     console.log('🎯 Grading practice exercise submission with', answers.length, 'answers');
     
@@ -49,7 +50,7 @@ export class PracticeExerciseGradingService {
     let totalScore = 0;
     let totalPossible = 0;
     
-    // Grade each question and record patterns
+    // Grade each question and record enhanced patterns
     for (let i = 0; i < answers.length; i++) {
       const answer = answers[i];
       const questionNumber = i + 1;
@@ -59,7 +60,7 @@ export class PracticeExerciseGradingService {
       totalScore += result.pointsEarned;
       totalPossible += result.pointsPossible;
       
-      // Record mistake pattern if we have the required data
+      // Record enhanced mistake pattern if we have the required data
       if (studentExerciseId && skillName) {
         const mistakeType = result.isCorrect ? null : 
           MistakePatternService.analyzeMistakeType(
@@ -73,7 +74,7 @@ export class PracticeExerciseGradingService {
           studentExerciseId,
           questionId: answer.questionId,
           questionNumber,
-          questionType: answer.questionType, // Now include question type
+          questionType: answer.questionType,
           studentAnswer: answer.studentAnswer,
           correctAnswer: answer.correctAnswer,
           isCorrect: result.isCorrect,
@@ -81,7 +82,11 @@ export class PracticeExerciseGradingService {
           mistakeType: mistakeType || undefined,
           confidenceScore: result.confidence,
           gradingMethod: result.gradingMethod,
-          feedbackGiven: result.feedback
+          feedbackGiven: result.feedback,
+          questionContext: answer.questionType === 'multiple-choice' 
+            ? `Question: ${answer.questionId}. Options: ${answer.options?.join(', ')}`
+            : `Question: ${answer.questionId}`,
+          options: answer.options
         });
       }
     }
