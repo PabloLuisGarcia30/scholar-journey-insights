@@ -1,3 +1,4 @@
+
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -14,6 +15,7 @@ import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import { DevRoleProvider, useDevRole } from "./contexts/DevRoleContext";
 import { MultiSkillSelectionProvider } from "./contexts/MultiSkillSelectionContext";
 import { ProtectedRoute } from "./components/ProtectedRoute";
+import { AppHeader } from "./components/AppHeader";
 import NotFound from "./pages/NotFound";
 import TestCreator from "./pages/TestCreator";
 import UploadTest from "./pages/UploadTest";
