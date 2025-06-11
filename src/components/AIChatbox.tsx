@@ -3,7 +3,7 @@ import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Send, Bot, User, Loader2 } from "lucide-react";
+import { Send, Bot, User, Loader2, Maximize2, Minimize2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { PracticeRecommendations } from "./PracticeRecommendations";
 
@@ -50,6 +50,7 @@ export function AIChatbox({ studentContext }: AIChatboxProps) {
   ]);
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(false);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
@@ -185,16 +186,31 @@ export function AIChatbox({ studentContext }: AIChatboxProps) {
   };
 
   return (
-    <div className="flex flex-col h-96 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg border border-blue-200">
+    <div className={`flex flex-col bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg border border-blue-200 transition-all duration-300 ease-in-out ${
+      isExpanded ? 'h-[600px]' : 'h-96'
+    }`}>
       {/* Chat Header */}
       <div className="flex items-center gap-3 p-4 border-b border-blue-200 bg-white/50 rounded-t-lg">
         <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center">
           <Bot className="w-4 h-4 text-white" />
         </div>
-        <div>
+        <div className="flex-1">
           <h3 className="font-semibold text-gray-900">AI Learning Assistant</h3>
           <p className="text-sm text-gray-600">Let's reach your goals! 🎯</p>
         </div>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => setIsExpanded(!isExpanded)}
+          className="h-8 w-8 p-0 hover:bg-blue-100 transition-colors"
+          title={isExpanded ? "Collapse chat" : "Expand chat"}
+        >
+          {isExpanded ? (
+            <Minimize2 className="h-4 w-4 text-blue-600" />
+          ) : (
+            <Maximize2 className="h-4 w-4 text-blue-600" />
+          )}
+        </Button>
       </div>
 
       {/* Messages Area */}
