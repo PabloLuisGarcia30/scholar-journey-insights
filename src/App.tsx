@@ -1,4 +1,3 @@
-
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -73,7 +72,25 @@ function AppRoutes() {
         path="/student-dashboard" 
         element={
           <ProtectedRoute requiredRole={DEV_CONFIG.DISABLE_AUTH_FOR_DEV ? undefined : "student"}>
+            <StudentLanding />
+          </ProtectedRoute>
+        } 
+      />
+      
+      <Route 
+        path="/student-dashboard/main" 
+        element={
+          <ProtectedRoute requiredRole={DEV_CONFIG.DISABLE_AUTH_FOR_DEV ? undefined : "student"}>
             <StudentDashboard />
+          </ProtectedRoute>
+        } 
+      />
+      
+      <Route 
+        path="/student-dashboard/home-learner" 
+        element={
+          <ProtectedRoute requiredRole={DEV_CONFIG.DISABLE_AUTH_FOR_DEV ? undefined : "student"}>
+            <HomeLearner />
           </ProtectedRoute>
         } 
       />
