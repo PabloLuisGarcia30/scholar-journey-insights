@@ -58,7 +58,7 @@ const StudentPracticeExercise = () => {
         skillName: decodedSkillName,
         className: currentClass.name,
         subject: currentClass.subject,
-        classGrade: currentClass.grade,
+        grade: currentClass.grade,
         difficulty: 'mixed',
         questionCount: 5, // Shorter focused exercise
         includeExplanations: true
