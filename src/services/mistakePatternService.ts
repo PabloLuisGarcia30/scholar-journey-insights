@@ -1,3 +1,4 @@
+
 import { supabase } from '@/integrations/supabase/client';
 import { EnhancedMistakePatternService, type EnhancedMistakePatternData } from './enhancedMistakePatternService';
 
@@ -48,11 +49,16 @@ export class MistakePatternService {
     timeSpent?: number;
     answerChanges?: number;
     options?: string[];
+    subject?: string; // NEW: Add subject parameter
+    classSubject?: string; // Alternative subject field
   }): Promise<string | null> {
     try {
       console.log(`🔍 Recording mistake pattern for question ${mistakeData.questionNumber}`);
       
-      // Enhance the mistake data with detailed analysis
+      // Determine subject from available data
+      const subject = mistakeData.subject || mistakeData.classSubject || 'Unknown';
+      
+      // Enhance the mistake data with detailed analysis including subject
       const enhancedData: EnhancedMistakePatternData = {
         ...mistakeData,
         misconceptionCategory: EnhancedMistakePatternService.analyzeMisconceptionCategory(
@@ -60,7 +66,8 @@ export class MistakePatternService {
           mistakeData.studentAnswer,
           mistakeData.correctAnswer,
           mistakeData.questionContext,
-          mistakeData.options
+          mistakeData.options,
+          subject // Pass subject for subject-specific analysis
         ),
         errorSeverity: EnhancedMistakePatternService.determineErrorSeverity(
           mistakeData.isCorrect,
@@ -70,7 +77,7 @@ export class MistakePatternService {
           mistakeData.timeSpent,
           mistakeData.answerChanges
         ),
-        errorPersistenceCount: 1, // Will be updated if this is a recurring pattern
+        errorPersistenceCount: 1,
         cognitiveLoadIndicators: {
           timeSpent: mistakeData.timeSpent,
           answerChanges: mistakeData.answerChanges,
@@ -79,8 +86,22 @@ export class MistakePatternService {
         contextWhenErrorOccurred: {
           timestamp: new Date().toISOString(),
           questionPosition: mistakeData.questionNumber,
-          questionType: mistakeData.questionType
-        }
+          questionType: mistakeData.questionType,
+          subject: subject
+        },
+        // Generate subject-specific remediation
+        remediationSuggestions: EnhancedMistakePatternService.generateSubjectSpecificRemediation(
+          subject,
+          EnhancedMistakePatternService.analyzeMisconceptionCategory(
+            mistakeData.questionType || 'unknown',
+            mistakeData.studentAnswer,
+            mistakeData.correctAnswer,
+            mistakeData.questionContext,
+            mistakeData.options,
+            subject
+          ),
+          mistakeData.skillTargeted
+        )
       };
 
       // Use enhanced service for recording

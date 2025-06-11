@@ -1,4 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
+import { SubjectSpecificMisconceptionService } from './subjectSpecificMisconceptionService';
 
 export interface EnhancedMistakePatternData {
   studentExerciseId: string;
@@ -273,22 +274,34 @@ export class EnhancedMistakePatternService {
   }
 
   /**
-   * Analyze misconception category based on student answer and context
+   * Analyze misconception category based on student answer, context, and SUBJECT
    */
   static analyzeMisconceptionCategory(
     questionType: string,
     studentAnswer: string,
     correctAnswer: string,
     questionContext?: string,
-    options?: string[]
+    options?: string[],
+    subject?: string
   ): string {
+    // Use subject-specific analysis if subject is provided
+    if (subject) {
+      return SubjectSpecificMisconceptionService.analyzeMisconceptionBySubject(
+        subject,
+        questionType,
+        studentAnswer,
+        correctAnswer,
+        questionContext,
+        options
+      );
+    }
+
+    // Fall back to generic analysis
     const studentLower = studentAnswer.toLowerCase().trim();
     const correctLower = correctAnswer.toLowerCase().trim();
 
-    // Basic categorization logic - can be enhanced with ML/AI
     if (questionType === 'multiple-choice') {
       if (options && options.includes(studentAnswer)) {
-        // Analyze which distractor was chosen
         const correctIndex = options.indexOf(correctAnswer);
         const studentIndex = options.indexOf(studentAnswer);
         
@@ -314,6 +327,28 @@ export class EnhancedMistakePatternService {
     }
 
     return 'unclassified';
+  }
+
+  /**
+   * Enhanced remediation suggestions based on subject and misconception
+   */
+  static generateSubjectSpecificRemediation(
+    subject: string,
+    misconceptionCategory: string,
+    skillTargeted: string
+  ): string {
+    const misconceptionDetails = SubjectSpecificMisconceptionService.getMisconceptionDetails(
+      subject,
+      misconceptionCategory
+    );
+
+    if (misconceptionDetails) {
+      const strategies = misconceptionDetails.remediationStrategies.slice(0, 3).join(', ');
+      return `For ${misconceptionDetails.name} in ${skillTargeted}: ${strategies}. Focus on ${misconceptionDetails.description.toLowerCase()}.`;
+    }
+
+    // Fall back to generic remediation
+    return `Review ${skillTargeted} concepts and practice with varied examples. Consider using visual aids and step-by-step approaches.`;
   }
 
   /**
