@@ -22,15 +22,19 @@ export function PracticeRecommendations({ recommendations, classId }: PracticeRe
   const navigate = useNavigate();
 
   const handlePracticeClick = (skillName: string, difficulty: string) => {
+    console.log('Practice button clicked:', { skillName, difficulty, classId });
+    
     if (!classId) {
-      console.warn('No class ID available for practice navigation');
+      console.error('No class ID available for practice navigation');
       return;
     }
 
     const encodedSkillName = encodeURIComponent(skillName);
     const questionCount = difficulty === 'Challenge' ? 6 : difficulty === 'Standard' ? 5 : 4;
+    const route = `/student-dashboard/practice/${classId}/${encodedSkillName}?questions=${questionCount}`;
     
-    navigate(`/student-dashboard/practice/${classId}/${encodedSkillName}?questions=${questionCount}`);
+    console.log('Navigating to:', route);
+    navigate(route);
   };
 
   const getCategoryIcon = (category: string) => {
