@@ -1,4 +1,3 @@
-
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -31,7 +30,7 @@ export function PracticeRecommendations({ recommendations, classId }: PracticeRe
     const encodedSkillName = encodeURIComponent(skillName);
     const questionCount = difficulty === 'Challenge' ? 6 : difficulty === 'Standard' ? 5 : 4;
     
-    navigate(`/student-dashboard/class/${classId}/practice/${encodedSkillName}?questions=${questionCount}`);
+    navigate(`/student-dashboard/practice/${classId}/${encodedSkillName}?questions=${questionCount}`);
   };
 
   const getCategoryIcon = (category: string) => {
