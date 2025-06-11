@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,7 +9,11 @@ import { useStudentProfileData } from "@/hooks/useStudentProfileData";
 import { useStudentPracticeGeneration } from "@/hooks/useStudentPracticeGeneration";
 import { usePracticeExerciseCompletion } from "@/hooks/usePracticeExerciseCompletion";
 import { PracticeExerciseRunner } from "@/components/PracticeExerciseRunner";
+import { ExerciseCompletionSummary } from "@/components/ExerciseCompletionSummary";
+import { PracticeExerciseReview } from "@/components/PracticeExerciseReview";
 import { StudentPracticeService } from "@/services/studentPracticeService";
+import { PracticeExerciseGenerationService } from "@/services/practiceExerciseGenerationService";
+import { PracticeAnswerKeyService } from "@/services/practiceAnswerKeyService";
 import { toast } from "sonner";
 
 const StudentPracticeExercise = () => {
@@ -21,6 +26,11 @@ const StudentPracticeExercise = () => {
   const [currentSkillScore, setCurrentSkillScore] = useState(0);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [skillImprovements, setSkillImprovements] = useState([]);
+  const [exerciseCompleted, setExerciseCompleted] = useState(false);
+  const [exerciseResults, setExerciseResults] = useState(null);
+  const [showReview, setShowReview] = useState(false);
+  const [hasAnswerKey, setHasAnswerKey] = useState(false);
+  const [studentAnswers, setStudentAnswers] = useState({});
   
   const decodedSkillName = decodeURIComponent(skillName || '');
   
@@ -82,6 +92,9 @@ const StudentPracticeExercise = () => {
     setIsGenerating(true);
     
     try {
+      // Generate a proper UUID for the exercise
+      const exerciseId = PracticeExerciseGenerationService.generateExerciseId();
+      
       const practiceExercise = await generatePracticeExercise({
         studentId: profile.id,
         studentName: profile?.full_name || student?.name || 'Student',
@@ -91,7 +104,7 @@ const StudentPracticeExercise = () => {
         className: currentClass.name,
         subject: currentClass.subject,
         grade: currentClass.grade,
-        questionCount: questionCount // Use the selected question count
+        questionCount: questionCount
       });
 
       if (practiceExercise) {
@@ -102,7 +115,7 @@ const StudentPracticeExercise = () => {
         const isContentSkill = contentSkillScores.some(skill => skill.skill_name === decodedSkillName);
         const skillType = isContentSkill ? 'content' : 'subject';
         
-        // Convert to exercise runner format with enhanced skill metadata
+        // Convert to exercise runner format with proper UUID
         const exerciseFormatted = {
           title: practiceExercise.title,
           description: practiceExercise.description,
@@ -125,16 +138,25 @@ const StudentPracticeExercise = () => {
           estimatedTime: practiceExercise.estimatedTime,
           adaptiveDifficulty: practiceExercise.adaptiveDifficulty,
           metadata: practiceExercise.metadata,
-          skillType: skillType, // Add skill type for score tracking
+          skillType: skillType,
           skillMetadata: {
             skillType: skillType,
             currentScore: currentSkillScore,
             targetImprovement: practiceExercise.metadata.targetImprovement
           },
-          exerciseId: `student_practice_${Date.now()}_${decodedSkillName.replace(/\s+/g, '_')}`
+          exerciseId: exerciseId // Use proper UUID
         };
         
+        // Process and save answer key
+        const processedExerciseData = PracticeExerciseGenerationService.processGeneratedExercise(
+          exerciseFormatted, 
+          exerciseId
+        );
+        
+        await PracticeExerciseGenerationService.saveAnswerKeyForExercise(processedExerciseData);
+        
         setExerciseData(exerciseFormatted);
+        setHasAnswerKey(true);
       } else {
         toast.error('Failed to generate practice exercise. Please try again.');
       }
@@ -148,6 +170,11 @@ const StudentPracticeExercise = () => {
 
   const handleExerciseComplete = async (results) => {
     console.log('Student practice exercise completed:', results);
+    
+    // Store answers and results for review
+    setStudentAnswers(results.answers || {});
+    setExerciseResults(results);
+    setExerciseCompleted(true);
     
     const improvementShown = results.percentageScore > currentSkillScore 
       ? results.percentageScore - currentSkillScore 
@@ -180,7 +207,7 @@ const StudentPracticeExercise = () => {
           exerciseId: exerciseData.exerciseId,
           score: results.percentageScore,
           skillName: decodedSkillName,
-          exerciseData: exerciseData // Pass complete exercise data including skill metadata
+          exerciseData: exerciseData
         });
         
         // Show improvement message with skill score updates
@@ -192,15 +219,21 @@ const StudentPracticeExercise = () => {
         
       } catch (error) {
         console.error('Error processing skill updates:', error);
-        // Still show completion message even if skill updates fail
         toast.success(`Exercise completed! You scored ${Math.round(results.percentageScore)}%${improvementShown > 0 ? ` (${Math.round(improvementShown)}% improvement!)` : ''}`);
       }
     }
-    
-    // Navigate back to class scores after a brief delay
-    setTimeout(() => {
-      navigate(`/student-dashboard/class/${classId}`);
-    }, 3000);
+  };
+
+  const handleShowReview = () => {
+    setShowReview(true);
+  };
+
+  const handleBackFromReview = () => {
+    setShowReview(false);
+  };
+
+  const handleContinue = () => {
+    navigate(`/student-dashboard/class/${classId}`);
   };
 
   const handleExitExercise = () => {
@@ -232,6 +265,56 @@ const StudentPracticeExercise = () => {
               Back to Dashboard
             </Button>
           </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Show review component if requested
+  if (showReview && exerciseData?.exerciseId && exerciseResults) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-green-50 to-blue-50/30">
+        <PracticeExerciseReview
+          exerciseId={exerciseData.exerciseId}
+          studentAnswers={studentAnswers}
+          exerciseScore={exerciseResults.percentageScore}
+          onBack={handleBackFromReview}
+        />
+      </div>
+    );
+  }
+
+  // Show completion summary if exercise is completed
+  if (exerciseCompleted && exerciseResults) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-green-50 to-blue-50/30">
+        <div className="container mx-auto px-4 py-8">
+          {/* Header */}
+          <div className="flex items-center justify-between mb-8">
+            <Button 
+              variant="outline" 
+              onClick={() => navigate(`/student-dashboard/class/${classId}`)}
+              className="flex items-center gap-2"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              Back to Class
+            </Button>
+            <div className="text-center">
+              <h1 className="text-3xl font-bold text-gray-900">Practice Complete</h1>
+              <p className="text-gray-600">{currentClass.name} - {decodedSkillName}</p>
+            </div>
+            <div></div>
+          </div>
+
+          <ExerciseCompletionSummary
+            exerciseScore={exerciseResults.percentageScore}
+            totalQuestions={exerciseData?.questions?.length || 0}
+            correctAnswers={exerciseResults.questionResults?.filter(q => q.isCorrect).length || 0}
+            skillName={decodedSkillName}
+            hasAnswerKey={hasAnswerKey}
+            onShowReview={handleShowReview}
+            onContinue={handleContinue}
+          />
         </div>
       </div>
     );

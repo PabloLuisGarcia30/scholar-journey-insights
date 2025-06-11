@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -9,8 +10,6 @@ import { Progress } from '@/components/ui/progress';
 import { CheckCircle, XCircle, Clock, BookOpen } from 'lucide-react';
 import { PracticeExerciseGradingService, type PracticeExerciseAnswer, type ExerciseSubmissionResult } from '@/services/practiceExerciseGradingService';
 import { QuestionTimingService } from '@/services/questionTimingService';
-import { PracticeAnswerKeyService } from '@/services/practiceAnswerKeyService';
-import { PracticeExerciseReview } from './PracticeExerciseReview';
 
 interface PracticeQuestion {
   id: string;
@@ -35,7 +34,7 @@ interface PracticeExerciseData {
 
 interface Props {
   exerciseData: PracticeExerciseData;
-  onComplete: (results: ExerciseSubmissionResult) => void;
+  onComplete: (results: ExerciseSubmissionResult & { answers: Record<string, string> }) => void;
   onExit?: () => void;
   showTimer?: boolean;
 }
@@ -46,9 +45,6 @@ export function PracticeExerciseRunner({ exerciseData, onComplete, onExit, showT
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [startTime] = useState(new Date());
   const [timeElapsed, setTimeElapsed] = useState(0);
-  const [showReview, setShowReview] = useState(false);
-  const [hasAnswerKey, setHasAnswerKey] = useState(false);
-  const [exerciseResults, setExerciseResults] = useState<ExerciseSubmissionResult | null>(null);
   
   // Timing tracking state
   const [questionTimingIds, setQuestionTimingIds] = useState<Record<string, string>>({});
@@ -97,17 +93,6 @@ export function PracticeExerciseRunner({ exerciseData, onComplete, onExit, showT
       }
     };
   }, [currentQuestionIndex, currentQuestion.id, exerciseData.exerciseId]);
-
-  // Check if answer key is available
-  useEffect(() => {
-    const checkAnswerKey = async () => {
-      if (exerciseData.exerciseId) {
-        const hasKey = await PracticeAnswerKeyService.hasAnswerKey(exerciseData.exerciseId);
-        setHasAnswerKey(hasKey);
-      }
-    };
-    checkAnswerKey();
-  }, [exerciseData.exerciseId]);
 
   const handleAnswerChange = async (questionId: string, answer: string) => {
     const previousAnswer = answers[questionId];
@@ -173,12 +158,17 @@ export function PracticeExerciseRunner({ exerciseData, onComplete, onExit, showT
         exerciseData.questions[0]?.targetSkill // Pass skill name for tracking
       );
 
-      setExerciseResults(results);
-      onComplete(results);
+      // Include answers in the results for review functionality
+      const resultsWithAnswers = {
+        ...results,
+        answers: answers
+      };
+
+      onComplete(resultsWithAnswers);
     } catch (error) {
       console.error('Error grading exercise:', error);
       // Create fallback results
-      const fallbackResults: ExerciseSubmissionResult = {
+      const fallbackResults = {
         totalScore: 0,
         totalPossible: exerciseData.totalPoints,
         percentageScore: 0,
@@ -192,20 +182,13 @@ export function PracticeExerciseRunner({ exerciseData, onComplete, onExit, showT
           confidence: 0
         })),
         overallFeedback: 'There was an issue grading your exercise. Please contact your instructor.',
-        completedAt: new Date()
+        completedAt: new Date(),
+        answers: answers
       };
       onComplete(fallbackResults);
     } finally {
       setIsSubmitting(false);
     }
-  };
-
-  const handleShowReview = () => {
-    setShowReview(true);
-  };
-
-  const handleBackFromReview = () => {
-    setShowReview(false);
   };
 
   const formatTime = (seconds: number) => {
@@ -290,73 +273,6 @@ export function PracticeExerciseRunner({ exerciseData, onComplete, onExit, showT
         return null;
     }
   };
-
-  // Show review component if requested
-  if (showReview && exerciseData.exerciseId && exerciseResults) {
-    return (
-      <PracticeExerciseReview
-        exerciseId={exerciseData.exerciseId}
-        studentAnswers={answers}
-        exerciseScore={exerciseResults.percentageScore}
-        onBack={handleBackFromReview}
-      />
-    );
-  }
-
-  // Show completion screen with review option
-  if (exerciseResults) {
-    return (
-      <div className="max-w-4xl mx-auto p-6 space-y-6">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <CheckCircle className="h-5 w-5 text-green-600" />
-              Exercise Complete!
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="text-center py-4">
-              <div className="text-4xl font-bold text-green-600 mb-2">
-                {Math.round(exerciseResults.percentageScore)}%
-              </div>
-              <p className="text-lg text-muted-foreground">
-                {exerciseResults.totalScore} out of {exerciseResults.totalPossible} points
-              </p>
-            </div>
-            
-            <div className="grid grid-cols-2 gap-4 text-center">
-              <div>
-                <div className="text-2xl font-bold text-green-600">
-                  {exerciseResults.questionResults.filter(q => q.isCorrect).length}
-                </div>
-                <p className="text-sm text-muted-foreground">Correct</p>
-              </div>
-              <div>
-                <div className="text-2xl font-bold text-red-600">
-                  {exerciseResults.questionResults.filter(q => !q.isCorrect).length}
-                </div>
-                <p className="text-sm text-muted-foreground">Incorrect</p>
-              </div>
-            </div>
-
-            <div className="flex gap-2 justify-center">
-              {hasAnswerKey && (
-                <Button onClick={handleShowReview} variant="outline">
-                  <BookOpen className="h-4 w-4 mr-2" />
-                  Review Answers
-                </Button>
-              )}
-              {onExit && (
-                <Button onClick={onExit}>
-                  Continue
-                </Button>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
 
   return (
     <div className="max-w-4xl mx-auto p-6 space-y-6">
