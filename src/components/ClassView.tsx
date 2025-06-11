@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -34,12 +33,14 @@ import {
   type ActiveClass,
   type ActiveStudent
 } from "@/services/examService";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface ClassViewProps {
   onSelectStudent: (studentId: string, classId?: string, className?: string) => void;
 }
 
 export function ClassView({ onSelectStudent }: ClassViewProps) {
+  const { profile } = useAuth();
   const [classes, setClasses] = useState<ActiveClass[]>([]);
   const [selectedClass, setSelectedClass] = useState<string | null>(null);
   const [filterSubject, setFilterSubject] = useState<string>('all');
@@ -68,7 +69,16 @@ export function ClassView({ onSelectStudent }: ClassViewProps) {
     }
   };
 
-  const handleCreateClass = async (classData: { name: string; subject: string; grade: string; teacher: string }) => {
+  const handleCreateClass = async (classData: { 
+    name: string; 
+    subject: string; 
+    grade: string; 
+    teacher: string; 
+    teacherId: string;
+    daysOfWeek?: string[];
+    classTime?: string;
+    endTime?: string;
+  }) => {
     try {
       const newClass = await createActiveClass(classData);
       setClasses([...classes, newClass]);
@@ -350,7 +360,7 @@ export function ClassView({ onSelectStudent }: ClassViewProps) {
             <h1 className="text-3xl font-bold text-gray-900">Classes</h1>
             <p className="text-gray-600">Manage student classes and sections</p>
           </div>
-          <CreateClassDialog onCreateClass={handleCreateClass} />
+          {profile && <CreateClassDialog onCreateClass={handleCreateClass} />}
         </div>
 
         <div className="flex gap-4 mb-4">

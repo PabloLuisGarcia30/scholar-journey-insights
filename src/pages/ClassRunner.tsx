@@ -1,3 +1,4 @@
+
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -60,7 +61,7 @@ export default function ClassRunner() {
   const { data: allLessonPlans = [] } = useQuery({
     queryKey: ['allLessonPlans'],
     queryFn: async () => {
-      const promises = activeClasses.map(async (classItem) => {
+      const promises = activeClasses.map(async (classItem: any) => {
         const plans = await getLessonPlanByClassId(classItem.id);
         return {
           classId: classItem.id,
@@ -114,7 +115,7 @@ export default function ClassRunner() {
   };
 
   const getLessonPlanStatus = (classId: string) => {
-    const classPlans = allLessonPlans.find(item => item.classId === classId);
+    const classPlans = allLessonPlans.find((item: any) => item.classId === classId);
     if (!classPlans || classPlans.lessonPlans.length === 0) {
       return { status: 'none', text: 'No Plan', color: 'bg-slate-100 text-slate-600 border-slate-200' };
     }
@@ -130,8 +131,8 @@ export default function ClassRunner() {
 
   // Calculate summary stats
   const totalClasses = activeClasses.length;
-  const classesWithPlans = activeClasses.filter(c => getLessonPlanStatus(c.id).status === 'ready').length;
-  const totalStudents = activeClasses.reduce((sum, c) => sum + (c.student_count || 0), 0);
+  const classesWithPlans = activeClasses.filter((c: any) => getLessonPlanStatus(c.id).status === 'ready').length;
+  const totalStudents = activeClasses.reduce((sum: number, c: any) => sum + (c.student_count || 0), 0);
 
   const quickTools = [
     { icon: Users, title: "Student Roster", description: "Manage class enrollment", color: "from-blue-500 to-blue-600" },
@@ -341,7 +342,7 @@ export default function ClassRunner() {
                   </div>
                 ) : activeClasses.length > 0 ? (
                   <div className="space-y-6">
-                    {activeClasses.map((classItem) => {
+                    {activeClasses.map((classItem: any) => {
                       const planStatus = getLessonPlanStatus(classItem.id);
                       const hasPlan = planStatus.status === 'ready';
                       
