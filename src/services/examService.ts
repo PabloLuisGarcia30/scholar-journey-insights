@@ -44,7 +44,6 @@ export interface ActiveClass {
   subject: string;
   grade: string;
   teacher: string;
-  teacher_id?: string;
   student_count: number;
   avg_gpa: number;
   students: string[];
@@ -165,8 +164,7 @@ export const createActiveClass = async (classData: {
   subject: string;
   grade: string;
   teacher: string;
-  teacherId: string;
-  daysOfWeek?: string[];
+  dayOfWeek?: string;
   classTime?: string;
   endTime?: string;
 }): Promise<ActiveClass> => {
@@ -178,17 +176,14 @@ export const createActiveClass = async (classData: {
       subject: classData.subject,
       grade: classData.grade,
       teacher: classData.teacher,
-      teacher_id: classData.teacherId,
       student_count: 0,
       avg_gpa: 0,
       students: []
     };
 
     // Add scheduling fields if provided
-    // Note: For now, we'll store the first day of week if multiple are selected
-    // The schema only supports a single day_of_week, so we'll need to handle this limitation
-    if (classData.daysOfWeek && classData.daysOfWeek.length > 0) {
-      insertData.day_of_week = classData.daysOfWeek[0]; // Take first selected day
+    if (classData.dayOfWeek) {
+      insertData.day_of_week = classData.dayOfWeek;
     }
     if (classData.classTime) {
       insertData.class_time = classData.classTime;

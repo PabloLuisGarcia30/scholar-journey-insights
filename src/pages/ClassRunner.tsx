@@ -14,43 +14,8 @@ import { getActiveClassSessions } from "@/services/classSessionService";
 import { getLessonPlanByClassId } from "@/services/lessonPlanService";
 import { useState, useEffect } from "react";
 
-// Define types to avoid infinite recursion
-interface ActiveClassItem {
-  id: string;
-  name: string;
-  subject: string;
-  grade: string;
-  teacher: string;
-  student_count: number;
-  avg_gpa: number;
-  created_at: string;
-}
-
-interface LessonPlanItem {
-  id: string;
-  scheduled_date: string;
-  scheduled_time: string;
-}
-
-interface ClassPlanData {
-  classId: string;
-  lessonPlans: LessonPlanItem[];
-}
-
-// Extract the lesson plan fetching logic to prevent type inference issues
-const fetchAllLessonPlans = async (classes: ActiveClassItem[]): Promise<ClassPlanData[]> => {
-  const promises = classes.map(async (classItem): Promise<ClassPlanData> => {
-    const plans = await getLessonPlanByClassId(classItem.id);
-    return {
-      classId: classItem.id,
-      lessonPlans: plans
-    };
-  });
-  return Promise.all(promises);
-};
-
 export default function ClassRunner() {
-  const { profile, user } = useAuth();
+  const { profile } = useAuth();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState("classes");
   const [useModernDesign, setUseModernDesign] = useState(() => {
@@ -63,21 +28,16 @@ export default function ClassRunner() {
     localStorage.setItem('classrunner-design-preference', JSON.stringify(useModernDesign));
   }, [useModernDesign]);
 
-  // Fetch active classes for the authenticated teacher
+  // Fetch active classes for the teacher
   const { data: activeClasses = [], isLoading } = useQuery({
-    queryKey: ['activeClasses', user?.id],
-    queryFn: async (): Promise<ActiveClassItem[]> => {
-      if (!user?.id) {
-        console.log('No authenticated user ID available');
-        return [];
-      }
-
-      console.log('Fetching classes for teacher ID:', user.id);
+    queryKey: ['activeClasses', profile?.full_name],
+    queryFn: async () => {
+      console.log('Fetching classes for teacher:', profile?.full_name);
       
       const { data, error } = await supabase
         .from('active_classes')
         .select('*')
-        .eq('teacher_id', user.id)
+        .eq('teacher', profile?.full_name || 'Mr. Cullen')
         .order('created_at', { ascending: true });
 
       if (error) {
@@ -88,24 +48,33 @@ export default function ClassRunner() {
       console.log('Found classes:', data);
       return data || [];
     },
-    enabled: !!user?.id,
+    enabled: !!profile?.full_name,
   });
 
-  // Fetch lesson plans for all classes using the extracted function
-  const { data: allLessonPlans = [] } = useQuery<ClassPlanData[]>({
-    queryKey: ['allLessonPlans', activeClasses.map(c => c.id)],
-    queryFn: () => fetchAllLessonPlans(activeClasses),
+  // Fetch lesson plans for all classes to show status
+  const { data: allLessonPlans = [] } = useQuery({
+    queryKey: ['allLessonPlans'],
+    queryFn: async () => {
+      const promises = activeClasses.map(async (classItem) => {
+        const plans = await getLessonPlanByClassId(classItem.id);
+        return {
+          classId: classItem.id,
+          lessonPlans: plans
+        };
+      });
+      return Promise.all(promises);
+    },
     enabled: activeClasses.length > 0,
   });
 
   // Fetch active sessions for monitoring
   const { data: activeSessions = [] } = useQuery({
-    queryKey: ['activeSessions', user?.id],
+    queryKey: ['activeSessions', profile?.id],
     queryFn: async () => {
-      if (!user?.id) return [];
-      return await getActiveClassSessions(user.id);
+      if (!profile?.id) return [];
+      return await getActiveClassSessions(profile.id);
     },
-    enabled: !!user?.id,
+    enabled: !!profile?.id,
     refetchInterval: 30000, // Refresh every 30 seconds
   });
 
@@ -129,7 +98,7 @@ export default function ClassRunner() {
     return "Tomorrow 10:30 AM";
   };
 
-  const handlePlanClass = (classItem: ActiveClassItem) => {
+  const handlePlanClass = (classItem: any) => {
     console.log('Planning class:', classItem.name);
     navigate(`/lesson-planner?class=${encodeURIComponent(classItem.name)}&classId=${classItem.id}`);
   };
@@ -165,21 +134,6 @@ export default function ClassRunner() {
     { icon: BookOpen, title: "Assignments", description: "Create & track work", color: "from-green-500 to-green-600" },
     { icon: Settings, title: "Class Settings", description: "Configure preferences", color: "from-orange-500 to-orange-600" },
   ];
-
-  if (!user) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold text-gray-900 mb-4">Authentication Required</h1>
-          <p className="text-gray-600 mb-6">Please log in to access ClassRunner.</p>
-          <Button onClick={() => navigate('/')}>
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Back to Dashboard
-          </Button>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className={useModernDesign ? "min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/20 to-indigo-50/30" : "min-h-screen bg-gray-50"}>
@@ -217,17 +171,7 @@ export default function ClassRunner() {
                     <GraduationCap className="h-8 w-8" />
                   </div>
                   <div>
-                    <h1 
-                      className="text-4xl font-bold"
-                      style={{
-                        background: 'linear-gradient(to right, #fbbf24, #22c55e)',
-                        WebkitBackgroundClip: 'text',
-                        WebkitTextFillColor: 'transparent',
-                        backgroundClip: 'text'
-                      }}
-                    >
-                      ClassRunner
-                    </h1>
+                    <h1 className="text-4xl font-bold bg-gradient-to-r from-yellow-400 to-green-400 bg-clip-text text-transparent">ClassRunner</h1>
                     <p className="text-blue-100 text-lg">Manage and run your classes efficiently</p>
                   </div>
                 </div>
@@ -278,17 +222,7 @@ export default function ClassRunner() {
             </div>
           ) : (
             <div className="mb-6">
-              <h1 
-                className="text-3xl font-bold mb-2"
-                style={{
-                  background: 'linear-gradient(to right, #fbbf24, #22c55e)',
-                  WebkitBackgroundClip: 'text',
-                  WebkitTextFillColor: 'transparent',
-                  backgroundClip: 'text'
-                }}
-              >
-                ClassRunner
-              </h1>
+              <h1 className="text-3xl font-bold bg-gradient-to-r from-yellow-400 to-green-400 bg-clip-text text-transparent mb-2">ClassRunner</h1>
               <p className="text-gray-600">Manage and run your classes efficiently</p>
             </div>
           )}
@@ -331,7 +265,7 @@ export default function ClassRunner() {
                   <CardTitle className="flex items-center gap-3">
                     {useModernDesign && (
                       <div className="p-2 bg-blue-50 rounded-lg">
-                        <BookOpen className="h-6 w-6 text-blue-600" />
+                        <BookOpen className="h-5 w-5 text-blue-600" />
                       </div>
                     )}
                     <div>
@@ -367,7 +301,7 @@ export default function ClassRunner() {
                   </div>
                 ) : activeClasses.length > 0 ? (
                   <div className="space-y-6">
-                    {activeClasses.map((classItem: ActiveClassItem) => {
+                    {activeClasses.map((classItem) => {
                       const planStatus = getLessonPlanStatus(classItem.id);
                       const hasPlan = planStatus.status === 'ready';
                       
@@ -446,9 +380,9 @@ export default function ClassRunner() {
                       <BookOpen className={useModernDesign ? "h-12 w-12 text-slate-400 mx-auto" : "h-8 w-8 text-gray-400 mx-auto"} />
                     </div>
                     <h3 className={useModernDesign ? "text-xl font-semibold text-slate-700 mb-2" : "text-lg font-medium text-gray-700 mb-2"}>No Active Classes</h3>
-                    <p className={useModernDesign ? "text-slate-500 mb-1" : "text-gray-500 mb-1"}>No classes found for your account</p>
+                    <p className={useModernDesign ? "text-slate-500 mb-1" : "text-gray-500 mb-1"}>No classes found for {profile?.full_name}</p>
                     <p className={useModernDesign ? "text-sm text-slate-400" : "text-sm text-gray-400"}>
-                      Classes will appear here once you create them.
+                      Classes will appear here once they are created and assigned to you.
                     </p>
                   </div>
                 )}

@@ -13,9 +13,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Plus } from "lucide-react";
-import { useAuth } from "@/contexts/AuthContext";
 
 interface CreateClassDialogProps {
   onCreateClass: (classData: {
@@ -23,21 +21,20 @@ interface CreateClassDialogProps {
     subject: string;
     grade: string;
     teacher: string;
-    teacherId: string;
-    daysOfWeek?: string[];
+    dayOfWeek?: string;
     classTime?: string;
     endTime?: string;
   }) => void;
 }
 
 export function CreateClassDialog({ onCreateClass }: CreateClassDialogProps) {
-  const { profile } = useAuth();
   const [open, setOpen] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     subject: '',
     grade: '',
-    daysOfWeek: [] as string[],
+    teacher: '',
+    dayOfWeek: '',
     classTime: '',
     endTime: ''
   });
@@ -46,39 +43,23 @@ export function CreateClassDialog({ onCreateClass }: CreateClassDialogProps) {
   const grades = ['Kindergarten', 'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6', 'Grade 7', 'Grade 8', 'Grade 9', 'Grade 10', 'Grade 11', 'Grade 12'];
   const daysOfWeek = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
-  const handleDayToggle = (day: string, checked: boolean) => {
-    setFormData(prev => ({
-      ...prev,
-      daysOfWeek: checked 
-        ? [...prev.daysOfWeek, day]
-        : prev.daysOfWeek.filter(d => d !== day)
-    }));
-  };
-
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (formData.name && formData.subject && formData.grade && profile) {
+    if (formData.name && formData.subject && formData.grade && formData.teacher) {
       const classData = {
         name: formData.name,
         subject: formData.subject,
         grade: formData.grade,
-        teacher: profile.full_name || profile.email || 'Unknown Teacher',
-        teacherId: profile.id,
-        ...(formData.daysOfWeek.length > 0 && { daysOfWeek: formData.daysOfWeek }),
+        teacher: formData.teacher,
+        ...(formData.dayOfWeek && { dayOfWeek: formData.dayOfWeek }),
         ...(formData.classTime && { classTime: formData.classTime }),
         ...(formData.endTime && { endTime: formData.endTime })
       };
-      
-      console.log('Submitting class data:', classData);
       onCreateClass(classData);
-      setFormData({ name: '', subject: '', grade: '', daysOfWeek: [], classTime: '', endTime: '' });
+      setFormData({ name: '', subject: '', grade: '', teacher: '', dayOfWeek: '', classTime: '', endTime: '' });
       setOpen(false);
     }
   };
-
-  if (!profile) {
-    return null; // Don't show dialog if user not authenticated
-  }
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -93,7 +74,7 @@ export function CreateClassDialog({ onCreateClass }: CreateClassDialogProps) {
           <DialogHeader>
             <DialogTitle>Create New Class</DialogTitle>
             <DialogDescription>
-              Add a new class to organize your students. You are creating this class as {profile.full_name || profile.email}.
+              Add a new class to organize your students. Content-specific skills and subject-specific skills will be automatically linked based on the subject and grade you select.
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
@@ -140,35 +121,33 @@ export function CreateClassDialog({ onCreateClass }: CreateClassDialogProps) {
                 </SelectContent>
               </Select>
             </div>
-            <div className="grid grid-cols-4 items-start gap-4">
-              <Label className="text-right pt-2">
-                Days of Week
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="teacher" className="text-right">
+                Teacher
               </Label>
-              <div className="col-span-3 space-y-2">
-                <p className="text-sm text-muted-foreground mb-2">Select multiple days (optional)</p>
-                <div className="grid grid-cols-2 gap-2">
+              <Input
+                id="teacher"
+                value={formData.teacher}
+                onChange={(e) => setFormData({ ...formData, teacher: e.target.value })}
+                placeholder="Teacher name"
+                className="col-span-3"
+                required
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="dayOfWeek" className="text-right">
+                Day of Week
+              </Label>
+              <Select value={formData.dayOfWeek} onValueChange={(value) => setFormData({ ...formData, dayOfWeek: value })}>
+                <SelectTrigger className="col-span-3">
+                  <SelectValue placeholder="Select day (optional)" />
+                </SelectTrigger>
+                <SelectContent>
                   {daysOfWeek.map((day) => (
-                    <div key={day} className="flex items-center space-x-2">
-                      <Checkbox
-                        id={day}
-                        checked={formData.daysOfWeek.includes(day)}
-                        onCheckedChange={(checked) => handleDayToggle(day, checked as boolean)}
-                      />
-                      <Label 
-                        htmlFor={day} 
-                        className="text-sm font-normal cursor-pointer"
-                      >
-                        {day}
-                      </Label>
-                    </div>
+                    <SelectItem key={day} value={day}>{day}</SelectItem>
                   ))}
-                </div>
-                {formData.daysOfWeek.length > 0 && (
-                  <p className="text-xs text-muted-foreground">
-                    Selected: {formData.daysOfWeek.join(', ')}
-                  </p>
-                )}
-              </div>
+                </SelectContent>
+              </Select>
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="classTime" className="text-right">

@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -355,7 +356,6 @@ export function SaveLessonPlan({ classId, className, classData, students, onLess
         classId,
         className,
         teacherName: profile.full_name || "Unknown Teacher",
-        teacherId: profile.id, // Add teacherId here
         subject: classData?.subject || "Unknown Subject",
         grade: classData?.grade || "Unknown Grade",
         scheduledDate: nextClassInfo.date,
