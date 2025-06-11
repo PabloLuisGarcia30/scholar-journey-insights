@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -58,9 +57,9 @@ const StudentPracticeExercise = () => {
         skillName: decodedSkillName,
         className: currentClass.name,
         subject: currentClass.subject,
-        classGrade: currentClass.grade,
+        grade: currentClass.grade,
         difficulty: 'mixed',
-        questionCount: 5, // Shorter focused exercise
+        questionCount: 5,
         includeExplanations: true
       });
 
@@ -81,7 +80,7 @@ const StudentPracticeExercise = () => {
             targetSkill: decodedSkillName
           })),
           totalPoints: practiceTest.questions.reduce((sum, q) => sum + (q.points || 1), 0),
-          estimatedTime: Math.max(5, practiceTest.questions.length * 2), // 2 minutes per question minimum
+          estimatedTime: Math.max(5, practiceTest.questions.length * 2),
           exerciseId: `exercise_${Date.now()}_${decodedSkillName.replace(/\s+/g, '_')}`
         };
         
