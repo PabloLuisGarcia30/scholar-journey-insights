@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+
+import React, { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,6 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Progress } from '@/components/ui/progress';
 import { CheckCircle, XCircle, Clock, BookOpen } from 'lucide-react';
 import { PracticeExerciseGradingService, type PracticeExerciseAnswer, type ExerciseSubmissionResult } from '@/services/practiceExerciseGradingService';
+import { QuestionTimingService } from '@/services/questionTimingService';
 import { PracticeAnswerKeyService } from '@/services/practiceAnswerKeyService';
 import { PracticeExerciseReview } from './PracticeExerciseReview';
 
@@ -47,6 +49,11 @@ export function PracticeExerciseRunner({ exerciseData, onComplete, onExit }: Pro
   const [showReview, setShowReview] = useState(false);
   const [hasAnswerKey, setHasAnswerKey] = useState(false);
   const [exerciseResults, setExerciseResults] = useState<ExerciseSubmissionResult | null>(null);
+  
+  // Timing tracking state
+  const [questionTimingIds, setQuestionTimingIds] = useState<Record<string, string>>({});
+  const [answerChangeCounts, setAnswerChangeCounts] = useState<Record<string, number>>({});
+  const currentTimingId = useRef<string | null>(null);
 
   const currentQuestion = exerciseData.questions[currentQuestionIndex];
   const progress = ((currentQuestionIndex + 1) / exerciseData.questions.length) * 100;
@@ -62,6 +69,33 @@ export function PracticeExerciseRunner({ exerciseData, onComplete, onExit }: Pro
     return () => clearInterval(timer);
   }, [startTime]);
 
+  // Start timing for current question
+  useEffect(() => {
+    const startQuestionTiming = async () => {
+      if (exerciseData.exerciseId) {
+        const timingId = await QuestionTimingService.startQuestionTiming(
+          exerciseData.exerciseId,
+          currentQuestion.id,
+          currentQuestionIndex + 1
+        );
+        
+        if (timingId) {
+          currentTimingId.current = timingId;
+          setQuestionTimingIds(prev => ({ ...prev, [currentQuestion.id]: timingId }));
+        }
+      }
+    };
+
+    startQuestionTiming();
+
+    // Cleanup function to record timing when leaving question
+    return () => {
+      if (currentTimingId.current) {
+        QuestionTimingService.recordQuestionAnswer(currentTimingId.current, false);
+      }
+    };
+  }, [currentQuestionIndex, currentQuestion.id, exerciseData.exerciseId]);
+
   // Check if answer key is available
   useEffect(() => {
     const checkAnswerKey = async () => {
@@ -73,8 +107,27 @@ export function PracticeExerciseRunner({ exerciseData, onComplete, onExit }: Pro
     checkAnswerKey();
   }, [exerciseData.exerciseId]);
 
-  const handleAnswerChange = (questionId: string, answer: string) => {
+  const handleAnswerChange = async (questionId: string, answer: string) => {
+    const previousAnswer = answers[questionId];
+    const isAnswerChange = previousAnswer && previousAnswer !== answer;
+    
     setAnswers(prev => ({ ...prev, [questionId]: answer }));
+    
+    // Track answer changes
+    if (isAnswerChange) {
+      setAnswerChangeCounts(prev => ({
+        ...prev,
+        [questionId]: (prev[questionId] || 0) + 1
+      }));
+      
+      // Record the answer change in timing
+      if (currentTimingId.current) {
+        await QuestionTimingService.recordQuestionAnswer(currentTimingId.current, true);
+      }
+    } else if (currentTimingId.current && !previousAnswer) {
+      // First time answering this question
+      await QuestionTimingService.recordQuestionAnswer(currentTimingId.current, false);
+    }
   };
 
   const handleNext = () => {
@@ -93,6 +146,11 @@ export function PracticeExerciseRunner({ exerciseData, onComplete, onExit }: Pro
     setIsSubmitting(true);
 
     try {
+      // Record final timing for current question
+      if (currentTimingId.current) {
+        await QuestionTimingService.recordQuestionAnswer(currentTimingId.current, false);
+      }
+
       // Prepare answers for grading
       const exerciseAnswers: PracticeExerciseAnswer[] = exerciseData.questions.map(question => ({
         questionId: question.id,
@@ -105,10 +163,12 @@ export function PracticeExerciseRunner({ exerciseData, onComplete, onExit }: Pro
         points: question.points
       }));
 
-      // Grade the exercise
+      // Grade the exercise with enhanced tracking
       const results = await PracticeExerciseGradingService.gradeExerciseSubmission(
         exerciseAnswers,
-        exerciseData.title
+        exerciseData.title,
+        exerciseData.exerciseId, // Pass exercise ID for tracking
+        exerciseData.questions[0]?.targetSkill // Pass skill name for tracking
       );
 
       setExerciseResults(results);

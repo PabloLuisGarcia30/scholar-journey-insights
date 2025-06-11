@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -128,7 +129,7 @@ export function TailoredExercises() {
   if (selectedExercise) {
     const exerciseDataWithId = {
       ...selectedExercise.exercise_data,
-      exerciseId: selectedExercise.id // Add exercise ID for answer key lookup
+      exerciseId: selectedExercise.id // Add exercise ID for timing tracking
     };
 
     return (
