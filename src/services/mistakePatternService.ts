@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 
 export interface MistakePatternData {
@@ -6,7 +5,6 @@ export interface MistakePatternData {
   student_exercise_id: string;
   question_id: string;
   question_number: number;
-  question_type: 'multiple-choice' | 'true-false' | 'short-answer' | 'essay';
   student_answer: string;
   correct_answer: string;
   is_correct: boolean;
@@ -35,7 +33,6 @@ export class MistakePatternService {
     studentExerciseId: string;
     questionId: string;
     questionNumber: number;
-    questionType: 'multiple-choice' | 'true-false' | 'short-answer' | 'essay';
     studentAnswer: string;
     correctAnswer: string;
     isCorrect: boolean;
@@ -54,7 +51,6 @@ export class MistakePatternService {
           student_exercise_id: mistakeData.studentExerciseId,
           question_id: mistakeData.questionId,
           question_number: mistakeData.questionNumber,
-          question_type: mistakeData.questionType,
           student_answer: mistakeData.studentAnswer,
           correct_answer: mistakeData.correctAnswer,
           is_correct: mistakeData.isCorrect,
@@ -173,7 +169,6 @@ export class MistakePatternService {
         return [];
       }
 
-      // Cast the database response to our TypeScript interface
       return (data || []) as MistakePatternData[];
     } catch (error) {
       console.error('❌ Exception in getExerciseMistakeData:', error);
