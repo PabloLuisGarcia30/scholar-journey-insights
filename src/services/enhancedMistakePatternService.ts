@@ -35,6 +35,11 @@ export interface EnhancedMistakePatternData {
   gptAnalysisMetadata?: Record<string, any>;
   detailedConceptualError?: string;
   contextWhenErrorOccurred?: Record<string, any>;
+  
+  // Conceptual anchor point fields
+  expectedConcept?: string;
+  conceptMasteryLevel?: 'mastered' | 'partial' | 'not_demonstrated' | 'unknown';
+  conceptSource?: 'curriculum_mapping' | 'gpt_inference' | 'manual_tag' | 'skill_mapping';
 }
 
 export interface EnhancedMistakeAnalysis {
@@ -114,7 +119,12 @@ export class EnhancedMistakePatternService {
           instructional_sensitivity_flag: mistakeData.instructionalSensitivityFlag || false,
           gpt_analysis_metadata: mistakeData.gptAnalysisMetadata || {},
           detailed_conceptual_error: mistakeData.detailedConceptualError,
-          context_when_error_occurred: mistakeData.contextWhenErrorOccurred || {}
+          context_when_error_occurred: mistakeData.contextWhenErrorOccurred || {},
+          
+          // New conceptual anchor point fields
+          expected_concept: mistakeData.expectedConcept,
+          concept_mastery_level: mistakeData.conceptMasteryLevel,
+          concept_source: mistakeData.conceptSource
         })
         .select('id')
         .single();
@@ -389,7 +399,7 @@ export class EnhancedMistakePatternService {
   }
 
   /**
-   * Generate GPT analysis prompt for detailed mistake analysis
+   * Generate GPT analysis prompt for detailed mistake analysis including conceptual anchor points
    */
   static generateGPTAnalysisPrompt(mistakeData: EnhancedMistakePatternData): string {
     return `Analyze this student mistake for detailed educational insights:
@@ -399,6 +409,7 @@ Question Type: ${mistakeData.questionType}
 Student Answer: "${mistakeData.studentAnswer}"
 Correct Answer: "${mistakeData.correctAnswer}"
 Skill Being Tested: ${mistakeData.skillTargeted}
+Expected Concept: ${mistakeData.expectedConcept || 'Not provided'}
 
 Please provide:
 1. Detailed conceptual error analysis
@@ -408,8 +419,9 @@ Please provide:
 5. Related concepts that should be reviewed
 6. Whether this indicates a transfer failure
 7. Metacognitive awareness indicators
+8. Assessment of concept mastery level (mastered, partial, not_demonstrated, unknown)
 
-Format as JSON with keys: detailedAnalysis, misconceptionCategory, prerequisiteGaps, remediation, relatedConcepts, transferFailure, metacognitiveAwareness`;
+Format as JSON with keys: detailedAnalysis, misconceptionCategory, prerequisiteGaps, remediation, relatedConcepts, transferFailure, metacognitiveAwareness, conceptMasteryLevel`;
   }
 
   /**

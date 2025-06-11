@@ -804,6 +804,8 @@ export type Database = {
       mistake_patterns: {
         Row: {
           cognitive_load_indicators: Json | null
+          concept_mastery_level: string | null
+          concept_source: string | null
           confidence_score: number | null
           context_when_error_occurred: Json | null
           correct_answer: string
@@ -814,6 +816,7 @@ export type Database = {
           error_pattern_id: string | null
           error_persistence_count: number | null
           error_severity: string | null
+          expected_concept: string | null
           feedback_given: string | null
           gpt_analysis_metadata: Json | null
           grading_method: string | null
@@ -839,6 +842,8 @@ export type Database = {
         }
         Insert: {
           cognitive_load_indicators?: Json | null
+          concept_mastery_level?: string | null
+          concept_source?: string | null
           confidence_score?: number | null
           context_when_error_occurred?: Json | null
           correct_answer: string
@@ -849,6 +854,7 @@ export type Database = {
           error_pattern_id?: string | null
           error_persistence_count?: number | null
           error_severity?: string | null
+          expected_concept?: string | null
           feedback_given?: string | null
           gpt_analysis_metadata?: Json | null
           grading_method?: string | null
@@ -874,6 +880,8 @@ export type Database = {
         }
         Update: {
           cognitive_load_indicators?: Json | null
+          concept_mastery_level?: string | null
+          concept_source?: string | null
           confidence_score?: number | null
           context_when_error_occurred?: Json | null
           correct_answer?: string
@@ -884,6 +892,7 @@ export type Database = {
           error_pattern_id?: string | null
           error_persistence_count?: number | null
           error_severity?: string | null
+          expected_concept?: string | null
           feedback_given?: string | null
           gpt_analysis_metadata?: Json | null
           grading_method?: string | null

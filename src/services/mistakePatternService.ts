@@ -1,6 +1,6 @@
-
 import { supabase } from '@/integrations/supabase/client';
 import { EnhancedMistakePatternService, type EnhancedMistakePatternData } from './enhancedMistakePatternService';
+import { ConceptualAnchorService } from './conceptualAnchorService';
 
 export interface MistakePatternData {
   id: string;
@@ -17,6 +17,9 @@ export interface MistakePatternData {
   grading_method?: 'exact_match' | 'flexible_match' | 'ai_graded';
   feedback_given?: string;
   created_at: string;
+  expected_concept?: string;
+  concept_mastery_level?: 'mastered' | 'partial' | 'not_demonstrated' | 'unknown';
+  concept_source?: 'curriculum_mapping' | 'gpt_inference' | 'manual_tag' | 'skill_mapping';
 }
 
 export interface MistakePattern {
@@ -51,12 +54,46 @@ export class MistakePatternService {
     options?: string[];
     subject?: string; // NEW: Add subject parameter
     classSubject?: string; // Alternative subject field
+    expectedConcept?: string; // NEW: Conceptual anchor point
+    grade?: string; // NEW: Grade level for concept mapping
   }): Promise<string | null> {
     try {
       console.log(`🔍 Recording mistake pattern for question ${mistakeData.questionNumber}`);
       
       // Determine subject from available data
       const subject = mistakeData.subject || mistakeData.classSubject || 'Unknown';
+      const grade = mistakeData.grade || 'Unknown';
+      
+      // Determine conceptual anchor point if not provided
+      let expectedConcept = mistakeData.expectedConcept;
+      let conceptSource: 'curriculum_mapping' | 'gpt_inference' | 'manual_tag' | 'skill_mapping' = 'manual_tag';
+      
+      if (!expectedConcept) {
+        // Use ConceptualAnchorService to determine the concept
+        const conceptResult = await ConceptualAnchorService.determineConceptualAnchor(
+          mistakeData.questionContext || mistakeData.correctAnswer,
+          mistakeData.skillTargeted,
+          subject,
+          grade,
+          mistakeData.studentAnswer,
+          mistakeData.correctAnswer,
+          mistakeData.questionContext
+        );
+        
+        expectedConcept = conceptResult.expectedConcept;
+        conceptSource = conceptResult.source;
+      }
+      
+      // Assess concept mastery level
+      const conceptMasteryLevel = ConceptualAnchorService.assessConceptMastery(
+        mistakeData.isCorrect,
+        mistakeData.studentAnswer,
+        mistakeData.correctAnswer,
+        mistakeData.questionType || 'unknown',
+        mistakeData.confidenceScore
+      );
+      
+      console.log(`🧠 Conceptual anchor point: "${expectedConcept}" - Mastery: ${conceptMasteryLevel}`);
       
       // Enhance the mistake data with detailed analysis including subject
       const enhancedData: EnhancedMistakePatternData = {
@@ -101,7 +138,11 @@ export class MistakePatternService {
             subject
           ),
           mistakeData.skillTargeted
-        )
+        ),
+        // New conceptual anchor fields
+        expectedConcept: expectedConcept,
+        conceptMasteryLevel: conceptMasteryLevel,
+        conceptSource: conceptSource
       };
 
       // Use enhanced service for recording
@@ -213,6 +254,88 @@ export class MistakePatternService {
   }
 
   /**
+   * Get conceptual mastery data for a student
+   */
+  static async getStudentConceptualMastery(
+    studentId: string,
+    subjectFilter?: string
+  ): Promise<{
+    concept: string;
+    mastery_level: string;
+    demonstration_count: number;
+    latest_demonstration: string;
+    related_skills: string[];
+  }[]> {
+    try {
+      console.log(`🧠 Fetching conceptual mastery data for student: ${studentId}`);
+      
+      const { data, error } = await supabase
+        .from('mistake_patterns')
+        .select(`
+          expected_concept,
+          concept_mastery_level,
+          skill_targeted,
+          created_at
+        `)
+        .eq('student_exercise_id', studentId)
+        .not('expected_concept', 'is', null)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('❌ Error fetching conceptual mastery data:', error);
+        return [];
+      }
+
+      // Process the data to group by concept
+      const conceptMap = new Map<string, {
+        concept: string;
+        mastery_level: string;
+        demonstration_count: number;
+        latest_demonstration: string;
+        related_skills: Set<string>;
+      }>();
+
+      data.forEach(record => {
+        if (!record.expected_concept) return;
+        
+        if (!conceptMap.has(record.expected_concept)) {
+          conceptMap.set(record.expected_concept, {
+            concept: record.expected_concept,
+            mastery_level: record.concept_mastery_level || 'unknown',
+            demonstration_count: 1,
+            latest_demonstration: record.created_at,
+            related_skills: new Set([record.skill_targeted])
+          });
+        } else {
+          const existing = conceptMap.get(record.expected_concept)!;
+          existing.demonstration_count++;
+          
+          // Update mastery level if this is more recent
+          if (new Date(record.created_at) > new Date(existing.latest_demonstration)) {
+            existing.latest_demonstration = record.created_at;
+            existing.mastery_level = record.concept_mastery_level || existing.mastery_level;
+          }
+          
+          // Add to related skills
+          existing.related_skills.add(record.skill_targeted);
+        }
+      });
+
+      // Convert to array and transform Sets to arrays
+      const result = Array.from(conceptMap.values()).map(item => ({
+        ...item,
+        related_skills: Array.from(item.related_skills)
+      }));
+
+      console.log(`✅ Retrieved conceptual mastery data for ${result.length} concepts`);
+      return result;
+    } catch (error) {
+      console.error('❌ Exception in getStudentConceptualMastery:', error);
+      return [];
+    }
+  }
+
+  /**
    * Get most common mistakes across all students for a skill
    */
   static async getSkillMistakePatterns(skillName: string): Promise<{
@@ -317,6 +440,92 @@ export class MistakePatternService {
       return results.sort((a, b) => b.count - a.count);
     } catch (error) {
       console.error('❌ Exception in getSkillMistakePatternsByType:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Get conceptual anchor analysis for a skill
+   */
+  static async getSkillConceptualAnchorAnalysis(skillName: string): Promise<{
+    expected_concept: string;
+    mastery_distribution: {
+      mastered: number;
+      partial: number;
+      not_demonstrated: number;
+      unknown: number;
+    };
+    total_demonstrations: number;
+    mastery_rate: number;
+  }[]> {
+    try {
+      const { data, error } = await supabase
+        .from('mistake_patterns')
+        .select(`
+          expected_concept,
+          concept_mastery_level
+        `)
+        .eq('skill_targeted', skillName)
+        .not('expected_concept', 'is', null);
+
+      if (error) {
+        console.error('❌ Error fetching conceptual anchor analysis:', error);
+        return [];
+      }
+
+      // Group by concept and analyze mastery distribution
+      const conceptMap = new Map<string, {
+        expected_concept: string;
+        mastery_distribution: {
+          mastered: number;
+          partial: number;
+          not_demonstrated: number;
+          unknown: number;
+        };
+        total_demonstrations: number;
+      }>();
+
+      data.forEach(record => {
+        if (!record.expected_concept) return;
+        
+        if (!conceptMap.has(record.expected_concept)) {
+          conceptMap.set(record.expected_concept, {
+            expected_concept: record.expected_concept,
+            mastery_distribution: {
+              mastered: record.concept_mastery_level === 'mastered' ? 1 : 0,
+              partial: record.concept_mastery_level === 'partial' ? 1 : 0,
+              not_demonstrated: record.concept_mastery_level === 'not_demonstrated' ? 1 : 0,
+              unknown: record.concept_mastery_level === 'unknown' ? 1 : 0
+            },
+            total_demonstrations: 1
+          });
+        } else {
+          const existing = conceptMap.get(record.expected_concept)!;
+          existing.total_demonstrations++;
+          
+          // Update mastery distribution
+          if (record.concept_mastery_level === 'mastered') {
+            existing.mastery_distribution.mastered++;
+          } else if (record.concept_mastery_level === 'partial') {
+            existing.mastery_distribution.partial++;
+          } else if (record.concept_mastery_level === 'not_demonstrated') {
+            existing.mastery_distribution.not_demonstrated++;
+          } else {
+            existing.mastery_distribution.unknown++;
+          }
+        }
+      });
+
+      // Calculate mastery rates and convert to array
+      const result = Array.from(conceptMap.values()).map(item => ({
+        ...item,
+        mastery_rate: (item.mastery_distribution.mastered + item.mastery_distribution.partial * 0.5) / 
+                       item.total_demonstrations * 100
+      }));
+
+      return result.sort((a, b) => b.total_demonstrations - a.total_demonstrations);
+    } catch (error) {
+      console.error('❌ Exception in getSkillConceptualAnchorAnalysis:', error);
       return [];
     }
   }
