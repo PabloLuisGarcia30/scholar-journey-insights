@@ -1,4 +1,3 @@
-
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -60,7 +59,6 @@ const StudentClassScores = () => {
   const getLowestScoringSkills = () => {
     const allSkills = Object.values(groupedSkills).flat();
     return allSkills
-      .filter(skill => skill.score < 80)
       .sort((a, b) => a.score - b.score)
       .slice(0, 3);
   };
@@ -183,8 +181,8 @@ const StudentClassScores = () => {
             ) : (
               <div className="text-center py-8">
                 <Target className="h-12 w-12 text-green-400 mx-auto mb-4" />
-                <h3 className="text-lg font-medium text-gray-900 mb-2">Excellent work!</h3>
-                <p className="text-gray-600">All your skills are performing well. Keep up the great work!</p>
+                <h3 className="text-lg font-medium text-gray-900 mb-2">No skills to show</h3>
+                <p className="text-gray-600">Complete assessments in this class to see skill recommendations.</p>
               </div>
             )}
           </CardContent>
