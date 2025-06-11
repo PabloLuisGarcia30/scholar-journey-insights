@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
@@ -179,7 +178,7 @@ serve(async (req) => {
       .select()
       .single();
 
-    console.log('Step 4: Performing class-specific AI skill mapping analysis');
+    console.log('Step 4: Performing enhanced class-specific AI skill mapping analysis with concept grouping');
 
     // Prepare class-specific skills data for AI with IDs for validation
     const contentSkillsText = availableContentSkills.map(skill => 
@@ -208,6 +207,12 @@ CRITICAL CONSTRAINTS:
 - If no suitable skill exists in the lists, mark as "no_suitable_skill"
 - This analysis is for ${examData.classes?.name || 'Unknown Class'} (${examData.classes?.subject} ${examData.classes?.grade})
 
+NEW ENHANCEMENT - CONCEPT GROUPING:
+- For each skill mapping, provide a "concept_missed_short" - a brief 2-4 word identifier for the core concept being tested
+- This should be a simple, groupable concept name (e.g., "Linear Equations", "Photosynthesis", "Essay Structure")
+- Use consistent naming across questions that test the same underlying concept
+- This enables analytics to group missed concepts across multiple questions
+
 ${usingFallbackSkills ? 'STANDARD CURRICULUM' : 'CLASS-SPECIFIC'} CONTENT SKILLS (ONLY use these IDs):
 ${contentSkillsText}
 
@@ -219,6 +224,7 @@ For each question, identify:
 2. Which subject skills it tests (0-2 most relevant from the list above)
 3. Weight for each skill (0.1-1.0 based on relevance)
 4. Confidence in the mapping (0.1-1.0)
+5. Concept_missed_short for grouping analytics (2-4 words describing the core concept)
 
 Return JSON format:
 {
@@ -226,10 +232,22 @@ Return JSON format:
     {
       "question_number": 1,
       "content_skills": [
-        {"skill_id": "exact-uuid-from-list", "skill_name": "exact-name-from-list", "weight": 0.8, "confidence": 0.9}
+        {
+          "skill_id": "exact-uuid-from-list", 
+          "skill_name": "exact-name-from-list", 
+          "weight": 0.8, 
+          "confidence": 0.9,
+          "concept_missed_short": "Linear Equations"
+        }
       ],
       "subject_skills": [
-        {"skill_id": "exact-uuid-from-list", "skill_name": "exact-name-from-list", "weight": 1.0, "confidence": 0.95}
+        {
+          "skill_id": "exact-uuid-from-list", 
+          "skill_name": "exact-name-from-list", 
+          "weight": 1.0, 
+          "confidence": 0.95,
+          "concept_missed_short": "Algebraic Reasoning"
+        }
       ],
       "no_suitable_skills": false
     }
@@ -238,7 +256,8 @@ Return JSON format:
     "total_questions_mapped": 10,
     "content_skills_used": 5,
     "subject_skills_used": 3,
-    "questions_without_suitable_skills": 0
+    "questions_without_suitable_skills": 0,
+    "unique_concepts_identified": 8
   }
 }`;
 
@@ -248,7 +267,7 @@ Class: ${examData.classes?.name || 'Unknown'} (${examData.classes?.subject} ${ex
 QUESTIONS:
 ${questionsText}
 
-IMPORTANT: Only use skill IDs and names from the provided ${usingFallbackSkills ? 'standard curriculum' : 'class-specific'} lists. Do not create new skills.`;
+IMPORTANT: Only use skill IDs and names from the provided ${usingFallbackSkills ? 'standard curriculum' : 'class-specific'} lists. Include concept_missed_short for each skill mapping to enable concept grouping analytics.`;
 
     const aiPayload = {
       model: "gpt-4.1-2025-04-14",
@@ -284,7 +303,7 @@ IMPORTANT: Only use skill IDs and names from the provided ${usingFallbackSkills 
       throw new Error('AI returned invalid skill mapping format');
     }
 
-    console.log('Step 5: Validating and storing class-specific skill mappings');
+    console.log('Step 5: Validating and storing enhanced class-specific skill mappings with concept grouping');
 
     // Validate skill mappings against class-specific skill pools
     const mappingInserts = [];
@@ -311,7 +330,8 @@ IMPORTANT: Only use skill IDs and names from the provided ${usingFallbackSkills 
           skill_id: contentSkill.skill_id,
           skill_name: contentSkill.skill_name,
           skill_weight: validatedWeight,
-          confidence: validatedConfidence
+          confidence: validatedConfidence,
+          concept_missed_short: contentSkill.concept_missed_short || 'Unknown Concept'
         });
         contentSkillsFound++;
       }
@@ -334,7 +354,8 @@ IMPORTANT: Only use skill IDs and names from the provided ${usingFallbackSkills 
           skill_id: subjectSkill.skill_id,
           skill_name: subjectSkill.skill_name,
           skill_weight: validatedWeight,
-          confidence: validatedConfidence
+          confidence: validatedConfidence,
+          concept_missed_short: subjectSkill.concept_missed_short || 'Unknown Concept'
         });
         subjectSkillsFound++;
       }
@@ -370,16 +391,19 @@ IMPORTANT: Only use skill IDs and names from the provided ${usingFallbackSkills 
             used_class_specific_skills: !usingFallbackSkills,
             used_fallback_skills: usingFallbackSkills,
             available_content_skills: availableContentSkills.length,
-            available_subject_skills: availableSubjectSkills.length
+            available_subject_skills: availableSubjectSkills.length,
+            concept_grouping_enabled: true,
+            unique_concepts_identified: skillMappings.summary?.unique_concepts_identified || 0
           }
         }
       })
       .eq('id', analysisRecord.id);
 
-    console.log('Class-specific skill analysis completed successfully');
+    console.log('Enhanced class-specific skill analysis with concept grouping completed successfully');
     console.log(`Mapped ${skillMappings.mappings?.length || 0} questions with ${contentSkillsFound} content skills and ${subjectSkillsFound} subject skills`);
     console.log(`Using ${usingFallbackSkills ? 'standard curriculum' : 'class-specific'} skills for ${examData.classes?.name || 'Unknown Class'}`);
     console.log(`Rejected ${invalidSkillsRejected} invalid skill suggestions`);
+    console.log(`Identified ${skillMappings.summary?.unique_concepts_identified || 0} unique concepts for grouping analytics`);
 
     return new Response(
       JSON.stringify({
@@ -394,6 +418,8 @@ IMPORTANT: Only use skill IDs and names from the provided ${usingFallbackSkills 
         content_skills_found: contentSkillsFound,
         subject_skills_found: subjectSkillsFound,
         invalid_skills_rejected: invalidSkillsRejected,
+        concept_grouping_enabled: true,
+        unique_concepts_identified: skillMappings.summary?.unique_concepts_identified || 0,
         class_scoped_validation: true,
         skill_mappings: skillMappings
       }),
@@ -404,7 +430,7 @@ IMPORTANT: Only use skill IDs and names from the provided ${usingFallbackSkills 
     );
 
   } catch (error) {
-    console.error('Error in class-specific analyze-exam-skills function:', error);
+    console.error('Error in enhanced analyze-exam-skills function:', error);
     
     // Update analysis record with error
     try {
