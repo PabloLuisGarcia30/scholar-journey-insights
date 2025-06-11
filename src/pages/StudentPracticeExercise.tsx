@@ -57,7 +57,7 @@ const StudentPracticeExercise = () => {
         studentName: profile?.full_name || student?.name || 'Student',
         skillName: decodedSkillName,
         className: currentClass.name,
-        classSubject: currentClass.subject,
+        subject: currentClass.subject,
         classGrade: currentClass.grade,
         difficulty: 'mixed',
         questionCount: 5, // Shorter focused exercise
@@ -82,7 +82,7 @@ const StudentPracticeExercise = () => {
           })),
           totalPoints: practiceTest.questions.reduce((sum, q) => sum + (q.points || 1), 0),
           estimatedTime: Math.max(5, practiceTest.questions.length * 2), // 2 minutes per question minimum
-          exerciseId: practiceTest.id
+          exerciseId: `exercise_${Date.now()}_${decodedSkillName.replace(/\s+/g, '_')}`
         };
         
         setExerciseData(exerciseFormatted);
@@ -149,6 +149,7 @@ const StudentPracticeExercise = () => {
           exerciseData={exerciseData}
           onComplete={handleExerciseComplete}
           onExit={handleExitExercise}
+          showTimer={false}
         />
       </div>
     );

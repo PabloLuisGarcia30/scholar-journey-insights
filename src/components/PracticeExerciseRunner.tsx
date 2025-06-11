@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -38,9 +37,10 @@ interface Props {
   exerciseData: PracticeExerciseData;
   onComplete: (results: ExerciseSubmissionResult) => void;
   onExit?: () => void;
+  showTimer?: boolean;
 }
 
-export function PracticeExerciseRunner({ exerciseData, onComplete, onExit }: Props) {
+export function PracticeExerciseRunner({ exerciseData, onComplete, onExit, showTimer = true }: Props) {
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -60,14 +60,16 @@ export function PracticeExerciseRunner({ exerciseData, onComplete, onExit }: Pro
   const isLastQuestion = currentQuestionIndex === exerciseData.questions.length - 1;
   const hasAnsweredCurrent = answers[currentQuestion.id]?.trim().length > 0;
 
-  // Timer effect
+  // Timer effect - only run if showTimer is true
   useEffect(() => {
+    if (!showTimer) return;
+    
     const timer = setInterval(() => {
       setTimeElapsed(Math.floor((Date.now() - startTime.getTime()) / 1000));
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [startTime]);
+  }, [startTime, showTimer]);
 
   // Start timing for current question
   useEffect(() => {
@@ -372,10 +374,12 @@ export function PracticeExerciseRunner({ exerciseData, onComplete, onExit }: Pro
               </p>
             </div>
             <div className="flex items-center gap-4 text-sm text-muted-foreground">
-              <div className="flex items-center gap-1">
-                <Clock className="h-4 w-4" />
-                {formatTime(timeElapsed)}
-              </div>
+              {showTimer && (
+                <div className="flex items-center gap-1">
+                  <Clock className="h-4 w-4" />
+                  {formatTime(timeElapsed)}
+                </div>
+              )}
               {onExit && (
                 <Button variant="outline" size="sm" onClick={onExit}>
                   Exit
