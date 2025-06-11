@@ -1,4 +1,3 @@
-
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.9';
@@ -63,6 +62,8 @@ interface StudentPracticeExercise {
       isContentSkill: boolean;
       isSubjectSkill: boolean;
       classification: string;
+      skillDescription?: string;
+      topic?: string;
     };
   };
 }
@@ -77,71 +78,62 @@ function determineDifficultyLevel(currentScore: number, preferredDifficulty?: st
   return 'challenge';
 }
 
-async function detectSkillType(skillName: string, subject: string): Promise<{
+async function findSkillInDatabase(skillName: string, subject: string, grade: string): Promise<{
   skillType: string;
   isContentSkill: boolean;
   isSubjectSkill: boolean;
   classification: string;
+  skillDescription?: string;
+  topic?: string;
 }> {
-  const skillLower = skillName.toLowerCase();
-  const subjectLower = subject.toLowerCase();
+  console.log(`🔍 Looking for skill "${skillName}" in database for ${subject} ${grade}`);
   
-  // Content skill patterns (specific to academic subjects)
-  const contentPatterns = [
-    'algebra', 'geometry', 'calculus', 'trigonometry', 'fractions', 'equations', 'polynomials',
-    'chemistry', 'physics', 'biology', 'anatomy', 'genetics', 'ecology',
-    'grammar', 'vocabulary', 'literature', 'writing', 'poetry', 'essay',
-    'history', 'geography', 'economics', 'government', 'civics'
-  ];
-  
-  // Subject skill patterns (transferable across subjects)
-  const subjectPatterns = [
-    'critical thinking', 'problem solving', 'analytical reasoning', 'logical reasoning',
-    'reading comprehension', 'communication', 'research skills', 'study skills',
-    'data analysis', 'interpretation', 'evaluation', 'synthesis'
-  ];
-  
-  let isContentSkill = false;
-  let isSubjectSkill = false;
-  let classification = 'content'; // default
-  
-  // Check content patterns
-  for (const pattern of contentPatterns) {
-    if (skillLower.includes(pattern) || subjectLower.includes(pattern)) {
-      isContentSkill = true;
-      classification = 'content';
-      break;
-    }
+  // First, check content_skills table
+  const { data: contentSkills, error: contentError } = await supabase
+    .from('content_skills')
+    .select('*')
+    .eq('skill_name', skillName)
+    .eq('subject', subject)
+    .eq('grade', grade);
+
+  if (contentError) {
+    console.error('❌ Error querying content_skills:', contentError);
+  } else if (contentSkills && contentSkills.length > 0) {
+    console.log(`✅ Found content skill: ${skillName}`);
+    return {
+      skillType: 'content',
+      isContentSkill: true,
+      isSubjectSkill: false,
+      classification: 'content_skill_from_database',
+      skillDescription: contentSkills[0].skill_description,
+      topic: contentSkills[0].topic
+    };
   }
-  
-  // Check subject patterns (these take precedence if found)
-  for (const pattern of subjectPatterns) {
-    if (skillLower.includes(pattern)) {
-      isSubjectSkill = true;
-      classification = 'subject';
-      break;
-    }
+
+  // Then, check subject_skills table
+  const { data: subjectSkills, error: subjectError } = await supabase
+    .from('subject_skills')
+    .select('*')
+    .eq('skill_name', skillName)
+    .eq('subject', subject)
+    .eq('grade', grade);
+
+  if (subjectError) {
+    console.error('❌ Error querying subject_skills:', subjectError);
+  } else if (subjectSkills && subjectSkills.length > 0) {
+    console.log(`✅ Found subject skill: ${skillName}`);
+    return {
+      skillType: 'subject',
+      isContentSkill: false,
+      isSubjectSkill: true,
+      classification: 'subject_skill_from_database',
+      skillDescription: subjectSkills[0].skill_description
+    };
   }
-  
-  // If neither pattern matches, classify based on subject context
-  if (!isContentSkill && !isSubjectSkill) {
-    // Math/Science subjects tend to have more content skills
-    if (['math', 'mathematics', 'science', 'chemistry', 'physics', 'biology'].some(s => subjectLower.includes(s))) {
-      isContentSkill = true;
-      classification = 'content';
-    } else {
-      // Liberal arts tend to have more subject skills
-      isSubjectSkill = true;
-      classification = 'subject';
-    }
-  }
-  
-  return {
-    skillType: classification,
-    isContentSkill,
-    isSubjectSkill,
-    classification: `${classification}_skill_detected_via_${isContentSkill || isSubjectSkill ? 'pattern' : 'subject_context'}`
-  };
+
+  // If not found in either table, throw an error
+  console.error(`❌ Skill "${skillName}" not found in database for ${subject} ${grade}`);
+  throw new Error(`Skill "${skillName}" not found in the curriculum for ${subject} ${grade}. Please select a skill from the available curriculum.`);
 }
 
 function buildStudentPracticePrompt(request: StudentPracticeRequest, difficultyLevel: string, skillMetadata: any): string {
@@ -154,9 +146,19 @@ function buildStudentPracticePrompt(request: StudentPracticeRequest, difficultyL
   };
 
   const targetImprovement = Math.min(currentSkillScore + 15, 95);
+  
+  // Build skill context from database information
+  let skillContext = `Focus on the curriculum skill: "${skillName}"`;
+  if (skillMetadata.skillDescription) {
+    skillContext += `\nSkill Description: ${skillMetadata.skillDescription}`;
+  }
+  if (skillMetadata.topic) {
+    skillContext += `\nTopic: ${skillMetadata.topic}`;
+  }
+  
   const skillTypeGuidance = skillMetadata.skillType === 'content' 
-    ? 'Focus on specific academic content and knowledge application.'
-    : 'Emphasize transferable thinking skills and analytical processes.';
+    ? 'Focus on specific academic content knowledge and concepts as defined in the curriculum.'
+    : 'Emphasize transferable thinking skills and analytical processes as defined in the curriculum.';
 
   return `Create a personalized practice exercise for ${studentName} in ${className} (${subject}, ${grade}).
 
@@ -166,13 +168,18 @@ STUDENT CONTEXT:
 - Difficulty level: ${difficultyLevel}
 - Skill type: ${skillMetadata.skillType} (${skillTypeGuidance})
 
+CURRICULUM SKILL INFORMATION:
+${skillContext}
+
 EXERCISE REQUIREMENTS:
 - Generate exactly ${questionCount} questions targeting "${skillName}"
+- Questions must align with the official curriculum skill description
 - Difficulty: ${difficultyGuidance[difficultyLevel]}
 - Include explanations and hints for each question
 - Focus on areas where students typically struggle at this skill level
 - Make questions engaging and relatable to ${grade} students
 - Ensure questions align with ${skillMetadata.skillType} skill development
+${skillMetadata.topic ? `- Incorporate concepts from the topic: "${skillMetadata.topic}"` : ''}
 
 FORMAT AS JSON:
 {
@@ -277,8 +284,16 @@ async function generateStudentPracticeExercise(request: StudentPracticeRequest):
     throw new Error('OpenAI API key not configured');
   }
 
+  // First, validate and find the skill in the database
+  let skillMetadata;
+  try {
+    skillMetadata = await findSkillInDatabase(request.skillName, request.subject, request.grade);
+  } catch (error) {
+    console.error('❌ Skill validation failed:', error);
+    throw error;
+  }
+
   const difficultyLevel = determineDifficultyLevel(request.currentSkillScore, request.preferredDifficulty);
-  const skillMetadata = await detectSkillType(request.skillName, request.subject);
   const sessionId = await createPracticeSession(request, difficultyLevel);
   
   // Update analytics in background
@@ -298,7 +313,7 @@ async function generateStudentPracticeExercise(request: StudentPracticeRequest):
         messages: [
           {
             role: 'system',
-            content: `You are an expert tutor creating personalized practice exercises. Generate adaptive questions that help students improve specific skills. Focus on encouraging learning and building confidence. Always respond with valid JSON only.`
+            content: `You are an expert tutor creating personalized practice exercises based on official curriculum skills. Generate adaptive questions that help students improve specific skills according to their curriculum definitions. Focus on encouraging learning and building confidence. Always respond with valid JSON only.`
           },
           {
             role: 'user',
@@ -331,7 +346,7 @@ async function generateStudentPracticeExercise(request: StudentPracticeRequest):
       throw new Error('Invalid JSON response from OpenAI');
     }
 
-    // Add enhanced metadata including skill classification
+    // Add enhanced metadata including skill classification from database
     practiceExercise.metadata = {
       skillName: request.skillName,
       currentSkillScore: request.currentSkillScore,
