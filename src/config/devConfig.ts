@@ -22,6 +22,7 @@ export const MOCK_USER_DATA = {
       email: 'mr.cullen@school.edu',
       full_name: 'Mr. Cullen',
       role: 'teacher' as const,
+      teacher_id: 'TCH001',
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     }
