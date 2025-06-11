@@ -1,3 +1,4 @@
+
 import { supabase } from "@/integrations/supabase/client";
 import type { GradingResult, TestAnalysisResult, SkillScore } from './jsonValidationService';
 
@@ -359,5 +360,3 @@ export class TransactionService {
 
 // Export enhanced singleton instance
 export const transactionService = new TransactionService();
-
-}
