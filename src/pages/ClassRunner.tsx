@@ -171,7 +171,7 @@ export default function ClassRunner() {
                     <GraduationCap className="h-8 w-8" />
                   </div>
                   <div>
-                    <h1 className="text-4xl font-bold">ClassRunner</h1>
+                    <h1 className="text-4xl font-bold bg-gradient-to-r from-yellow-400 to-green-400 bg-clip-text text-transparent">ClassRunner</h1>
                     <p className="text-blue-100 text-lg">Manage and run your classes efficiently</p>
                   </div>
                 </div>
@@ -222,7 +222,7 @@ export default function ClassRunner() {
             </div>
           ) : (
             <div className="mb-6">
-              <h1 className="text-3xl font-bold text-gray-900 mb-2">ClassRunner</h1>
+              <h1 className="text-3xl font-bold bg-gradient-to-r from-yellow-400 to-green-400 bg-clip-text text-transparent mb-2">ClassRunner</h1>
               <p className="text-gray-600">Manage and run your classes efficiently</p>
             </div>
           )}
