@@ -102,7 +102,7 @@ export function ClassView({ onSelectStudent }: ClassViewProps) {
     try {
       await deleteActiveClass(classId);
       setClasses(prevClasses => prevClasses.filter(cls => cls.id !== classId));
-      toast.success(`Class "${className}" has been deleted`);
+      toast.success(`Class "${className}" and all associated data have been deleted`);
     } catch (error) {
       console.error('Error deleting class:', error);
       toast.error('Failed to delete class. Please try again.');
@@ -444,8 +444,22 @@ export function ClassView({ onSelectStudent }: ClassViewProps) {
                     <AlertDialogContent>
                       <AlertDialogHeader>
                         <AlertDialogTitle>Delete Class</AlertDialogTitle>
-                        <AlertDialogDescription>
-                          Are you sure you want to delete "{classItem.name}"? This action cannot be undone and will remove all class data.
+                        <AlertDialogDescription className="space-y-2">
+                          <p>
+                            Are you sure you want to delete "{classItem.name}"? 
+                          </p>
+                          <p className="text-red-600 font-medium">
+                            ⚠️ This action will permanently delete:
+                          </p>
+                          <ul className="text-sm text-red-600 ml-4 space-y-1">
+                            <li>• The class and all student enrollments</li>
+                            <li>• All exams created for this class</li>
+                            <li>• All answer keys and test data</li>
+                            <li>• All skill mappings and content links</li>
+                          </ul>
+                          <p className="text-red-600 font-medium">
+                            This action cannot be undone.
+                          </p>
                         </AlertDialogDescription>
                       </AlertDialogHeader>
                       <AlertDialogFooter>
@@ -454,7 +468,7 @@ export function ClassView({ onSelectStudent }: ClassViewProps) {
                           onClick={() => handleDeleteClass(classItem.id, classItem.name)}
                           className="bg-red-600 hover:bg-red-700"
                         >
-                          Delete
+                          Delete Class & All Data
                         </AlertDialogAction>
                       </AlertDialogFooter>
                     </AlertDialogContent>

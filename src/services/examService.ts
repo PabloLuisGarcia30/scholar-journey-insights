@@ -303,8 +303,76 @@ export const updateActiveClass = async (
 
 export const deleteActiveClass = async (classId: string): Promise<void> => {
   try {
-    console.log('Deleting active class:', classId);
+    console.log('Deleting active class with cascade:', classId);
     
+    // Start a transaction-like approach by deleting related data first
+    
+    // Step 1: Get all exams for this class
+    const { data: exams, error: examError } = await supabase
+      .from('exams')
+      .select('exam_id')
+      .eq('class_id', classId);
+
+    if (examError) {
+      console.error('Error fetching exams for class:', examError);
+      throw new Error(`Failed to fetch exams for class: ${examError.message}`);
+    }
+
+    // Step 2: Delete answer keys for all exams in this class
+    if (exams && exams.length > 0) {
+      const examIds = exams.map(exam => exam.exam_id);
+      
+      for (const examId of examIds) {
+        const { error: answerKeyError } = await supabase
+          .from('answer_keys')
+          .delete()
+          .eq('exam_id', examId);
+
+        if (answerKeyError) {
+          console.error('Error deleting answer keys for exam:', examId, answerKeyError);
+          throw new Error(`Failed to delete answer keys for exam ${examId}: ${answerKeyError.message}`);
+        }
+        
+        console.log(`Deleted answer keys for exam: ${examId}`);
+      }
+    }
+
+    // Step 3: Delete all exams for this class
+    const { error: deleteExamsError } = await supabase
+      .from('exams')
+      .delete()
+      .eq('class_id', classId);
+
+    if (deleteExamsError) {
+      console.error('Error deleting exams for class:', deleteExamsError);
+      throw new Error(`Failed to delete exams for class: ${deleteExamsError.message}`);
+    }
+
+    console.log(`Deleted exams for class: ${classId}`);
+
+    // Step 4: Delete class content skill links
+    const { error: contentSkillError } = await supabase
+      .from('class_content_skills')
+      .delete()
+      .eq('class_id', classId);
+
+    if (contentSkillError) {
+      console.error('Error deleting class content skills:', contentSkillError);
+      throw new Error(`Failed to delete class content skills: ${contentSkillError.message}`);
+    }
+
+    // Step 5: Delete class subject skill links
+    const { error: subjectSkillError } = await supabase
+      .from('class_subject_skills')
+      .delete()
+      .eq('class_id', classId);
+
+    if (subjectSkillError) {
+      console.error('Error deleting class subject skills:', subjectSkillError);
+      throw new Error(`Failed to delete class subject skills: ${subjectSkillError.message}`);
+    }
+
+    // Step 6: Finally delete the class itself
     const { error } = await supabase
       .from('active_classes')
       .delete()
@@ -314,6 +382,8 @@ export const deleteActiveClass = async (classId: string): Promise<void> => {
       console.error('Error deleting active class:', error);
       throw new Error(`Failed to delete active class: ${error.message}`);
     }
+
+    console.log(`Successfully deleted class and all related data: ${classId}`);
   } catch (error) {
     console.error('Error in deleteActiveClass:', error);
     throw error;
