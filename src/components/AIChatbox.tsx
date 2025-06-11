@@ -1,15 +1,25 @@
+
 import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Send, Bot, User, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { PracticeRecommendations } from "./PracticeRecommendations";
 
 interface Message {
   id: string;
   content: string;
   sender: 'user' | 'ai';
   timestamp: Date;
+  practiceRecommendations?: Array<{
+    skillName: string;
+    currentScore: number;
+    difficulty: 'Review' | 'Standard' | 'Challenge';
+    estimatedTime: string;
+    expectedImprovement: string;
+    category: 'PRIORITY' | 'REVIEW' | 'CHALLENGE';
+  }>;
 }
 
 interface StudentContext {
@@ -22,6 +32,7 @@ interface StudentContext {
   subjectSkillScores: any[];
   testResults: any[];
   groupedSkills: Record<string, any[]>;
+  classId?: string;
 }
 
 interface AIChatboxProps {
@@ -32,7 +43,7 @@ export function AIChatbox({ studentContext }: AIChatboxProps) {
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
-      content: `Hi ${studentContext.studentName}! 👋 I'm your AI learning assistant. Let's reach your goals! I can help you understand your progress in ${studentContext.classSubject}, answer questions about your test scores, and suggest ways to improve. What would you like to know?`,
+      content: `Hi ${studentContext.studentName}! 👋 I'm your AI learning assistant. Let's reach your goals! I can help you understand your progress in ${studentContext.classSubject}, answer questions about your test scores, and suggest ways to improve. Ask me "What should I work on?" for personalized practice recommendations!`,
       sender: 'ai',
       timestamp: new Date()
     }
@@ -54,6 +65,59 @@ export function AIChatbox({ studentContext }: AIChatboxProps) {
     scrollToBottom();
   }, [messages]);
 
+  const parsePracticeRecommendations = (content: string) => {
+    const practiceStart = content.indexOf('**PRACTICE_RECOMMENDATIONS**');
+    const practiceEnd = content.indexOf('**END_PRACTICE_RECOMMENDATIONS**');
+    
+    if (practiceStart === -1 || practiceEnd === -1) {
+      return { cleanContent: content, recommendations: [] };
+    }
+
+    const practiceSection = content.substring(practiceStart + 29, practiceEnd).trim();
+    const cleanContent = content.replace(content.substring(practiceStart, practiceEnd + 33), '').trim();
+    
+    const recommendations: any[] = [];
+    const lines = practiceSection.split('\n').filter(line => line.trim());
+    
+    let currentCategory = '';
+    
+    lines.forEach(line => {
+      line = line.trim();
+      
+      if (line.includes('PRIORITY')) {
+        currentCategory = 'PRIORITY';
+      } else if (line.includes('REVIEW')) {
+        currentCategory = 'REVIEW';
+      } else if (line.includes('CHALLENGE')) {
+        currentCategory = 'CHALLENGE';
+      } else if (line.startsWith('- ') && currentCategory) {
+        // Parse recommendation line: "- Skill Name: 65% | Difficulty: Review | Time: 15-20 min | Improvement: +15-20%"
+        const parts = line.substring(2).split(' | ');
+        if (parts.length >= 4) {
+          const [skillPart, difficultyPart, timePart, improvementPart] = parts;
+          const [skillName, scoreStr] = skillPart.split(': ');
+          const currentScore = parseInt(scoreStr?.replace('%', '') || '0');
+          const difficulty = difficultyPart.split(': ')[1]?.trim() as 'Review' | 'Standard' | 'Challenge';
+          const estimatedTime = timePart.split(': ')[1]?.trim() || '';
+          const expectedImprovement = improvementPart.split(': ')[1]?.trim() || '';
+          
+          if (skillName && difficulty) {
+            recommendations.push({
+              skillName: skillName.trim(),
+              currentScore,
+              difficulty,
+              estimatedTime,
+              expectedImprovement,
+              category: currentCategory
+            });
+          }
+        }
+      }
+    });
+
+    return { cleanContent, recommendations };
+  };
+
   const handleSendMessage = async () => {
     if (!inputValue.trim() || isLoading) return;
 
@@ -69,11 +133,14 @@ export function AIChatbox({ studentContext }: AIChatboxProps) {
     setIsLoading(true);
 
     try {
-      // Call the real AI chat edge function
+      // Call the AI chat edge function
       const { data, error } = await supabase.functions.invoke('ai-chat', {
         body: {
           message: inputValue,
-          studentContext: studentContext
+          studentContext: {
+            ...studentContext,
+            classId: studentContext.classId
+          }
         }
       });
 
@@ -81,11 +148,14 @@ export function AIChatbox({ studentContext }: AIChatboxProps) {
         throw error;
       }
 
+      const { cleanContent, recommendations } = parsePracticeRecommendations(data.response || "I'm sorry, I couldn't generate a response. Please try again.");
+
       const aiMessage: Message = {
         id: (Date.now() + 1).toString(),
-        content: data.response || "I'm sorry, I couldn't generate a response. Please try again.",
+        content: cleanContent,
         sender: 'ai',
-        timestamp: new Date()
+        timestamp: new Date(),
+        practiceRecommendations: recommendations.length > 0 ? recommendations : undefined
       };
 
       setMessages(prev => [...prev, aiMessage]);
@@ -131,41 +201,52 @@ export function AIChatbox({ studentContext }: AIChatboxProps) {
       <ScrollArea ref={scrollAreaRef} className="flex-1 p-4">
         <div className="space-y-4">
           {messages.map((message) => (
-            <div
-              key={message.id}
-              className={`flex items-start gap-3 ${
-                message.sender === 'user' ? 'flex-row-reverse' : ''
-              }`}
-            >
+            <div key={message.id} className="space-y-3">
               <div
-                className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 ${
-                  message.sender === 'user'
-                    ? 'bg-gradient-to-br from-green-500 to-emerald-600'
-                    : 'bg-gradient-to-br from-blue-500 to-indigo-600'
+                className={`flex items-start gap-3 ${
+                  message.sender === 'user' ? 'flex-row-reverse' : ''
                 }`}
               >
-                {message.sender === 'user' ? (
-                  <User className="w-3.5 h-3.5 text-white" />
-                ) : (
-                  <Bot className="w-3.5 h-3.5 text-white" />
-                )}
-              </div>
-              <div
-                className={`max-w-[70%] rounded-2xl px-4 py-2 ${
-                  message.sender === 'user'
-                    ? 'bg-gradient-to-br from-green-500 to-emerald-600 text-white'
-                    : 'bg-white border border-gray-200 text-gray-900 shadow-sm'
-                }`}
-              >
-                <p className="text-sm leading-relaxed">{message.content}</p>
-                <p
-                  className={`text-xs mt-1 ${
-                    message.sender === 'user' ? 'text-green-100' : 'text-gray-500'
+                <div
+                  className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 ${
+                    message.sender === 'user'
+                      ? 'bg-gradient-to-br from-green-500 to-emerald-600'
+                      : 'bg-gradient-to-br from-blue-500 to-indigo-600'
                   }`}
                 >
-                  {formatTime(message.timestamp)}
-                </p>
+                  {message.sender === 'user' ? (
+                    <User className="w-3.5 h-3.5 text-white" />
+                  ) : (
+                    <Bot className="w-3.5 h-3.5 text-white" />
+                  )}
+                </div>
+                <div
+                  className={`max-w-[70%] rounded-2xl px-4 py-2 ${
+                    message.sender === 'user'
+                      ? 'bg-gradient-to-br from-green-500 to-emerald-600 text-white'
+                      : 'bg-white border border-gray-200 text-gray-900 shadow-sm'
+                  }`}
+                >
+                  <p className="text-sm leading-relaxed">{message.content}</p>
+                  <p
+                    className={`text-xs mt-1 ${
+                      message.sender === 'user' ? 'text-green-100' : 'text-gray-500'
+                    }`}
+                  >
+                    {formatTime(message.timestamp)}
+                  </p>
+                </div>
               </div>
+              
+              {/* Practice Recommendations */}
+              {message.practiceRecommendations && (
+                <div className="ml-10">
+                  <PracticeRecommendations 
+                    recommendations={message.practiceRecommendations}
+                    classId={studentContext.classId}
+                  />
+                </div>
+              )}
             </div>
           ))}
           {isLoading && (
@@ -191,7 +272,7 @@ export function AIChatbox({ studentContext }: AIChatboxProps) {
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
             onKeyPress={handleKeyPress}
-            placeholder="Ask me about your progress, test scores, or how to improve..."
+            placeholder="Ask me about your progress, test scores, or 'What should I work on?'..."
             className="flex-1 border-blue-200 focus:border-blue-400 focus:ring-blue-400"
             disabled={isLoading}
           />

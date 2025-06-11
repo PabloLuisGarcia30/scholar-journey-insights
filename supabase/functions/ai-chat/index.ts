@@ -41,6 +41,23 @@ serve(async (req) => {
     const lowContentSkills = contentSkillDetails.filter(skill => skill.score < 80);
     const lowSubjectSkills = subjectSkillDetails.filter(skill => skill.score < 80);
 
+    // Combine all skills for practice recommendations
+    const allSkills = [...contentSkillDetails, ...subjectSkillDetails];
+    const prioritySkills = allSkills.filter(skill => skill.score < 70).slice(0, 3);
+    const reviewSkills = allSkills.filter(skill => skill.score >= 70 && skill.score < 85).slice(0, 2);
+    const challengeSkills = allSkills.filter(skill => skill.score >= 85).slice(0, 2);
+
+    // Check if this is a practice-related question
+    const practiceKeywords = [
+      'what should i work on', 'what to practice', 'what to study', 'what should i practice',
+      'help me practice', 'create practice', 'generate practice', 'practice recommendations',
+      'what to improve', 'areas to focus', 'skills to work on', 'study suggestions'
+    ];
+    
+    const isPracticeQuestion = practiceKeywords.some(keyword => 
+      message.toLowerCase().includes(keyword)
+    );
+
     // Group skills by topics for better context
     const skillsByTopic = Object.entries(studentContext.groupedSkills).map(([topic, skills]) => ({
       topic,
@@ -51,7 +68,7 @@ serve(async (req) => {
       }))
     }));
 
-    // Create a comprehensive system prompt with detailed skill analysis
+    // Create a comprehensive system prompt with practice recommendations capability
     const systemPrompt = `You are an AI learning assistant helping ${studentContext.studentName} in their ${studentContext.classSubject} class (${studentContext.classGrade}). 
 
     Student Context:
@@ -85,9 +102,25 @@ serve(async (req) => {
       - Latest test: ${Math.round(studentContext.testResults[0]?.overall_score || 0)}%` : 
       '- No test results yet'
     }
-    
+
+    PRACTICE RECOMMENDATION SYSTEM:
+    When students ask about what to practice, study, or work on, you should provide specific practice exercise recommendations using this special format:
+
+    **PRACTICE_RECOMMENDATIONS**
+    ${prioritySkills.length > 0 ? `
+    PRIORITY (Needs immediate attention):
+    ${prioritySkills.map(skill => `- ${skill.name}: ${skill.score}% | Difficulty: Review | Time: 15-20 min | Improvement: +15-20%`).join('\n')}` : ''}
+    ${reviewSkills.length > 0 ? `
+    REVIEW (Strengthen understanding):
+    ${reviewSkills.map(skill => `- ${skill.name}: ${skill.score}% | Difficulty: Standard | Time: 10-15 min | Improvement: +10-15%`).join('\n')}` : ''}
+    ${challengeSkills.length > 0 ? `
+    CHALLENGE (Advanced practice):
+    ${challengeSkills.map(skill => `- ${skill.name}: ${skill.score}% | Difficulty: Challenge | Time: 20-25 min | Improvement: +5-10%`).join('\n')}` : ''}
+    **END_PRACTICE_RECOMMENDATIONS**
+
     Your role:
     - Be encouraging, supportive, and motivational
+    - When asked about practice or what to work on, ALWAYS include the PRACTICE_RECOMMENDATIONS section
     - When asked about low scores or areas to improve, specifically reference the skills listed above under "LOW-SCORING AREAS"
     - Provide specific, actionable study advice based on actual skill scores
     - Help analyze their progress and identify improvement areas using the detailed data provided
@@ -104,7 +137,7 @@ serve(async (req) => {
     - When identifying weak areas, list specific skill names and their scores
     - Prioritize improvement suggestions based on actual score data
     
-    Keep responses concise (2-3 sentences usually) unless they ask for detailed explanations.`;
+    Keep responses concise (2-3 sentences usually) unless they ask for detailed explanations or practice recommendations.`;
 
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
@@ -119,7 +152,7 @@ serve(async (req) => {
           { role: 'user', content: message }
         ],
         temperature: 0.7,
-        max_tokens: 400,
+        max_tokens: 600,
       }),
     });
 
