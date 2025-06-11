@@ -13,7 +13,7 @@ export interface NextClassInfo {
 }
 
 export function getNextClassDate(classData: ActiveClassWithDuration | null): NextClassInfo | null {
-  if (!classData?.day_of_week || !classData?.class_time) {
+  if (!classData?.day_of_week || !classData?.class_time || classData.day_of_week.length === 0) {
     return null;
   }
 
@@ -28,18 +28,24 @@ export function getNextClassDate(classData: ActiveClassWithDuration | null): Nex
     'Saturday': 6
   };
 
-  const classDayNumber = dayMap[classData.day_of_week];
-  if (classDayNumber === undefined) {
+  // Convert class days to numbers
+  const classDayNumbers = classData.day_of_week
+    .map(day => dayMap[day])
+    .filter(dayNum => dayNum !== undefined);
+
+  if (classDayNumbers.length === 0) {
     return null;
   }
 
-  // Find the next occurrence of the class day
+  // Find the next occurrence of any class day
   let nextClassDate = today;
   let daysToAdd = 0;
+  let foundDay = false;
   
-  do {
+  for (let i = 0; i < 14; i++) { // Look up to 2 weeks ahead
     const currentDay = getDay(nextClassDate);
-    if (currentDay === classDayNumber) {
+    
+    if (classDayNumbers.includes(currentDay)) {
       // If it's today, check if class time hasn't passed yet
       if (daysToAdd === 0) {
         const now = new Date();
@@ -47,17 +53,24 @@ export function getNextClassDate(classData: ActiveClassWithDuration | null): Nex
         const classTime = new Date();
         classTime.setHours(hours, minutes, 0, 0);
         
-        // If class time has passed today, look for next week
+        // If class time has passed today, continue looking for next occurrence
         if (now > classTime) {
-          daysToAdd = 7;
+          daysToAdd++;
           nextClassDate = addDays(today, daysToAdd);
+          continue;
         }
       }
+      foundDay = true;
       break;
     }
+    
     daysToAdd++;
     nextClassDate = addDays(today, daysToAdd);
-  } while (daysToAdd < 7);
+  }
+
+  if (!foundDay) {
+    return null;
+  }
 
   // Format the time
   const formatTime = (timeString: string) => {
