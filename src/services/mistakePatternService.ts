@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 import { ConceptMissedService } from './conceptMissedService';
 import { ConceptualAnchorService } from './conceptualAnchorService';
@@ -233,7 +232,7 @@ export class MistakePatternService {
   }
 
   /**
-   * Get mistake patterns for a student
+   * Get mistake patterns for a student - returns detailed records
    */
   static async getStudentMistakePatterns(
     studentId: string, 
@@ -242,10 +241,38 @@ export class MistakePatternService {
     try {
       console.log(`📊 Fetching mistake patterns for student: ${studentId}`);
       
-      const { data, error } = await supabase.rpc('get_student_mistake_patterns', {
-        student_uuid: studentId,
-        skill_filter: skillFilter || null
-      });
+      // Query the mistake_patterns table directly to get detailed records
+      let query = supabase
+        .from('mistake_patterns')
+        .select(`
+          id,
+          student_exercise_id,
+          question_id,
+          question_number,
+          question_type,
+          student_answer,
+          correct_answer,
+          is_correct,
+          skill_targeted,
+          mistake_type,
+          confidence_score,
+          grading_method,
+          feedback_given,
+          question_context,
+          expected_concept,
+          concept_mastery_level,
+          concept_source,
+          context_when_error_occurred,
+          created_at,
+          student_exercises!inner(student_id)
+        `)
+        .eq('student_exercises.student_id', studentId);
+
+      if (skillFilter) {
+        query = query.eq('skill_targeted', skillFilter);
+      }
+
+      const { data, error } = await query;
 
       if (error) {
         console.error('❌ Error fetching mistake patterns:', error);

@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 
 export interface ConceptIndexEntry {
@@ -331,13 +330,17 @@ Output format (JSON only):
   }
   
   /**
-   * Increment usage count for a concept
+   * Increment usage count for a concept using direct update
    */
   private static async incrementConceptUsage(conceptId: string): Promise<void> {
     try {
-      const { error } = await supabase.rpc('increment_concept_usage', {
-        concept_id: conceptId
-      });
+      const { error } = await supabase
+        .from('concept_index')
+        .update({ 
+          usage_count: supabase.sql`usage_count + 1`,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', conceptId);
       
       if (error) {
         console.error('❌ Error incrementing concept usage:', error);
