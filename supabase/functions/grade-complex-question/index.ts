@@ -207,7 +207,7 @@ async function processSkillEscalation(requestBody: any, openAIApiKey: string) {
     studentAnswer,
     availableSkills,
     escalationPrompt,
-    model = 'gpt-4.1-2025-04-14'
+    model = 'gpt-4o' // Changed from gpt-4.1-2025-04-14 to gpt-4o
   } = requestBody;
 
   console.log(`🎯 Processing skill escalation for Q${questionNumber} using ${model}`);
@@ -407,6 +407,43 @@ async function processSingleQuestion(requestBody: any, openAIApiKey: string) {
   }
 }
 
+function createSingleQuestionPrompt(requestBody: any): string {
+  const {
+    questionText,
+    studentAnswer,
+    correctAnswer,
+    pointsPossible,
+    questionNumber,
+    studentName,
+    skillContext
+  } = requestBody;
+
+  return `Grade this student's answer and provide detailed analysis.
+
+QUESTION: ${questionText}
+STUDENT ANSWER: "${studentAnswer}"
+CORRECT ANSWER: "${correctAnswer}"
+POINTS POSSIBLE: ${pointsPossible}
+SKILL CONTEXT: ${skillContext || 'General'}
+
+REQUIRED OUTPUT FORMAT (JSON):
+{
+  "isCorrect": true,
+  "pointsEarned": 2,
+  "confidence": 0.95,
+  "reasoning": "Detailed explanation of grading decision",
+  "complexityScore": 0.6,
+  "reasoningDepth": "medium"
+}
+
+GRADING INSTRUCTIONS:
+- Award full points for completely correct answers
+- Consider partial credit for partially correct responses
+- Analyze the complexity and reasoning depth
+- Provide confidence based on answer clarity
+- Give detailed reasoning for the grading decision`;
+}
+
 function createEnhancedBatchPrompt(questions: any[], rubric?: string): string {
   const questionCount = questions.length;
   const delimiter = '---END QUESTION---';
@@ -506,4 +543,3 @@ function validateAndSanitizeEnhancedBatchResults(results: any, questions: any[])
 
   return { results: sanitizedResults };
 }
-
