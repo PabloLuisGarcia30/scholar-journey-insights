@@ -14,7 +14,7 @@ export interface ComplexityFactors {
 
 export interface ComplexityAnalysis {
   complexityScore: number;
-  recommendedModel: 'gpt-4o-mini' | 'gpt-4.1-2025-04-14' | 'local_distilbert';
+  recommendedModel: 'gpt-4o-mini' | 'gpt-4o' | 'local_distilbert';
   factors: ComplexityFactors;
   reasoning: string[];
   confidenceInDecision: number;
@@ -22,7 +22,7 @@ export interface ComplexityAnalysis {
 
 export interface ModelRoutingDecision {
   questionNumber: number;
-  selectedModel: 'gpt-4o-mini' | 'gpt-4.1-2025-04-14' | 'local_distilbert';
+  selectedModel: 'gpt-4o-mini' | 'gpt-4o' | 'local_distilbert';
   complexityAnalysis: ComplexityAnalysis;
   fallbackAvailable: boolean;
   estimatedCost: number;
@@ -34,7 +34,7 @@ export interface AIOptimizationConfig {
   complexThreshold: number;
   fallbackConfidenceThreshold: number;
   gpt4oMiniCost: number;
-  gpt41Cost: number;
+  gpt4oCost: number; // Changed from gpt41Cost to gpt4oCost
   enableAdaptiveThresholds: boolean;
   validationMode: boolean;
   // Enhanced batch processing features
@@ -52,7 +52,7 @@ export const DEFAULT_CONFIG: AIOptimizationConfig = {
   complexThreshold: 60,
   fallbackConfidenceThreshold: 70,
   gpt4oMiniCost: 0.00015,
-  gpt41Cost: 0.003,
+  gpt4oCost: 0.003, // Changed from gpt41Cost to gpt4oCost
   enableAdaptiveThresholds: false,
   validationMode: false,
   // Enhanced features
@@ -316,7 +316,7 @@ export class SharedQuestionComplexityAnalyzer {
     
     return {
       complexityScore,
-      recommendedModel: complexityScore <= this.config.simpleThreshold ? 'gpt-4o-mini' : 'gpt-4.1-2025-04-14',
+      recommendedModel: complexityScore <= this.config.simpleThreshold ? 'gpt-4o-mini' : 'gpt-4o',
       factors,
       reasoning,
       confidenceInDecision: this.calculateDecisionConfidence(factors, complexityScore)
@@ -431,7 +431,7 @@ export class SharedQuestionComplexityAnalyzer {
     if (complexityScore <= this.config.simpleThreshold) {
       reasoning.push(`Low complexity (${complexityScore}) - suitable for GPT-4o-mini`);
     } else {
-      reasoning.push(`High complexity (${complexityScore}) - requires GPT-4.1`);
+      reasoning.push(`High complexity (${complexityScore}) - requires GPT-4o`);
     }
     
     if (factors.ocrConfidence > 85) {
@@ -468,8 +468,8 @@ export class SimplifiedFallbackAnalyzer {
     this.config = { ...DEFAULT_CONFIG, ...config };
   }
 
-  // Simplified decision tree for fallback logic
-  shouldFallbackToGPT41(gpt4oMiniResult: any, originalComplexity: ComplexityAnalysis) {
+  // Updated to reference GPT-4o instead of GPT-4.1
+  shouldFallbackToGPT4o(gpt4oMiniResult: any, originalComplexity: ComplexityAnalysis) {
     // Clear failure cases (high confidence fallback)
     if (!gpt4oMiniResult) {
       return { shouldFallback: true, reason: 'No result returned', confidence: 100 };
@@ -528,7 +528,7 @@ export class SharedAIModelRouter {
       const estimatedTokens = this.estimateTokens(question);
       const estimatedCost = analysis.recommendedModel === 'gpt-4o-mini' 
         ? this.config.gpt4oMiniCost 
-        : this.config.gpt41Cost;
+        : this.config.gpt4oCost;
       
       return {
         questionNumber: question.questionNumber,
@@ -542,15 +542,15 @@ export class SharedAIModelRouter {
 
     const distribution = this.calculateDistribution(routingDecisions);
     
-    console.log(`📊 Model Distribution: ${distribution.gpt4oMini} questions → GPT-4o-mini, ${distribution.gpt41} questions → GPT-4.1`);
+    console.log(`📊 Model Distribution: ${distribution.gpt4oMini} questions → GPT-4o-mini, ${distribution.gpt4o} questions → GPT-4o`);
     console.log(`💰 Estimated cost savings: ${distribution.estimatedCostSavings.toFixed(1)}%`);
 
     return { routingDecisions, distribution };
   }
 
-  // Use simplified fallback logic
-  shouldFallbackToGPT41(gpt4oMiniResult: any, originalComplexity: ComplexityAnalysis) {
-    return this.fallbackAnalyzer.shouldFallbackToGPT41(gpt4oMiniResult, originalComplexity).shouldFallback;
+  // Use simplified fallback logic - updated method name
+  shouldFallbackToGPT4o(gpt4oMiniResult: any, originalComplexity: ComplexityAnalysis) {
+    return this.fallbackAnalyzer.shouldFallbackToGPT4o(gpt4oMiniResult, originalComplexity).shouldFallback;
   }
 
   private estimateTokens(question: any): number {
@@ -564,16 +564,16 @@ export class SharedAIModelRouter {
 
   private calculateDistribution(decisions: ModelRoutingDecision[]) {
     const gpt4oMini = decisions.filter(d => d.selectedModel === 'gpt-4o-mini').length;
-    const gpt41 = decisions.filter(d => d.selectedModel === 'gpt-4.1-2025-04-14').length;
+    const gpt4o = decisions.filter(d => d.selectedModel === 'gpt-4o').length;
     const total = decisions.length;
 
-    const totalCostWithGPT41 = total * this.config.gpt41Cost;
-    const estimatedActualCost = gpt4oMini * this.config.gpt4oMiniCost + gpt41 * this.config.gpt41Cost;
-    const savings = total > 0 ? ((totalCostWithGPT41 - estimatedActualCost) / totalCostWithGPT41) * 100 : 0;
+    const totalCostWithGPT4o = total * this.config.gpt4oCost;
+    const estimatedActualCost = gpt4oMini * this.config.gpt4oMiniCost + gpt4o * this.config.gpt4oCost;
+    const savings = total > 0 ? ((totalCostWithGPT4o - estimatedActualCost) / totalCostWithGPT4o) * 100 : 0;
 
     return {
       gpt4oMini,
-      gpt41,
+      gpt4o,
       totalQuestions: total,
       estimatedCostSavings: Math.max(0, savings)
     };
@@ -589,7 +589,7 @@ export class ConfigurationManager {
       complexThreshold: parseInt(process.env?.AI_COMPLEX_THRESHOLD || '60'),
       fallbackConfidenceThreshold: parseInt(process.env?.AI_FALLBACK_THRESHOLD || '70'),
       gpt4oMiniCost: parseFloat(process.env?.GPT4O_MINI_COST || '0.00015'),
-      gpt41Cost: parseFloat(process.env?.GPT41_COST || '0.003'),
+      gpt4oCost: parseFloat(process.env?.GPT4O_COST || '0.003'),
       enableAdaptiveThresholds: process.env?.AI_ADAPTIVE_THRESHOLDS === 'true',
       validationMode: process.env?.AI_VALIDATION_MODE === 'true',
       crossQuestionLeakagePrevention: true,

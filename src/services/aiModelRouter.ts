@@ -14,7 +14,7 @@ export interface BatchRoutingResult {
   routingDecisions: ModelRoutingDecision[];
   distribution: {
     gpt4oMini: number;
-    gpt4o: number; // Changed from gpt41 to gpt4o
+    gpt4o: number;
     totalQuestions: number;
     estimatedCostSavings: number;
   };
@@ -28,7 +28,7 @@ export interface BatchRoutingResult {
 export interface AIModelUsageStats {
   totalQuestions: number;
   gpt4oMiniUsed: number;
-  gpt4oUsed: number; // Changed from gpt41Used to gpt4oUsed
+  gpt4oUsed: number;
   fallbacksTriggered: number;
   costSavings: number;
   averageAccuracy: number;
@@ -65,27 +65,19 @@ export class AIModelRouter {
   static routeQuestionsForAI(questions: any[], answerKeys: any[]): BatchRoutingResult {
     const { routingDecisions, distribution } = this.sharedRouter.routeQuestionsForAI(questions, answerKeys);
     
-    // Update distribution to use gpt4o instead of gpt41
-    const updatedDistribution = {
-      gpt4oMini: distribution.gpt4oMini,
-      gpt4o: distribution.gpt41, // Map gpt41 to gpt4o
-      totalQuestions: distribution.totalQuestions,
-      estimatedCostSavings: distribution.estimatedCostSavings
-    };
-    
     // Calculate quality metrics
     const complexityAnalyses = routingDecisions.map(d => d.complexityAnalysis);
     const qualityMetrics = this.calculateQualityMetrics(complexityAnalyses);
 
     return {
       routingDecisions,
-      distribution: updatedDistribution,
+      distribution,
       qualityMetrics
     };
   }
 
   static shouldFallbackToGPT4o(gpt4oMiniResult: any, originalComplexity: ComplexityAnalysis): boolean {
-    const result = this.fallbackAnalyzer.shouldFallbackToGPT41(gpt4oMiniResult, originalComplexity);
+    const result = this.fallbackAnalyzer.shouldFallbackToGPT4o(gpt4oMiniResult, originalComplexity);
     
     if (result.shouldFallback) {
       console.log(`⚠️ Fallback to GPT-4o triggered: ${result.reason} (confidence: ${result.confidence}%)`);
@@ -112,10 +104,10 @@ export class AIModelRouter {
 
   static trackUsageStats(decisions: ModelRoutingDecision[], fallbacks: number = 0): AIModelUsageStats {
     const gpt4oMiniUsed = decisions.filter(d => d.selectedModel === 'gpt-4o-mini').length;
-    const gpt4oUsed = decisions.filter(d => d.selectedModel === 'gpt-4o').length + fallbacks; // Changed from gpt-4.1 to gpt-4o
+    const gpt4oUsed = decisions.filter(d => d.selectedModel === 'gpt-4o').length + fallbacks;
     
     const totalCost = decisions.reduce((sum, d) => sum + d.estimatedCost, 0);
-    const costIfAllGPT4o = decisions.length * DEFAULT_CONFIG.gpt41Cost; // Keep cost calculation same since gpt-4o has similar pricing
+    const costIfAllGPT4o = decisions.length * DEFAULT_CONFIG.gpt4oCost;
     const costSavings = costIfAllGPT4o > 0 ? ((costIfAllGPT4o - totalCost) / costIfAllGPT4o) * 100 : 0;
 
     return {
