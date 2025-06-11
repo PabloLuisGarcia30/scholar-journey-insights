@@ -246,61 +246,6 @@ export type Database = {
           },
         ]
       }
-      class_enrollments: {
-        Row: {
-          class_id: string
-          created_at: string
-          enrolled_at: string
-          enrolled_by: string | null
-          id: string
-          is_active: boolean
-          student_profile_id: string
-          updated_at: string
-        }
-        Insert: {
-          class_id: string
-          created_at?: string
-          enrolled_at?: string
-          enrolled_by?: string | null
-          id?: string
-          is_active?: boolean
-          student_profile_id: string
-          updated_at?: string
-        }
-        Update: {
-          class_id?: string
-          created_at?: string
-          enrolled_at?: string
-          enrolled_by?: string | null
-          id?: string
-          is_active?: boolean
-          student_profile_id?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "class_enrollments_class_id_fkey"
-            columns: ["class_id"]
-            isOneToOne: false
-            referencedRelation: "active_classes"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "class_enrollments_enrolled_by_fkey"
-            columns: ["enrolled_by"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "class_enrollments_student_profile_id_fkey"
-            columns: ["student_profile_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       class_sessions: {
         Row: {
           class_id: string
@@ -432,7 +377,6 @@ export type Database = {
       }
       content_skill_scores: {
         Row: {
-          authenticated_student_id: string | null
           created_at: string
           id: string
           points_earned: number
@@ -440,11 +384,9 @@ export type Database = {
           practice_exercise_id: string | null
           score: number
           skill_name: string
-          student_id: string | null
-          test_result_id: string | null
+          test_result_id: string
         }
         Insert: {
-          authenticated_student_id?: string | null
           created_at?: string
           id?: string
           points_earned: number
@@ -452,11 +394,9 @@ export type Database = {
           practice_exercise_id?: string | null
           score: number
           skill_name: string
-          student_id?: string | null
-          test_result_id?: string | null
+          test_result_id: string
         }
         Update: {
-          authenticated_student_id?: string | null
           created_at?: string
           id?: string
           points_earned?: number
@@ -464,29 +404,14 @@ export type Database = {
           practice_exercise_id?: string | null
           score?: number
           skill_name?: string
-          student_id?: string | null
-          test_result_id?: string | null
+          test_result_id?: string
         }
         Relationships: [
-          {
-            foreignKeyName: "content_skill_scores_authenticated_student_id_fkey"
-            columns: ["authenticated_student_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "content_skill_scores_practice_exercise_id_fkey"
             columns: ["practice_exercise_id"]
             isOneToOne: false
             referencedRelation: "student_exercises"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "content_skill_scores_student_id_fkey"
-            columns: ["student_id"]
-            isOneToOne: false
-            referencedRelation: "student_profiles"
             referencedColumns: ["id"]
           },
           {
@@ -662,7 +587,6 @@ export type Database = {
       }
       exam_skill_mappings: {
         Row: {
-          concept_missed_short: string | null
           confidence: number
           created_at: string
           exam_id: string
@@ -675,7 +599,6 @@ export type Database = {
           updated_at: string
         }
         Insert: {
-          concept_missed_short?: string | null
           confidence?: number
           created_at?: string
           exam_id: string
@@ -688,7 +611,6 @@ export type Database = {
           updated_at?: string
         }
         Update: {
-          concept_missed_short?: string | null
           confidence?: number
           created_at?: string
           exam_id?: string
@@ -698,51 +620,6 @@ export type Database = {
           skill_name?: string
           skill_type?: string
           skill_weight?: number
-          updated_at?: string
-        }
-        Relationships: []
-      }
-      exam_skill_rationales: {
-        Row: {
-          created_at: string
-          difficulty_analysis: string | null
-          exam_id: string
-          id: string
-          pedagogical_reasoning: string | null
-          prerequisite_gaps: string[] | null
-          question_number: number
-          rationale: string
-          skill_id: string
-          skill_name: string
-          skill_type: string
-          updated_at: string
-        }
-        Insert: {
-          created_at?: string
-          difficulty_analysis?: string | null
-          exam_id: string
-          id?: string
-          pedagogical_reasoning?: string | null
-          prerequisite_gaps?: string[] | null
-          question_number: number
-          rationale: string
-          skill_id: string
-          skill_name: string
-          skill_type: string
-          updated_at?: string
-        }
-        Update: {
-          created_at?: string
-          difficulty_analysis?: string | null
-          exam_id?: string
-          id?: string
-          pedagogical_reasoning?: string | null
-          prerequisite_gaps?: string[] | null
-          question_number?: number
-          rationale?: string
-          skill_id?: string
-          skill_name?: string
-          skill_type?: string
           updated_at?: string
         }
         Relationships: []
@@ -1327,54 +1204,6 @@ export type Database = {
           },
         ]
       }
-      student_class_enrollments: {
-        Row: {
-          class_id: string
-          created_at: string
-          enrolled_at: string
-          enrollment_method: string
-          id: string
-          is_active: boolean
-          student_id: string
-          updated_at: string
-        }
-        Insert: {
-          class_id: string
-          created_at?: string
-          enrolled_at?: string
-          enrollment_method?: string
-          id?: string
-          is_active?: boolean
-          student_id: string
-          updated_at?: string
-        }
-        Update: {
-          class_id?: string
-          created_at?: string
-          enrolled_at?: string
-          enrollment_method?: string
-          id?: string
-          is_active?: boolean
-          student_id?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "student_class_enrollments_class_id_fkey"
-            columns: ["class_id"]
-            isOneToOne: false
-            referencedRelation: "active_classes"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "student_class_enrollments_student_id_fkey"
-            columns: ["student_id"]
-            isOneToOne: false
-            referencedRelation: "student_profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       student_exercises: {
         Row: {
           class_session_id: string
@@ -1537,7 +1366,6 @@ export type Database = {
       }
       student_practice_sessions: {
         Row: {
-          authenticated_student_id: string | null
           class_id: string
           class_name: string
           completed_at: string | null
@@ -1558,7 +1386,6 @@ export type Database = {
           updated_at: string
         }
         Insert: {
-          authenticated_student_id?: string | null
           class_id: string
           class_name: string
           completed_at?: string | null
@@ -1579,7 +1406,6 @@ export type Database = {
           updated_at?: string
         }
         Update: {
-          authenticated_student_id?: string | null
           class_id?: string
           class_name?: string
           completed_at?: string | null
@@ -1599,15 +1425,7 @@ export type Database = {
           subject?: string
           updated_at?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "student_practice_sessions_authenticated_student_id_fkey"
-            columns: ["authenticated_student_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       student_profiles: {
         Row: {
@@ -1732,7 +1550,6 @@ export type Database = {
       }
       subject_skill_scores: {
         Row: {
-          authenticated_student_id: string | null
           created_at: string
           id: string
           points_earned: number
@@ -1740,11 +1557,9 @@ export type Database = {
           practice_exercise_id: string | null
           score: number
           skill_name: string
-          student_id: string | null
-          test_result_id: string | null
+          test_result_id: string
         }
         Insert: {
-          authenticated_student_id?: string | null
           created_at?: string
           id?: string
           points_earned: number
@@ -1752,11 +1567,9 @@ export type Database = {
           practice_exercise_id?: string | null
           score: number
           skill_name: string
-          student_id?: string | null
-          test_result_id?: string | null
+          test_result_id: string
         }
         Update: {
-          authenticated_student_id?: string | null
           created_at?: string
           id?: string
           points_earned?: number
@@ -1764,29 +1577,14 @@ export type Database = {
           practice_exercise_id?: string | null
           score?: number
           skill_name?: string
-          student_id?: string | null
-          test_result_id?: string | null
+          test_result_id?: string
         }
         Relationships: [
-          {
-            foreignKeyName: "subject_skill_scores_authenticated_student_id_fkey"
-            columns: ["authenticated_student_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "subject_skill_scores_practice_exercise_id_fkey"
             columns: ["practice_exercise_id"]
             isOneToOne: false
             referencedRelation: "student_exercises"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "subject_skill_scores_student_id_fkey"
-            columns: ["student_id"]
-            isOneToOne: false
-            referencedRelation: "student_profiles"
             referencedColumns: ["id"]
           },
           {
@@ -1832,7 +1630,6 @@ export type Database = {
         Row: {
           active_student_id: string | null
           ai_feedback: string | null
-          authenticated_student_id: string | null
           class_id: string
           created_at: string
           detailed_analysis: string | null
@@ -1846,7 +1643,6 @@ export type Database = {
         Insert: {
           active_student_id?: string | null
           ai_feedback?: string | null
-          authenticated_student_id?: string | null
           class_id: string
           created_at?: string
           detailed_analysis?: string | null
@@ -1860,7 +1656,6 @@ export type Database = {
         Update: {
           active_student_id?: string | null
           ai_feedback?: string | null
-          authenticated_student_id?: string | null
           class_id?: string
           created_at?: string
           detailed_analysis?: string | null
@@ -1877,13 +1672,6 @@ export type Database = {
             columns: ["active_student_id"]
             isOneToOne: false
             referencedRelation: "active_students"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "test_results_authenticated_student_id_fkey"
-            columns: ["authenticated_student_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
           {

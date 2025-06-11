@@ -1,9 +1,8 @@
-
 import { supabase } from "@/integrations/supabase/client";
-import { PracticeExerciseSkillService } from "./practiceExerciseSkillService";
+import { practiceExerciseSkillService } from "./practiceExerciseSkillService";
 
 export interface StudentPracticeRequest {
-  authenticatedStudentId: string;
+  studentId: string;
   studentName: string;
   skillName: string;
   currentSkillScore: number;
@@ -51,7 +50,7 @@ export interface StudentPracticeExercise {
 
 export interface StudentPracticeSession {
   id: string;
-  authenticated_student_id: string;
+  student_id: string;
   student_name: string;
   skill_name: string;
   current_skill_score: number;
@@ -72,7 +71,7 @@ export interface StudentPracticeSession {
 
 export interface StudentPracticeAnalytics {
   id: string;
-  authenticated_student_id: string;
+  student_id: string;
   skill_name: string;
   total_practice_sessions: number;
   average_score?: number;
@@ -134,62 +133,11 @@ export class StudentPracticeService {
   }
 
   /**
-   * Create practice session using authenticated student ID
-   */
-  static async createPracticeSession(request: StudentPracticeRequest): Promise<{
-    sessionId: string;
-    authenticatedStudentId: string;
-  }> {
-    try {
-      console.log('🎯 Creating practice session with authenticated student:', request);
-
-      // Create practice session linked to authenticated student
-      // Include both student_id and authenticated_student_id for backward compatibility
-      const { data: session, error } = await supabase
-        .from('student_practice_sessions')
-        .insert({
-          student_id: request.authenticatedStudentId, // For backward compatibility
-          authenticated_student_id: request.authenticatedStudentId,
-          student_name: request.studentName,
-          skill_name: request.skillName,
-          current_skill_score: request.currentSkillScore,
-          class_id: request.classId,
-          class_name: request.className,
-          subject: request.subject,
-          grade: request.grade,
-          difficulty_level: request.preferredDifficulty || 'adaptive',
-          question_count: request.questionCount || 4,
-          exercise_generated: true
-        })
-        .select('id')
-        .single();
-
-      if (error) {
-        throw new Error(`Failed to create practice session: ${error.message}`);
-      }
-
-      console.log('✅ Practice session created with authenticated student:', {
-        sessionId: session.id,
-        authenticatedStudentId: request.authenticatedStudentId
-      });
-
-      return {
-        sessionId: session.id,
-        authenticatedStudentId: request.authenticatedStudentId
-      };
-
-    } catch (error) {
-      console.error('❌ Error creating practice session:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Complete a practice exercise with enhanced skill score tracking using authenticated student
+   * Complete a practice exercise with enhanced skill score tracking
    */
   static async completePracticeExerciseWithSkillUpdates(
     exerciseId: string,
-    authenticatedStudentId: string,
+    studentId: string,
     skillName: string,
     exerciseScore: number,
     exerciseData: any
@@ -199,16 +147,16 @@ export class StudentPracticeService {
     error?: string;
   }> {
     try {
-      console.log('🎯 Completing practice exercise with authenticated student:', {
+      console.log('🎯 Completing practice exercise with skill score updates:', {
         exerciseId,
-        authenticatedStudentId,
+        studentId,
         skillName,
         exerciseScore
       });
 
-      // Process with enhanced skill service using authenticated student ID
-      const result = await PracticeExerciseSkillService.processPracticeExerciseCompletion({
-        authenticatedStudentId,
+      // Use the existing practice exercise skill service for consistent processing
+      const result = await practiceExerciseSkillService.processPracticeExerciseCompletion({
+        studentId,
         exerciseId,
         skillName,
         exerciseScore,
@@ -216,14 +164,14 @@ export class StudentPracticeService {
       });
 
       if (result.success) {
-        console.log('✅ Practice exercise completed with authenticated student:', result.skillUpdates.length);
+        console.log('✅ Practice exercise completed with skill updates:', result.skillUpdates.length);
       } else {
         console.warn('⚠️ Practice exercise completed but skill updates failed:', result.error);
       }
 
       return result;
     } catch (error) {
-      console.error('❌ Error completing practice exercise with authenticated student:', error);
+      console.error('❌ Error completing practice exercise with skill updates:', error);
       return {
         success: false,
         skillUpdates: [],
@@ -232,12 +180,12 @@ export class StudentPracticeService {
     }
   }
 
-  static async getStudentPracticeSessions(authenticatedStudentId: string, limit = 10): Promise<StudentPracticeSession[]> {
+  static async getStudentPracticeSessions(studentId: string, limit = 10): Promise<StudentPracticeSession[]> {
     try {
       const { data, error } = await supabase
         .from('student_practice_sessions')
         .select('*')
-        .eq('authenticated_student_id', authenticatedStudentId)
+        .eq('student_id', studentId)
         .order('created_at', { ascending: false })
         .limit(limit);
 
@@ -253,12 +201,12 @@ export class StudentPracticeService {
     }
   }
 
-  static async getStudentPracticeAnalytics(authenticatedStudentId: string): Promise<StudentPracticeAnalytics[]> {
+  static async getStudentPracticeAnalytics(studentId: string): Promise<StudentPracticeAnalytics[]> {
     try {
       const { data, error } = await supabase
         .from('student_practice_analytics')
         .select('*')
-        .eq('authenticated_student_id', authenticatedStudentId)
+        .eq('student_id', studentId)
         .order('total_practice_sessions', { ascending: false });
 
       if (error) {
@@ -274,7 +222,7 @@ export class StudentPracticeService {
   }
 
   static async updatePracticeAnalyticsAfterCompletion(
-    authenticatedStudentId: string, 
+    studentId: string, 
     skillName: string, 
     score: number
   ): Promise<void> {
@@ -283,7 +231,7 @@ export class StudentPracticeService {
       const { data: currentAnalytics, error: selectError } = await supabase
         .from('student_practice_analytics')
         .select('*')
-        .eq('authenticated_student_id', authenticatedStudentId)
+        .eq('student_id', studentId)
         .eq('skill_name', skillName)
         .maybeSingle();
 
@@ -317,9 +265,9 @@ export class StudentPracticeService {
   }
 
   /**
-   * Get practice history with skill improvements for an authenticated student
+   * Get practice history with skill improvements for a student
    */
-  static async getPracticeHistoryWithImprovements(authenticatedStudentId: string, skillName?: string): Promise<Array<{
+  static async getPracticeHistoryWithImprovements(studentId: string, skillName?: string): Promise<Array<{
     sessionId: string;
     skillName: string;
     completedAt: string;
@@ -331,7 +279,7 @@ export class StudentPracticeService {
       let query = supabase
         .from('student_practice_sessions')
         .select('id, skill_name, completed_at, final_score, improvement_shown, difficulty_level')
-        .eq('authenticated_student_id', authenticatedStudentId)
+        .eq('student_id', studentId)
         .not('completed_at', 'is', null)
         .order('completed_at', { ascending: false });
 

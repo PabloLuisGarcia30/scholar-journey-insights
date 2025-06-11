@@ -62,7 +62,7 @@ const StudentPracticeExercise = () => {
 
   // Practice exercise completion hook for skill score updates
   const { completeExercise, isCompleting, isUpdatingSkills } = usePracticeExerciseCompletion({
-    authenticatedStudentId: profile?.id || '',
+    studentId: profile?.id || '',
     onSkillUpdated: (skillUpdates) => {
       setSkillImprovements(skillUpdates);
     }
@@ -95,7 +95,7 @@ const StudentPracticeExercise = () => {
       const exerciseId = PracticeExerciseGenerationService.generateExerciseId();
       
       const practiceExercise = await generatePracticeExercise({
-        authenticatedStudentId: profile.id,
+        studentId: profile.id,
         studentName: profile?.full_name || student?.name || 'Student',
         skillName: decodedSkillName,
         currentSkillScore: currentSkillScore,

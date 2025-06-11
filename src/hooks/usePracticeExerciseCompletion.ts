@@ -3,15 +3,15 @@ import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { updateExerciseStatus } from '@/services/classSessionService';
-import { PracticeExerciseSkillService, type SkillScoreCalculation } from '@/services/practiceExerciseSkillService';
+import { practiceExerciseSkillService, type SkillScoreCalculation } from '@/services/practiceExerciseSkillService';
 
 interface UsePracticeExerciseCompletionProps {
-  authenticatedStudentId: string;
+  studentId: string;
   onSkillUpdated?: (skillUpdates: SkillScoreCalculation[]) => void;
 }
 
 export function usePracticeExerciseCompletion({ 
-  authenticatedStudentId, 
+  studentId, 
   onSkillUpdated 
 }: UsePracticeExerciseCompletionProps) {
   const [isUpdatingSkills, setIsUpdatingSkills] = useState(false);
@@ -44,8 +44,8 @@ export function usePracticeExerciseCompletion({
       // Then process skill score updates with complete exercise data
       setIsUpdatingSkills(true);
       
-      const skillUpdateResult = await PracticeExerciseSkillService.processPracticeExerciseCompletion({
-        authenticatedStudentId,
+      const skillUpdateResult = await practiceExerciseSkillService.processPracticeExerciseCompletion({
+        studentId,
         exerciseId,
         skillName,
         exerciseScore: score,
@@ -84,13 +84,13 @@ export function usePracticeExerciseCompletion({
     onSuccess: () => {
       // Invalidate relevant queries to refresh skill data
       queryClient.invalidateQueries({ 
-        queryKey: ['studentContentSkills', authenticatedStudentId] 
+        queryKey: ['studentContentSkills', studentId] 
       });
       queryClient.invalidateQueries({ 
-        queryKey: ['studentSubjectSkills', authenticatedStudentId] 
+        queryKey: ['studentSubjectSkills', studentId] 
       });
       queryClient.invalidateQueries({ 
-        queryKey: ['studentExercises', authenticatedStudentId] 
+        queryKey: ['studentExercises', studentId] 
       });
     },
     onError: (error) => {

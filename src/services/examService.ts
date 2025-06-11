@@ -1,9 +1,8 @@
 import { supabase } from "@/integrations/supabase/client";
-import { studentIdIntegration } from "./studentIdIntegrationService";
+import { StudentIdGenerationService } from "./studentIdGenerationService";
 import { calculateClassDuration, getClassDurationInMinutes, formatDurationShort, DurationInfo } from "@/utils/classDurationUtils";
 import { DEV_CONFIG, MOCK_USER_DATA } from "@/config/devConfig";
 import type { Question } from "@/utils/pdfGenerator";
-import { StudentIdGenerationService } from "./studentIdGenerationService";
 
 export interface ExamData {
   examId: string;
@@ -823,52 +822,76 @@ export const saveExamToDatabase = async (examData: ExamData, classId: string): P
 export const createOrFindStudent = async (
   studentName: string, 
   email?: string, 
-  studentId?: string,
-  classId?: string,
-  gradeLevel?: string
+  studentId?: string
 ): Promise<StudentProfile> => {
   try {
-    console.log('🔄 Enhanced createOrFindStudent with Student ID integration:', studentName);
+    console.log('Creating or finding student:', studentName, 'with ID:', studentId);
     
-    // Use the new Student ID integration service
-    const integrationResult = await studentIdIntegration.integrateForGrading(
-      studentName,
-      classId,
-      email,
-      gradeLevel
-    );
-
-    if (!integrationResult.success) {
-      throw new Error(`Student integration failed: ${integrationResult.error}`);
-    }
-
-    // Fetch the complete student profile
-    const { data: studentProfile, error: fetchError } = await supabase
+    // Try to find existing student by name first
+    const { data: existingStudent, error: findError } = await supabase
       .from('student_profiles')
       .select('*')
-      .eq('id', integrationResult.studentProfileId)
-      .single();
+      .eq('student_name', studentName)
+      .maybeSingle();
 
-    if (fetchError) {
-      throw new Error(`Failed to fetch student profile: ${fetchError.message}`);
+    if (findError && findError.code !== 'PGRST116') {
+      throw new Error(`Failed to search for student: ${findError.message}`);
     }
 
-    console.log('✅ Enhanced student integration completed:', {
-      studentId: integrationResult.studentId,
-      profileId: integrationResult.studentProfileId,
-      wasCreated: integrationResult.wasCreated,
-      enrolledInClass: integrationResult.enrolledInClass
-    });
+    if (existingStudent) {
+      console.log('Found existing student:', existingStudent.id);
+      
+      // If existing student doesn't have a Student ID but we have one, update it
+      if (!existingStudent.student_id && studentId) {
+        console.log('🆔 Updating existing student with Student ID:', studentId);
+        
+        const { data: updatedStudent, error: updateError } = await supabase
+          .from('student_profiles')
+          .update({ student_id: studentId })
+          .eq('id', existingStudent.id)
+          .select()
+          .single();
 
-    return studentProfile;
+        if (updateError) {
+          console.error('Error updating student with Student ID:', updateError);
+          throw new Error(`Failed to update student with Student ID: ${updateError.message}`);
+        }
+
+        return updatedStudent;
+      }
+      
+      return existingStudent;
+    }
+
+    // Generate Student ID if not provided
+    const finalStudentId = studentId || await StudentIdGenerationService.generateUniqueStudentId();
+
+    // Create new student profile with Student ID
+    const { data: newStudent, error: createError } = await supabase
+      .from('student_profiles')
+      .insert({
+        student_name: studentName,
+        email: email,
+        student_id: finalStudentId
+      })
+      .select()
+      .single();
+
+    if (createError) {
+      console.error('Error creating student:', createError);
+      throw new Error(`Failed to create student: ${createError.message}`);
+    }
+
+    console.log('Created new student with Student ID:', newStudent.id, finalStudentId);
+    return newStudent;
   } catch (error) {
-    console.error('❌ Error in enhanced createOrFindStudent:', error);
+    console.error('Error in createOrFindStudent:', error);
     throw error;
   }
 };
 
 export const saveTestResult = async (
-  studentName: string, // Changed from studentId to studentName for better integration
+  studentId: string,
   examId: string,
   classId: string,
   overallScore: number,
@@ -877,30 +900,16 @@ export const saveTestResult = async (
   aiFeedback?: string,
   detailedAnalysis?: string,
   contentSkillScores?: Array<{skill_name: string, score: number, points_earned: number, points_possible: number}>,
-  subjectSkillScores?: Array<{skill_name: string, score: number, points_earned: number, points_possible: number}>,
-  email?: string,
-  gradeLevel?: string
+  subjectSkillScores?: Array<{skill_name: string, score: number, points_earned: number, points_possible: number}>
 ): Promise<TestResult> => {
   try {
-    console.log('🔄 Enhanced saveTestResult with Student ID integration:', studentName);
+    console.log('Saving test result for student:', studentId);
     
-    // Step 1: Integrate student (creates profile + Student ID + auto-enrolls)
-    const integrationResult = await studentIdIntegration.integrateForGrading(
-      studentName,
-      classId,
-      email,
-      gradeLevel
-    );
-
-    if (!integrationResult.success) {
-      throw new Error(`Student integration failed: ${integrationResult.error}`);
-    }
-
-    // Step 2: Insert test result with proper student linking
+    // Insert test result
     const { data: testResult, error: resultError } = await supabase
       .from('test_results')
       .insert({
-        student_id: integrationResult.studentProfileId, // Use UUID from student_profiles
+        student_id: studentId,
         exam_id: examId,
         class_id: classId,
         overall_score: overallScore,
@@ -917,11 +926,10 @@ export const saveTestResult = async (
       throw new Error(`Failed to save test result: ${resultError.message}`);
     }
 
-    // Step 3: Save content skill scores with student_id linking
+    // Save content skill scores
     if (contentSkillScores && contentSkillScores.length > 0) {
       const contentScores = contentSkillScores.map(skill => ({
         test_result_id: testResult.id,
-        student_id: integrationResult.studentProfileId, // Direct student linking
         skill_name: skill.skill_name,
         score: skill.score,
         points_earned: skill.points_earned,
@@ -938,11 +946,10 @@ export const saveTestResult = async (
       }
     }
 
-    // Step 4: Save subject skill scores with student_id linking
+    // Save subject skill scores
     if (subjectSkillScores && subjectSkillScores.length > 0) {
       const subjectScores = subjectSkillScores.map(skill => ({
         test_result_id: testResult.id,
-        student_id: integrationResult.studentProfileId, // Direct student linking
         skill_name: skill.skill_name,
         score: skill.score,
         points_earned: skill.points_earned,
@@ -959,16 +966,10 @@ export const saveTestResult = async (
       }
     }
 
-    console.log('✅ Enhanced test result saved with full Student ID integration:', {
-      testResultId: testResult.id,
-      studentId: integrationResult.studentId,
-      wasCreated: integrationResult.wasCreated,
-      enrolledInClass: integrationResult.enrolledInClass
-    });
-    
+    console.log('Test result and skill scores saved successfully');
     return testResult;
   } catch (error) {
-    console.error('❌ Error in enhanced saveTestResult:', error);
+    console.error('Error in saveTestResult:', error);
     throw error;
   }
 };
@@ -1445,95 +1446,3 @@ export const getStudentEnrolledClassesWithDuration = async (studentId: string): 
     throw error;
   }
 };
-
-// Enhanced method to get student enrollments across classes
-export const getStudentClassEnrollments = async (studentProfileId: string) => {
-  try {
-    console.log('🔄 Fetching student class enrollments:', studentProfileId);
-    
-    return await studentIdIntegration.getEnrollments(studentProfileId);
-  } catch (error) {
-    console.error('❌ Error in getStudentClassEnrollments:', error);
-    throw error;
-  }
-};
-
-// New method to get comprehensive student analytics across all classes
-export const getComprehensiveStudentAnalytics = async (studentProfileId: string) => {
-  try {
-    console.log('🔄 Fetching comprehensive student analytics:', studentProfileId);
-    
-    // Get student profile with Student ID
-    const { data: studentProfile, error: profileError } = await supabase
-      .from('student_profiles')
-      .select('*')
-      .eq('id', studentProfileId)
-      .single();
-
-    if (profileError) {
-      throw new Error(`Failed to fetch student profile: ${profileError.message}`);
-    }
-
-    // Get all test results for this student
-    const { data: testResults, error: testError } = await supabase
-      .from('test_results')
-      .select(`
-        *,
-        exams:exam_id (title, class_name, subject),
-        active_classes:class_id (name, subject, grade)
-      `)
-      .eq('student_id', studentProfileId)
-      .order('created_at', { ascending: false });
-
-    if (testError) {
-      throw new Error(`Failed to fetch test results: ${testError.message}`);
-    }
-
-    // Get all content skill scores for this student
-    const { data: contentSkills, error: contentError } = await supabase
-      .from('content_skill_scores')
-      .select('*')
-      .eq('student_id', studentProfileId)
-      .order('created_at', { ascending: false });
-
-    if (contentError) {
-      throw new Error(`Failed to fetch content skills: ${contentError.message}`);
-    }
-
-    // Get all subject skill scores for this student
-    const { data: subjectSkills, error: subjectError } = await supabase
-      .from('subject_skill_scores')
-      .select('*')
-      .eq('student_id', studentProfileId)
-      .order('created_at', { ascending: false });
-
-    if (subjectError) {
-      throw new Error(`Failed to fetch subject skills: ${subjectError.message}`);
-    }
-
-    // Get class enrollments
-    const enrollmentResult = await studentIdIntegration.getEnrollments(studentProfileId);
-
-    return {
-      success: true,
-      studentProfile,
-      testResults: testResults || [],
-      contentSkills: contentSkills || [],
-      subjectSkills: subjectSkills || [],
-      enrollments: enrollmentResult.success ? enrollmentResult.enrollments : []
-    };
-
-  } catch (error) {
-    console.error('❌ Error in getComprehensiveStudentAnalytics:', error);
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Unknown error',
-      studentProfile: null,
-      testResults: [],
-      contentSkills: [],
-      subjectSkills: [],
-      enrollments: []
-    };
-  }
-};
-

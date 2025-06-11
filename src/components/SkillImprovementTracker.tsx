@@ -4,20 +4,57 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { TrendingUp, TrendingDown, Minus, Target, Calendar, Award } from 'lucide-react';
+import { practiceExerciseSkillService } from '@/services/practiceExerciseSkillService';
 import type { SkillScoreCalculation } from '@/services/practiceExerciseSkillService';
 
 interface SkillImprovementTrackerProps {
-  authenticatedStudentId: string;
+  studentId: string;
   recentSkillUpdates?: SkillScoreCalculation[];
   className?: string;
 }
 
+interface SkillHistoryItem {
+  score: number;
+  source: 'test' | 'practice_exercise';
+  date: string;
+  exerciseId?: string;
+}
+
 export function SkillImprovementTracker({ 
-  authenticatedStudentId, 
+  studentId, 
   recentSkillUpdates = [],
   className 
 }: SkillImprovementTrackerProps) {
+  const [skillHistory, setSkillHistory] = useState<Record<string, SkillHistoryItem[]>>({});
   const [loading, setLoading] = useState(false);
+
+  // Load skill history when component mounts or recent updates change
+  useEffect(() => {
+    const loadSkillHistory = async () => {
+      if (recentSkillUpdates.length === 0) return;
+      
+      setLoading(true);
+      try {
+        const historyData: Record<string, SkillHistoryItem[]> = {};
+        
+        for (const update of recentSkillUpdates) {
+          const history = await practiceExerciseSkillService.getStudentSkillHistory(
+            studentId, 
+            update.skillName
+          );
+          historyData[update.skillName] = history.slice(0, 10); // Last 10 entries
+        }
+        
+        setSkillHistory(historyData);
+      } catch (error) {
+        console.error('Error loading skill history:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadSkillHistory();
+  }, [studentId, recentSkillUpdates]);
 
   const getTrendIcon = (currentScore: number, newScore: number) => {
     if (newScore > currentScore) {
@@ -55,6 +92,9 @@ export function SkillImprovementTracker({
       </CardHeader>
       <CardContent className="space-y-4">
         {recentSkillUpdates.map((update, index) => {
+          const history = skillHistory[update.skillName] || [];
+          const practiceCount = history.filter(h => h.source === 'practice_exercise').length;
+          
           return (
             <div key={`${update.skillName}-${index}`} className="p-4 bg-slate-50 rounded-lg border">
               <div className="flex items-center justify-between mb-3">
@@ -85,18 +125,20 @@ export function SkillImprovementTracker({
                 </div>
               </div>
 
-              <div className="mt-3 pt-3 border-t border-slate-200">
-                <div className="flex items-center gap-4 text-xs text-slate-600">
-                  <div className="flex items-center gap-1">
-                    <Award className="h-3 w-3" />
-                    <span>Practice exercise completed</span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <Calendar className="h-3 w-3" />
-                    <span>Skill improvement tracked</span>
+              {history.length > 0 && (
+                <div className="mt-3 pt-3 border-t border-slate-200">
+                  <div className="flex items-center gap-4 text-xs text-slate-600">
+                    <div className="flex items-center gap-1">
+                      <Award className="h-3 w-3" />
+                      <span>{update.attemptsCount + 1} total attempts</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <Calendar className="h-3 w-3" />
+                      <span>{practiceCount} practice exercises</span>
+                    </div>
                   </div>
                 </div>
-              </div>
+              )}
             </div>
           );
         })}
@@ -111,7 +153,7 @@ export function SkillImprovementTracker({
         )}
 
         <div className="text-xs text-slate-500 text-center pt-2 border-t border-slate-200">
-          Skill scores are automatically updated based on practice exercise performance using authenticated student profiles.
+          Skill scores are automatically updated based on practice exercise performance using a weighted algorithm that considers recent practice results.
         </div>
       </CardContent>
     </Card>
