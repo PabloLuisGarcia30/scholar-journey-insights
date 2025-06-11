@@ -28,6 +28,8 @@ import {
   createActiveClass, 
   updateActiveClass, 
   deleteActiveClass, 
+  deleteActiveClassOnly,
+  getClassDeletionInfo,
   getAllActiveStudents,
   getSubjectSkillsBySubjectAndGrade,
   linkClassToSubjectSkills,
@@ -47,6 +49,8 @@ export function ClassView({ onSelectStudent }: ClassViewProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
   const [allStudents, setAllStudents] = useState<ActiveStudent[]>([]);
+  const [deletionInfo, setDeletionInfo] = useState<{examCount: number; answerKeyCount: number; testResultCount: number} | null>(null);
+  const [loadingDeletionInfo, setLoadingDeletionInfo] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -106,6 +110,30 @@ export function ClassView({ onSelectStudent }: ClassViewProps) {
     } catch (error) {
       console.error('Error deleting class:', error);
       toast.error('Failed to delete class. Please try again.');
+    }
+  };
+
+  const handleDeleteClassOnly = async (classId: string, className: string) => {
+    try {
+      await deleteActiveClassOnly(classId);
+      setClasses(prevClasses => prevClasses.filter(cls => cls.id !== classId));
+      toast.success(`Class "${className}" has been deleted while preserving historical test data`);
+    } catch (error) {
+      console.error('Error deleting class only:', error);
+      toast.error('Failed to delete class. Please try again.');
+    }
+  };
+
+  const handleGetDeletionInfo = async (classId: string) => {
+    try {
+      setLoadingDeletionInfo(true);
+      const info = await getClassDeletionInfo(classId);
+      setDeletionInfo(info);
+    } catch (error) {
+      console.error('Error getting deletion info:', error);
+      toast.error('Failed to get deletion information');
+    } finally {
+      setLoadingDeletionInfo(false);
     }
   };
 
@@ -437,38 +465,68 @@ export function ClassView({ onSelectStudent }: ClassViewProps) {
                   <Badge variant="outline">{classItem.grade}</Badge>
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
-                      <Button variant="ghost" size="sm" className="text-red-600 hover:text-red-700 hover:bg-red-50">
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                        onClick={() => handleGetDeletionInfo(classItem.id)}
+                      >
                         <Trash2 className="h-4 w-4" />
                       </Button>
                     </AlertDialogTrigger>
-                    <AlertDialogContent>
+                    <AlertDialogContent className="max-w-md">
                       <AlertDialogHeader>
-                        <AlertDialogTitle>Delete Class</AlertDialogTitle>
-                        <AlertDialogDescription className="space-y-2">
-                          <p>
-                            Are you sure you want to delete "{classItem.name}"? 
-                          </p>
-                          <p className="text-red-600 font-medium">
-                            ⚠️ This action will permanently delete:
-                          </p>
-                          <ul className="text-sm text-red-600 ml-4 space-y-1">
-                            <li>• The class and all student enrollments</li>
-                            <li>• All exams created for this class</li>
-                            <li>• All answer keys and test data</li>
-                            <li>• All skill mappings and content links</li>
-                          </ul>
-                          <p className="text-red-600 font-medium">
-                            This action cannot be undone.
-                          </p>
+                        <AlertDialogTitle>Delete Class Options</AlertDialogTitle>
+                        <AlertDialogDescription className="space-y-3">
+                          <p>Choose how you want to delete "{classItem.name}":</p>
+                          
+                          {loadingDeletionInfo ? (
+                            <div className="text-center py-4">
+                              <div className="text-sm text-gray-600">Loading deletion information...</div>
+                            </div>
+                          ) : deletionInfo && (
+                            <div className="bg-gray-50 p-3 rounded-lg text-sm">
+                              <p className="font-medium text-gray-900 mb-2">This class contains:</p>
+                              <ul className="space-y-1 text-gray-600">
+                                <li>• {deletionInfo.examCount} exam(s)</li>
+                                <li>• {deletionInfo.answerKeyCount} answer key(s)</li>
+                                <li>• {deletionInfo.testResultCount} test result(s)</li>
+                              </ul>
+                            </div>
+                          )}
+
+                          <div className="space-y-2">
+                            <div className="border rounded-lg p-3">
+                              <p className="font-medium text-green-700 mb-1">🗂️ Delete Class Only (Recommended)</p>
+                              <p className="text-sm text-gray-600">
+                                Removes the class but preserves all historical test data, exams, and results for future reference.
+                              </p>
+                            </div>
+                            
+                            <div className="border rounded-lg p-3">
+                              <p className="font-medium text-red-700 mb-1">🗑️ Delete Everything</p>
+                              <p className="text-sm text-gray-600">
+                                Permanently deletes the class and ALL associated data. This cannot be undone.
+                              </p>
+                            </div>
+                          </div>
                         </AlertDialogDescription>
                       </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogFooter className="flex-col gap-2">
+                        <div className="flex gap-2 w-full">
+                          <AlertDialogCancel className="flex-1">Cancel</AlertDialogCancel>
+                          <AlertDialogAction 
+                            onClick={() => handleDeleteClassOnly(classItem.id, classItem.name)}
+                            className="flex-1 bg-green-600 hover:bg-green-700"
+                          >
+                            Delete Class Only
+                          </AlertDialogAction>
+                        </div>
                         <AlertDialogAction 
                           onClick={() => handleDeleteClass(classItem.id, classItem.name)}
-                          className="bg-red-600 hover:bg-red-700"
+                          className="w-full bg-red-600 hover:bg-red-700"
                         >
-                          Delete Class & All Data
+                          Delete Everything
                         </AlertDialogAction>
                       </AlertDialogFooter>
                     </AlertDialogContent>

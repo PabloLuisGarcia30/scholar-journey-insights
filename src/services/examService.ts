@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { StudentIdGenerationService } from "./studentIdGenerationService";
 import { calculateClassDuration, getClassDurationInMinutes, formatDurationShort, DurationInfo } from "@/utils/classDurationUtils";
@@ -386,6 +385,144 @@ export const deleteActiveClass = async (classId: string): Promise<void> => {
     console.log(`Successfully deleted class and all related data: ${classId}`);
   } catch (error) {
     console.error('Error in deleteActiveClass:', error);
+    throw error;
+  }
+};
+
+export const deleteActiveClassOnly = async (classId: string): Promise<void> => {
+  try {
+    console.log('Deleting only the class (preserving historical data):', classId);
+    
+    // Step 1: Update all exams to remove class_id reference but keep the exams
+    const { error: updateExamsError } = await supabase
+      .from('exams')
+      .update({ 
+        class_id: null,
+        class_name: 'Archived Class Data'
+      })
+      .eq('class_id', classId);
+
+    if (updateExamsError) {
+      console.error('Error updating exams for class:', updateExamsError);
+      throw new Error(`Failed to update exams for class: ${updateExamsError.message}`);
+    }
+
+    // Step 2: Delete class content skill links
+    const { error: contentSkillError } = await supabase
+      .from('class_content_skills')
+      .delete()
+      .eq('class_id', classId);
+
+    if (contentSkillError) {
+      console.error('Error deleting class content skills:', contentSkillError);
+      throw new Error(`Failed to delete class content skills: ${contentSkillError.message}`);
+    }
+
+    // Step 3: Delete class subject skill links
+    const { error: subjectSkillError } = await supabase
+      .from('class_subject_skills')
+      .delete()
+      .eq('class_id', classId);
+
+    if (subjectSkillError) {
+      console.error('Error deleting class subject skills:', subjectSkillError);
+      throw new Error(`Failed to delete class subject skills: ${subjectSkillError.message}`);
+    }
+
+    // Step 4: Update test results to remove class_id reference but keep the results
+    const { error: updateTestResultsError } = await supabase
+      .from('test_results')
+      .update({ class_id: null })
+      .eq('class_id', classId);
+
+    if (updateTestResultsError) {
+      console.error('Error updating test results for class:', updateTestResultsError);
+      throw new Error(`Failed to update test results for class: ${updateTestResultsError.message}`);
+    }
+
+    // Step 5: Finally delete the class itself
+    const { error } = await supabase
+      .from('active_classes')
+      .delete()
+      .eq('id', classId);
+
+    if (error) {
+      console.error('Error deleting active class:', error);
+      throw new Error(`Failed to delete active class: ${error.message}`);
+    }
+
+    console.log(`Successfully deleted class while preserving historical data: ${classId}`);
+  } catch (error) {
+    console.error('Error in deleteActiveClassOnly:', error);
+    throw error;
+  }
+};
+
+export const getClassDeletionInfo = async (classId: string): Promise<{
+  examCount: number;
+  answerKeyCount: number;
+  testResultCount: number;
+}> => {
+  try {
+    console.log('Getting deletion info for class:', classId);
+    
+    // Count exams
+    const { count: examCount, error: examError } = await supabase
+      .from('exams')
+      .select('*', { count: 'exact', head: true })
+      .eq('class_id', classId);
+
+    if (examError) {
+      console.error('Error counting exams:', examError);
+      throw new Error(`Failed to count exams: ${examError.message}`);
+    }
+
+    // Count answer keys for exams in this class
+    const { data: exams, error: examFetchError } = await supabase
+      .from('exams')
+      .select('exam_id')
+      .eq('class_id', classId);
+
+    if (examFetchError) {
+      console.error('Error fetching exams for class:', examFetchError);
+      throw new Error(`Failed to fetch exams for class: ${examFetchError.message}`);
+    }
+
+    let answerKeyCount = 0;
+    if (exams && exams.length > 0) {
+      const examIds = exams.map(exam => exam.exam_id);
+      
+      const { count, error: answerKeyError } = await supabase
+        .from('answer_keys')
+        .select('*', { count: 'exact', head: true })
+        .in('exam_id', examIds);
+
+      if (answerKeyError) {
+        console.error('Error counting answer keys:', answerKeyError);
+        throw new Error(`Failed to count answer keys: ${answerKeyError.message}`);
+      }
+
+      answerKeyCount = count || 0;
+    }
+
+    // Count test results
+    const { count: testResultCount, error: testResultError } = await supabase
+      .from('test_results')
+      .select('*', { count: 'exact', head: true })
+      .eq('class_id', classId);
+
+    if (testResultError) {
+      console.error('Error counting test results:', testResultError);
+      throw new Error(`Failed to count test results: ${testResultError.message}`);
+    }
+
+    return {
+      examCount: examCount || 0,
+      answerKeyCount,
+      testResultCount: testResultCount || 0
+    };
+  } catch (error) {
+    console.error('Error in getClassDeletionInfo:', error);
     throw error;
   }
 };
