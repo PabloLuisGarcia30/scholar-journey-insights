@@ -1,4 +1,3 @@
-
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -25,6 +24,10 @@ const HomeLearner = () => {
     classId: '', 
     className: '' 
   });
+
+  const handleClassClick = (classId: string) => {
+    navigate(`/student-dashboard/class/${classId}`);
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 to-blue-50/30">
@@ -256,10 +259,15 @@ const HomeLearner = () => {
             ) : enrolledClasses.length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {enrolledClasses.map((classItem) => (
-                  <div key={classItem.id} className="p-4 border rounded-lg hover:bg-indigo-50 transition-colors">
+                  <div 
+                    key={classItem.id} 
+                    className="p-4 border rounded-lg hover:bg-indigo-50 transition-colors cursor-pointer"
+                    onClick={() => handleClassClick(classItem.id)}
+                  >
                     <h4 className="font-semibold text-indigo-900">{classItem.name}</h4>
                     <p className="text-sm text-indigo-600">{classItem.subject} - {classItem.grade}</p>
                     <p className="text-xs text-gray-600 mt-1">Teacher: {classItem.teacher}</p>
+                    <p className="text-xs text-indigo-500 mt-2">Click to view your progress</p>
                   </div>
                 ))}
               </div>

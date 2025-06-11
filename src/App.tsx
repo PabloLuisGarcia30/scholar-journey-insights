@@ -7,6 +7,7 @@ import Auth from "./pages/Auth";
 import StudentDashboard from "./pages/StudentDashboard";
 import StudentLanding from "./pages/StudentLanding";
 import HomeLearner from "./pages/HomeLearner";
+import StudentClassScores from "./pages/StudentClassScores";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import { DevRoleProvider, useDevRole } from "./contexts/DevRoleContext";
 import { MultiSkillSelectionProvider } from "./contexts/MultiSkillSelectionContext";
@@ -91,6 +92,15 @@ function AppRoutes() {
         element={
           <ProtectedRoute requiredRole={DEV_CONFIG.DISABLE_AUTH_FOR_DEV ? undefined : "student"}>
             <HomeLearner />
+          </ProtectedRoute>
+        } 
+      />
+      
+      <Route 
+        path="/student-dashboard/class/:classId" 
+        element={
+          <ProtectedRoute requiredRole={DEV_CONFIG.DISABLE_AUTH_FOR_DEV ? undefined : "student"}>
+            <StudentClassScores />
           </ProtectedRoute>
         } 
       />
