@@ -3,7 +3,7 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, Target, BookOpen, Loader2, Zap, AlertTriangle } from "lucide-react";
+import { ArrowLeft, Target, BookOpen, Loader2, Zap } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useStudentProfileData } from "@/hooks/useStudentProfileData";
 import { useEnhancedPracticeTestGeneration } from "@/hooks/useEnhancedPracticeTestGeneration";
@@ -16,7 +16,6 @@ const StudentPracticeExercise = () => {
   const { profile } = useAuth();
   const [exerciseData, setExerciseData] = useState(null);
   const [isGenerating, setIsGenerating] = useState(false);
-  const [debugInfo, setDebugInfo] = useState(null);
   
   const decodedSkillName = decodeURIComponent(skillName || '');
   
@@ -54,53 +53,18 @@ const StudentPracticeExercise = () => {
     setIsGenerating(true);
     
     try {
-      console.log('🎯 Starting practice exercise generation:', {
-        studentName: profile?.full_name || student?.name || 'Student',
-        skillName: decodedSkillName,
-        className: currentClass.name,
-        subject: currentClass.subject,
-        grade: currentClass.grade,
-        requestedQuestions: 5
-      });
-
       const practiceTest = await generateSingleTest({
         studentName: profile?.full_name || student?.name || 'Student',
         skillName: decodedSkillName,
         className: currentClass.name,
         subject: currentClass.subject,
         grade: currentClass.grade,
-        questionCount: 5
-      });
-
-      console.log('📊 Practice test generation result:', {
-        success: !!practiceTest,
-        questionCount: practiceTest?.questions?.length || 0,
-        requestedCount: 5,
-        practiceTest: practiceTest
+        difficulty: 'mixed',
+        questionCount: 5, // Shorter focused exercise
+        includeExplanations: true
       });
 
       if (practiceTest) {
-        // Validate question count
-        const actualQuestionCount = practiceTest.questions?.length || 0;
-        const requestedQuestionCount = 5;
-        
-        console.log(`✅ Generated ${actualQuestionCount} questions (requested ${requestedQuestionCount})`);
-        
-        if (actualQuestionCount < requestedQuestionCount) {
-          console.warn(`⚠️ Warning: Only ${actualQuestionCount} questions generated instead of ${requestedQuestionCount}`);
-          toast.warning(`Only ${actualQuestionCount} questions were generated instead of ${requestedQuestionCount}. This may be due to limited content for this skill.`);
-        }
-
-        // Store debug info
-        setDebugInfo({
-          requestedQuestions: requestedQuestionCount,
-          actualQuestions: actualQuestionCount,
-          skillName: decodedSkillName,
-          className: currentClass.name,
-          subject: currentClass.subject,
-          grade: currentClass.grade
-        });
-
         // Convert practice test to exercise format
         const exerciseFormatted = {
           title: `${decodedSkillName} Practice Exercise`,
@@ -117,24 +81,16 @@ const StudentPracticeExercise = () => {
             targetSkill: decodedSkillName
           })),
           totalPoints: practiceTest.questions.reduce((sum, q) => sum + (q.points || 1), 0),
-          estimatedTime: Math.max(5, practiceTest.questions.length * 2),
+          estimatedTime: Math.max(5, practiceTest.questions.length * 2), // 2 minutes per question minimum
           exerciseId: `exercise_${Date.now()}_${decodedSkillName.replace(/\s+/g, '_')}`
         };
         
-        console.log('📝 Final exercise formatted:', {
-          title: exerciseFormatted.title,
-          questionCount: exerciseFormatted.questions.length,
-          totalPoints: exerciseFormatted.totalPoints,
-          estimatedTime: exerciseFormatted.estimatedTime
-        });
-        
         setExerciseData(exerciseFormatted);
       } else {
-        console.error('❌ No practice test data received');
         toast.error('Failed to generate practice exercise. Please try again.');
       }
     } catch (error) {
-      console.error('💥 Error generating practice exercise:', error);
+      console.error('Error generating practice exercise:', error);
       toast.error('Failed to generate practice exercise. Please try again.');
     } finally {
       setIsGenerating(false);
@@ -142,7 +98,7 @@ const StudentPracticeExercise = () => {
   };
 
   const handleExerciseComplete = (results) => {
-    console.log('🎉 Exercise completed:', results);
+    console.log('Exercise completed:', results);
     toast.success(`Exercise completed! You scored ${Math.round(results.percentageScore)}%`);
     
     // Navigate back to class scores after a brief delay
@@ -189,22 +145,6 @@ const StudentPracticeExercise = () => {
   if (exerciseData) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-green-50 to-blue-50/30">
-        {/* Debug info for fewer questions */}
-        {debugInfo && debugInfo.actualQuestions < debugInfo.requestedQuestions && (
-          <div className="container mx-auto px-4 py-2">
-            <Card className="bg-yellow-50 border-yellow-200">
-              <CardContent className="p-4">
-                <div className="flex items-center gap-2 text-yellow-800">
-                  <AlertTriangle className="h-4 w-4" />
-                  <span className="text-sm">
-                    Note: Only {debugInfo.actualQuestions} questions available for this skill instead of the requested {debugInfo.requestedQuestions}.
-                  </span>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        )}
-        
         <PracticeExerciseRunner
           exerciseData={exerciseData}
           onComplete={handleExerciseComplete}
