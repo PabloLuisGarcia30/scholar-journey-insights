@@ -3,8 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Calendar, Clock, BookOpen, GraduationCap, Target } from "lucide-react";
-import { useAuthenticatedStudentData } from "@/hooks/useAuthenticatedStudentData";
-import { useAuth } from "@/contexts/AuthContext";
+import { useStudentProfileData } from "@/hooks/useStudentProfileData";
 import { Button } from "@/components/ui/button";
 
 interface StudentProfileProps {
@@ -15,13 +14,10 @@ interface StudentProfileProps {
 }
 
 export function StudentProfile({ studentId, classId, className, onBack }: StudentProfileProps) {
-  const { user, profile } = useAuth();
-  
-  // Determine if this is for the current authenticated user
-  const isCurrentUser = user?.id === studentId;
-  
-  // Use authenticated data hook
   const {
+    student,
+    studentLoading,
+    studentProfile,
     classData,
     classLoading,
     testResults,
@@ -30,38 +26,18 @@ export function StudentProfile({ studentId, classId, className, onBack }: Studen
     contentSkillsLoading,
     subjectSkillScores,
     subjectSkillsLoading,
+    classContentSkills,
+    classContentSkillsLoading,
+    classSubjectSkills,
+    classSubjectSkillsLoading,
     enrolledClasses,
     enrolledClassesLoading,
-    isAuthenticated,
-    isLoading,
-    hasData
-  } = useAuthenticatedStudentData({ classId });
+    isPabloLuisGarcia,
+    isClassView,
+    hasMockData
+  } = useStudentProfileData({ studentId, classId, className });
 
-  // Create student object from authenticated data
-  const student = isCurrentUser && profile ? {
-    id: user.id,
-    name: profile.full_name || user.email || 'Current User',
-    email: user.email,
-    year: null,
-    major: null,
-    gpa: null,
-    created_at: profile.created_at,
-    updated_at: profile.updated_at
-  } : null;
-
-  if (!isAuthenticated) {
-    return (
-      <div className="p-6 text-center">
-        <h2 className="text-2xl font-semibold text-gray-900">Authentication Required</h2>
-        <p className="text-gray-600">Please log in to view profile data.</p>
-        <Button onClick={onBack} className="mt-4">
-          Go Back
-        </Button>
-      </div>
-    );
-  }
-
-  if (isLoading || classLoading) {
+  if (studentLoading || classLoading) {
     return (
       <div className="p-6">
         <div className="animate-pulse space-y-6">
@@ -80,13 +56,8 @@ export function StudentProfile({ studentId, classId, className, onBack }: Studen
   if (!student || !classData) {
     return (
       <div className="p-6 text-center">
-        <h2 className="text-2xl font-semibold text-gray-900">Profile Not Available</h2>
-        <p className="text-gray-600">
-          {!isCurrentUser 
-            ? 'You can only view your own profile.' 
-            : 'Could not retrieve profile or class data.'
-          }
-        </p>
+        <h2 className="text-2xl font-semibold text-gray-900">Error Loading Profile</h2>
+        <p className="text-gray-600">Could not retrieve student or class data.</p>
         <Button onClick={onBack} className="mt-4">
           Go Back
         </Button>
@@ -104,6 +75,8 @@ export function StudentProfile({ studentId, classId, className, onBack }: Studen
     });
   };
 
+  const showMockDataBadge = isPabloLuisGarcia && hasMockData();
+
   return (
     <div className="p-6 space-y-6">
       {/* Back Button */}
@@ -119,12 +92,12 @@ export function StudentProfile({ studentId, classId, className, onBack }: Studen
         <div>
           <h2 className="text-3xl font-bold text-gray-900">{student.name}</h2>
           <p className="text-gray-600">{classData.name} - {classData.subject}</p>
-          {isCurrentUser && (
-            <Badge className="mt-2 bg-blue-100 text-blue-800 border-0">
-              Your Profile
-            </Badge>
-          )}
         </div>
+        {showMockDataBadge && (
+          <Badge className="ml-auto bg-yellow-100 text-yellow-800 border-0">
+            Using Mock Data
+          </Badge>
+        )}
       </div>
 
       {/* Quick Stats */}
@@ -140,8 +113,8 @@ export function StudentProfile({ studentId, classId, className, onBack }: Studen
         <Card>
           <CardContent className="p-4 text-center">
             <Target className="h-8 w-8 text-green-600 mx-auto mb-2" />
-            <div className="text-2xl font-bold">{contentSkillScores.length + subjectSkillScores.length}</div>
-            <div className="text-sm text-gray-600">Skills Tracked</div>
+            <div className="text-2xl font-bold">{contentSkillScores.length}</div>
+            <div className="text-sm text-gray-600">Content Skills</div>
           </CardContent>
         </Card>
 
@@ -185,7 +158,7 @@ export function StudentProfile({ studentId, classId, className, onBack }: Studen
             <div className="text-center py-8">
               <BookOpen className="h-12 w-12 text-gray-400 mx-auto mb-4" />
               <h3 className="text-lg font-medium text-gray-900 mb-2">No test results found</h3>
-              <p className="text-gray-600">Take some tests to see your results here.</p>
+              <p className="text-gray-600">This student hasn't taken any tests yet.</p>
             </div>
           )}
         </CardContent>
@@ -216,36 +189,12 @@ export function StudentProfile({ studentId, classId, className, onBack }: Studen
               <Target className="h-12 w-12 text-gray-400 mx-auto mb-4" />
               <h3 className="text-lg font-medium text-gray-900 mb-2">No content skills found</h3>
               <p className="text-gray-600">
-                Complete some assessments to see your skill scores here.
+                This student doesn't have any content skill scores yet.
               </p>
             </div>
           )}
         </CardContent>
       </Card>
-
-      {/* Subject Skill Scores */}
-      {subjectSkillScores.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Subject Skill Scores</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {subjectSkillScores.slice(0, 5).map((skill, index) => (
-              <div key={skill.id || index} className="p-4 rounded-lg border">
-                <div className="flex items-center justify-between mb-2">
-                  <h3 className="font-semibold">{skill.skill_name}</h3>
-                  <Badge className="bg-purple-100 text-purple-700">
-                    Score: {skill.score}%
-                  </Badge>
-                </div>
-                <p className="text-sm text-gray-600">
-                  {skill.points_earned} out of {skill.points_possible} points earned
-                </p>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-      )}
     </div>
   );
 }

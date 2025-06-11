@@ -1,12 +1,46 @@
 
 // Development configuration
 export const DEV_CONFIG = {
-  // Set to false to require proper authentication in development
-  DISABLE_AUTH_FOR_DEV: false,
+  // Set to true to bypass authentication during development
+  DISABLE_AUTH_FOR_DEV: true,
   
-  // Default role for development mode (when auth is disabled)
+  // Default role for development mode
   DEFAULT_DEV_ROLE: 'teacher' as 'teacher' | 'student'
 };
 
-// Note: Mock user data removed - application now uses proper authentication
-// Users must log in with real accounts to access the application
+// Mock user data for development - using Pablo Luis Garcia's real data for student mode
+export const MOCK_USER_DATA = {
+  teacher: {
+    user: {
+      id: '233d54d8-7c04-4fbf-889e-9500749a4269', // Using existing Mr. Cullen UUID from database
+      email: 'mr.cullen@school.edu',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    },
+    profile: {
+      id: '233d54d8-7c04-4fbf-889e-9500749a4269', // Using existing Mr. Cullen UUID from database
+      email: 'mr.cullen@school.edu',
+      full_name: 'Mr. Cullen',
+      role: 'teacher' as const,
+      teacher_id: 'TCH001',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }
+  },
+  student: {
+    user: {
+      id: 'f2b40ffb-6348-4fa9-ade5-105bd1eb6b26', // Pablo's real ID
+      email: 'PabloLuisAlegaGarcia@gmail.com', // Pablo's real email
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    },
+    profile: {
+      id: 'f2b40ffb-6348-4fa9-ade5-105bd1eb6b26', // Pablo's real ID
+      email: 'PabloLuisAlegaGarcia@gmail.com', // Pablo's real email
+      full_name: 'Pablo Luis Garcia', // Pablo's real name
+      role: 'student' as const,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }
+  }
+};

@@ -3,7 +3,7 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { DEV_CONFIG } from '@/config/devConfig';
+import { DEV_CONFIG, MOCK_USER_DATA } from '@/config/devConfig';
 import { useDevRole } from '@/contexts/DevRoleContext';
 
 export type UserRole = 'teacher' | 'student';
@@ -57,32 +57,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     // Check if we're in dev mode
     if (DEV_CONFIG.DISABLE_AUTH_FOR_DEV) {
-      // Use mock authenticated user based on current dev role
-      const mockUser = {
-        id: devRole === 'teacher' ? 'mock-teacher-auth-id' : 'mock-student-auth-id',
-        email: devRole === 'teacher' ? 'teacher@example.com' : 'student@example.com',
-        aud: 'authenticated',
-        role: 'authenticated',
-        app_metadata: {},
-        user_metadata: {},
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      };
+      // Use mock data based on current dev role with teacher_id for teacher
+      const mockData = MOCK_USER_DATA[devRole];
+      const enhancedProfile = devRole === 'teacher' 
+        ? { ...mockData.profile, teacher_id: 'TCH001' }
+        : mockData.profile;
       
-      const mockProfile: UserProfile = {
-        id: mockUser.id,
-        email: mockUser.email,
-        full_name: devRole === 'teacher' ? 'Mock Teacher' : 'Mock Student',
-        role: devRole,
-        teacher_id: devRole === 'teacher' ? 'TCH001' : undefined,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      };
-      
-      setUser(mockUser as any);
-      setProfile(mockProfile);
+      setUser(mockData.user as any);
+      setProfile(enhancedProfile);
       setLoading(false);
-      console.log(`🔧 Dev mode: Using ${devRole} role with data:`, mockProfile);
+      console.log(`🔧 Dev mode: Using ${devRole} role with data:`, enhancedProfile);
       return;
     }
 

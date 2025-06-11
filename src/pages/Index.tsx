@@ -9,7 +9,9 @@ import { StudentPortals } from "@/components/StudentPortals";
 import { DashboardSidebar } from "@/components/DashboardSidebar";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
+import { useDevRole } from "@/contexts/DevRoleContext";
 import { useAuth } from "@/contexts/AuthContext";
+import { DEV_CONFIG } from "@/config/devConfig";
 
 const Index = () => {
   const [selectedStudent, setSelectedStudent] = useState<string | null>(null);
@@ -19,18 +21,30 @@ const Index = () => {
   const { profile } = useAuth();
   const navigate = useNavigate();
   
-  // Get current role from authenticated profile
-  const currentRole = profile?.role || 'student';
+  // Get current role (dev or actual)
+  let currentRole: 'teacher' | 'student' = 'teacher';
+  let isDevMode = false;
+  try {
+    const { currentRole: devRole, isDevMode: devModeFlag } = useDevRole();
+    isDevMode = devModeFlag;
+    if (isDevMode) {
+      currentRole = devRole;
+    } else if (profile?.role) {
+      currentRole = profile.role;
+    }
+  } catch {
+    currentRole = profile?.role || 'teacher';
+  }
 
-  // Navigate to student dashboard when role is student
+  // Navigate to student dashboard when role changes to student
   useEffect(() => {
-    if (currentRole === 'student') {
+    if (isDevMode && currentRole === 'student') {
       navigate('/student-dashboard');
     }
-  }, [currentRole, navigate]);
+  }, [currentRole, isDevMode, navigate]);
 
-  // If user is a student, redirect to student dashboard
-  if (currentRole === 'student') {
+  // If in student view (non-dev mode), redirect to student dashboard
+  if (!isDevMode && currentRole === 'student') {
     return <Navigate to="/student-dashboard" replace />;
   }
 
@@ -115,7 +129,7 @@ const Index = () => {
   };
 
   return (
-    <ProtectedRoute requiredRole="teacher">
+    <ProtectedRoute requiredRole={DEV_CONFIG.DISABLE_AUTH_FOR_DEV ? undefined : "teacher"}>
       <SidebarProvider>
         <div className="min-h-screen flex w-full bg-gray-50">
           <DashboardSidebar activeView={activeView} onViewChange={setActiveView} />
