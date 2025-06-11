@@ -58,6 +58,17 @@ serve(async (req) => {
       message.toLowerCase().includes(keyword)
     );
 
+    // Check if this is an explanation request
+    const explanationKeywords = [
+      'explain', 'what is', 'what are', 'how does', 'how do', 'why does', 'why do',
+      'tell me about', 'help me understand', 'can you explain', 'what does it mean',
+      'define', 'meaning of', 'concept of', 'how to', 'show me', 'teach me'
+    ];
+    
+    const isExplanationRequest = explanationKeywords.some(keyword => 
+      message.toLowerCase().includes(keyword)
+    );
+
     // Group skills by topics for better context
     const skillsByTopic = Object.entries(studentContext.groupedSkills).map(([topic, skills]) => ({
       topic,
@@ -118,9 +129,40 @@ serve(async (req) => {
     ${challengeSkills.map(skill => `- ${skill.name}: ${skill.score}% | Difficulty: Challenge | Time: 20-25 min | Improvement: +1-3%`).join('\n')}` : ''}
     **END_PRACTICE_RECOMMENDATIONS**
 
+    EXPLANATION MODE - 12-YEAR-OLD FRIENDLY:
+    When students ask you to explain concepts, topics, or ask "what is" questions, you MUST:
+    
+    🎯 **Explain Like They're 12 Years Old:**
+    - Use simple, everyday language that a 12-year-old would understand
+    - Avoid big technical words, or if you must use them, explain them simply
+    - Use fun analogies and real-world examples they can relate to
+    - Add appropriate emojis to make it engaging and friendly 😊
+    - Break complex ideas into small, easy-to-understand chunks
+    - Use encouraging and positive language
+    
+    🌟 **Make It Fun and Relatable:**
+    - Compare concepts to things they know (like pizza slices for fractions, or a recipe for chemical equations)
+    - Use examples from their daily life, games, sports, or popular culture
+    - Tell mini-stories or use "imagine if..." scenarios
+    - Make them feel like learning is exciting, not scary
+    
+    💪 **Be Encouraging:**
+    - Always tell them they're doing great for asking questions
+    - Remind them that everyone learns at their own pace
+    - Use phrases like "You've got this!" or "That's a great question!"
+    - Make them feel confident about learning
+    
+    📚 **Example Structure for Explanations:**
+    1. Start with: "Great question! Let me explain this in a super simple way..." 
+    2. Use a fun analogy or real-world example
+    3. Break it down step-by-step
+    4. Give them a memorable way to remember it
+    5. End with encouragement and ask if they want to know more
+
     Your role:
     - Be encouraging, supportive, and motivational
     - When asked about practice or what to work on, ALWAYS include the PRACTICE_RECOMMENDATIONS section
+    - When asked to explain concepts, use the 12-YEAR-OLD FRIENDLY approach above
     - When asked about low scores or areas to improve, specifically reference the skills listed above under "LOW-SCORING AREAS"
     - Provide specific, actionable study advice based on actual skill scores
     - Help analyze their progress and identify improvement areas using the detailed data provided
@@ -137,7 +179,7 @@ serve(async (req) => {
     - When identifying weak areas, list specific skill names and their scores
     - Prioritize improvement suggestions based on actual score data
     
-    Keep responses concise (2-3 sentences usually) unless they ask for detailed explanations or practice recommendations.`;
+    Keep responses concise (2-3 sentences usually) unless they ask for detailed explanations or practice recommendations. For explanations, be more detailed but still age-appropriate and fun!`;
 
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
