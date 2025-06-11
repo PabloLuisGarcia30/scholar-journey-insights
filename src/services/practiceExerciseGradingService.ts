@@ -11,11 +11,6 @@ export interface PracticeExerciseAnswer {
   keywords?: string[];
   options?: string[];
   points: number;
-  
-  // Enhanced context for concept detection
-  questionText?: string;
-  subject?: string;
-  grade?: string;
 }
 
 export interface ExerciseGradingResult {
@@ -26,10 +21,6 @@ export interface ExerciseGradingResult {
   feedback: string;
   gradingMethod: 'exact_match' | 'flexible_match' | 'ai_graded';
   confidence: number;
-  
-  // Enhanced with concept detection
-  conceptMissed?: string;
-  conceptSource?: string;
 }
 
 export interface ExerciseSubmissionResult {
@@ -39,16 +30,12 @@ export interface ExerciseSubmissionResult {
   questionResults: ExerciseGradingResult[];
   overallFeedback: string;
   completedAt: Date;
-  
-  // Enhanced analytics
-  conceptsAnalyzed: number;
-  uniqueConceptsMissed: string[];
 }
 
 export class PracticeExerciseGradingService {
   
   /**
-   * Grade a complete practice exercise submission with enhanced concept tracking
+   * Grade a complete practice exercise submission with enhanced tracking
    */
   static async gradeExerciseSubmission(
     answers: PracticeExerciseAnswer[],
@@ -62,8 +49,6 @@ export class PracticeExerciseGradingService {
     const questionResults: ExerciseGradingResult[] = [];
     let totalScore = 0;
     let totalPossible = 0;
-    let conceptsAnalyzed = 0;
-    const uniqueConceptsMissed = new Set<string>();
     
     // Grade each question and record enhanced patterns
     for (let i = 0; i < answers.length; i++) {
@@ -74,12 +59,6 @@ export class PracticeExerciseGradingService {
       questionResults.push(result);
       totalScore += result.pointsEarned;
       totalPossible += result.pointsPossible;
-      
-      // Track concepts for analytics
-      if (result.conceptMissed) {
-        conceptsAnalyzed++;
-        uniqueConceptsMissed.add(result.conceptMissed);
-      }
       
       // Record enhanced mistake pattern if we have the required data
       if (studentExerciseId && skillName) {
@@ -107,25 +86,15 @@ export class PracticeExerciseGradingService {
           questionContext: answer.questionType === 'multiple-choice' 
             ? `Question: ${answer.questionId}. Options: ${answer.options?.join(', ')}`
             : `Question: ${answer.questionId}`,
-          options: answer.options,
-          
-          // Enhanced context for concept detection
-          subject: answer.subject,
-          grade: answer.grade,
-          questionText: answer.questionText
+          options: answer.options
         });
       }
     }
     
     const percentageScore = totalPossible > 0 ? (totalScore / totalPossible) * 100 : 0;
-    const overallFeedback = this.generateOverallFeedback(
-      percentageScore, 
-      questionResults,
-      Array.from(uniqueConceptsMissed)
-    );
+    const overallFeedback = this.generateOverallFeedback(percentageScore, questionResults);
     
     console.log(`✅ Exercise graded: ${totalScore}/${totalPossible} (${percentageScore.toFixed(1)}%)`);
-    console.log(`🧠 Concepts analyzed: ${conceptsAnalyzed}, Unique concepts missed: ${uniqueConceptsMissed.size}`);
     
     return {
       totalScore,
@@ -133,14 +102,12 @@ export class PracticeExerciseGradingService {
       percentageScore,
       questionResults,
       overallFeedback,
-      completedAt: new Date(),
-      conceptsAnalyzed,
-      uniqueConceptsMissed: Array.from(uniqueConceptsMissed)
+      completedAt: new Date()
     };
   }
   
   /**
-   * Grade a single question from a practice exercise with concept detection
+   * Grade a single question from a practice exercise
    */
   static async gradeExerciseQuestion(answer: PracticeExerciseAnswer): Promise<ExerciseGradingResult> {
     const {
@@ -151,10 +118,7 @@ export class PracticeExerciseGradingService {
       acceptableAnswers,
       keywords,
       options,
-      points,
-      questionText,
-      subject,
-      grade
+      points
     } = answer;
     
     let gradingResult: GradingResult;
@@ -189,22 +153,6 @@ export class PracticeExerciseGradingService {
     const pointsEarned = Math.round(gradingResult.score * points * 100) / 100;
     const feedback = this.generateQuestionFeedback(gradingResult, questionType, pointsEarned, points);
     
-    // For incorrect answers, detect missed concept if we have context
-    let conceptMissed: string | undefined;
-    let conceptSource: string | undefined;
-    
-    if (!gradingResult.isCorrect && subject && grade && questionText) {
-      try {
-        console.log(`🧠 Detecting concept for incorrect answer in ${subject} ${grade}`);
-        // Note: In a real implementation, we'd call ConceptMissedService here
-        // For now, we'll use a simplified approach to avoid circular dependencies
-        conceptMissed = `${questionType} understanding`;
-        conceptSource = 'simplified_detection';
-      } catch (error) {
-        console.warn('⚠️ Concept detection failed for question:', error);
-      }
-    }
-    
     return {
       questionId,
       isCorrect: gradingResult.isCorrect,
@@ -212,9 +160,7 @@ export class PracticeExerciseGradingService {
       pointsPossible: points,
       feedback,
       gradingMethod: gradingResult.method,
-      confidence: gradingResult.confidence,
-      conceptMissed,
-      conceptSource
+      confidence: gradingResult.confidence
     };
   }
   
@@ -261,12 +207,11 @@ export class PracticeExerciseGradingService {
   }
   
   /**
-   * Generate overall feedback including concept analysis
+   * Generate overall feedback for the exercise
    */
   private static generateOverallFeedback(
     percentageScore: number,
-    questionResults: ExerciseGradingResult[],
-    uniqueConceptsMissed: string[]
+    questionResults: ExerciseGradingResult[]
   ): string {
     const correctCount = questionResults.filter(r => r.isCorrect).length;
     const totalCount = questionResults.length;
@@ -280,7 +225,6 @@ export class PracticeExerciseGradingService {
     
     feedback += `. `;
     
-    // Performance feedback
     if (percentageScore >= 90) {
       feedback += 'Outstanding work! You have excellent mastery of these concepts.';
     } else if (percentageScore >= 80) {
@@ -291,15 +235,6 @@ export class PracticeExerciseGradingService {
       feedback += 'You\'re making progress! Focus on reviewing the key concepts and practice more.';
     } else {
       feedback += 'This topic needs more practice. Review the material and try some additional exercises.';
-    }
-    
-    // Concept-specific feedback
-    if (uniqueConceptsMissed.length > 0) {
-      feedback += ` Key concepts to review: ${uniqueConceptsMissed.slice(0, 3).join(', ')}`;
-      if (uniqueConceptsMissed.length > 3) {
-        feedback += ` and ${uniqueConceptsMissed.length - 3} others`;
-      }
-      feedback += '.';
     }
     
     // Add specific suggestions based on question types

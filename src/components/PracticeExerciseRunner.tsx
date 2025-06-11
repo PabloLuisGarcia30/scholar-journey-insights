@@ -183,8 +183,6 @@ export function PracticeExerciseRunner({ exerciseData, onComplete, onExit, showT
         })),
         overallFeedback: 'There was an issue grading your exercise. Please contact your instructor.',
         completedAt: new Date(),
-        conceptsAnalyzed: 0,
-        uniqueConceptsMissed: [],
         answers: answers
       };
       onComplete(fallbackResults);
