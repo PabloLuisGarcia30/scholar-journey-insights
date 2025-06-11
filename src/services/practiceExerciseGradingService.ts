@@ -73,6 +73,7 @@ export class PracticeExerciseGradingService {
           studentExerciseId,
           questionId: answer.questionId,
           questionNumber,
+          questionType: answer.questionType, // Now include question type
           studentAnswer: answer.studentAnswer,
           correctAnswer: answer.correctAnswer,
           isCorrect: result.isCorrect,

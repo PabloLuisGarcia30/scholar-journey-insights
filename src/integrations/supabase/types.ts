@@ -771,6 +771,7 @@ export type Database = {
           mistake_type: string | null
           question_id: string
           question_number: number
+          question_type: string | null
           skill_targeted: string
           student_answer: string
           student_exercise_id: string
@@ -786,6 +787,7 @@ export type Database = {
           mistake_type?: string | null
           question_id: string
           question_number: number
+          question_type?: string | null
           skill_targeted: string
           student_answer: string
           student_exercise_id: string
@@ -801,6 +803,7 @@ export type Database = {
           mistake_type?: string | null
           question_id?: string
           question_number?: number
+          question_type?: string | null
           skill_targeted?: string
           student_answer?: string
           student_exercise_id?: string

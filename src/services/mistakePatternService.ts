@@ -5,6 +5,7 @@ export interface MistakePatternData {
   student_exercise_id: string;
   question_id: string;
   question_number: number;
+  question_type?: string;
   student_answer: string;
   correct_answer: string;
   is_correct: boolean;
@@ -33,6 +34,7 @@ export class MistakePatternService {
     studentExerciseId: string;
     questionId: string;
     questionNumber: number;
+    questionType?: string;
     studentAnswer: string;
     correctAnswer: string;
     isCorrect: boolean;
@@ -51,6 +53,7 @@ export class MistakePatternService {
           student_exercise_id: mistakeData.studentExerciseId,
           question_id: mistakeData.questionId,
           question_number: mistakeData.questionNumber,
+          question_type: mistakeData.questionType,
           student_answer: mistakeData.studentAnswer,
           correct_answer: mistakeData.correctAnswer,
           is_correct: mistakeData.isCorrect,
@@ -215,6 +218,72 @@ export class MistakePatternService {
         .sort((a, b) => b.count - a.count);
     } catch (error) {
       console.error('❌ Exception in getSkillMistakePatterns:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Get mistake patterns grouped by question type for better analytics
+   */
+  static async getSkillMistakePatternsByType(skillName: string): Promise<{
+    question_type: string;
+    mistake_type: string;
+    count: number;
+    percentage: number;
+  }[]> {
+    try {
+      const { data, error } = await supabase
+        .from('mistake_patterns')
+        .select('question_type, mistake_type')
+        .eq('skill_targeted', skillName)
+        .eq('is_correct', false)
+        .not('question_type', 'is', null);
+
+      if (error) {
+        console.error('❌ Error fetching skill mistake patterns by type:', error);
+        return [];
+      }
+
+      // Group by question type and mistake type
+      const groupedCounts: Record<string, Record<string, number>> = {};
+      const typeTotals: Record<string, number> = {};
+
+      data.forEach(record => {
+        const questionType = record.question_type || 'unknown';
+        const mistakeType = record.mistake_type || 'unknown';
+        
+        if (!groupedCounts[questionType]) {
+          groupedCounts[questionType] = {};
+          typeTotals[questionType] = 0;
+        }
+        
+        groupedCounts[questionType][mistakeType] = (groupedCounts[questionType][mistakeType] || 0) + 1;
+        typeTotals[questionType]++;
+      });
+
+      // Convert to array format with percentages
+      const results: {
+        question_type: string;
+        mistake_type: string;
+        count: number;
+        percentage: number;
+      }[] = [];
+
+      Object.entries(groupedCounts).forEach(([questionType, mistakes]) => {
+        const total = typeTotals[questionType];
+        Object.entries(mistakes).forEach(([mistakeType, count]) => {
+          results.push({
+            question_type: questionType,
+            mistake_type: mistakeType,
+            count,
+            percentage: Math.round((count / total) * 100)
+          });
+        });
+      });
+
+      return results.sort((a, b) => b.count - a.count);
+    } catch (error) {
+      console.error('❌ Exception in getSkillMistakePatternsByType:', error);
       return [];
     }
   }
