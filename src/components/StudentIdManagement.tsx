@@ -3,14 +3,16 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { AlertTriangle, Check, Users, IdCard } from "lucide-react";
+import { AlertTriangle, Check, Users, IdCard, Database, RefreshCw } from "lucide-react";
 import { StudentIdGenerationService } from "@/services/studentIdGenerationService";
+import { studentIdIntegration } from "@/services/studentIdIntegrationService";
 import { getAllActiveStudents } from "@/services/examService";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
 export function StudentIdManagement() {
   const [loading, setLoading] = useState(false);
+  const [backfillLoading, setBackfillLoading] = useState(false);
   const [students, setStudents] = useState<any[]>([]);
   const [studentsWithoutIds, setStudentsWithoutIds] = useState<any[]>([]);
   const [loadingStats, setLoadingStats] = useState(false);
@@ -63,12 +65,35 @@ export function StudentIdManagement() {
     }
   };
 
+  const handleBackfillRelationships = async () => {
+    try {
+      setBackfillLoading(true);
+      console.log('🔄 Starting Student ID relationship backfill...');
+      
+      const result = await studentIdIntegration.backfillRelationships();
+      
+      if (result.success) {
+        toast.success(`Successfully updated ${result.processed} skill score records with Student ID links!`);
+      } else {
+        toast.error(`Backfill completed with ${result.errors.length} errors. Check console for details.`);
+        console.error('Backfill errors:', result.errors);
+      }
+      
+      console.log('📊 Backfill results:', result);
+    } catch (error) {
+      console.error('Error during relationship backfill:', error);
+      toast.error('Failed to update Student ID relationships. Please try again.');
+    } finally {
+      setBackfillLoading(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900">Student ID Management</h2>
-          <p className="text-gray-600">Manage and assign Student IDs to existing students</p>
+          <h2 className="text-2xl font-bold text-gray-900">Enhanced Student ID Management</h2>
+          <p className="text-gray-600">Manage Student IDs and ensure proper linking with grading data</p>
         </div>
         <Button onClick={loadStudentStats} disabled={loadingStats}>
           {loadingStats ? 'Loading...' : 'Refresh Stats'}
@@ -111,6 +136,76 @@ export function StudentIdManagement() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Enhanced Integration Management Section */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Database className="h-5 w-5 text-blue-500" />
+            Student ID Integration Management
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            <p className="text-sm text-gray-600">
+              Enhanced Student ID integration ensures all grading data is properly linked to Student IDs, 
+              enabling comprehensive student profiles and cross-class analytics.
+            </p>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="p-4 border rounded-lg bg-blue-50">
+                <h4 className="font-medium text-blue-900 mb-2">Student ID Assignment</h4>
+                <p className="text-sm text-blue-700 mb-3">
+                  Assign unique Student IDs to all students in the system
+                </p>
+                <Button 
+                  onClick={handleBackfillStudentIds} 
+                  disabled={loading}
+                  className="w-full"
+                  variant="outline"
+                >
+                  {loading ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-2"></div>
+                      Assigning IDs...
+                    </>
+                  ) : (
+                    <>
+                      <IdCard className="h-4 w-4 mr-2" />
+                      Assign Student IDs
+                    </>
+                  )}
+                </Button>
+              </div>
+
+              <div className="p-4 border rounded-lg bg-green-50">
+                <h4 className="font-medium text-green-900 mb-2">Data Relationship Backfill</h4>
+                <p className="text-sm text-green-700 mb-3">
+                  Link existing skill scores to Student IDs for comprehensive analytics
+                </p>
+                <Button 
+                  onClick={handleBackfillRelationships} 
+                  disabled={backfillLoading}
+                  className="w-full"
+                  variant="outline"
+                >
+                  {backfillLoading ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-green-600 mr-2"></div>
+                      Updating Links...
+                    </>
+                  ) : (
+                    <>
+                      <RefreshCw className="h-4 w-4 mr-2" />
+                      Update Data Links
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {studentsWithoutIds.length > 0 && (
         <Card>
@@ -173,7 +268,15 @@ export function StudentIdManagement() {
             <div className="text-center">
               <Check className="h-12 w-12 text-green-500 mx-auto mb-4" />
               <h3 className="text-lg font-semibold text-gray-900 mb-2">All Students Have Student IDs!</h3>
-              <p className="text-gray-600">Every student in the system has been assigned a unique Student ID.</p>
+              <p className="text-gray-600 mb-4">Every student in the system has been assigned a unique Student ID.</p>
+              <div className="bg-green-50 p-4 rounded-lg">
+                <p className="text-sm text-green-700">
+                  ✅ Student ID integration is ready<br/>
+                  ✅ All future grading will automatically link to Student IDs<br/>
+                  ✅ Class enrollment tracking is active<br/>
+                  ✅ Comprehensive student profiles can be built
+                </p>
+              </div>
             </div>
           </CardContent>
         </Card>

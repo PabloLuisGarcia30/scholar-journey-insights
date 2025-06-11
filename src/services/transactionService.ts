@@ -1,5 +1,5 @@
-
 import { supabase } from "@/integrations/supabase/client";
+import { studentIdIntegration } from "./studentIdIntegrationService";
 import type { GradingResult, TestAnalysisResult, SkillScore } from './jsonValidationService';
 
 export interface DatabaseTransactionResult {
@@ -7,38 +7,67 @@ export interface DatabaseTransactionResult {
   testResultId?: string;
   questionsStored?: number;
   skillScoresStored?: number;
+  studentIntegration?: {
+    studentProfileId: string;
+    studentId: string;
+    wasCreated: boolean;
+    enrolledInClass?: boolean;
+  };
   error?: string;
   rollbackPerformed?: boolean;
 }
 
 export interface TestResultData {
   examId: string;
-  studentProfileId: string;
+  studentName: string;
+  studentProfileId?: string;
   classId?: string;
   overallScore: number;
   totalPointsEarned: number;
   totalPointsPossible: number;
   aiFeedback?: string;
   detailedAnalysis?: string;
+  gradeLevel?: string;
+  email?: string;
 }
 
 export class TransactionService {
-  // Atomic test result insertion with full rollback capability
+  // Enhanced atomic test result insertion with Student ID integration
   async insertTestResultsTransaction(
     testData: TestResultData,
     gradingResults: GradingResult[],
     contentSkillScores: SkillScore[] = [],
     subjectSkillScores: SkillScore[] = []
   ): Promise<DatabaseTransactionResult> {
-    console.log('🔄 Starting atomic test results transaction...');
+    console.log('🔄 Starting enhanced atomic test results transaction with Student ID integration...');
     
     try {
-      // Step 1: Insert main test result
+      // Step 1: Integrate student (get or create profile + auto-enroll)
+      console.log('📝 Integrating student for grading:', testData.studentName);
+      
+      const studentIntegration = await studentIdIntegration.integrateForGrading(
+        testData.studentName,
+        testData.classId,
+        testData.email,
+        testData.gradeLevel
+      );
+
+      if (!studentIntegration.success) {
+        throw new Error(`Student integration failed: ${studentIntegration.error}`);
+      }
+
+      console.log('✅ Student integration completed:', {
+        studentId: studentIntegration.studentId,
+        profileId: studentIntegration.studentProfileId,
+        wasCreated: studentIntegration.wasCreated
+      });
+
+      // Step 2: Insert main test result with proper student linking
       const { data: testResult, error: testError } = await supabase
         .from('test_results')
         .insert({
           exam_id: testData.examId,
-          student_id: testData.studentProfileId,
+          student_id: studentIntegration.studentProfileId, // Use UUID from student_profiles
           class_id: testData.classId || '',
           overall_score: testData.overallScore,
           total_points_earned: testData.totalPointsEarned,
@@ -56,11 +85,12 @@ export class TransactionService {
       const testResultId = testResult.id;
       console.log(`✅ Test result created: ${testResultId}`);
 
-      // Step 2: Insert content skill scores
+      // Step 3: Insert content skill scores with student_id linking
       let contentSkillCount = 0;
       if (contentSkillScores.length > 0) {
         const contentSkillData = contentSkillScores.map(skill => ({
           test_result_id: testResultId,
+          student_id: studentIntegration.studentProfileId, // Direct student linking
           skill_name: skill.skill_name,
           score: skill.score,
           points_earned: skill.points_earned,
@@ -81,11 +111,12 @@ export class TransactionService {
         console.log(`✅ Content skill scores stored: ${contentSkillCount}`);
       }
 
-      // Step 3: Insert subject skill scores
+      // Step 4: Insert subject skill scores with student_id linking
       let subjectSkillCount = 0;
       if (subjectSkillScores.length > 0) {
         const subjectSkillData = subjectSkillScores.map(skill => ({
           test_result_id: testResultId,
+          student_id: studentIntegration.studentProfileId, // Direct student linking
           skill_name: skill.skill_name,
           score: skill.score,
           points_earned: skill.points_earned,
@@ -107,17 +138,23 @@ export class TransactionService {
         console.log(`✅ Subject skill scores stored: ${subjectSkillCount}`);
       }
 
-      console.log(`🎉 Transaction completed successfully: ${testResultId}`);
+      console.log(`🎉 Enhanced transaction completed successfully: ${testResultId}`);
       
       return {
         success: true,
         testResultId,
         questionsStored: gradingResults.length,
-        skillScoresStored: contentSkillCount + subjectSkillCount
+        skillScoresStored: contentSkillCount + subjectSkillCount,
+        studentIntegration: {
+          studentProfileId: studentIntegration.studentProfileId,
+          studentId: studentIntegration.studentId,
+          wasCreated: studentIntegration.wasCreated,
+          enrolledInClass: studentIntegration.enrolledInClass
+        }
       };
 
     } catch (error) {
-      console.error('❌ Transaction failed:', error);
+      console.error('❌ Enhanced transaction failed:', error);
       
       return {
         success: false,
@@ -224,18 +261,19 @@ export class TransactionService {
     }
   }
 
-  // Verify transaction integrity
+  // Enhanced verification with student_id checking
   async verifyTransactionIntegrity(testResultId: string): Promise<{
     testResultExists: boolean;
     contentSkillCount: number;
     subjectSkillCount: number;
+    studentIdLinked: boolean;
     integrity: boolean;
   }> {
     try {
       // Check test result exists
       const { data: testResult, error: testError } = await supabase
         .from('test_results')
-        .select('id')
+        .select('id, student_id')
         .eq('id', testResultId)
         .maybeSingle();
 
@@ -243,7 +281,7 @@ export class TransactionService {
         throw new Error(`Integrity check failed: ${testError.message}`);
       }
 
-      // Count content skill scores
+      // Count content skill scores and check student_id linking
       const { count: contentSkillCount, error: contentError } = await supabase
         .from('content_skill_scores')
         .select('*', { count: 'exact', head: true })
@@ -253,7 +291,7 @@ export class TransactionService {
         throw new Error(`Content skill count failed: ${contentError.message}`);
       }
 
-      // Count subject skill scores
+      // Count subject skill scores and check student_id linking
       const { count: subjectSkillCount, error: subjectError } = await supabase
         .from('subject_skill_scores')
         .select('*', { count: 'exact', head: true })
@@ -263,12 +301,25 @@ export class TransactionService {
         throw new Error(`Subject skill count failed: ${subjectError.message}`);
       }
 
-      const integrity = !!testResult && (contentSkillCount !== null) && (subjectSkillCount !== null);
+      // Verify student_id is properly linked
+      let studentIdLinked = false;
+      if (testResult?.student_id) {
+        const { data: studentProfile, error: studentError } = await supabase
+          .from('student_profiles')
+          .select('id, student_id')
+          .eq('id', testResult.student_id)
+          .maybeSingle();
+
+        studentIdLinked = !studentError && !!studentProfile?.student_id;
+      }
+
+      const integrity = !!testResult && (contentSkillCount !== null) && (subjectSkillCount !== null) && studentIdLinked;
 
       return {
         testResultExists: !!testResult,
         contentSkillCount: contentSkillCount || 0,
         subjectSkillCount: subjectSkillCount || 0,
+        studentIdLinked,
         integrity
       };
 
@@ -278,6 +329,7 @@ export class TransactionService {
         testResultExists: false,
         contentSkillCount: 0,
         subjectSkillCount: 0,
+        studentIdLinked: false,
         integrity: false
       };
     }
@@ -329,6 +381,9 @@ export class TransactionService {
     }
   }
 }
+
+// Export enhanced singleton instance
+export const transactionService = new TransactionService();
 
 // Export singleton instance
 export const transactionService = new TransactionService();
