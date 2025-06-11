@@ -1,9 +1,8 @@
-
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { Play, Users, Calendar, Settings, BookOpen, ArrowLeft, FileText, Activity, CheckCircle2 } from "lucide-react";
+import { Play, Users, Calendar, Settings, BookOpen, ArrowLeft, FileText, Activity, CheckCircle2, TrendingUp, Clock, GraduationCap, BarChart3, Sparkles } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -102,100 +101,206 @@ export default function ClassRunner() {
   const getLessonPlanStatus = (classId: string) => {
     const classPlans = allLessonPlans.find(item => item.classId === classId);
     if (!classPlans || classPlans.lessonPlans.length === 0) {
-      return { status: 'none', text: 'No Plan', color: 'bg-slate-100 text-slate-600' };
+      return { status: 'none', text: 'No Plan', color: 'bg-slate-100 text-slate-600 border-slate-200' };
     }
     
     const latestPlan = classPlans.lessonPlans[0];
     return { 
       status: 'ready', 
       text: 'Plan Ready', 
-      color: 'bg-green-100 text-green-700',
+      color: 'bg-emerald-50 text-emerald-700 border-emerald-200',
       plan: latestPlan
     };
   };
 
+  // Calculate summary stats
+  const totalClasses = activeClasses.length;
+  const classesWithPlans = activeClasses.filter(c => getLessonPlanStatus(c.id).status === 'ready').length;
+  const totalStudents = activeClasses.reduce((sum, c) => sum + (c.student_count || 0), 0);
+
+  const quickTools = [
+    { icon: Users, title: "Student Roster", description: "Manage class enrollment", color: "from-blue-500 to-blue-600" },
+    { icon: Calendar, title: "Lesson Plans", description: "Plan your curriculum", color: "from-purple-500 to-purple-600" },
+    { icon: BookOpen, title: "Assignments", description: "Create & track work", color: "from-green-500 to-green-600" },
+    { icon: Settings, title: "Class Settings", description: "Configure preferences", color: "from-orange-500 to-orange-600" },
+  ];
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50/30">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/20 to-indigo-50/30">
       <div className="max-w-7xl mx-auto px-6 py-8">
-        {/* Header */}
+        {/* Enhanced Header */}
         <div className="mb-8">
-          <div className="flex items-center gap-4 mb-4">
+          <div className="flex items-center gap-4 mb-6">
             <Button 
               variant="outline" 
               onClick={() => navigate('/')}
-              className="flex items-center gap-2"
+              className="flex items-center gap-2 hover:shadow-md transition-all duration-200 border-slate-200 hover:border-slate-300"
             >
               <ArrowLeft className="h-4 w-4" />
-              Back to Teacher Dashboard
+              Back to Dashboard
             </Button>
           </div>
-          <h1 className="text-4xl font-bold bg-gradient-to-r from-yellow-400 via-lime-400 to-green-500 bg-clip-text text-transparent inline-block">
-            ClassRunner
-          </h1>
-          <p className="text-lg text-slate-600 mt-2">Manage and run your classes efficiently</p>
+          
+          {/* Hero Section */}
+          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-indigo-600 via-purple-600 to-blue-600 p-8 text-white shadow-xl">
+            <div className="relative z-10">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="p-3 bg-white/20 backdrop-blur-sm rounded-xl">
+                  <GraduationCap className="h-8 w-8" />
+                </div>
+                <div>
+                  <h1 className="text-4xl font-bold">ClassRunner</h1>
+                  <p className="text-blue-100 text-lg">Manage and run your classes efficiently</p>
+                </div>
+              </div>
+              
+              {/* Stats Cards */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-8">
+                <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/20">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-white/20 rounded-lg">
+                      <BookOpen className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <p className="text-2xl font-bold">{totalClasses}</p>
+                      <p className="text-blue-100 text-sm">Active Classes</p>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/20">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-white/20 rounded-lg">
+                      <Users className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <p className="text-2xl font-bold">{totalStudents}</p>
+                      <p className="text-blue-100 text-sm">Total Students</p>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/20">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-white/20 rounded-lg">
+                      <Activity className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <p className="text-2xl font-bold">{activeSessions.length}</p>
+                      <p className="text-blue-100 text-sm">Live Sessions</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            {/* Background decoration */}
+            <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-l from-white/10 to-transparent rounded-full blur-3xl"></div>
+            <div className="absolute -bottom-20 -left-20 w-96 h-96 bg-gradient-to-r from-blue-400/20 to-transparent rounded-full blur-3xl"></div>
+          </div>
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="classes">Active Classes</TabsTrigger>
-            <TabsTrigger value="monitoring" className="flex items-center gap-2">
+          <TabsList className="grid w-full grid-cols-3 bg-white/80 backdrop-blur-sm border border-slate-200 shadow-sm">
+            <TabsTrigger 
+              value="classes" 
+              className="data-[state=active]:bg-white data-[state=active]:shadow-sm transition-all duration-200"
+            >
+              <BookOpen className="h-4 w-4 mr-2" />
+              Active Classes
+            </TabsTrigger>
+            <TabsTrigger 
+              value="monitoring" 
+              className="flex items-center gap-2 data-[state=active]:bg-white data-[state=active]:shadow-sm transition-all duration-200"
+            >
               <Activity className="h-4 w-4" />
               Live Monitoring
               {activeSessions.length > 0 && (
-                <span className="ml-1 px-2 py-1 text-xs bg-green-500 text-white rounded-full">
+                <span className="ml-1 px-2 py-1 text-xs bg-emerald-500 text-white rounded-full animate-pulse">
                   {activeSessions.length}
                 </span>
               )}
             </TabsTrigger>
-            <TabsTrigger value="tools">Quick Tools</TabsTrigger>
+            <TabsTrigger 
+              value="tools"
+              className="data-[state=active]:bg-white data-[state=active]:shadow-sm transition-all duration-200"
+            >
+              <Sparkles className="h-4 w-4 mr-2" />
+              Quick Tools
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="classes">
-            <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-sm">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <BookOpen className="h-5 w-5" />
-                  Active Classes
-                </CardTitle>
+            <Card className="bg-white/90 backdrop-blur-sm border-0 shadow-lg ring-1 ring-slate-200/50">
+              <CardHeader className="border-b border-slate-100">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="flex items-center gap-3">
+                    <div className="p-2 bg-blue-50 rounded-lg">
+                      <BookOpen className="h-5 w-5 text-blue-600" />
+                    </div>
+                    <div>
+                      <span className="text-xl">Active Classes</span>
+                      <p className="text-sm text-muted-foreground font-normal">
+                        {classesWithPlans}/{totalClasses} classes have lesson plans
+                      </p>
+                    </div>
+                  </CardTitle>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+                      <TrendingUp className="h-3 w-3 mr-1" />
+                      {totalClasses} Total
+                    </Badge>
+                  </div>
+                </div>
               </CardHeader>
-              <CardContent>
+              <CardContent className="p-6">
                 {isLoading ? (
                   <div className="space-y-4">
                     {[1, 2, 3].map((i) => (
-                      <div key={i} className="p-4 rounded-lg border bg-white/50 animate-pulse">
-                        <div className="h-4 bg-slate-200 rounded w-3/4 mb-2"></div>
-                        <div className="h-3 bg-slate-200 rounded w-1/2 mb-3"></div>
-                        <div className="h-3 bg-slate-200 rounded w-2/3"></div>
+                      <div key={i} className="p-6 rounded-xl border border-slate-200 bg-gradient-to-r from-slate-50 to-white animate-pulse">
+                        <div className="flex items-center gap-4 mb-4">
+                          <div className="h-12 w-12 bg-slate-200 rounded-xl"></div>
+                          <div className="flex-1">
+                            <div className="h-5 bg-slate-200 rounded w-3/4 mb-2"></div>
+                            <div className="h-4 bg-slate-200 rounded w-1/2"></div>
+                          </div>
+                        </div>
+                        <div className="h-4 bg-slate-200 rounded w-2/3"></div>
                       </div>
                     ))}
                   </div>
                 ) : activeClasses.length > 0 ? (
-                  <div className="space-y-4">
+                  <div className="space-y-6">
                     {activeClasses.map((classItem) => {
                       const planStatus = getLessonPlanStatus(classItem.id);
                       const hasPlan = planStatus.status === 'ready';
                       
                       return (
-                        <div key={classItem.id} className="p-4 rounded-lg border bg-white/50">
-                          <div className="flex items-center justify-between mb-3">
-                            <div className="flex items-center gap-3">
+                        <div key={classItem.id} className="group p-6 rounded-xl border border-slate-200 bg-gradient-to-r from-white to-slate-50/50 hover:shadow-lg hover:border-slate-300 transition-all duration-300">
+                          <div className="flex items-start justify-between mb-4">
+                            <div className="flex items-center gap-4">
+                              <div className="p-3 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl text-white shadow-lg">
+                                <BookOpen className="h-6 w-6" />
+                              </div>
                               <div>
-                                <h3 className="font-semibold text-slate-900">{classItem.name}</h3>
-                                <p className="text-sm text-slate-600">
-                                  {classItem.subject} • {classItem.grade}
+                                <h3 className="text-xl font-semibold text-slate-900 mb-1">{classItem.name}</h3>
+                                <p className="text-slate-600 flex items-center gap-2">
+                                  <span>{classItem.subject}</span>
+                                  <span className="w-1 h-1 bg-slate-400 rounded-full"></span>
+                                  <span>{classItem.grade}</span>
                                 </p>
                               </div>
-                              <Badge className={`px-2 py-1 text-xs ${planStatus.color} border-0`}>
+                            </div>
+                            <div className="flex items-center gap-3">
+                              <Badge className={`px-3 py-1 border ${planStatus.color} shadow-sm`}>
                                 {hasPlan && <CheckCircle2 className="h-3 w-3 mr-1" />}
                                 {planStatus.text}
                               </Badge>
-                            </div>
-                            <div className="flex items-center gap-2">
                               <Button 
                                 size="sm" 
                                 variant="outline" 
                                 onClick={() => handlePlanClass(classItem)}
-                                className="flex items-center gap-2"
+                                className="flex items-center gap-2 hover:shadow-md transition-all duration-200 border-slate-300 hover:border-slate-400"
                               >
                                 <FileText className="h-4 w-4" />
                                 {hasPlan ? 'Edit Plan' : 'Create Plan'}
@@ -209,23 +314,30 @@ export default function ClassRunner() {
                               )}
                             </div>
                           </div>
-                          <div className="flex items-center gap-4 text-sm text-slate-600">
-                            <span>{classItem.student_count || 0} students</span>
-                            <span>•</span>
-                            <span>Next: {getNextClassTime()}</span>
+                          
+                          {/* Enhanced metrics row */}
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 bg-white/80 rounded-lg border border-slate-100">
+                            <div className="flex items-center gap-2">
+                              <Users className="h-4 w-4 text-blue-500" />
+                              <span className="text-sm font-medium">{classItem.student_count || 0} students</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Clock className="h-4 w-4 text-green-500" />
+                              <span className="text-sm">Next: {getNextClassTime()}</span>
+                            </div>
                             {classItem.avg_gpa && (
-                              <>
-                                <span>•</span>
-                                <span>Avg GPA: {Number(classItem.avg_gpa).toFixed(1)}</span>
-                              </>
+                              <div className="flex items-center gap-2">
+                                <BarChart3 className="h-4 w-4 text-purple-500" />
+                                <span className="text-sm">Avg GPA: {Number(classItem.avg_gpa).toFixed(1)}</span>
+                              </div>
                             )}
                             {hasPlan && planStatus.plan && (
-                              <>
-                                <span>•</span>
-                                <span className="text-green-600">
-                                  Plan for {planStatus.plan.scheduled_date} at {planStatus.plan.scheduled_time}
+                              <div className="flex items-center gap-2">
+                                <Calendar className="h-4 w-4 text-emerald-500" />
+                                <span className="text-sm text-emerald-600 font-medium">
+                                  {planStatus.plan.scheduled_date} at {planStatus.plan.scheduled_time}
                                 </span>
-                              </>
+                              </div>
                             )}
                           </div>
                         </div>
@@ -233,10 +345,13 @@ export default function ClassRunner() {
                     })}
                   </div>
                 ) : (
-                  <div className="text-center py-8">
-                    <BookOpen className="h-12 w-12 text-slate-300 mx-auto mb-4" />
-                    <p className="text-slate-500">No active classes found for {profile?.full_name}</p>
-                    <p className="text-sm text-slate-400 mt-2">
+                  <div className="text-center py-16">
+                    <div className="p-4 bg-slate-100 rounded-2xl w-fit mx-auto mb-6">
+                      <BookOpen className="h-12 w-12 text-slate-400 mx-auto" />
+                    </div>
+                    <h3 className="text-xl font-semibold text-slate-700 mb-2">No Active Classes</h3>
+                    <p className="text-slate-500 mb-1">No classes found for {profile?.full_name}</p>
+                    <p className="text-sm text-slate-400">
                       Classes will appear here once they are created and assigned to you.
                     </p>
                   </div>
@@ -246,46 +361,64 @@ export default function ClassRunner() {
           </TabsContent>
 
           <TabsContent value="monitoring">
-            <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-sm">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Activity className="h-5 w-5" />
-                  Live Session Monitoring
-                  {activeSessions.length > 0 && (
-                    <span className="ml-2 px-2 py-1 text-xs bg-green-500 text-white rounded-full">
-                      {activeSessions.length} active
-                    </span>
-                  )}
+            <Card className="bg-white/90 backdrop-blur-sm border-0 shadow-lg ring-1 ring-slate-200/50">
+              <CardHeader className="border-b border-slate-100">
+                <CardTitle className="flex items-center gap-3">
+                  <div className="p-2 bg-emerald-50 rounded-lg">
+                    <Activity className="h-5 w-5 text-emerald-600" />
+                  </div>
+                  <div>
+                    <span className="text-xl">Live Session Monitoring</span>
+                    {activeSessions.length > 0 && (
+                      <div className="flex items-center gap-2 mt-1">
+                        <span className="flex h-2 w-2">
+                          <span className="animate-ping absolute inline-flex h-2 w-2 rounded-full bg-emerald-400 opacity-75"></span>
+                          <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                        </span>
+                        <span className="text-sm text-emerald-600 font-medium">
+                          {activeSessions.length} active session{activeSessions.length !== 1 ? 's' : ''}
+                        </span>
+                      </div>
+                    )}
+                  </div>
                 </CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className="p-6">
                 <LiveSessionMonitoring showAllSessions={true} />
               </CardContent>
             </Card>
           </TabsContent>
 
           <TabsContent value="tools">
-            <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-sm">
-              <CardHeader>
-                <CardTitle>Quick Tools</CardTitle>
+            <Card className="bg-white/90 backdrop-blur-sm border-0 shadow-lg ring-1 ring-slate-200/50">
+              <CardHeader className="border-b border-slate-100">
+                <CardTitle className="flex items-center gap-3">
+                  <div className="p-2 bg-purple-50 rounded-lg">
+                    <Sparkles className="h-5 w-5 text-purple-600" />
+                  </div>
+                  Quick Tools
+                </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-3">
-                <Button variant="outline" className="w-full justify-start">
-                  <Users className="h-4 w-4 mr-2" />
-                  Student Roster
-                </Button>
-                <Button variant="outline" className="w-full justify-start">
-                  <Calendar className="h-4 w-4 mr-2" />
-                  Lesson Plans
-                </Button>
-                <Button variant="outline" className="w-full justify-start">
-                  <BookOpen className="h-4 w-4 mr-2" />
-                  Assignments
-                </Button>
-                <Button variant="outline" className="w-full justify-start">
-                  <Settings className="h-4 w-4 mr-2" />
-                  Class Settings
-                </Button>
+              <CardContent className="p-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {quickTools.map((tool, index) => (
+                    <Button 
+                      key={index}
+                      variant="outline" 
+                      className="h-auto p-6 justify-start hover:shadow-lg transition-all duration-300 border-slate-200 hover:border-slate-300 group"
+                    >
+                      <div className="flex items-center gap-4 w-full">
+                        <div className={`p-3 rounded-xl bg-gradient-to-br ${tool.color} text-white shadow-lg group-hover:scale-110 transition-transform duration-200`}>
+                          <tool.icon className="h-6 w-6" />
+                        </div>
+                        <div className="text-left">
+                          <p className="font-semibold text-slate-900">{tool.title}</p>
+                          <p className="text-sm text-slate-500">{tool.description}</p>
+                        </div>
+                      </div>
+                    </Button>
+                  ))}
+                </div>
               </CardContent>
             </Card>
           </TabsContent>
