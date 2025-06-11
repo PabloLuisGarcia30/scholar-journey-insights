@@ -41,9 +41,12 @@ export interface EnhancedMistakePatternData {
   conceptMasteryLevel?: 'mastered' | 'partial' | 'not_demonstrated' | 'unknown';
   conceptSource?: 'curriculum_mapping' | 'gpt_inference' | 'manual_tag' | 'skill_mapping';
   
-  // New concept missed fields
+  // Concept missed fields
   conceptMissedId?: string;
   conceptMissedDescription?: string;
+  
+  // NEW: Misconception signature field
+  misconceptionSignature?: string;
 }
 
 export interface EnhancedMistakeAnalysis {
@@ -82,7 +85,7 @@ export interface CommonErrorPattern {
 export class EnhancedMistakePatternService {
   
   /**
-   * Record an enhanced mistake pattern with detailed analysis
+   * Record an enhanced mistake pattern with detailed analysis including misconception signature
    */
   static async recordEnhancedMistakePattern(mistakeData: EnhancedMistakePatternData): Promise<string | null> {
     try {
@@ -130,9 +133,12 @@ export class EnhancedMistakePatternService {
           concept_mastery_level: mistakeData.conceptMasteryLevel,
           concept_source: mistakeData.conceptSource,
           
-          // New concept missed fields
+          // Concept missed fields
           concept_missed_id: mistakeData.conceptMissedId,
-          concept_missed_description: mistakeData.conceptMissedDescription
+          concept_missed_description: mistakeData.conceptMissedDescription,
+          
+          // NEW: Misconception signature field
+          misconception_signature: mistakeData.misconceptionSignature
         })
         .select('id')
         .single();
@@ -145,6 +151,9 @@ export class EnhancedMistakePatternService {
       console.log(`✅ Enhanced mistake pattern recorded: ${data.id}`);
       if (mistakeData.conceptMissedId) {
         console.log(`🎯 Concept missed recorded: ${mistakeData.conceptMissedDescription}`);
+      }
+      if (mistakeData.misconceptionSignature) {
+        console.log(`🔗 Misconception signature recorded: ${mistakeData.misconceptionSignature}`);
       }
       return data.id;
     } catch (error) {

@@ -1,5 +1,5 @@
-
 import { supabase } from '@/integrations/supabase/client';
+import { MisconceptionSignatureService } from './misconceptionSignatureService';
 
 export interface ConceptMissedAnalysis {
   conceptMissedId: string | null;
@@ -94,7 +94,7 @@ export class ConceptMissedService {
   }
   
   /**
-   * Get most commonly missed concepts for analytics
+   * Get most commonly missed concepts for analytics with misconception signature support
    */
   static async getMostMissedConcepts(
     studentId?: string,
@@ -106,12 +106,14 @@ export class ConceptMissedService {
     miss_count: number;
     subject: string;
     grade: string;
+    misconception_signature?: string;
   }[]> {
     try {
       let query = supabase
         .from('mistake_patterns')
         .select(`
           concept_missed_id,
+          misconception_signature,
           concept_index!inner(concept_name, subject, grade)
         `)
         .not('concept_missed_id', 'is', null);
@@ -133,6 +135,7 @@ export class ConceptMissedService {
         subject: string;
         grade: string;
         count: number;
+        misconception_signature?: string;
       }>();
       
       data.forEach((record: any) => {
@@ -146,7 +149,8 @@ export class ConceptMissedService {
             concept_name: concept.concept_name,
             subject: concept.subject,
             grade: concept.grade,
-            count: 1
+            count: 1,
+            misconception_signature: record.misconception_signature
           });
         }
       });
@@ -158,7 +162,8 @@ export class ConceptMissedService {
           concept_name: data.concept_name,
           miss_count: data.count,
           subject: data.subject,
-          grade: data.grade
+          grade: data.grade,
+          misconception_signature: data.misconception_signature
         }))
         .sort((a, b) => b.miss_count - a.miss_count)
         .slice(0, limit);
@@ -220,5 +225,53 @@ export class ConceptMissedService {
       console.error('❌ Exception in getConceptGrowthAnalytics:', error);
       return { new_concepts_created: 0, concepts_matched: 0, total_concept_detections: 0, growth_rate: 0 };
     }
+  }
+
+  /**
+   * NEW: Get misconception signature analytics
+   */
+  static async getMisconceptionSignatureAnalytics(
+    timeframe: 'week' | 'month' | 'all' = 'month'
+  ): Promise<{
+    total_signatures: number;
+    shared_misconceptions: number;
+    top_misconceptions: Array<{
+      signature: string;
+      concept_description: string;
+      student_count: number;
+      total_occurrences: number;
+    }>;
+  }> {
+    try {
+      const topMisconceptions = await MisconceptionSignatureService.getTopMisconceptions(10, timeframe);
+      
+      const sharedMisconceptions = topMisconceptions.filter(m => m.student_count >= 2).length;
+      
+      return {
+        total_signatures: topMisconceptions.length,
+        shared_misconceptions: sharedMisconceptions,
+        top_misconceptions: topMisconceptions.slice(0, 5) // Return top 5 for summary
+      };
+    } catch (error) {
+      console.error('❌ Exception in getMisconceptionSignatureAnalytics:', error);
+      return {
+        total_signatures: 0,
+        shared_misconceptions: 0,
+        top_misconceptions: []
+      };
+    }
+  }
+
+  /**
+   * NEW: Get students sharing a specific misconception
+   */
+  static async getStudentsByMisconception(
+    misconceptionSignature: string,
+    timeframe: 'week' | 'month' | 'all' = 'month'
+  ) {
+    return await MisconceptionSignatureService.getStudentsByMisconceptionSignature(
+      misconceptionSignature,
+      timeframe
+    );
   }
 }

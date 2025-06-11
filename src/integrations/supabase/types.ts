@@ -867,6 +867,7 @@ export type Database = {
           learning_objectives: string[] | null
           metacognitive_awareness: string | null
           misconception_category: string | null
+          misconception_signature: string | null
           mistake_type: string | null
           prerequisite_skills_gap: string[] | null
           question_context: string | null
@@ -907,6 +908,7 @@ export type Database = {
           learning_objectives?: string[] | null
           metacognitive_awareness?: string | null
           misconception_category?: string | null
+          misconception_signature?: string | null
           mistake_type?: string | null
           prerequisite_skills_gap?: string[] | null
           question_context?: string | null
@@ -947,6 +949,7 @@ export type Database = {
           learning_objectives?: string[] | null
           metacognitive_awareness?: string | null
           misconception_category?: string | null
+          misconception_signature?: string | null
           mistake_type?: string | null
           prerequisite_skills_gap?: string[] | null
           question_context?: string | null

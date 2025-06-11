@@ -1,6 +1,7 @@
 import { supabase } from '@/integrations/supabase/client';
 import { EnhancedMistakePatternService, type EnhancedMistakePatternData } from './enhancedMistakePatternService';
 import { ConceptualAnchorService } from './conceptualAnchorService';
+import { MisconceptionSignatureService } from './misconceptionSignatureService'; // NEW: Import signature service
 
 export interface MistakePatternData {
   id: string;
@@ -33,7 +34,7 @@ export interface MistakePattern {
 export class MistakePatternService {
   
   /**
-   * Record a mistake pattern with enhanced analysis
+   * Record a mistake pattern with enhanced analysis including misconception signature
    */
   static async recordMistakePattern(mistakeData: {
     studentExerciseId: string;
@@ -96,6 +97,13 @@ export class MistakePatternService {
         mistakeData.confidenceScore
       );
       
+      // NEW: Generate misconception signature if we have a concept missed description
+      let misconceptionSignature: string | undefined;
+      if (mistakeData.conceptMissedDescription) {
+        misconceptionSignature = MisconceptionSignatureService.generateSignature(mistakeData.conceptMissedDescription);
+        console.log(`🔗 Generated misconception signature: "${misconceptionSignature}"`);
+      }
+      
       console.log(`🧠 Conceptual anchor point: "${expectedConcept}" - Mastery: ${conceptMasteryLevel}`);
       if (mistakeData.conceptMissedId) {
         console.log(`🎯 Concept missed: ID ${mistakeData.conceptMissedId} - "${mistakeData.conceptMissedDescription}"`);
@@ -151,11 +159,24 @@ export class MistakePatternService {
         conceptSource: conceptSource,
         // Include concept missed data
         conceptMissedId: mistakeData.conceptMissedId,
-        conceptMissedDescription: mistakeData.conceptMissedDescription
+        conceptMissedDescription: mistakeData.conceptMissedDescription,
+        // NEW: Add misconception signature to enhanced data
+        misconceptionSignature: misconceptionSignature
       };
 
       // Use enhanced service for recording
-      return await EnhancedMistakePatternService.recordEnhancedMistakePattern(enhancedData);
+      const mistakePatternId = await EnhancedMistakePatternService.recordEnhancedMistakePattern(enhancedData);
+      
+      // NEW: Check for shared misconceptions and potentially trigger alerts
+      if (misconceptionSignature && mistakePatternId) {
+        const sharedCheck = await MisconceptionSignatureService.checkSharedMisconception(misconceptionSignature, 2);
+        if (sharedCheck.isShared) {
+          console.log(`🚨 Shared misconception detected: "${misconceptionSignature}" affects ${sharedCheck.studentCount} students`);
+          // Future: This is where we could trigger teacher alerts
+        }
+      }
+      
+      return mistakePatternId;
     } catch (error) {
       console.error('❌ Exception in recordMistakePattern:', error);
       return null;
