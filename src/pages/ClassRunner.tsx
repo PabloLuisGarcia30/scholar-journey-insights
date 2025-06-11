@@ -5,13 +5,13 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Play, Users, Calendar, Settings, BookOpen, ArrowLeft, FileText, Activity, CheckCircle2, TrendingUp, Clock, GraduationCap, BarChart3, Sparkles, Palette } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { StartClassSessionFromPlan } from "@/components/StartClassSessionFromPlan";
 import { LiveSessionMonitoring } from "@/components/LiveSessionMonitoring";
 import { getActiveClassSessions } from "@/services/classSessionService";
 import { getLessonPlanByClassId } from "@/services/lessonPlanService";
+import { getAllActiveClasses } from "@/services/examService";
 import { useState, useEffect } from "react";
 
 export default function ClassRunner() {
@@ -28,27 +28,14 @@ export default function ClassRunner() {
     localStorage.setItem('classrunner-design-preference', JSON.stringify(useModernDesign));
   }, [useModernDesign]);
 
-  // Fetch active classes for the teacher
+  // Fetch active classes for the teacher using the service function
   const { data: activeClasses = [], isLoading } = useQuery({
-    queryKey: ['activeClasses', profile?.full_name],
+    queryKey: ['activeClasses', profile?.id],
     queryFn: async () => {
-      console.log('Fetching classes for teacher:', profile?.full_name);
-      
-      const { data, error } = await supabase
-        .from('active_classes')
-        .select('*')
-        .eq('teacher', profile?.full_name || 'Mr. Cullen')
-        .order('created_at', { ascending: true });
-
-      if (error) {
-        console.error('Error fetching active classes:', error);
-        throw error;
-      }
-
-      console.log('Found classes:', data);
-      return data || [];
+      console.log('Fetching classes for authenticated teacher');
+      return await getAllActiveClasses();
     },
-    enabled: !!profile?.full_name,
+    enabled: !!profile?.id,
   });
 
   // Fetch lesson plans for all classes to show status
@@ -380,7 +367,7 @@ export default function ClassRunner() {
                       <BookOpen className={useModernDesign ? "h-12 w-12 text-slate-400 mx-auto" : "h-8 w-8 text-gray-400 mx-auto"} />
                     </div>
                     <h3 className={useModernDesign ? "text-xl font-semibold text-slate-700 mb-2" : "text-lg font-medium text-gray-700 mb-2"}>No Active Classes</h3>
-                    <p className={useModernDesign ? "text-slate-500 mb-1" : "text-gray-500 mb-1"}>No classes found for {profile?.full_name}</p>
+                    <p className={useModernDesign ? "text-slate-500 mb-1" : "text-gray-500 mb-1"}>No classes found for your account</p>
                     <p className={useModernDesign ? "text-sm text-slate-400" : "text-sm text-gray-400"}>
                       Classes will appear here once they are created and assigned to you.
                     </p>
