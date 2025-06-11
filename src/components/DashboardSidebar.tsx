@@ -1,5 +1,4 @@
-
-import { BarChart3, Users, GraduationCap, Calendar, Brain, Home, User, LogOut, TrendingUp } from "lucide-react";
+import { BarChart3, Users, GraduationCap, Calendar, Brain, Home, LogOut, TrendingUp } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
@@ -147,35 +146,10 @@ export function DashboardSidebar({ activeView, onViewChange }: DashboardSidebarP
 
   const navigationItems = isTeacherView ? teacherNavigationItems : studentNavigationItems;
 
-  // Get display name and email
-  const displayName = profile?.full_name || 'User';
-  const displayEmail = profile?.email || user?.email || 'dev@example.com';
-
   return (
     <Sidebar className="border-r bg-white">
       <SidebarHeader className="p-4 border-b">
-        <div className="space-y-3">
-          <div className="flex items-center gap-2">
-            <GraduationCap className="h-6 w-6 text-blue-600" />
-            <span className="font-semibold text-slate-900">EduPlatform</span>
-          </div>
-
-          {/* Role Toggle */}
-          <RoleToggle />
-
-          {/* User Info */}
-          <div className="flex items-center gap-3 p-2 bg-blue-50 rounded-lg">
-            <div className="w-8 h-8 bg-blue-200 rounded-full flex items-center justify-center">
-              <User className="h-4 w-4 text-blue-700" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-slate-900 truncate">
-                {displayName}
-              </p>
-              <p className="text-xs text-slate-600">{displayEmail}</p>
-            </div>
-          </div>
-        </div>
+        <RoleToggle />
       </SidebarHeader>
 
       <SidebarContent>
