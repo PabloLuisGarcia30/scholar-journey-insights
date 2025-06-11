@@ -376,6 +376,7 @@ const StudentPracticeExercise = () => {
             {isGenerating || isGenerationLoading ? (
               <>
                 <div className="space-y-4">
+                  <p className="text-sm text-gray-500 italic">This will only take a few moments</p>
                   <div className="w-full bg-gray-200 rounded-full h-2">
                     <div className="bg-blue-600 h-2 rounded-full animate-pulse" style={{ width: '75%' }}></div>
                   </div>
