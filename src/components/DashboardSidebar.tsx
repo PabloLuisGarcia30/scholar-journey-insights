@@ -1,4 +1,3 @@
-
 import { BarChart3, Users, GraduationCap, Calendar, Brain, Home, User, LogOut, TrendingUp } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -72,6 +71,12 @@ export function DashboardSidebar({ activeView, onViewChange }: DashboardSidebarP
       icon: BarChart3,
       onClick: () => onViewChange('analytics'),
       isActive: activeView === 'analytics'
+    },
+    {
+      title: "Impact Dashboard",
+      href: "/impact-dashboard",
+      icon: TrendingUp,
+      isActive: location.pathname === '/impact-dashboard'
     },
     {
       title: "Student Portals",

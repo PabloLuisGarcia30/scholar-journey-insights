@@ -93,9 +93,238 @@ export type Database = {
         }
         Relationships: []
       }
+      adaptive_learning_metrics: {
+        Row: {
+          created_at: string
+          id: string
+          metadata: Json | null
+          metric_type: string
+          metric_value: number
+          session_context: string | null
+          skill_context: string | null
+          student_id: string
+          timestamp: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          metadata?: Json | null
+          metric_type: string
+          metric_value: number
+          session_context?: string | null
+          skill_context?: string | null
+          student_id: string
+          timestamp?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          metadata?: Json | null
+          metric_type?: string
+          metric_value?: number
+          session_context?: string | null
+          skill_context?: string | null
+          student_id?: string
+          timestamp?: string
+        }
+        Relationships: []
+      }
+      adaptive_learning_profiles: {
+        Row: {
+          cognitive_load_tolerance: string | null
+          confidence_trend: string | null
+          created_at: string | null
+          engagement_score: number | null
+          fatigue_threshold_minutes: number | null
+          help_seeking_frequency: string | null
+          id: string
+          learning_modality: string | null
+          learning_velocity: number | null
+          mistake_recovery_style: string | null
+          optimal_difficulty_progression: string | null
+          optimal_session_length_minutes: number | null
+          preferred_explanation_style: string | null
+          scaffolding_preferences: Json | null
+          student_id: string
+          updated_at: string | null
+          zone_of_proximal_development: Json | null
+        }
+        Insert: {
+          cognitive_load_tolerance?: string | null
+          confidence_trend?: string | null
+          created_at?: string | null
+          engagement_score?: number | null
+          fatigue_threshold_minutes?: number | null
+          help_seeking_frequency?: string | null
+          id?: string
+          learning_modality?: string | null
+          learning_velocity?: number | null
+          mistake_recovery_style?: string | null
+          optimal_difficulty_progression?: string | null
+          optimal_session_length_minutes?: number | null
+          preferred_explanation_style?: string | null
+          scaffolding_preferences?: Json | null
+          student_id: string
+          updated_at?: string | null
+          zone_of_proximal_development?: Json | null
+        }
+        Update: {
+          cognitive_load_tolerance?: string | null
+          confidence_trend?: string | null
+          created_at?: string | null
+          engagement_score?: number | null
+          fatigue_threshold_minutes?: number | null
+          help_seeking_frequency?: string | null
+          id?: string
+          learning_modality?: string | null
+          learning_velocity?: number | null
+          mistake_recovery_style?: string | null
+          optimal_difficulty_progression?: string | null
+          optimal_session_length_minutes?: number | null
+          preferred_explanation_style?: string | null
+          scaffolding_preferences?: Json | null
+          student_id?: string
+          updated_at?: string | null
+          zone_of_proximal_development?: Json | null
+        }
+        Relationships: []
+      }
+      adaptive_recommendations_log: {
+        Row: {
+          confidence_score: number | null
+          created_at: string | null
+          current_confidence: number | null
+          current_performance: number | null
+          effectiveness_score: number | null
+          id: string
+          implementation_timestamp: string | null
+          rationale: string
+          recommendation_data: Json
+          recommendation_type: string
+          skill_context: string
+          student_id: string
+          student_response: string | null
+          trigger_event: string
+          was_implemented: boolean | null
+        }
+        Insert: {
+          confidence_score?: number | null
+          created_at?: string | null
+          current_confidence?: number | null
+          current_performance?: number | null
+          effectiveness_score?: number | null
+          id?: string
+          implementation_timestamp?: string | null
+          rationale: string
+          recommendation_data: Json
+          recommendation_type: string
+          skill_context: string
+          student_id: string
+          student_response?: string | null
+          trigger_event: string
+          was_implemented?: boolean | null
+        }
+        Update: {
+          confidence_score?: number | null
+          created_at?: string | null
+          current_confidence?: number | null
+          current_performance?: number | null
+          effectiveness_score?: number | null
+          id?: string
+          implementation_timestamp?: string | null
+          rationale?: string
+          recommendation_data?: Json
+          recommendation_type?: string
+          skill_context?: string
+          student_id?: string
+          student_response?: string | null
+          trigger_event?: string
+          was_implemented?: boolean | null
+        }
+        Relationships: []
+      }
+      affective_response_flags: {
+        Row: {
+          behavioral_data: Json | null
+          detected_at: string | null
+          exam_id: string | null
+          flag_type: string
+          id: string
+          intensity_score: number | null
+          notes: string | null
+          question_id: string | null
+          student_id: string
+        }
+        Insert: {
+          behavioral_data?: Json | null
+          detected_at?: string | null
+          exam_id?: string | null
+          flag_type: string
+          id?: string
+          intensity_score?: number | null
+          notes?: string | null
+          question_id?: string | null
+          student_id: string
+        }
+        Update: {
+          behavioral_data?: Json | null
+          detected_at?: string | null
+          exam_id?: string | null
+          flag_type?: string
+          id?: string
+          intensity_score?: number | null
+          notes?: string | null
+          question_id?: string | null
+          student_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "affective_response_flags_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "student_data_transition"
+            referencedColumns: ["student_profile_id"]
+          },
+          {
+            foreignKeyName: "affective_response_flags_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "student_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_prompt_personality: {
+        Row: {
+          created_at: string | null
+          difficulty_preference: string | null
+          learning_style: string | null
+          preferred_tone: string | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          difficulty_preference?: string | null
+          learning_style?: string | null
+          preferred_tone?: string | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          difficulty_preference?: string | null
+          learning_style?: string | null
+          preferred_tone?: string | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       answer_keys: {
         Row: {
           acceptable_answers: Json | null
+          choice_misconceptions: Json | null
           correct_answer: string
           created_at: string
           exam_id: string
@@ -111,6 +340,7 @@ export type Database = {
         }
         Insert: {
           acceptable_answers?: Json | null
+          choice_misconceptions?: Json | null
           correct_answer: string
           created_at?: string
           exam_id: string
@@ -126,6 +356,7 @@ export type Database = {
         }
         Update: {
           acceptable_answers?: Json | null
+          choice_misconceptions?: Json | null
           correct_answer?: string
           created_at?: string
           exam_id?: string
@@ -155,6 +386,30 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      api_rate_limits: {
+        Row: {
+          created_at: string | null
+          id: string
+          request_count: number | null
+          service_name: string
+          window_start: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          request_count?: number | null
+          service_name: string
+          window_start: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          request_count?: number | null
+          service_name?: string
+          window_start?: string
+        }
+        Relationships: []
       }
       assignments: {
         Row: {
@@ -214,6 +469,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "student_data_transition"
             referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "assignments_teacher_id_fkey"
+            columns: ["teacher_id"]
+            isOneToOne: false
+            referencedRelation: "teacher_profiles"
+            referencedColumns: ["user_id"]
           },
         ]
       }
@@ -307,6 +569,13 @@ export type Database = {
             referencedColumns: ["profile_id"]
           },
           {
+            foreignKeyName: "class_enrollments_enrolled_by_fkey"
+            columns: ["enrolled_by"]
+            isOneToOne: false
+            referencedRelation: "teacher_profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
             foreignKeyName: "class_enrollments_student_profile_id_fkey"
             columns: ["student_profile_id"]
             isOneToOne: false
@@ -319,6 +588,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "student_data_transition"
             referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "class_enrollments_student_profile_id_fkey"
+            columns: ["student_profile_id"]
+            isOneToOne: false
+            referencedRelation: "teacher_profiles"
+            referencedColumns: ["user_id"]
           },
         ]
       }
@@ -504,6 +780,13 @@ export type Database = {
             referencedColumns: ["profile_id"]
           },
           {
+            foreignKeyName: "content_skill_scores_authenticated_student_id_fkey"
+            columns: ["authenticated_student_id"]
+            isOneToOne: false
+            referencedRelation: "teacher_profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
             foreignKeyName: "content_skill_scores_practice_exercise_id_fkey"
             columns: ["practice_exercise_id"]
             isOneToOne: false
@@ -563,6 +846,102 @@ export type Database = {
           subject?: string
           topic?: string
           updated_at?: string
+        }
+        Relationships: []
+      }
+      conversation_analytics: {
+        Row: {
+          ai_responses: number | null
+          breakthrough_indicators: number | null
+          concepts_clarified: string[] | null
+          confusion_indicators: number | null
+          conversation_id: string
+          created_at: string | null
+          difficulty_adjustments_made: number | null
+          explanation_styles_used: string[] | null
+          help_requests: number | null
+          id: string
+          learning_objectives_achieved: boolean | null
+          misconceptions_addressed: string[] | null
+          session_duration_minutes: number | null
+          skills_practiced: string[] | null
+          student_id: string
+          student_messages: number | null
+          student_satisfaction_score: number | null
+          topic_changes: number | null
+          total_messages: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          ai_responses?: number | null
+          breakthrough_indicators?: number | null
+          concepts_clarified?: string[] | null
+          confusion_indicators?: number | null
+          conversation_id: string
+          created_at?: string | null
+          difficulty_adjustments_made?: number | null
+          explanation_styles_used?: string[] | null
+          help_requests?: number | null
+          id?: string
+          learning_objectives_achieved?: boolean | null
+          misconceptions_addressed?: string[] | null
+          session_duration_minutes?: number | null
+          skills_practiced?: string[] | null
+          student_id: string
+          student_messages?: number | null
+          student_satisfaction_score?: number | null
+          topic_changes?: number | null
+          total_messages?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          ai_responses?: number | null
+          breakthrough_indicators?: number | null
+          concepts_clarified?: string[] | null
+          confusion_indicators?: number | null
+          conversation_id?: string
+          created_at?: string | null
+          difficulty_adjustments_made?: number | null
+          explanation_styles_used?: string[] | null
+          help_requests?: number | null
+          id?: string
+          learning_objectives_achieved?: boolean | null
+          misconceptions_addressed?: string[] | null
+          session_duration_minutes?: number | null
+          skills_practiced?: string[] | null
+          student_id?: string
+          student_messages?: number | null
+          student_satisfaction_score?: number | null
+          topic_changes?: number | null
+          total_messages?: number | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      daily_prompt_cache: {
+        Row: {
+          created_at: string | null
+          expires_at: string | null
+          generated_at: string | null
+          generated_prompt: string
+          prompt_type: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          expires_at?: string | null
+          generated_at?: string | null
+          generated_prompt: string
+          prompt_type: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          expires_at?: string | null
+          generated_at?: string | null
+          generated_prompt?: string
+          prompt_type?: string
+          user_id?: string
         }
         Relationships: []
       }
@@ -644,6 +1023,78 @@ export type Database = {
         }
         Relationships: []
       }
+      escalation_outcomes: {
+        Row: {
+          ambiguity_description: string
+          context: Json | null
+          cost_impact: number | null
+          created_at: string
+          escalation_type: string
+          exam_id: string | null
+          fallback_path: string | null
+          final_confidence: number | null
+          id: string
+          metadata: Json | null
+          models_used: string[] | null
+          original_confidence: number | null
+          original_service: string
+          processing_time_ms: number | null
+          quality_score: number | null
+          question_id: string | null
+          selected_solution: string
+          session_id: string | null
+          student_id: string | null
+          success: boolean | null
+          updated_at: string
+        }
+        Insert: {
+          ambiguity_description: string
+          context?: Json | null
+          cost_impact?: number | null
+          created_at?: string
+          escalation_type: string
+          exam_id?: string | null
+          fallback_path?: string | null
+          final_confidence?: number | null
+          id?: string
+          metadata?: Json | null
+          models_used?: string[] | null
+          original_confidence?: number | null
+          original_service: string
+          processing_time_ms?: number | null
+          quality_score?: number | null
+          question_id?: string | null
+          selected_solution: string
+          session_id?: string | null
+          student_id?: string | null
+          success?: boolean | null
+          updated_at?: string
+        }
+        Update: {
+          ambiguity_description?: string
+          context?: Json | null
+          cost_impact?: number | null
+          created_at?: string
+          escalation_type?: string
+          exam_id?: string | null
+          fallback_path?: string | null
+          final_confidence?: number | null
+          id?: string
+          metadata?: Json | null
+          models_used?: string[] | null
+          original_confidence?: number | null
+          original_service?: string
+          processing_time_ms?: number | null
+          quality_score?: number | null
+          question_id?: string | null
+          selected_solution?: string
+          session_id?: string | null
+          student_id?: string | null
+          success?: boolean | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       exam_skill_analysis: {
         Row: {
           ai_analysis_data: Json | null
@@ -697,9 +1148,11 @@ export type Database = {
       }
       exam_skill_mappings: {
         Row: {
+          auto_created_skill: boolean | null
           concept_missed_short: string | null
           confidence: number
           created_at: string
+          creation_confidence: number | null
           exam_id: string
           id: string
           question_number: number
@@ -707,12 +1160,16 @@ export type Database = {
           skill_name: string
           skill_type: string
           skill_weight: number
+          suggested_skill_description: string | null
+          suggested_skill_name: string | null
           updated_at: string
         }
         Insert: {
+          auto_created_skill?: boolean | null
           concept_missed_short?: string | null
           confidence?: number
           created_at?: string
+          creation_confidence?: number | null
           exam_id: string
           id?: string
           question_number: number
@@ -720,12 +1177,16 @@ export type Database = {
           skill_name: string
           skill_type: string
           skill_weight?: number
+          suggested_skill_description?: string | null
+          suggested_skill_name?: string | null
           updated_at?: string
         }
         Update: {
+          auto_created_skill?: boolean | null
           concept_missed_short?: string | null
           confidence?: number
           created_at?: string
+          creation_confidence?: number | null
           exam_id?: string
           id?: string
           question_number?: number
@@ -733,6 +1194,8 @@ export type Database = {
           skill_name?: string
           skill_type?: string
           skill_weight?: number
+          suggested_skill_description?: string | null
+          suggested_skill_name?: string | null
           updated_at?: string
         }
         Relationships: []
@@ -829,6 +1292,323 @@ export type Database = {
           },
         ]
       }
+      file_jobs: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          error_message: string | null
+          file_group_data: Json
+          id: string
+          max_retries: number
+          priority: string
+          processing_time_ms: number | null
+          result_json: Json | null
+          retry_count: number
+          started_at: string | null
+          status: string
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          error_message?: string | null
+          file_group_data: Json
+          id?: string
+          max_retries?: number
+          priority?: string
+          processing_time_ms?: number | null
+          result_json?: Json | null
+          retry_count?: number
+          started_at?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          error_message?: string | null
+          file_group_data?: Json
+          id?: string
+          max_retries?: number
+          priority?: string
+          processing_time_ms?: number | null
+          result_json?: Json | null
+          retry_count?: number
+          started_at?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      goal_achievements: {
+        Row: {
+          achieved_at: string | null
+          achievement_description: string | null
+          achievement_title: string
+          achievement_type: string
+          celebration_shown: boolean | null
+          created_at: string | null
+          goal_id: string
+          id: string
+          progress_snapshot: Json | null
+          student_id: string
+          value_achieved: number | null
+        }
+        Insert: {
+          achieved_at?: string | null
+          achievement_description?: string | null
+          achievement_title: string
+          achievement_type: string
+          celebration_shown?: boolean | null
+          created_at?: string | null
+          goal_id: string
+          id?: string
+          progress_snapshot?: Json | null
+          student_id: string
+          value_achieved?: number | null
+        }
+        Update: {
+          achieved_at?: string | null
+          achievement_description?: string | null
+          achievement_title?: string
+          achievement_type?: string
+          celebration_shown?: boolean | null
+          created_at?: string | null
+          goal_id?: string
+          id?: string
+          progress_snapshot?: Json | null
+          student_id?: string
+          value_achieved?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "goal_achievements_goal_id_fkey"
+            columns: ["goal_id"]
+            isOneToOne: false
+            referencedRelation: "student_goals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      goal_history: {
+        Row: {
+          achieved: boolean | null
+          achieved_score: number | null
+          concept: string
+          created_at: string | null
+          goal_type: string
+          id: string
+          session_id: string | null
+          submitted_at: string | null
+          target_score: number | null
+          user_id: string | null
+        }
+        Insert: {
+          achieved?: boolean | null
+          achieved_score?: number | null
+          concept: string
+          created_at?: string | null
+          goal_type: string
+          id?: string
+          session_id?: string | null
+          submitted_at?: string | null
+          target_score?: number | null
+          user_id?: string | null
+        }
+        Update: {
+          achieved?: boolean | null
+          achieved_score?: number | null
+          concept?: string
+          created_at?: string | null
+          goal_type?: string
+          id?: string
+          session_id?: string | null
+          submitted_at?: string | null
+          target_score?: number | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "goal_history_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "trailblazer_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      goal_recommendations_log: {
+        Row: {
+          created_at: string | null
+          effectiveness_score: number | null
+          goals_accepted: number | null
+          goals_completed: number | null
+          id: string
+          misconception_data: Json | null
+          recommendation_reasoning: string | null
+          recommended_goals: Json
+          student_id: string
+          student_performance_data: Json
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          effectiveness_score?: number | null
+          goals_accepted?: number | null
+          goals_completed?: number | null
+          id?: string
+          misconception_data?: Json | null
+          recommendation_reasoning?: string | null
+          recommended_goals: Json
+          student_id: string
+          student_performance_data: Json
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          effectiveness_score?: number | null
+          goals_accepted?: number | null
+          goals_completed?: number | null
+          id?: string
+          misconception_data?: Json | null
+          recommendation_reasoning?: string | null
+          recommended_goals?: Json
+          student_id?: string
+          student_performance_data?: Json
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      grading_jobs: {
+        Row: {
+          completed_at: string | null
+          created_at: string | null
+          error_message: string | null
+          id: string
+          job_type: string | null
+          max_retries: number | null
+          payload: Json
+          priority: string | null
+          processing_time_ms: number | null
+          result_payload: Json | null
+          retries: number | null
+          started_at: string | null
+          status: string | null
+          user_id: string | null
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string | null
+          error_message?: string | null
+          id?: string
+          job_type?: string | null
+          max_retries?: number | null
+          payload: Json
+          priority?: string | null
+          processing_time_ms?: number | null
+          result_payload?: Json | null
+          retries?: number | null
+          started_at?: string | null
+          status?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string | null
+          error_message?: string | null
+          id?: string
+          job_type?: string | null
+          max_retries?: number | null
+          payload?: Json
+          priority?: string | null
+          processing_time_ms?: number | null
+          result_payload?: Json | null
+          retries?: number | null
+          started_at?: string | null
+          status?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      job_failures: {
+        Row: {
+          context: Json | null
+          error_message: string | null
+          error_type: string
+          failed_at: string | null
+          id: string
+          job_id: string | null
+          retry_attempt: number | null
+          stack_trace: string | null
+        }
+        Insert: {
+          context?: Json | null
+          error_message?: string | null
+          error_type: string
+          failed_at?: string | null
+          id?: string
+          job_id?: string | null
+          retry_attempt?: number | null
+          stack_trace?: string | null
+        }
+        Update: {
+          context?: Json | null
+          error_message?: string | null
+          error_type?: string
+          failed_at?: string | null
+          id?: string
+          job_id?: string | null
+          retry_attempt?: number | null
+          stack_trace?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "job_failures_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "grading_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      job_payloads: {
+        Row: {
+          created_at: string | null
+          errors_data: Json | null
+          files_data: Json | null
+          job_id: string
+          request_metadata: Json | null
+          results_data: Json | null
+        }
+        Insert: {
+          created_at?: string | null
+          errors_data?: Json | null
+          files_data?: Json | null
+          job_id: string
+          request_metadata?: Json | null
+          results_data?: Json | null
+        }
+        Update: {
+          created_at?: string | null
+          errors_data?: Json | null
+          files_data?: Json | null
+          job_id?: string
+          request_metadata?: Json | null
+          results_data?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "job_payloads_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: true
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       jobs: {
         Row: {
           completed_at: string | null
@@ -871,6 +1651,116 @@ export type Database = {
           retry_count?: number
           started_at?: string | null
           status?: string
+        }
+        Relationships: []
+      }
+      learning_delta_log: {
+        Row: {
+          concept: string
+          final_score: number | null
+          id: string
+          improvement: number | null
+          initial_score: number | null
+          logged_at: string | null
+          mistake_types_fixed: Json | null
+          session_id: string | null
+          user_id: string | null
+        }
+        Insert: {
+          concept: string
+          final_score?: number | null
+          id?: string
+          improvement?: number | null
+          initial_score?: number | null
+          logged_at?: string | null
+          mistake_types_fixed?: Json | null
+          session_id?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          concept?: string
+          final_score?: number | null
+          id?: string
+          improvement?: number | null
+          initial_score?: number | null
+          logged_at?: string | null
+          mistake_types_fixed?: Json | null
+          session_id?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "learning_delta_log_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "trailblazer_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      learning_trajectory_events: {
+        Row: {
+          behavioral_signals: Json | null
+          confidence_after: number | null
+          confidence_before: number | null
+          created_at: string | null
+          difficulty_level: string
+          event_type: string
+          explanation_attempts_count: number | null
+          help_requests_count: number | null
+          id: string
+          intervention_triggered: boolean | null
+          performance_after: number | null
+          performance_before: number | null
+          question_context: Json | null
+          session_id: string | null
+          skill_name: string
+          skill_type: string
+          student_id: string
+          successful_explanation_type: string | null
+          time_to_resolution_seconds: number | null
+        }
+        Insert: {
+          behavioral_signals?: Json | null
+          confidence_after?: number | null
+          confidence_before?: number | null
+          created_at?: string | null
+          difficulty_level: string
+          event_type: string
+          explanation_attempts_count?: number | null
+          help_requests_count?: number | null
+          id?: string
+          intervention_triggered?: boolean | null
+          performance_after?: number | null
+          performance_before?: number | null
+          question_context?: Json | null
+          session_id?: string | null
+          skill_name: string
+          skill_type: string
+          student_id: string
+          successful_explanation_type?: string | null
+          time_to_resolution_seconds?: number | null
+        }
+        Update: {
+          behavioral_signals?: Json | null
+          confidence_after?: number | null
+          confidence_before?: number | null
+          created_at?: string | null
+          difficulty_level?: string
+          event_type?: string
+          explanation_attempts_count?: number | null
+          help_requests_count?: number | null
+          id?: string
+          intervention_triggered?: boolean | null
+          performance_after?: number | null
+          performance_before?: number | null
+          question_context?: Json | null
+          session_id?: string | null
+          skill_name?: string
+          skill_type?: string
+          student_id?: string
+          successful_explanation_type?: string | null
+          time_to_resolution_seconds?: number | null
         }
         Relationships: []
       }
@@ -997,6 +1887,268 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      mini_lesson_requests: {
+        Row: {
+          created_at: string
+          error_message: string | null
+          id: string
+          mini_lesson_id: string | null
+          misconception_subtype_id: string
+          request_context: Json | null
+          status: string | null
+          student_id: string
+        }
+        Insert: {
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          mini_lesson_id?: string | null
+          misconception_subtype_id: string
+          request_context?: Json | null
+          status?: string | null
+          student_id: string
+        }
+        Update: {
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          mini_lesson_id?: string | null
+          misconception_subtype_id?: string
+          request_context?: Json | null
+          status?: string | null
+          student_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mini_lesson_requests_mini_lesson_id_fkey"
+            columns: ["mini_lesson_id"]
+            isOneToOne: false
+            referencedRelation: "mini_lessons"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mini_lesson_requests_misconception_subtype_id_fkey"
+            columns: ["misconception_subtype_id"]
+            isOneToOne: false
+            referencedRelation: "misconception_subtypes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mini_lessons: {
+        Row: {
+          created_at: string
+          difficulty_level: string | null
+          effectiveness_score: number | null
+          generated_at: string
+          generation_context: Json | null
+          id: string
+          last_viewed_at: string | null
+          lesson_content: string
+          misconception_subtype_id: string
+          student_id: string | null
+          triggered_by: string | null
+          updated_at: string
+          viewed_count: number | null
+        }
+        Insert: {
+          created_at?: string
+          difficulty_level?: string | null
+          effectiveness_score?: number | null
+          generated_at?: string
+          generation_context?: Json | null
+          id?: string
+          last_viewed_at?: string | null
+          lesson_content: string
+          misconception_subtype_id: string
+          student_id?: string | null
+          triggered_by?: string | null
+          updated_at?: string
+          viewed_count?: number | null
+        }
+        Update: {
+          created_at?: string
+          difficulty_level?: string | null
+          effectiveness_score?: number | null
+          generated_at?: string
+          generation_context?: Json | null
+          id?: string
+          last_viewed_at?: string | null
+          lesson_content?: string
+          misconception_subtype_id?: string
+          student_id?: string | null
+          triggered_by?: string | null
+          updated_at?: string
+          viewed_count?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mini_lessons_misconception_subtype_id_fkey"
+            columns: ["misconception_subtype_id"]
+            isOneToOne: false
+            referencedRelation: "misconception_subtypes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      misconception_categories: {
+        Row: {
+          category_name: string
+          created_at: string | null
+          description: string | null
+          id: string
+          updated_at: string | null
+        }
+        Insert: {
+          category_name: string
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          updated_at?: string | null
+        }
+        Update: {
+          category_name?: string
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      misconception_feedback_sessions: {
+        Row: {
+          created_at: string | null
+          feedback_type: string
+          id: string
+          intervention_data: Json | null
+          notes: string | null
+          student_misconception_id: string
+          success: boolean | null
+        }
+        Insert: {
+          created_at?: string | null
+          feedback_type: string
+          id?: string
+          intervention_data?: Json | null
+          notes?: string | null
+          student_misconception_id: string
+          success?: boolean | null
+        }
+        Update: {
+          created_at?: string | null
+          feedback_type?: string
+          id?: string
+          intervention_data?: Json | null
+          notes?: string | null
+          student_misconception_id?: string
+          success?: boolean | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "misconception_feedback_sessions_student_misconception_id_fkey"
+            columns: ["student_misconception_id"]
+            isOneToOne: false
+            referencedRelation: "student_misconceptions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      misconception_persistence_logs: {
+        Row: {
+          created_at: string | null
+          first_detected_at: string | null
+          id: string
+          last_detected_at: string | null
+          misconception_subtype_id: string
+          resolution_date: string | null
+          resolved: boolean | null
+          student_id: string
+          total_occurrences: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          first_detected_at?: string | null
+          id?: string
+          last_detected_at?: string | null
+          misconception_subtype_id: string
+          resolution_date?: string | null
+          resolved?: boolean | null
+          student_id: string
+          total_occurrences?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          first_detected_at?: string | null
+          id?: string
+          last_detected_at?: string | null
+          misconception_subtype_id?: string
+          resolution_date?: string | null
+          resolved?: boolean | null
+          student_id?: string
+          total_occurrences?: number | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "misconception_persistence_logs_misconception_subtype_id_fkey"
+            columns: ["misconception_subtype_id"]
+            isOneToOne: false
+            referencedRelation: "misconception_subtypes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "misconception_persistence_logs_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "student_data_transition"
+            referencedColumns: ["student_profile_id"]
+          },
+          {
+            foreignKeyName: "misconception_persistence_logs_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "student_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      misconception_subtypes: {
+        Row: {
+          category_id: string
+          created_at: string | null
+          description: string | null
+          id: string
+          subtype_name: string
+          updated_at: string | null
+        }
+        Insert: {
+          category_id: string
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          subtype_name: string
+          updated_at?: string | null
+        }
+        Update: {
+          category_id?: string
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          subtype_name?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "misconception_subtypes_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "misconception_categories"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       mistake_patterns: {
         Row: {
@@ -1218,6 +2370,13 @@ export type Database = {
             referencedColumns: ["profile_id"]
           },
           {
+            foreignKeyName: "notifications_recipient_id_fkey"
+            columns: ["recipient_id"]
+            isOneToOne: false
+            referencedRelation: "teacher_profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
             foreignKeyName: "notifications_sender_id_fkey"
             columns: ["sender_id"]
             isOneToOne: false
@@ -1230,6 +2389,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "student_data_transition"
             referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "notifications_sender_id_fkey"
+            columns: ["sender_id"]
+            isOneToOne: false
+            referencedRelation: "teacher_profiles"
+            referencedColumns: ["user_id"]
           },
         ]
       }
@@ -1274,6 +2440,7 @@ export type Database = {
       }
       practice_answer_keys: {
         Row: {
+          choice_misconceptions: Json | null
           created_at: string
           exercise_id: string
           id: string
@@ -1282,6 +2449,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          choice_misconceptions?: Json | null
           created_at?: string
           exercise_id: string
           id?: string
@@ -1290,6 +2458,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          choice_misconceptions?: Json | null
           created_at?: string
           exercise_id?: string
           id?: string
@@ -1299,35 +2468,150 @@ export type Database = {
         }
         Relationships: []
       }
+      predictive_misconception_alerts: {
+        Row: {
+          behavioral_signals: Json | null
+          confidence_score: number
+          created_at: string
+          exam_id: string | null
+          exercise_id: string | null
+          id: string
+          predicted_misconception_subtype_id: string | null
+          question_id: string
+          resolution_type: string | null
+          resolved: boolean | null
+          resolved_at: string | null
+          risk_level: string | null
+          student_id: string
+        }
+        Insert: {
+          behavioral_signals?: Json | null
+          confidence_score?: number
+          created_at?: string
+          exam_id?: string | null
+          exercise_id?: string | null
+          id?: string
+          predicted_misconception_subtype_id?: string | null
+          question_id: string
+          resolution_type?: string | null
+          resolved?: boolean | null
+          resolved_at?: string | null
+          risk_level?: string | null
+          student_id: string
+        }
+        Update: {
+          behavioral_signals?: Json | null
+          confidence_score?: number
+          created_at?: string
+          exam_id?: string | null
+          exercise_id?: string | null
+          id?: string
+          predicted_misconception_subtype_id?: string | null
+          question_id?: string
+          resolution_type?: string | null
+          resolved?: boolean | null
+          resolved_at?: string | null
+          risk_level?: string | null
+          student_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "predictive_misconception_aler_predicted_misconception_subt_fkey"
+            columns: ["predicted_misconception_subtype_id"]
+            isOneToOne: false
+            referencedRelation: "misconception_subtypes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           created_at: string | null
+          display_teacher_id: string | null
           email: string | null
           full_name: string | null
           id: string
           role: Database["public"]["Enums"]["app_role"]
-          teacher_id: string | null
           updated_at: string | null
         }
         Insert: {
           created_at?: string | null
+          display_teacher_id?: string | null
           email?: string | null
           full_name?: string | null
           id: string
           role?: Database["public"]["Enums"]["app_role"]
-          teacher_id?: string | null
           updated_at?: string | null
         }
         Update: {
           created_at?: string | null
+          display_teacher_id?: string | null
           email?: string | null
           full_name?: string | null
           id?: string
           role?: Database["public"]["Enums"]["app_role"]
-          teacher_id?: string | null
           updated_at?: string | null
         }
         Relationships: []
+      }
+      progress_metrics: {
+        Row: {
+          accuracy: number | null
+          attempts_count: number | null
+          confidence_score: number | null
+          created_at: string | null
+          id: string
+          misconception_detected: boolean | null
+          misconception_subtype_id: string | null
+          session_id: string | null
+          session_type: string
+          skill_name: string
+          skill_type: string
+          student_id: string
+          time_spent_seconds: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          accuracy?: number | null
+          attempts_count?: number | null
+          confidence_score?: number | null
+          created_at?: string | null
+          id?: string
+          misconception_detected?: boolean | null
+          misconception_subtype_id?: string | null
+          session_id?: string | null
+          session_type?: string
+          skill_name: string
+          skill_type?: string
+          student_id: string
+          time_spent_seconds?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          accuracy?: number | null
+          attempts_count?: number | null
+          confidence_score?: number | null
+          created_at?: string | null
+          id?: string
+          misconception_detected?: boolean | null
+          misconception_subtype_id?: string | null
+          session_id?: string | null
+          session_type?: string
+          skill_name?: string
+          skill_type?: string
+          student_id?: string
+          time_spent_seconds?: number | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "progress_metrics_misconception_subtype_id_fkey"
+            columns: ["misconception_subtype_id"]
+            isOneToOne: false
+            referencedRelation: "misconception_subtypes"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       question_time_tracking: {
         Row: {
@@ -1375,6 +2659,156 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      skill_auto_creation_log: {
+        Row: {
+          auto_created_at: string
+          class_id: string
+          confidence: number
+          context_data: Json | null
+          created_at: string
+          exam_id: string
+          id: string
+          reasoning: string
+          skill_description: string
+          skill_id: string
+          skill_name: string
+          skill_type: string
+        }
+        Insert: {
+          auto_created_at?: string
+          class_id: string
+          confidence: number
+          context_data?: Json | null
+          created_at?: string
+          exam_id: string
+          id?: string
+          reasoning: string
+          skill_description: string
+          skill_id: string
+          skill_name: string
+          skill_type: string
+        }
+        Update: {
+          auto_created_at?: string
+          class_id?: string
+          confidence?: number
+          context_data?: Json | null
+          created_at?: string
+          exam_id?: string
+          id?: string
+          reasoning?: string
+          skill_description?: string
+          skill_id?: string
+          skill_name?: string
+          skill_type?: string
+        }
+        Relationships: []
+      }
+      skill_review_queue: {
+        Row: {
+          class_id: string
+          confidence: number
+          context_evidence: string
+          created_at: string
+          created_skill_id: string | null
+          created_skill_type: string | null
+          exam_id: string
+          grade: string
+          id: string
+          reasoning: string
+          review_notes: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          skill_description: string
+          skill_name: string
+          skill_type: string
+          status: string
+          subject: string
+          topic: string | null
+          updated_at: string
+        }
+        Insert: {
+          class_id: string
+          confidence: number
+          context_evidence: string
+          created_at?: string
+          created_skill_id?: string | null
+          created_skill_type?: string | null
+          exam_id: string
+          grade: string
+          id?: string
+          reasoning: string
+          review_notes?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          skill_description: string
+          skill_name: string
+          skill_type: string
+          status?: string
+          subject: string
+          topic?: string | null
+          updated_at?: string
+        }
+        Update: {
+          class_id?: string
+          confidence?: number
+          context_evidence?: string
+          created_at?: string
+          created_skill_id?: string | null
+          created_skill_type?: string | null
+          exam_id?: string
+          grade?: string
+          id?: string
+          reasoning?: string
+          review_notes?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          skill_description?: string
+          skill_name?: string
+          skill_type?: string
+          status?: string
+          subject?: string
+          topic?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      student_action_logs: {
+        Row: {
+          action_type: string
+          context_summary: Json | null
+          created_at: string
+          id: string
+          reference_id: string | null
+          reference_table: string | null
+          session_type: string | null
+          student_id: string
+          updated_at: string
+        }
+        Insert: {
+          action_type: string
+          context_summary?: Json | null
+          created_at?: string
+          id?: string
+          reference_id?: string | null
+          reference_table?: string | null
+          session_type?: string | null
+          student_id: string
+          updated_at?: string
+        }
+        Update: {
+          action_type?: string
+          context_summary?: Json | null
+          created_at?: string
+          id?: string
+          reference_id?: string | null
+          reference_table?: string | null
+          session_type?: string | null
+          student_id?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       student_class_enrollments: {
         Row: {
@@ -1487,6 +2921,83 @@ export type Database = {
           },
         ]
       }
+      student_goals: {
+        Row: {
+          ai_confidence_score: number | null
+          completed_at: string | null
+          context_data: Json | null
+          created_at: string | null
+          current_value: number | null
+          difficulty_level: string | null
+          goal_description: string
+          goal_title: string
+          goal_type: string
+          id: string
+          is_ai_suggested: boolean | null
+          milestones: Json | null
+          progress_percentage: number | null
+          status: string | null
+          student_id: string
+          target_date: string | null
+          target_misconception_id: string | null
+          target_skill_name: string | null
+          target_value: number
+          updated_at: string | null
+        }
+        Insert: {
+          ai_confidence_score?: number | null
+          completed_at?: string | null
+          context_data?: Json | null
+          created_at?: string | null
+          current_value?: number | null
+          difficulty_level?: string | null
+          goal_description: string
+          goal_title: string
+          goal_type: string
+          id?: string
+          is_ai_suggested?: boolean | null
+          milestones?: Json | null
+          progress_percentage?: number | null
+          status?: string | null
+          student_id: string
+          target_date?: string | null
+          target_misconception_id?: string | null
+          target_skill_name?: string | null
+          target_value: number
+          updated_at?: string | null
+        }
+        Update: {
+          ai_confidence_score?: number | null
+          completed_at?: string | null
+          context_data?: Json | null
+          created_at?: string | null
+          current_value?: number | null
+          difficulty_level?: string | null
+          goal_description?: string
+          goal_title?: string
+          goal_type?: string
+          id?: string
+          is_ai_suggested?: boolean | null
+          milestones?: Json | null
+          progress_percentage?: number | null
+          status?: string | null
+          student_id?: string
+          target_date?: string | null
+          target_misconception_id?: string | null
+          target_skill_name?: string | null
+          target_value?: number
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "student_goals_target_misconception_id_fkey"
+            columns: ["target_misconception_id"]
+            isOneToOne: false
+            referencedRelation: "misconception_subtypes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       student_links: {
         Row: {
           class_id: string | null
@@ -1545,6 +3056,82 @@ export type Database = {
             columns: ["class_id"]
             isOneToOne: false
             referencedRelation: "active_classes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      student_misconceptions: {
+        Row: {
+          confidence_score: number | null
+          content_skill_name: string | null
+          context_data: Json | null
+          corrected: boolean | null
+          created_at: string | null
+          detected_at: string | null
+          exam_id: string | null
+          feedback_given: boolean | null
+          id: string
+          misconception_subtype_id: string
+          question_id: string | null
+          retry_count: number | null
+          skill_id: string | null
+          student_id: string
+          updated_at: string | null
+        }
+        Insert: {
+          confidence_score?: number | null
+          content_skill_name?: string | null
+          context_data?: Json | null
+          corrected?: boolean | null
+          created_at?: string | null
+          detected_at?: string | null
+          exam_id?: string | null
+          feedback_given?: boolean | null
+          id?: string
+          misconception_subtype_id: string
+          question_id?: string | null
+          retry_count?: number | null
+          skill_id?: string | null
+          student_id: string
+          updated_at?: string | null
+        }
+        Update: {
+          confidence_score?: number | null
+          content_skill_name?: string | null
+          context_data?: Json | null
+          corrected?: boolean | null
+          created_at?: string | null
+          detected_at?: string | null
+          exam_id?: string | null
+          feedback_given?: boolean | null
+          id?: string
+          misconception_subtype_id?: string
+          question_id?: string | null
+          retry_count?: number | null
+          skill_id?: string | null
+          student_id?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "student_misconceptions_misconception_subtype_id_fkey"
+            columns: ["misconception_subtype_id"]
+            isOneToOne: false
+            referencedRelation: "misconception_subtypes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "student_misconceptions_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "student_data_transition"
+            referencedColumns: ["student_profile_id"]
+          },
+          {
+            foreignKeyName: "student_misconceptions_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "student_profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -1669,6 +3256,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "student_data_transition"
             referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "student_practice_sessions_authenticated_student_id_fkey"
+            columns: ["authenticated_student_id"]
+            isOneToOne: false
+            referencedRelation: "teacher_profiles"
+            referencedColumns: ["user_id"]
           },
         ]
       }
@@ -1849,6 +3443,13 @@ export type Database = {
             referencedColumns: ["profile_id"]
           },
           {
+            foreignKeyName: "subject_skill_scores_authenticated_student_id_fkey"
+            columns: ["authenticated_student_id"]
+            isOneToOne: false
+            referencedRelation: "teacher_profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
             foreignKeyName: "subject_skill_scores_practice_exercise_id_fkey"
             columns: ["practice_exercise_id"]
             isOneToOne: false
@@ -1974,6 +3575,13 @@ export type Database = {
             referencedColumns: ["profile_id"]
           },
           {
+            foreignKeyName: "test_results_authenticated_student_id_fkey"
+            columns: ["authenticated_student_id"]
+            isOneToOne: false
+            referencedRelation: "teacher_profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
             foreignKeyName: "test_results_class_id_fkey"
             columns: ["class_id"]
             isOneToOne: false
@@ -2002,6 +3610,335 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      trailblazer_achievements: {
+        Row: {
+          achievement_name: string
+          achievement_type: string
+          description: string | null
+          icon_name: string | null
+          id: string
+          metadata: Json | null
+          unlocked_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          achievement_name: string
+          achievement_type: string
+          description?: string | null
+          icon_name?: string | null
+          id?: string
+          metadata?: Json | null
+          unlocked_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          achievement_name?: string
+          achievement_type?: string
+          description?: string | null
+          icon_name?: string | null
+          id?: string
+          metadata?: Json | null
+          unlocked_at?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      trailblazer_session_misconceptions: {
+        Row: {
+          created_at: string | null
+          id: string
+          misconception_id: string
+          question_sequence: number | null
+          resolution_status: string | null
+          session_id: string
+          time_occurred: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          misconception_id: string
+          question_sequence?: number | null
+          resolution_status?: string | null
+          session_id: string
+          time_occurred?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          misconception_id?: string
+          question_sequence?: number | null
+          resolution_status?: string | null
+          session_id?: string
+          time_occurred?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "trailblazer_session_misconceptions_misconception_id_fkey"
+            columns: ["misconception_id"]
+            isOneToOne: false
+            referencedRelation: "student_misconceptions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trailblazer_session_misconceptions_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "trailblazer_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      trailblazer_sessions: {
+        Row: {
+          actual_duration_minutes: number | null
+          class_id: string | null
+          created_at: string | null
+          duration_minutes: number
+          focus_concept: string
+          goal_type: string
+          grade: string | null
+          id: string
+          misconception_ids: string[] | null
+          misconception_summary: Json | null
+          mistake_types_encountered: Json | null
+          score_improvement: number | null
+          session_date: string | null
+          status: string | null
+          subject: string | null
+          updated_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          actual_duration_minutes?: number | null
+          class_id?: string | null
+          created_at?: string | null
+          duration_minutes: number
+          focus_concept: string
+          goal_type: string
+          grade?: string | null
+          id?: string
+          misconception_ids?: string[] | null
+          misconception_summary?: Json | null
+          mistake_types_encountered?: Json | null
+          score_improvement?: number | null
+          session_date?: string | null
+          status?: string | null
+          subject?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          actual_duration_minutes?: number | null
+          class_id?: string | null
+          created_at?: string | null
+          duration_minutes?: number
+          focus_concept?: string
+          goal_type?: string
+          grade?: string | null
+          id?: string
+          misconception_ids?: string[] | null
+          misconception_summary?: Json | null
+          mistake_types_encountered?: Json | null
+          score_improvement?: number | null
+          session_date?: string | null
+          status?: string | null
+          subject?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "trailblazer_sessions_class_id_fkey"
+            columns: ["class_id"]
+            isOneToOne: false
+            referencedRelation: "active_classes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      unified_student_misconceptions: {
+        Row: {
+          confidence_score: number | null
+          content_skill_name: string | null
+          context_data: Json | null
+          correct_answer: string | null
+          created_at: string | null
+          detected_at: string | null
+          id: string
+          misconception_category: string | null
+          misconception_type: string
+          persistence_count: number | null
+          question_id: string | null
+          resolved: boolean | null
+          session_id: string | null
+          session_type: string
+          severity: string | null
+          skill_name: string
+          student_answer: string | null
+          student_id: string
+          updated_at: string | null
+        }
+        Insert: {
+          confidence_score?: number | null
+          content_skill_name?: string | null
+          context_data?: Json | null
+          correct_answer?: string | null
+          created_at?: string | null
+          detected_at?: string | null
+          id?: string
+          misconception_category?: string | null
+          misconception_type: string
+          persistence_count?: number | null
+          question_id?: string | null
+          resolved?: boolean | null
+          session_id?: string | null
+          session_type: string
+          severity?: string | null
+          skill_name: string
+          student_answer?: string | null
+          student_id: string
+          updated_at?: string | null
+        }
+        Update: {
+          confidence_score?: number | null
+          content_skill_name?: string | null
+          context_data?: Json | null
+          correct_answer?: string | null
+          created_at?: string | null
+          detected_at?: string | null
+          id?: string
+          misconception_category?: string | null
+          misconception_type?: string
+          persistence_count?: number | null
+          question_id?: string | null
+          resolved?: boolean | null
+          session_id?: string | null
+          session_type?: string
+          severity?: string | null
+          skill_name?: string
+          student_answer?: string | null
+          student_id?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      unified_student_results: {
+        Row: {
+          created_at: string | null
+          exercise_data: Json | null
+          id: string
+          points_earned: number
+          points_possible: number
+          score: number
+          session_id: string | null
+          session_type: string
+          skill_name: string
+          skill_type: string
+          student_id: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          exercise_data?: Json | null
+          id?: string
+          points_earned?: number
+          points_possible?: number
+          score: number
+          session_id?: string | null
+          session_type: string
+          skill_name: string
+          skill_type: string
+          student_id: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          exercise_data?: Json | null
+          id?: string
+          points_earned?: number
+          points_possible?: number
+          score?: number
+          session_id?: string | null
+          session_type?: string
+          skill_name?: string
+          skill_type?: string
+          student_id?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      user_concept_mastery: {
+        Row: {
+          concept: string
+          created_at: string | null
+          last_practiced_at: string | null
+          mastery_score: number | null
+          mistake_history: Json | null
+          practice_count: number | null
+          time_spent_minutes: number | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          concept: string
+          created_at?: string | null
+          last_practiced_at?: string | null
+          mastery_score?: number | null
+          mistake_history?: Json | null
+          practice_count?: number | null
+          time_spent_minutes?: number | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          concept?: string
+          created_at?: string | null
+          last_practiced_at?: string | null
+          mastery_score?: number | null
+          mistake_history?: Json | null
+          practice_count?: number | null
+          time_spent_minutes?: number | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      user_streaks: {
+        Row: {
+          created_at: string | null
+          current_streak_days: number | null
+          last_session_date: string | null
+          longest_streak_days: number | null
+          rescue_used_today: boolean | null
+          total_sessions: number | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          current_streak_days?: number | null
+          last_session_date?: string | null
+          longest_streak_days?: number | null
+          rescue_used_today?: boolean | null
+          total_sessions?: number | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          current_streak_days?: number | null
+          last_session_date?: string | null
+          longest_streak_days?: number | null
+          rescue_used_today?: boolean | null
+          total_sessions?: number | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
       }
       validation_logs: {
         Row: {
@@ -2059,6 +3996,27 @@ export type Database = {
       }
     }
     Views: {
+      job_performance_stats: {
+        Row: {
+          avg_duration_seconds: number | null
+          job_count: number | null
+          max_duration_seconds: number | null
+          newest_job: string | null
+          oldest_job: string | null
+          status: string | null
+        }
+        Relationships: []
+      }
+      question_misconceptions: {
+        Row: {
+          choice_misconceptions: Json | null
+          question_number: number | null
+          question_source: string | null
+          question_text: string | null
+          source_id: string | null
+        }
+        Relationships: []
+      }
       student_data_transition: {
         Row: {
           auth_user_name: string | null
@@ -2072,8 +4030,42 @@ export type Database = {
         }
         Relationships: []
       }
+      teacher_profiles: {
+        Row: {
+          created_at: string | null
+          display_teacher_id: string | null
+          email: string | null
+          full_name: string | null
+          role: Database["public"]["Enums"]["app_role"] | null
+          updated_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          display_teacher_id?: string | null
+          email?: string | null
+          full_name?: string | null
+          role?: Database["public"]["Enums"]["app_role"] | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          display_teacher_id?: string | null
+          email?: string | null
+          full_name?: string | null
+          role?: Database["public"]["Enums"]["app_role"] | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
+      calculate_goal_progress: {
+        Args: { p_goal_id: string }
+        Returns: number
+      }
       calculate_updated_skill_score: {
         Args: {
           current_score: number
@@ -2082,6 +4074,58 @@ export type Database = {
           recency_weight?: number
         }
         Returns: number
+      }
+      claim_file_jobs: {
+        Args: { batch_size?: number }
+        Returns: {
+          completed_at: string | null
+          created_at: string
+          error_message: string | null
+          file_group_data: Json
+          id: string
+          max_retries: number
+          priority: string
+          processing_time_ms: number | null
+          result_json: Json | null
+          retry_count: number
+          started_at: string | null
+          status: string
+          updated_at: string
+          user_id: string | null
+        }[]
+      }
+      claim_pending_jobs: {
+        Args: { batch_size: number }
+        Returns: {
+          completed_at: string | null
+          created_at: string
+          errors: Json
+          files: Json
+          id: string
+          max_retries: number
+          priority: string
+          progress: number
+          results: Json
+          retry_count: number
+          started_at: string | null
+          status: string
+        }[]
+      }
+      cleanup_completed_grading_jobs: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
+      cleanup_old_cache: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
+      detect_goal_achievements: {
+        Args: { p_student_id: string; p_goal_id: string }
+        Returns: undefined
+      }
+      generate_display_teacher_id: {
+        Args: Record<PropertyKey, never>
+        Returns: string
       }
       generate_teacher_id: {
         Args: Record<PropertyKey, never>
@@ -2127,6 +4171,29 @@ export type Database = {
           created_at: string
         }[]
       }
+      get_class_concepts_for_session: {
+        Args: { p_class_id: string }
+        Returns: {
+          concept_name: string
+          subject: string
+          grade: string
+          skill_names: string[]
+        }[]
+      }
+      get_class_progress_analytics: {
+        Args: { p_class_id: string; p_days?: number }
+        Returns: {
+          student_id: string
+          student_name: string
+          skill_name: string
+          skill_type: string
+          accuracy: number
+          confidence_score: number
+          attempts_count: number
+          misconceptions_count: number
+          last_practiced_at: string
+        }[]
+      }
       get_enhanced_mistake_analysis: {
         Args: { student_uuid: string; skill_filter?: string }
         Returns: {
@@ -2139,6 +4206,38 @@ export type Database = {
           remediation_themes: string[]
           cognitive_patterns: Json
         }[]
+      }
+      get_exam_skill_name: {
+        Args: { p_exam_id: string; p_question_number: number }
+        Returns: string
+      }
+      get_file_job_queue_stats: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          pending_jobs: number
+          processing_jobs: number
+          completed_jobs_today: number
+          failed_jobs_today: number
+          avg_processing_time_ms: number
+        }[]
+      }
+      get_grading_queue_stats: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          pending_jobs: number
+          processing_jobs: number
+          completed_jobs_today: number
+          failed_jobs_today: number
+          avg_processing_time_ms: number
+        }[]
+      }
+      get_or_create_adaptive_profile: {
+        Args: { p_student_id: string }
+        Returns: string
+      }
+      get_processing_job_count: {
+        Args: Record<PropertyKey, never>
+        Returns: number
       }
       get_question_timing_analytics: {
         Args: { student_uuid: string }
@@ -2197,6 +4296,31 @@ export type Database = {
           last_updated: string
         }[]
       }
+      get_student_enrolled_classes: {
+        Args: { student_user_id: string }
+        Returns: {
+          class_id: string
+          class_name: string
+          subject: string
+          grade: string
+          teacher_name: string
+        }[]
+      }
+      get_student_exercise_skill_name: {
+        Args: { p_exercise_id: string }
+        Returns: string
+      }
+      get_student_goal_analytics: {
+        Args: { p_student_id: string }
+        Returns: {
+          total_goals: number
+          active_goals: number
+          completed_goals: number
+          avg_completion_time_days: number
+          most_successful_goal_type: string
+          current_streaks: Json
+        }[]
+      }
       get_student_mistake_patterns: {
         Args: { student_uuid: string; skill_filter?: string }
         Returns: {
@@ -2206,6 +4330,64 @@ export type Database = {
           total_questions: number
           mistake_rate: number
         }[]
+      }
+      get_student_progress_analytics: {
+        Args: { p_student_id: string; p_days?: number }
+        Returns: {
+          skill_name: string
+          skill_type: string
+          avg_accuracy: number
+          avg_confidence: number
+          total_attempts: number
+          total_time_spent: number
+          latest_accuracy: number
+          improvement_trend: number
+          session_types: string[]
+        }[]
+      }
+      get_teacher_students_trailblazer_progress: {
+        Args: { teacher_user_id?: string }
+        Returns: {
+          student_id: string
+          student_name: string
+          current_streak_days: number
+          total_sessions: number
+          avg_mastery_score: number
+          last_session_date: string
+          class_name: string
+        }[]
+      }
+      get_unified_misconception_analysis: {
+        Args: { p_student_id: string; p_days?: number }
+        Returns: {
+          skill_name: string
+          misconception_type: string
+          misconception_category: string
+          total_occurrences: number
+          avg_persistence: number
+          severity_distribution: Json
+          session_types: string[]
+          resolved_count: number
+          active_count: number
+          latest_detection: string
+        }[]
+      }
+      get_unified_student_performance: {
+        Args: { p_student_id: string; p_days?: number }
+        Returns: {
+          skill_name: string
+          skill_type: string
+          avg_score: number
+          total_attempts: number
+          best_score: number
+          latest_score: number
+          session_types: string[]
+          last_practiced_at: string
+        }[]
+      }
+      get_user_display_teacher_id: {
+        Args: { user_uuid: string }
+        Returns: string
       }
       get_user_role: {
         Args: { user_id: string }
@@ -2222,8 +4404,50 @@ export type Database = {
           suggested_interventions: string[]
         }[]
       }
+      log_learning_event: {
+        Args: {
+          p_student_id: string
+          p_event_type: string
+          p_skill_name: string
+          p_skill_type: string
+          p_difficulty_level: string
+          p_performance_change?: number
+          p_confidence_change?: number
+          p_context?: Json
+        }
+        Returns: string
+      }
       migrate_student_data_to_auth_users: {
         Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
+      release_queue_lock: {
+        Args: Record<PropertyKey, never>
+        Returns: boolean
+      }
+      try_acquire_queue_lock: {
+        Args: Record<PropertyKey, never>
+        Returns: boolean
+      }
+      update_concept_mastery: {
+        Args: {
+          p_user_id: string
+          p_concept: string
+          p_score_change: number
+          p_time_spent: number
+        }
+        Returns: undefined
+      }
+      update_learning_velocity: {
+        Args: { p_student_id: string; p_performance_change: number }
+        Returns: undefined
+      }
+      update_misconception_persistence: {
+        Args: { p_student_id: string; p_subtype_id: string }
+        Returns: undefined
+      }
+      update_user_streak: {
+        Args: { p_user_id: string }
         Returns: undefined
       }
     }
